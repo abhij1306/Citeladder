@@ -22,7 +22,9 @@ from fastapi.responses import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.site_health.exports import (
+    ARCHITECTURE_EXPORT_VIEW,
     EXPORT_VIEWS,
+    architecture_to_markdown,
     rows_to_csv,
     rows_to_markdown,
 )
@@ -224,14 +226,34 @@ async def _export_items(
     return items, truncated
 
 
-def _validate_view(view: str) -> str:
-    if view not in EXPORT_VIEWS:
+def _validate_view(view: str, *, allowed: frozenset[str]) -> str:
+    if view not in allowed:
         raise ApiException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             CODE_VALIDATION_ERROR,
             f"unknown export view: {view}",
         )
     return view
+
+
+async def _architecture_markdown(
+    session: AsyncSession, *, workspace_id: uuid.UUID, crawl_id: uuid.UUID
+) -> str:
+    """Render the crawl's observed architecture, resolved through its project.
+
+    The tree export reads the SAME workspace-scoped projection the JSON route
+    returns, so it can never disclose more than the API.
+    """
+    crawl = await service.get_crawl_summary(
+        session, workspace_id=workspace_id, crawl_id=crawl_id
+    )
+    model = await service.get_architecture(
+        session,
+        workspace_id=workspace_id,
+        project_id=crawl["project_id"],
+        crawl_id=crawl_id,
+    )
+    return architecture_to_markdown(model)
 
 
 @router.get("/site-crawls/{crawl_id}/export.csv")
@@ -241,7 +263,8 @@ async def export_csv_endpoint(
     session: _SessionDep,
     view: Annotated[str, Query()] = "inventory",
 ) -> Response:
-    view = _validate_view(view)
+    # The architecture tree is Markdown-only — a tree is not a table.
+    view = _validate_view(view, allowed=EXPORT_VIEWS)
     try:
         items, truncated = await _export_items(
             session, workspace_id=ctx.workspace_id, crawl_id=crawl_id, view=view
@@ -270,14 +293,20 @@ async def export_markdown_endpoint(
     session: _SessionDep,
     view: Annotated[str, Query()] = "inventory",
 ) -> PlainTextResponse:
-    view = _validate_view(view)
+    view = _validate_view(view, allowed=EXPORT_VIEWS | {ARCHITECTURE_EXPORT_VIEW})
+    truncated = False
     try:
-        items, truncated = await _export_items(
-            session, workspace_id=ctx.workspace_id, crawl_id=crawl_id, view=view
-        )
+        if view == ARCHITECTURE_EXPORT_VIEW:
+            body = await _architecture_markdown(
+                session, workspace_id=ctx.workspace_id, crawl_id=crawl_id
+            )
+        else:
+            items, truncated = await _export_items(
+                session, workspace_id=ctx.workspace_id, crawl_id=crawl_id, view=view
+            )
+            body = rows_to_markdown(view, items)
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc
-    body = rows_to_markdown(view, items)
     headers = {
         "Content-Disposition": (
             f'attachment; filename="site-health-{crawl_id}-{view}.md"'

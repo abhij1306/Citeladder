@@ -91,6 +91,7 @@ function crawl(overrides: Record<string, unknown> = {}) {
     sample_mode: false,
     seed: '1',
     inventory_complete: true,
+    partial_reason: '',
     visible_url_count: 3,
     analyzed_count: 0,
     failed_count: 0,
@@ -468,6 +469,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
         discovery_status: 'running',
         analysis_status: 'running',
         inventory_complete: false,
+        partial_reason: '',
         score_summary: null,
       },
       'analyzing',
@@ -582,6 +584,7 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
       discovery_status: 'running',
       analysis_status: 'pending',
       inventory_complete: false,
+      partial_reason: '',
       score_summary: null,
       completed_at: null,
     });
@@ -646,6 +649,7 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
           discovery_status: 'running',
           analysis_status: 'pending',
           inventory_complete: false,
+          partial_reason: '',
           score_summary: null,
           completed_at: null,
         });

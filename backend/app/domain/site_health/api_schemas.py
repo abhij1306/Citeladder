@@ -250,6 +250,16 @@ class CrawlResponse(_Model):
     sample_mode: bool
     seed: str
     inventory_complete: bool
+    # Why a PARTIALLY_COMPLETED crawl is partial: URLs that could not be
+    # fetched during discovery, analyses that fell short, or both. Empty on
+    # every other status. Unreachable links are routine on a real site and are
+    # NOT an analysis failure, so the two can never share one message.
+    partial_reason: Literal[
+        "",
+        "discovery_incomplete",
+        "analysis_incomplete",
+        "discovery_and_analysis_incomplete",
+    ] = ""
     visible_url_count: int
     analyzed_count: int
     failed_count: int
@@ -370,6 +380,11 @@ class PageSummary(_Model):
     aeo_score: float | None
     overall_score: float | None
     last_audited: str | None
+    # Persisted internal-link projection (PR2). None means UNMEASURED — this
+    # crawl wrote no metric row for the URL — never "nothing links here".
+    inbound_count: int | None = None
+    main_content_inbound_count: int | None = None
+    depth_from_home: int | None = None
 
 
 class RootError(_Model):
@@ -463,6 +478,38 @@ class RuleEvaluation(_Model):
     created_at: str
 
 
+class LinkNeighbour(_Model):
+    """One bounded top-N neighbour of a page in the crawl's link graph."""
+
+    site_url_id: uuid.UUID | None = None
+    url: str
+    anchor_count: int
+    main_content: bool
+    nofollow: bool
+    rel: list[str] = []
+
+
+class InternalLinks(_Model):
+    """A page's persisted internal-link metrics and bounded neighbours.
+
+    ``depth_from_home`` is shortest-path over ALL followable internal links
+    (navigation links are real clicks); ``main_content_inbound_count`` is the
+    separate "genuinely linked, or only in the menu" signal, derived from the
+    per-anchor DOM region — never from link frequency.
+    """
+
+    inbound_count: int
+    outbound_count: int
+    main_content_inbound_count: int
+    main_content_outbound_count: int
+    nofollow_inbound_count: int
+    depth_from_home: int | None
+    source_page_count: int
+    top_inbound: list[LinkNeighbour]
+    top_outbound: list[LinkNeighbour]
+    formula_version: str
+
+
 class PageDetail(_Model):
     site_url_id: uuid.UUID
     crawl_id: uuid.UUID
@@ -487,6 +534,8 @@ class PageDetail(_Model):
     last_audited: str | None
     facts: PageFacts
     delivery: DeliveryFacts
+    # None when this crawl persisted no link metric for the URL.
+    internal_links: InternalLinks | None = None
     issues: list[SiteIssue]
     evaluations: list[RuleEvaluation]
     artifact_id: uuid.UUID | None
@@ -643,18 +692,42 @@ class DashboardResponse(_Model):
 ReadinessState = Literal["available", "incomplete", "unavailable"]
 
 
-class ReadinessEvidenceLink(_Model):
-    evaluation_id: uuid.UUID
-    analysis_id: uuid.UUID
+class ReadinessFailingCheckResponse(_Model):
+    """One failed check on a page, named the way the catalog names it."""
+
+    rule_id: str
+    title: str
+
+
+class ReadinessEvidencePageResponse(_Model):
+    """One failing page and every check of this dimension it failed.
+
+    Evidence is grouped by PAGE. The previous one-row-per-evaluation shape
+    repeated the same URL once per rule, which read as duplicate links.
+    """
+
     site_url_id: uuid.UUID
     normalized_url: str
+    failed_checks: list[ReadinessFailingCheckResponse]
+
+
+class ReadinessCheckResponse(_Model):
+    """One mapped rule rolled up, carrying its catalog title and fix."""
+
     rule_id: str
-    outcome: Literal["pass", "fail", "not_applicable", "error"]
+    title: str
+    remediation: str
+    pass_count: int
+    fail_count: int
+    not_applicable_count: int
+    failing_page_count: int
 
 
 class ReadinessDimensionResponse(_Model):
     key: str
     label: str
+    # One plain sentence saying what the dimension means.
+    description: str
     rule_ids: list[str]
     pass_count: int
     fail_count: int
@@ -663,7 +736,15 @@ class ReadinessDimensionResponse(_Model):
     observed_evaluation_count: int
     expected_evaluation_count: int
     coverage: float | None
-    evidence_links: list[ReadinessEvidenceLink]
+    # Distinct pages where a check of this dimension actually applied, and how
+    # many of those failed at least one. These are the human-scale quantities;
+    # the evaluation counts above remain the provenance.
+    checked_page_count: int
+    failing_page_count: int
+    checks: list[ReadinessCheckResponse]
+    # Bounded — always read beside ``failing_page_count``, never as the total.
+    evidence_pages: list[ReadinessEvidencePageResponse]
+    evidence_truncated: bool
 
 
 class AeoReadinessResponse(_Model):

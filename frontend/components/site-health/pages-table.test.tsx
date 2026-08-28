@@ -32,6 +32,9 @@ function page(overrides: Partial<PageSummary> = {}): PageSummary {
     last_audited: '2026-07-16T00:00:00Z',
     // Distinct from `title` so badge-text assertions stay unambiguous.
     page_kind: 'article',
+    inbound_count: 12,
+    main_content_inbound_count: 4,
+    depth_from_home: 1,
     ...overrides,
   };
 }
@@ -108,5 +111,58 @@ describe('PagesTable', () => {
       'href',
       `/site/crawls/${SOURCE_CRAWL}/pages/${UUID}`,
     );
+  });
+
+  it('renders the internal-link metrics the crawl persisted', () => {
+    render(<PagesTable pages={[page()]} crawlId={CRAWL} />);
+    expect(screen.getByText('12')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Main-content inbound/ })).toBeInTheDocument();
+  });
+
+  it('shows an unmeasured link metric as Not measured, never a zero', () => {
+    render(
+      <PagesTable
+        pages={[
+          page({ inbound_count: null, main_content_inbound_count: null, depth_from_home: null }),
+        ]}
+        crawlId={CRAWL}
+      />,
+    );
+    expect(screen.getAllByText('Not measured')).toHaveLength(3);
+  });
+
+  it('asks the server to reorder, and marks the active column', async () => {
+    const onSortChange = vi.fn();
+    const { rerender } = render(
+      <PagesTable pages={[page()]} crawlId={CRAWL} sort="url" onSortChange={onSortChange} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /^Inbound/ }));
+    expect(onSortChange).toHaveBeenCalledWith('inbound');
+
+    rerender(
+      <PagesTable pages={[page()]} crawlId={CRAWL} sort="inbound" onSortChange={onSortChange} />,
+    );
+    expect(screen.getByRole('columnheader', { name: /^Inbound/ })).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    );
+    // Depth reads shallowest-first, so its one meaningful direction ascends.
+    fireEvent.click(screen.getByRole('button', { name: /^Depth/ }));
+    expect(onSortChange).toHaveBeenLastCalledWith('depth');
+  });
+
+  it('clicking the active sort returns to the default URL order', () => {
+    const onSortChange = vi.fn();
+    render(
+      <PagesTable pages={[page()]} crawlId={CRAWL} sort="depth" onSortChange={onSortChange} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /^Depth/ }));
+    expect(onSortChange).toHaveBeenCalledWith('url');
+  });
+
+  it('renders plain link headers where the table cannot reorder', () => {
+    render(<PagesTable pages={[page()]} crawlId={CRAWL} />);
+    expect(screen.queryByRole('button', { name: /^Inbound/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Inbound' })).toBeInTheDocument();
   });
 });

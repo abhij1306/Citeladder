@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScoreRing } from '@/components/ui/score-ring';
 import { Label, displayHeadingLgClasses } from '@/components/ui/typography';
+import { InternalLinksCard } from '@/components/site-health/internal-links-card';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import type { DeliveryFacts, PageDetail, SiteIssue } from '@/lib/api/types';
 import { ICONS } from '@/lib/icons';
@@ -68,6 +69,7 @@ export function UrlDetailView({
         <ScoreTile label="Combined" value={detail.overall_score} />
       </div>
       <DeliveryMetrics delivery={detail.delivery} />
+      <InternalLinksCard links={detail.internal_links} crawlId={detail.crawl_id} />
       <IssuesList issues={detail.issues} />
     </>
   );

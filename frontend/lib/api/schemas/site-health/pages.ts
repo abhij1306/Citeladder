@@ -54,6 +54,11 @@ export const pageSummarySchema = responseObject({
   analysis_status: pageAnalysisStatusSchema,
   error_code: z.string(),
   ...analysisSummaryFields,
+  // Persisted internal-link metrics for this crawl. `null` means UNMEASURED —
+  // the crawl wrote no metric row for the URL — never "nothing links here".
+  inbound_count: z.number().int().nullable(),
+  main_content_inbound_count: z.number().int().nullable(),
+  depth_from_home: z.number().int().nullable(),
 });
 
 // One REAL root-target network call the crawl lost (SH-4 — B3). Deliberately
@@ -92,6 +97,34 @@ const ruleEvaluationSchema = responseObject({
   created_at: z.string(),
 });
 
+// One bounded top-N neighbour of a page in the crawl's internal link graph.
+const linkNeighbourSchema = responseObject({
+  site_url_id: uuid().nullable(),
+  url: z.string(),
+  anchor_count: z.number().int(),
+  main_content: z.boolean(),
+  nofollow: z.boolean(),
+  rel: z.array(z.string()),
+});
+
+// A page's persisted internal-link metrics. `depth_from_home` is shortest-path
+// over ALL followable internal links (a nav link is a real click);
+// `main_content_inbound_count` is the separate "genuinely linked, or only in
+// the menu" signal, taken from each anchor's DOM region — never from link
+// frequency.
+export const internalLinksSchema = responseObject({
+  inbound_count: z.number().int(),
+  outbound_count: z.number().int(),
+  main_content_inbound_count: z.number().int(),
+  main_content_outbound_count: z.number().int(),
+  nofollow_inbound_count: z.number().int(),
+  depth_from_home: z.number().int().nullable(),
+  source_page_count: z.number().int(),
+  top_inbound: z.array(linkNeighbourSchema),
+  top_outbound: z.array(linkNeighbourSchema),
+  formula_version: z.string(),
+});
+
 // Full analyzed-page detail (persisted facts/delivery/scores/issues/provenance).
 export const pageDetailSchema = responseObject({
   site_url_id: uuid(),
@@ -116,6 +149,8 @@ export const pageDetailSchema = responseObject({
   // EXECUTED abstention — a different fact, rendered differently.
   facts: pageFactsSchema,
   delivery: deliveryFactsSchema,
+  // Null when this crawl persisted no link metric for the URL.
+  internal_links: internalLinksSchema.nullable(),
   issues: z.array(siteIssueSchema),
   evaluations: z.array(ruleEvaluationSchema),
   artifact_id: uuid().nullable(),

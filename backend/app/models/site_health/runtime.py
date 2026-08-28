@@ -118,6 +118,11 @@ class SiteHealthProfile(Base):
     include_globs: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     exclude_globs: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     selection_version: Mapped[int] = mapped_column(Integer, default=0)
+    # The single architecture correction surface: a user-chosen archetype that
+    # overrides the onboarding-derived one at READ time. It never rewrites the
+    # immutable observed-architecture row, produces no defect, and affects no
+    # score. NULL means "use whatever the model derived".
+    archetype_override: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { MutationNotice } from '@/components/ui/mutation-notice';
 import { SiteHealthDashboardLayout } from '@/components/site-health/dashboard-layout';
 import { AeoReadinessPanel } from '@/components/site-health/aeo-readiness-panel';
+import { ArchitecturePanel } from '@/components/site-health/architecture-panel';
 import { ChangesPanel } from '@/components/site-health/changes-panel';
 import { ScreenHeader, ScreenSkeleton } from '@/components/site-health/screen-states';
 import { mutationNoticeForError } from '@/lib/api/mutation-notice';
@@ -31,7 +32,7 @@ function LoadedSiteHealthScreen({
   projectId,
   screen,
 }: Readonly<{ projectId: string; screen: ReturnType<typeof useSiteHealthScreen> }>) {
-  const [tab, setTab] = useState<'pages' | 'aeo-readiness' | 'changes'>('pages');
+  const [tab, setTab] = useState<AnalysisTab>('pages');
   const {
     entitlementQuery,
     dashboardQuery,
@@ -101,19 +102,28 @@ function LoadedSiteHealthScreen({
   );
 }
 
+type AnalysisTab = 'pages' | 'architecture' | 'aeo-readiness' | 'changes';
+
+const ANALYSIS_TABS: ReadonlyArray<{ value: AnalysisTab; label: string }> = [
+  { value: 'pages', label: 'Pages' },
+  { value: 'architecture', label: 'Architecture' },
+  { value: 'aeo-readiness', label: 'AEO Readiness' },
+  { value: 'changes', label: 'Changes' },
+];
+
 function AnalysisTabs({
   tab,
   setTab,
   actions,
 }: Readonly<{
   tab: string;
-  setTab: (tab: 'pages' | 'aeo-readiness' | 'changes') => void;
+  setTab: (tab: AnalysisTab) => void;
   actions: React.ReactNode;
 }>) {
   return (
     <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b">
       <div className="-mb-px flex gap-1" role="tablist" aria-label="Website analysis">
-        {(['pages', 'aeo-readiness', 'changes'] as const).map((value) => (
+        {ANALYSIS_TABS.map(({ value, label }) => (
           <button
             key={value}
             type="button"
@@ -122,7 +132,7 @@ function AnalysisTabs({
             className={`min-h-10 border-b-2 px-3 text-sm font-medium transition-colors ${tab === value ? 'border-accent text-foreground' : 'text-muted hover:text-foreground border-transparent'}`}
             onClick={() => setTab(value)}
           >
-            {value === 'aeo-readiness' ? 'AEO Readiness' : value[0].toUpperCase() + value.slice(1)}
+            {label}
           </button>
         ))}
       </div>
@@ -146,6 +156,10 @@ function AnalysisPanel({
 }>) {
   if (tab === 'pages')
     return <SiteHealthDashboardLayout screen={screen} entitlement={entitlement} />;
+  // Architecture reads a project-scoped projection, so it renders its own
+  // "derived after the crawl finishes" state rather than needing a crawl here.
+  if (tab === 'architecture')
+    return <ArchitecturePanel key={projectId} projectId={projectId} crawlId={crawlId} />;
   if (tab === 'aeo-readiness' && crawlId)
     return <AeoReadinessPanel projectId={projectId} crawlId={crawlId} />;
   if (tab === 'changes') return <ChangesPanel key={projectId} projectId={projectId} />;

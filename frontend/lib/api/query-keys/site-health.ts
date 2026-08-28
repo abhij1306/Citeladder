@@ -17,6 +17,8 @@ export const siteHealthKeys = {
     ['site-health', 'dashboard', projectId, crawlId ?? 'latest'] as const,
   aeoReadiness: (projectId: string, crawlId?: string) =>
     ['site-health', 'aeo-readiness', projectId, crawlId ?? 'latest'] as const,
+  architecture: (projectId: string, crawlId?: string) =>
+    ['site-health', 'architecture', projectId, crawlId ?? 'latest'] as const,
   changes: (projectId: string, crawlAId?: string, crawlBId?: string, cursor?: string) =>
     [
       'site-health',

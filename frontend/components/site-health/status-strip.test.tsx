@@ -36,6 +36,9 @@ function page(overrides: Partial<PageSummary> = {}): PageSummary {
     overall_score: 55,
     last_audited: '2026-07-16T00:00:00Z',
     page_kind: 'article',
+    inbound_count: 12,
+    main_content_inbound_count: 4,
+    depth_from_home: 1,
     ...overrides,
   };
 }
@@ -73,6 +76,7 @@ function crawl(overrides: Partial<SiteCrawl> = {}): SiteCrawl {
     sample_mode: false,
     seed: '1',
     inventory_complete: true,
+    partial_reason: '',
     visible_url_count: 3,
     analyzed_count: 1,
     failed_count: 0,
@@ -290,6 +294,7 @@ describe('StatusStrip — lifecycle content', () => {
         discovery_status: 'running',
         analysis_status: 'pending',
         inventory_complete: false,
+        partial_reason: '',
         sample_mode: false,
         score_summary: null,
       }),
@@ -308,6 +313,7 @@ describe('StatusStrip — lifecycle content', () => {
         discovery_status: 'running',
         analysis_status: 'pending',
         inventory_complete: false,
+        partial_reason: '',
         score_summary: null,
       }),
     });

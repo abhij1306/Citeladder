@@ -106,13 +106,30 @@ export const changesPageSchema = changeSummarySchema.extend({
   next_cursor: z.string().nullable(),
 });
 
-export const readinessEvidenceLinkSchema = responseObject({
-  evaluation_id: uuid(),
-  analysis_id: uuid(),
+// One failed check on a page, named the way the rule catalog names it. A raw
+// rule id (`aeo.answer_first`) never reaches the screen.
+export const readinessFailingCheckSchema = responseObject({
+  rule_id: z.string(),
+  title: z.string(),
+});
+
+// Evidence is one row per FAILING PAGE listing that page's failed checks —
+// never one row per evaluation, which repeated the same URL once per rule.
+export const readinessEvidencePageSchema = responseObject({
   site_url_id: uuid(),
   normalized_url: z.string(),
+  failed_checks: z.array(readinessFailingCheckSchema),
+});
+
+// One mapped rule rolled up, carrying the catalog title and the fix.
+export const readinessCheckSchema = responseObject({
   rule_id: z.string(),
-  outcome: z.enum(['pass', 'fail', 'not_applicable', 'error']),
+  title: z.string(),
+  remediation: z.string(),
+  pass_count: z.number().int(),
+  fail_count: z.number().int(),
+  not_applicable_count: z.number().int(),
+  failing_page_count: z.number().int(),
 });
 
 export const readinessDimensionSchema = responseObject({
@@ -126,6 +143,7 @@ export const readinessDimensionSchema = responseObject({
     'crawlability',
   ]),
   label: z.string(),
+  description: z.string(),
   rule_ids: z.array(z.string()),
   pass_count: z.number().int(),
   fail_count: z.number().int(),
@@ -134,7 +152,14 @@ export const readinessDimensionSchema = responseObject({
   observed_evaluation_count: z.number().int(),
   expected_evaluation_count: z.number().int(),
   coverage: z.number().nullable(),
-  evidence_links: z.array(readinessEvidenceLinkSchema),
+  // Human-scale quantities: pages a check applied to, and pages that failed at
+  // least one. Always render `evidence_pages.length` against these, never as a
+  // total of its own.
+  checked_page_count: z.number().int(),
+  failing_page_count: z.number().int(),
+  checks: z.array(readinessCheckSchema),
+  evidence_pages: z.array(readinessEvidencePageSchema),
+  evidence_truncated: z.boolean(),
 });
 
 export const aeoReadinessSchema = responseObject({

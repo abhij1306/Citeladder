@@ -116,6 +116,11 @@ class SiteCrawl(Base):
     discovery_requested_count: Mapped[int] = mapped_column(Integer, default=0)
     analysis_requested_count: Mapped[int] = mapped_column(Integer, default=0)
     inventory_complete: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Why a terminal crawl is PARTIALLY_COMPLETED: unreachable URLs during
+    # discovery, analyses that fell short, or both. Empty on every other status.
+    # Without it the UI can only guess, and it guessed "analysis" for every
+    # crawl that merely met one dead link.
+    partial_reason: Mapped[str] = mapped_column(String(48), default="")
     score_summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # v2 P2 (spec §5.5): bounded site-level facts written ONCE by the root
     # discover task's site setup (robots.txt AI-crawler stance, llms.txt

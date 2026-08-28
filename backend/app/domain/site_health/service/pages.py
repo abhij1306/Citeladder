@@ -15,6 +15,11 @@ from app.domain.site_health.service.common import (
     _load_crawl,
 )
 from app.domain.site_health.service.facts_projection import project_page_facts
+from app.domain.site_health.service.link_projections import (
+    PAGE_SORTS,
+    _internal_links_row,
+    _link_metrics_by_site_url,
+)
 from app.domain.site_health.service.presentation import (
     _MAX_EVALUATIONS,
     _SEVERITY_RANK,
@@ -44,7 +49,43 @@ from app.models.site_health.analysis import (
     SiteRuleEvaluation,
 )
 from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.links import SitePageLinkMetric
 from app.models.site_health.urls import SiteUrl, SiteUrlObservation
+
+
+async def _inherited_crawl_by_url(
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    site_url_ids: list[uuid.UUID],
+) -> dict[uuid.UUID, uuid.UUID]:
+    """Which earlier crawl owns each inherited row's detail.
+
+    A Starter recrawl reads its explicitly frozen earlier full inventories; the
+    first inherited crawl in that frozen order wins, so a row always links to
+    one stable detail rather than whichever observation sorted last.
+    """
+    inherited_ids = inherited_inventory_crawl_ids(crawl)
+    if not inherited_ids or not site_url_ids:
+        return {}
+    source_rows = (
+        await session.execute(
+            select(
+                SiteUrlObservation.site_url_id,
+                SiteUrlObservation.crawl_id,
+            ).where(
+                SiteUrlObservation.crawl_id.in_(inherited_ids),
+                SiteUrlObservation.site_url_id.in_(site_url_ids),
+            )
+        )
+    ).all()
+    source_rank = {value: rank for rank, value in enumerate(inherited_ids)}
+    resolved: dict[uuid.UUID, uuid.UUID] = {}
+    for source_site_url_id, source_crawl_id in sorted(
+        source_rows, key=lambda row: source_rank.get(row[1], len(source_rank))
+    ):
+        resolved.setdefault(source_site_url_id, source_crawl_id)
+    return resolved
 
 
 # =========================================================================
@@ -60,14 +101,18 @@ async def get_pages(
     status: str | None = None,
     monitored: bool | None = None,
     page_kind: str | None = None,
+    sort: str | None = None,
 ) -> dict:
-    """Analyzed-page summaries for a crawl, ordered ``(normalized_url, id)``.
+    """Analyzed-page summaries for a crawl, ordered ``(sort_value, id)``.
 
     Accepts an exact presentation ``status`` or the combined ``error_or_blocked``
-    filter, a ``monitored`` toggle, and a ``page_kind`` filter (v2 P1 —
-    semantics in ``_page_kind_matches``). Filters are part of the cursor
-    fingerprint. Rows are the crawl's project ``SiteUrl`` set, projected
-    with the latest analysis and derived presentation status.
+    filter, a ``monitored`` toggle, a ``page_kind`` filter (v2 P1 — semantics in
+    ``_page_kind_matches``), and a ``sort`` over this crawl's persisted internal
+    link metrics (``inbound`` / ``main_content_inbound`` / ``depth``; default
+    ``url``). Filters AND the sort are part of the cursor fingerprint, so a
+    cursor can never be replayed under a different ordering. Rows are the
+    crawl's project ``SiteUrl`` set, projected with the latest analysis, its
+    derived presentation status, and its link metrics.
     """
     crawl = await _load_crawl(session, workspace_id=workspace_id, crawl_id=crawl_id)
     limit = _clamp_limit(limit)
@@ -77,11 +122,13 @@ async def get_pages(
     # never created a page row of its own.
     root_errors = await _root_errors_for(session, crawl)
     scope = "pages"
+    sort = sort if sort in PAGE_SORTS else "url"
     filters = {
         "crawl_id": str(crawl_id),
         "status": status or None,
         "monitored": (str(monitored) if monitored is not None else None),
         "page_kind": page_kind or None,
+        "sort": sort,
     }
 
     over_fetch = status is not None or page_kind is not None
@@ -100,12 +147,16 @@ async def get_pages(
         filters=filters,
         limit=limit,
         over_fetch=over_fetch,
+        sort=sort,
     )
     if stmt is None:
         return {"items": [], "next_cursor": None, "root_errors": root_errors}
-    rows = list((await session.scalars(stmt)).all())
+    rows = [
+        (row, sort_value) for row, sort_value in (await session.execute(stmt)).all()
+    ]
 
-    site_ids = [r.id for r in rows]
+    site_ids = [row.id for row, _ in rows]
+    sort_values = {row.id: sort_value for row, sort_value in rows}
     current_observed_ids = set(
         (
             await session.scalars(
@@ -116,25 +167,9 @@ async def get_pages(
             )
         ).all()
     )
-    inherited_ids = inherited_inventory_crawl_ids(crawl)
-    inherited_crawl_by_url: dict[uuid.UUID, uuid.UUID] = {}
-    if inherited_ids and site_ids:
-        source_rows = (
-            await session.execute(
-                select(
-                    SiteUrlObservation.site_url_id,
-                    SiteUrlObservation.crawl_id,
-                ).where(
-                    SiteUrlObservation.crawl_id.in_(inherited_ids),
-                    SiteUrlObservation.site_url_id.in_(site_ids),
-                )
-            )
-        ).all()
-        source_rank = {value: rank for rank, value in enumerate(inherited_ids)}
-        for source_site_url_id, source_crawl_id in sorted(
-            source_rows, key=lambda row: source_rank.get(row[1], len(source_rank))
-        ):
-            inherited_crawl_by_url.setdefault(source_site_url_id, source_crawl_id)
+    inherited_crawl_by_url = await _inherited_crawl_by_url(
+        session, crawl=crawl, site_url_ids=site_ids
+    )
     analyses = await _latest_analysis_by_site_url(
         session, crawl_id=crawl_id, site_url_ids=site_ids
     )
@@ -143,6 +178,9 @@ async def get_pages(
     )
     issue_counts = await _issue_counts_by_site_url(
         session, crawl_id=crawl_id, site_url_ids=site_ids
+    )
+    link_metrics = await _link_metrics_by_site_url(
+        session, crawl=crawl, site_url_ids=site_ids
     )
 
     def project_pages_row(
@@ -161,6 +199,7 @@ async def get_pages(
             inherited_crawl_by_url=inherited_crawl_by_url,
             monitored_ids=monitored_ids,
             issue_counts=issue_counts,
+            link_metric=link_metrics.get(row.id),
         )
 
     items, last_scanned = _matching_page_summaries(
@@ -175,6 +214,7 @@ async def get_pages(
     )
     items, next_cursor = _page_keyset_result(
         items,
+        scanned_sort_values=sort_values,
         last_scanned=last_scanned,
         scanned_row_count=len(rows),
         fetch_size=fetch_size,
@@ -250,8 +290,13 @@ def _detail_response(
     html_bytes: int | None,
     issues: list[dict],
     evaluations: list[dict],
+    link_metric: SitePageLinkMetric | None,
 ) -> dict:
     return {
+        # Persisted internal-link projection (PR2); None when this crawl has no
+        # metric row for the URL — the section then says so rather than showing
+        # zeros that would read as "nothing links here".
+        "internal_links": _internal_links_row(link_metric),
         "site_url_id": site_url.id,
         "crawl_id": crawl.id,
         "normalized_url": site_url.normalized_url,
@@ -323,6 +368,9 @@ async def get_page_detail(
         issues,
         evaluations,
     ) = await _detail_analysis_sections(session, analysis)
+    link_metrics = await _link_metrics_by_site_url(
+        session, crawl=crawl, site_url_ids=[site_url_id]
+    )
     return _detail_response(
         crawl=crawl,
         site_url=site_url,
@@ -334,4 +382,5 @@ async def get_page_detail(
         html_bytes=html_bytes,
         issues=issues,
         evaluations=evaluations,
+        link_metric=link_metrics.get(site_url_id),
     )

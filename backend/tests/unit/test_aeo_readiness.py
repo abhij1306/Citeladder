@@ -15,14 +15,22 @@ from app.core.config.site_health_rules import (
 )
 
 
-def _row(rule_id: str, outcome: str) -> ReadinessEvaluationInput:
+def _row(
+    rule_id: str,
+    outcome: str,
+    *,
+    site_url_id: uuid.UUID | None = None,
+    url: str = "https://example.test/page",
+    title: str = "",
+) -> ReadinessEvaluationInput:
     return ReadinessEvaluationInput(
         evaluation_id=uuid.uuid4(),
         analysis_id=uuid.uuid4(),
-        site_url_id=uuid.uuid4(),
-        normalized_url="https://example.test/page",
+        site_url_id=site_url_id or uuid.uuid4(),
+        normalized_url=url,
         rule_id=rule_id,
         outcome=outcome,
+        title=title,
     )
 
 
@@ -55,16 +63,95 @@ def test_projection_reconciles_states_and_never_guesses_unmapped_rules() -> None
     assert result.observed_evaluation_count == 4
     assert result.expected_evaluation_count == 20
     assert all(
-        link.rule_id != "technical.title_present" for link in answerability.evidence
+        check.rule_id != "technical.title_present" for check in answerability.checks
+    )
+    assert all(
+        failed.rule_id != "technical.title_present"
+        for page in answerability.evidence_pages
+        for failed in page.failed_checks
     )
 
 
-def test_evidence_links_are_fail_first_and_bounded() -> None:
-    rows = [_row("aeo.answer_first", "pass") for _ in range(30)]
-    failure = _row("aeo.answer_first", "fail")
+def test_evidence_is_one_row_per_failing_page_never_per_evaluation() -> None:
+    """One page failing three checks is one row, not three repeated URLs."""
+    page = uuid.uuid4()
+    rows = [
+        _row("aeo.answer_first", "fail", site_url_id=page, title="Answer not first"),
+        _row(
+            "aeo.question_headings",
+            "fail",
+            site_url_id=page,
+            title="No question headings",
+        ),
+        _row(
+            "aeo.no_expand_gating",
+            "fail",
+            site_url_id=page,
+            title="Answer behind a click",
+        ),
+        _row("technical.thin_content", "pass", site_url_id=page),
+    ]
 
-    result = project_aeo_readiness([*rows, failure], analysis_count=31)
-    answerability = result.dimensions[0]
+    answerability = project_aeo_readiness(rows, analysis_count=1).dimensions[0]
 
-    assert len(answerability.evidence) == 25
-    assert answerability.evidence[0] == failure
+    assert len(answerability.evidence_pages) == 1
+    assert answerability.failing_page_count == 1
+    assert [check.title for check in answerability.evidence_pages[0].failed_checks] == [
+        "Answer behind a click",
+        "Answer not first",
+        "No question headings",
+    ]
+    assert answerability.checked_page_count == 1
+
+
+def test_evidence_pages_are_worst_first_bounded_and_report_the_true_total() -> None:
+    """A capped list must never read as the complete set of failing pages."""
+    worst = uuid.uuid4()
+    rows = [
+        _row(
+            "aeo.answer_first", "fail", site_url_id=worst, url="https://example.test/z"
+        ),
+        _row(
+            "aeo.question_headings",
+            "fail",
+            site_url_id=worst,
+            url="https://example.test/z",
+        ),
+    ]
+    rows += [
+        _row("aeo.answer_first", "fail", url=f"https://example.test/{index}")
+        for index in range(30)
+    ]
+
+    answerability = project_aeo_readiness(rows, analysis_count=31).dimensions[0]
+
+    assert len(answerability.evidence_pages) == 25
+    assert answerability.failing_page_count == 31
+    assert answerability.evidence_truncated is True
+    # The page failing two checks leads, because that is the order someone
+    # fixing the site would work in.
+    assert answerability.evidence_pages[0].site_url_id == worst
+
+
+def test_checks_carry_catalog_copy_and_never_fall_back_to_a_rule_id() -> None:
+    rows = [
+        _row("aeo.answer_first", "fail", title="Answer not stated first"),
+        _row("aeo.answer_first", "pass", title="Answer not stated first"),
+    ]
+
+    answerability = project_aeo_readiness(rows, analysis_count=2).dimensions[0]
+    answer_first = next(
+        check for check in answerability.checks if check.rule_id == "aeo.answer_first"
+    )
+
+    assert answer_first.title == "Answer not stated first"
+    assert answer_first.fail_count == 1
+    assert answer_first.failing_page_count == 1
+    # Worst-first ordering puts the only failing check at the top.
+    assert answerability.checks[0].rule_id == "aeo.answer_first"
+
+
+def test_dimensions_carry_a_plain_language_description() -> None:
+    result = project_aeo_readiness([], analysis_count=0)
+    assert all(dimension.description for dimension in result.dimensions)
+    assert "answer" in result.dimensions[0].description.lower()

@@ -91,6 +91,27 @@ function detail(overrides: Partial<PageDetail> = {}): PageDetail {
       cache_control: 'no-cache',
       blocking_resource_count: 0,
     },
+    internal_links: {
+      inbound_count: 12,
+      outbound_count: 30,
+      main_content_inbound_count: 4,
+      main_content_outbound_count: 9,
+      nofollow_inbound_count: 1,
+      depth_from_home: 2,
+      source_page_count: 7,
+      top_inbound: [
+        {
+          site_url_id: 'dddddddd-1111-4111-8111-111111111111',
+          url: 'https://acme.com/collections/bags',
+          anchor_count: 3,
+          main_content: true,
+          nofollow: false,
+          rel: [],
+        },
+      ],
+      top_outbound: [],
+      formula_version: 'sh-link-metrics-1',
+    },
     issues: [
       {
         id: ISSUE_L,
@@ -464,4 +485,31 @@ describe('UrlDetail', () => {
     });
     expect(getCallCount).toBeGreaterThanOrEqual(statuses.length);
   }, 20_000);
+
+  it('renders the internal-links section with linked neighbours', async () => {
+    mswServer.use(...handlers(detail()));
+
+    renderWithProviders(<UrlDetail crawlId={CRAWL} siteUrlId={URL_ID} />);
+
+    await screen.findByRole('heading', { name: 'Best&Less Online', level: 1 });
+    expect(screen.getByRole('heading', { name: 'Internal Links' })).toBeInTheDocument();
+    // Inbound and main-content inbound are different facts and both are shown.
+    expect(screen.getByText('Main-content inbound')).toBeInTheDocument();
+    expect(screen.getByText('Counted across 7 crawled pages')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'https://acme.com/collections/bags' })).toHaveAttribute(
+      'href',
+      `/site/crawls/${CRAWL}/pages/dddddddd-1111-4111-8111-111111111111`,
+    );
+    expect(screen.getByText('This page links to no other crawled page.')).toBeInTheDocument();
+  });
+
+  it('omits the internal-links section entirely when the crawl measured none', async () => {
+    mswServer.use(...handlers(detail({ internal_links: null })));
+
+    renderWithProviders(<UrlDetail crawlId={CRAWL} siteUrlId={URL_ID} />);
+
+    await screen.findByRole('heading', { name: 'Best&Less Online', level: 1 });
+    // Absent, not zeroed: "not measured" and "nothing links here" differ.
+    expect(screen.queryByRole('heading', { name: 'Internal Links' })).not.toBeInTheDocument();
+  });
 });

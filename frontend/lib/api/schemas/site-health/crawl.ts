@@ -186,6 +186,15 @@ export const siteCrawlSchema = responseObject({
   sample_mode: z.boolean(),
   seed: z.string(),
   inventory_complete: z.boolean(),
+  // Why a `partially_completed` crawl is partial. Empty on every other status.
+  // URLs that could not be FETCHED are routine on a real site and are not an
+  // analysis failure, so the two can never share one message.
+  partial_reason: z.enum([
+    '',
+    'discovery_incomplete',
+    'analysis_incomplete',
+    'discovery_and_analysis_incomplete',
+  ]),
   visible_url_count: z.number().int(),
   analyzed_count: z.number().int(),
   failed_count: z.number().int(),

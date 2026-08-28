@@ -20,7 +20,7 @@ import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { PageKindSelect } from '@/components/site-health/page-kind-select';
 import { PagesTable } from '@/components/site-health/pages-table';
 import { RootErrorsBlock } from '@/components/site-health/root-errors-block';
-import { siteHealthQueries, type PagesParams } from '@/lib/api/site-health';
+import { siteHealthQueries, type PagesParams, type PagesSort } from '@/lib/api/site-health';
 import type { PagesPage, SiteCrawl } from '@/lib/api/types';
 import { segmentedItemClasses, segmentedTrackClasses } from '@/components/ui/segmented';
 import { cn } from '@/lib/utils';
@@ -185,12 +185,16 @@ function ScoredInventoryBody({
   rootErrors,
   active,
   crawlId,
+  sort,
+  onSortChange,
 }: Readonly<{
   query: { isError: boolean; isLoading: boolean };
   rows: PagesPage['items'];
   rootErrors: NonNullable<PagesPage['root_errors']>;
   active: boolean;
   crawlId: string;
+  sort: PagesSort;
+  onSortChange: (sort: PagesSort) => void;
 }>) {
   if (query.isError)
     return (
@@ -215,7 +219,9 @@ function ScoredInventoryBody({
   return (
     <div className="grid gap-3 p-[var(--card-padding)]">
       <RootErrorsBlock errors={rootErrors} />
-      {rows.length > 0 ? <PagesTable pages={rows} crawlId={crawlId} /> : null}
+      {rows.length > 0 ? (
+        <PagesTable pages={rows} crawlId={crawlId} sort={sort} onSortChange={onSortChange} />
+      ) : null}
     </div>
   );
 }
@@ -232,6 +238,9 @@ function ScoredInventory({
   // Shared page-kind filter (v2 P1): one server-backed value that composes
   // with whichever tab is active — never a client filter over the page window.
   const [pageKind, setPageKind] = useState('');
+  // Shared server-side ordering. Like the filter, it is part of the cursor
+  // fingerprint, so changing it must restart every tab's paging.
+  const [sort, setSort] = useState<PagesSort>('url');
   // Per-tab cursor stack so Prev/Next walk keyset pages without offsets.
   const monitoredPager = useCursorStack();
   const allPager = useCursorStack();
@@ -258,11 +267,18 @@ function ScoredInventory({
 
   // A filter edit restarts EVERY tab from its first page — cursors are
   // filter-bound server-side, so a stale cursor under a new page type 400s.
-  const selectPageKind = (next: string) => {
-    setPageKind(next);
+  const resetPagers = () => {
     monitoredPager.reset();
     allPager.reset();
     errorsPager.reset();
+  };
+  const selectPageKind = (next: string) => {
+    setPageKind(next);
+    resetPagers();
+  };
+  const selectSort = (next: PagesSort) => {
+    setSort(next);
+    resetPagers();
   };
 
   // No timer here either: the screen's single crawl subscription invalidates
@@ -273,6 +289,7 @@ function ScoredInventory({
     siteHealthQueries.pages(crawl.id, {
       ...activeTabParams,
       page_kind: pageKind || undefined,
+      sort,
       cursor: pager.cursor,
       limit: PAGE_LIMIT,
     }),
@@ -282,6 +299,7 @@ function ScoredInventory({
       siteHealthQueries.pages(crawl.id, {
         ...nextTab.params,
         page_kind: pageKind || undefined,
+        sort,
         limit: PAGE_LIMIT,
       }),
     );
@@ -302,6 +320,8 @@ function ScoredInventory({
       rootErrors={rootErrors}
       active={active}
       crawlId={crawl.id}
+      sort={sort}
+      onSortChange={selectSort}
     />
   );
 

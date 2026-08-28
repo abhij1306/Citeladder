@@ -69,6 +69,7 @@ const crawl = {
   sample_mode: false,
   seed: '12345',
   inventory_complete: false,
+  partial_reason: '',
   visible_url_count: 42,
   analyzed_count: 0,
   failed_count: 0,
@@ -223,7 +224,13 @@ describe('siteCrawlSchema (Free redaction / nullable totals)', () => {
   });
 
   it('accepts a Free sample crawl with total_url_count null and no leaked total', () => {
-    const sample = { ...crawl, sample_mode: true, inventory_complete: true, total_url_count: null };
+    const sample = {
+      ...crawl,
+      sample_mode: true,
+      inventory_complete: true,
+      partial_reason: '',
+      total_url_count: null,
+    };
     expect(strictValidate(siteCrawlSchema, sample, 'crawl').sample_mode).toBe(true);
   });
 
@@ -508,6 +515,7 @@ describe('pageDetailSchema (field_cwv_available literal false)', () => {
       cache_control: 'max-age=3600',
       blocking_resource_count: 1,
     },
+    internal_links: null,
     issues: [],
     evaluations: [],
     artifact_id: UUID,
@@ -695,6 +703,7 @@ describe('AEO Readiness contract', () => {
           {
             key: 'freshness',
             label: 'Freshness',
+            description: 'Whether the page says when it was written or updated.',
             rule_ids: ['aeo.date_present'],
             pass_count: 0,
             fail_count: 0,
@@ -703,7 +712,21 @@ describe('AEO Readiness contract', () => {
             observed_evaluation_count: 1,
             expected_evaluation_count: 1,
             coverage: 1,
-            evidence_links: [],
+            checked_page_count: 0,
+            failing_page_count: 0,
+            checks: [
+              {
+                rule_id: 'aeo.date_present',
+                title: 'Missing published or updated date',
+                remediation: 'Publish a visible date on the page.',
+                pass_count: 0,
+                fail_count: 0,
+                not_applicable_count: 1,
+                failing_page_count: 0,
+              },
+            ],
+            evidence_pages: [],
+            evidence_truncated: false,
           },
         ],
         limitations: [],

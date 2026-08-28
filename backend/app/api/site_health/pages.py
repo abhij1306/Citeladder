@@ -46,6 +46,9 @@ async def get_pages_endpoint(
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     monitored: Annotated[bool | None, Query()] = None,
     page_kind: Annotated[str | None, Query()] = None,
+    sort: Annotated[
+        Literal["url", "inbound", "main_content_inbound", "depth"], Query()
+    ] = "url",
 ) -> PagesPage:
     try:
         page = await service.get_pages(
@@ -57,6 +60,7 @@ async def get_pages_endpoint(
             status=status_filter,
             monitored=monitored,
             page_kind=page_kind,
+            sort=sort,
         )
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc

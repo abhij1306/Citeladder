@@ -15,14 +15,20 @@
 import { apiClient, type ApiRequestOptions } from '@/lib/api/client';
 import { siteHealthApi } from '@/lib/api/site-health';
 
-/** A Site Health export view. Markdown always exports the inventory view. */
-export type ExportView = 'inventory' | 'pages' | 'issues';
+/**
+ * A Site Health export view. `architecture` is the observed-architecture tree,
+ * which only Markdown renders — a tree is not a table, so CSV rejects it.
+ */
+export type ExportView = 'inventory' | 'pages' | 'issues' | 'architecture';
 export type ExportFormat = 'csv' | 'md';
 
 /** Build a stable download filename for a crawl export. */
 export function exportFilename(crawlId: string, format: ExportFormat, view: ExportView): string {
   const shortId = crawlId.slice(0, 8);
-  return format === 'csv' ? `site-health-${view}-${shortId}.csv` : `site-health-${shortId}.md`;
+  if (format === 'csv') return `site-health-${view}-${shortId}.csv`;
+  // The inventory has always been the unqualified Markdown export; keep that
+  // filename stable and qualify only the views added later.
+  return view === 'inventory' ? `site-health-${shortId}.md` : `site-health-${view}-${shortId}.md`;
 }
 
 /**

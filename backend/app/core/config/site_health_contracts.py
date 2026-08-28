@@ -158,6 +158,24 @@ OBSERVATION_SOURCES: Final[frozenset[str]] = frozenset(
     }
 )
 
+# Why a terminal crawl is PARTIALLY_COMPLETED. A crawl that fetched fewer URLs
+# than it discovered is a DIFFERENT fact from one whose analyses fell short, and
+# on a real site the first is routine — a dead link, a PDF, a blocked host. They
+# had one shared status and one analysis-flavoured message, so every crawl with
+# a single unreachable link reported that pages "could not be analyzed".
+CRAWL_PARTIAL_REASON_NONE: Final = ""
+CRAWL_PARTIAL_REASON_DISCOVERY: Final = "discovery_incomplete"
+CRAWL_PARTIAL_REASON_ANALYSIS: Final = "analysis_incomplete"
+CRAWL_PARTIAL_REASON_BOTH: Final = "discovery_and_analysis_incomplete"
+CRAWL_PARTIAL_REASONS: Final[frozenset[str]] = frozenset(
+    {
+        CRAWL_PARTIAL_REASON_NONE,
+        CRAWL_PARTIAL_REASON_DISCOVERY,
+        CRAWL_PARTIAL_REASON_ANALYSIS,
+        CRAWL_PARTIAL_REASON_BOTH,
+    }
+)
+
 AEO_READINESS_TAXONOMY_VERSION: Final = "aeo-readiness-v1"
 
 RULE_ID_TECHNICAL_INDEXABLE: Final = "technical.indexable"
@@ -173,7 +191,38 @@ AEO_READINESS_DIMENSIONS: Final[tuple[str, ...]] = (
 )  # noqa: E501
 
 AEO_READINESS_DIMENSION_LABELS: Final[dict[str, str]] = {
-    key: key.replace("_", " ").capitalize() for key in AEO_READINESS_DIMENSIONS
+    "answerability": "Answerability",
+    "structure": "Structure",
+    "evidence": "Evidence",
+    "machine-readability": "Machine readability",
+    "authority": "Authority",
+    "freshness": "Freshness",
+    "crawlability": "Crawlability",
+}
+
+# One plain sentence per dimension, in the reader's language. The screen used to
+# show only the key, so "Machine-readability 12 / 3 / 40" asked the reader to
+# already know what the row meant.
+AEO_READINESS_DIMENSION_DESCRIPTIONS: Final[dict[str, str]] = {
+    "answerability": (
+        "Whether a page answers its question directly, near the top, without "
+        "hiding the answer behind a click."
+    ),
+    "structure": (
+        "Whether headings and structured data describe the page accurately "
+        "enough for an answer engine to quote the right part."
+    ),
+    "evidence": "Whether claims are backed by sources a reader can follow.",
+    "machine-readability": (
+        "Whether the page states what it is in machine-readable form, rather "
+        "than leaving an engine to infer it from prose."
+    ),
+    "authority": "Whether it is clear who published the page and stands behind it.",
+    "freshness": "Whether the page says when it was written or last updated.",
+    "crawlability": (
+        "Whether an answer engine can reach and read the page at all — the "
+        "checks that make every other dimension moot when they fail."
+    ),
 }
 
 AEO_READINESS_RULE_DIMENSIONS: Final[dict[str, str]] = {
@@ -201,7 +250,11 @@ AEO_READINESS_RULE_DIMENSIONS: Final[dict[str, str]] = {
 
 AEO_READINESS_MAX_EVALUATIONS: Final = 100_000
 
-AEO_READINESS_MAX_EVIDENCE_LINKS_PER_DIMENSION: Final = 25
+# Evidence is listed one row per PAGE, not one per (page, rule): the same URL
+# appearing five times under five rule IDs was the single worst thing about the
+# old drawer. The cap bounds pages, and the projection reports the true failing
+# page total beside it so a capped list never reads as the whole set.
+AEO_READINESS_MAX_EVIDENCE_PAGES_PER_DIMENSION: Final = 25
 
 DIMENSION_TECHNICAL: Final = "technical"
 

@@ -44,6 +44,11 @@ from app.domain.site_health.service.common import (
     _load_crawl,
     _load_project,
 )
+from app.domain.site_health.service.link_projections import (
+    PAGE_SORTS,
+    _page_link_fields,
+    _sorted_page_stmt,
+)
 from app.domain.site_health.service.presentation import (
     _iso,
     _matches_page_status,
@@ -54,6 +59,7 @@ from app.domain.site_health.service.presentation import (
 from app.models.billing import WorkspaceBillingLink
 from app.models.site_health.analysis import SiteIssue, SitePageAnalysis
 from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.links import SitePageLinkMetric
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.runtime import SiteHealthProfile
 from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
@@ -313,7 +319,7 @@ async def _issue_counts_by_site_url(
 
 
 def _matching_page_summaries(
-    rows: Sequence[SiteUrl],
+    rows: Sequence[tuple[SiteUrl, Any]],
     *,
     analyses: dict[uuid.UUID, SitePageAnalysis],
     tasks: dict[uuid.UUID, SiteCrawlTask],
@@ -322,7 +328,7 @@ def _matching_page_summaries(
     page_kind: str | None,
     limit: int,
     project: Callable[[SiteUrl, SitePageAnalysis | None, str, str | None], dict],
-) -> tuple[list[dict], SiteUrl | None]:
+) -> tuple[list[dict], tuple[SiteUrl, Any] | None]:
     """Project matching rows and retain the last scanned key for pagination.
 
     Status and page-kind are derived from persisted analysis/task state rather
@@ -331,9 +337,10 @@ def _matching_page_summaries(
     behavior.
     """
     items: list[dict] = []
-    last_scanned: SiteUrl | None = None
-    for row in rows:
-        last_scanned = row
+    last_scanned: tuple[SiteUrl, Any] | None = None
+    for scanned in rows:
+        last_scanned = scanned
+        row, _sort_value = scanned
         analysis = analyses.get(row.id)
         presentation_status, error_code = presentation_status_for(
             analysis=analysis,
@@ -353,7 +360,8 @@ def _matching_page_summaries(
 def _page_keyset_result(
     items: list[dict],
     *,
-    last_scanned: SiteUrl | None,
+    scanned_sort_values: dict[uuid.UUID, Any],
+    last_scanned: tuple[SiteUrl, Any] | None,
     scanned_row_count: int,
     fetch_size: int,
     limit: int,
@@ -366,6 +374,10 @@ def _page_keyset_result(
     A full widened scan that yields too few matches advances at the final
     scanned key.  That distinction prevents sparse derived filters from
     repeating an empty window forever.
+
+    The cursor's leading value is whatever the active sort ORDERED BY — the
+    normalized URL by default, a link metric otherwise — so the two can never
+    disagree about where the next page starts.
     """
     if len(items) > limit:
         kept = items[:limit]
@@ -373,13 +385,15 @@ def _page_keyset_result(
         return kept, encode_keyset_cursor(
             scope=scope,
             filters=filters,
-            sort_values=[last_kept["normalized_url"], str(last_kept["site_url_id"])],
+            sort_values=[
+                scanned_sort_values[last_kept["site_url_id"]],
+                str(last_kept["site_url_id"]),
+            ],
         )
     if sparse_filter and last_scanned is not None and scanned_row_count >= fetch_size:
+        row, sort_value = last_scanned
         return items, encode_keyset_cursor(
-            scope=scope,
-            filters=filters,
-            sort_values=[last_scanned.normalized_url, str(last_scanned.id)],
+            scope=scope, filters=filters, sort_values=[sort_value, str(row.id)]
         )
     return items, None
 
@@ -425,9 +439,15 @@ def _pages_summary_row(
     inherited_crawl_by_url: dict[uuid.UUID, uuid.UUID],
     monitored_ids: set[uuid.UUID],
     issue_counts: dict[uuid.UUID, int],
+    link_metric: SitePageLinkMetric | None = None,
 ) -> dict:
-    """Render one persisted page projection, including inherited inventory."""
+    """Render one persisted page projection, including inherited inventory.
+
+    Link columns are ``None`` — never ``0`` — when this crawl has no metric row
+    for the URL: "not measured" and "nothing links here" are different facts.
+    """
     return {
+        **_page_link_fields(link_metric),
         "site_url_id": row.id,
         "crawl_id": (
             crawl_id
@@ -517,9 +537,12 @@ async def get_inventory(
     )
     if stmt is None:
         return {"items": [], "next_cursor": None}
-    rows = list((await session.scalars(stmt)).all())
+    rows = [
+        (row, sort_value) for row, sort_value in (await session.execute(stmt)).all()
+    ]
 
-    site_ids = [r.id for r in rows]
+    site_ids = [row.id for row, _ in rows]
+    sort_values = {row.id: sort_value for row, sort_value in rows}
     analyses = await _latest_analysis_by_site_url(
         session, crawl_id=crawl_id, site_url_ids=site_ids
     )
@@ -557,6 +580,7 @@ async def get_inventory(
     )
     items, next_cursor = _page_keyset_result(
         items,
+        scanned_sort_values=sort_values,
         last_scanned=last_scanned,
         scanned_row_count=len(rows),
         fetch_size=fetch_size,
@@ -579,6 +603,9 @@ def _scan_window(limit: int, *, over_fetch: bool) -> int:
     return fetch * 4 if over_fetch else fetch
 
 
+_DEFAULT_PAGE_SORT = "url"
+
+
 def _site_url_page_stmt(
     crawl: SiteCrawl,
     *,
@@ -590,8 +617,9 @@ def _site_url_page_stmt(
     limit: int,
     over_fetch: bool,
     extra_where: Sequence[Any] = (),
+    sort: str = _DEFAULT_PAGE_SORT,
 ):
-    """The shared ``(normalized_url, id)`` keyset page over a crawl's SiteUrls.
+    """The shared keyset page over a crawl's SiteUrls, as ``(row, sort_value)``.
 
     ``get_inventory`` and ``get_pages`` differ only in their row projection —
     the scope subquery, monitored filter, cursor predicate, ordering and
@@ -603,7 +631,12 @@ def _site_url_page_stmt(
     in Python from the derived presentation status, so a filtered page can
     still come back full. ``extra_where`` carries caller-specific predicates
     (the inventory's substring search) so they are applied with the rest of
-    the filtering, before ordering and limiting.
+    the filtering, before ordering and limiting. ``sort`` selects the keyset:
+    ``url`` (the default ``(normalized_url, id)``) or one of the link-metric
+    sorts, which LEFT JOIN this crawl's ``SitePageLinkMetric`` projection.
+
+    The statement always yields ``(SiteUrl, sort_value)`` so the caller's
+    cursor is built from the value the database actually ordered by.
     """
     stmt = select(SiteUrl).where(
         SiteUrl.project_id == crawl.project_id,
@@ -618,15 +651,20 @@ def _site_url_page_stmt(
     elif monitored is False and monitored_ids:
         stmt = stmt.where(SiteUrl.id.notin_(list(monitored_ids)))
 
+    window = _scan_window(limit, over_fetch=over_fetch)
+    if sort in PAGE_SORTS and sort != _DEFAULT_PAGE_SORT:
+        stmt = _sorted_page_stmt(
+            stmt, crawl=crawl, sort=sort, cursor=cursor, scope=scope, filters=filters
+        )
+        return stmt.limit(window)
+
+    stmt = stmt.add_columns(SiteUrl.normalized_url.label("sort_value"))
     if cursor:
         cur_url, cur_id = _decode_url_keyset(cursor, scope=scope, filters=filters)
         stmt = stmt.where(
             tuple_(SiteUrl.normalized_url, SiteUrl.id) > (cur_url, cur_id)
         )
-
-    return stmt.order_by(SiteUrl.normalized_url.asc(), SiteUrl.id.asc()).limit(
-        _scan_window(limit, over_fetch=over_fetch)
-    )
+    return stmt.order_by(SiteUrl.normalized_url.asc(), SiteUrl.id.asc()).limit(window)
 
 
 # =========================================================================

@@ -17,6 +17,7 @@ import { API_BASE_URL, apiClient, getActiveWorkspaceId, type ApiRequestOptions }
 import { queryKeys } from './query-keys';
 import {
   aeoReadinessSchema,
+  architectureSchema,
   changeSummarySchema,
   changesPageSchema,
   inventoryPageSchema,
@@ -46,6 +47,7 @@ import type {
   PagesPage,
   RerunPageResponse,
   SiteCrawl,
+  SiteArchitecture,
   SiteCrawlListPage,
   SiteHealthDashboard,
   SiteHealthEntitlement,
@@ -91,6 +93,8 @@ export type InventoryParams = {
 };
 
 type CrawlListParams = { project_id: string; limit?: number; cursor?: string };
+/** Server-backed orderings of the pages list (keyset, never a client sort). */
+export type PagesSort = 'url' | 'inbound' | 'main_content_inbound' | 'depth';
 export type PagesParams = {
   cursor?: string;
   limit?: number;
@@ -98,6 +102,8 @@ export type PagesParams = {
   monitored?: boolean;
   /** v2 P1: filter to one classified page type (omitted = all types). */
   page_kind?: string;
+  /** Ordering. Part of the cursor fingerprint, so changing it resets paging. */
+  sort?: PagesSort;
 };
 export type IssuesParams = {
   cursor?: string;
@@ -231,6 +237,14 @@ export const siteHealthApi = {
     const res = await apiClient.get<AeoReadiness>(path, options);
     return strictValidate(aeoReadinessSchema, res, 'siteHealth.getAeoReadiness');
   },
+  getArchitecture: async (projectId: string, crawlId?: string, options?: ApiRequestOptions) => {
+    const path = withQuery(
+      `/projects/${projectId}/site-health/architecture`,
+      definedQuery({ crawl_id: crawlId }),
+    );
+    const res = await apiClient.get<SiteArchitecture>(path, options);
+    return strictValidate(architectureSchema, res, 'siteHealth.getArchitecture');
+  },
   getChangesSummary: async (projectId: string, options?: ApiRequestOptions) => {
     const res = await apiClient.get<ChangeSummary>(
       `/projects/${projectId}/site-health/changes/summary`,
@@ -255,9 +269,14 @@ export const siteHealthApi = {
   /** Same-origin SSE endpoint (polling is the baseline; `?stream=true`). */
   eventsUrl: (crawlId: string) => `${API_BASE_URL}/site-crawls/${crawlId}/events?stream=true`,
   /** Same-origin export URLs (browser navigation / download links). */
-  exportUrl: (crawlId: string, format: 'csv' | 'md', view?: 'inventory' | 'pages' | 'issues') => {
+  exportUrl: (
+    crawlId: string,
+    format: 'csv' | 'md',
+    // `architecture` is a tree, so it renders as Markdown only; CSV rejects it.
+    view?: 'inventory' | 'pages' | 'issues' | 'architecture',
+  ) => {
     const base = `${API_BASE_URL}/site-crawls/${crawlId}/export.${format}`;
-    return format === 'csv' && view ? `${base}?view=${view}` : base;
+    return view ? `${base}?view=${view}` : base;
   },
 };
 
@@ -281,6 +300,11 @@ export const siteHealthQueries = {
     queryOptions({
       queryKey: queryKeys.siteHealth.aeoReadiness(projectId, crawlId),
       queryFn: ({ signal }) => siteHealthApi.getAeoReadiness(projectId, crawlId, { signal }),
+    }),
+  architecture: (projectId: string, crawlId?: string) =>
+    queryOptions({
+      queryKey: queryKeys.siteHealth.architecture(projectId, crawlId),
+      queryFn: ({ signal }) => siteHealthApi.getArchitecture(projectId, crawlId, { signal }),
     }),
   changesSummary: (projectId: string) =>
     queryOptions({
@@ -333,6 +357,10 @@ export const siteHealthQueries = {
         status: params?.status ?? null,
         monitored: params?.monitored ?? null,
         page_kind: params?.page_kind ?? null,
+        // The sort changes the server's ordering, so it must be part of the
+        // cache identity — otherwise two sorts share one entry and the table
+        // renders the previous ordering's rows.
+        sort: params?.sort ?? null,
       }),
       queryFn: ({ signal }) => siteHealthApi.getPages(crawlId, params, { signal }),
     }),

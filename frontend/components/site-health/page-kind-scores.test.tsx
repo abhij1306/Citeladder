@@ -66,6 +66,7 @@ function crawl(scoreSummary: SiteScoreSummary | null): SiteCrawl {
     sample_mode: false,
     seed: '1',
     inventory_complete: true,
+    partial_reason: '',
     visible_url_count: 3,
     analyzed_count: 3,
     failed_count: 0,

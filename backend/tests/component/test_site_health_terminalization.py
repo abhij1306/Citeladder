@@ -23,6 +23,7 @@ from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_FAILED,
     ANALYSIS_STATUS_PENDING,
     ANALYSIS_STATUS_RUNNING,
+    CRAWL_PARTIAL_REASON_DISCOVERY,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_FAILED,
     CRAWL_STATUS_PARTIALLY_COMPLETED,
@@ -266,6 +267,12 @@ async def test_partial_failure_terminalizes_crawl_as_partially_completed(
         assert crawl.discovered_url_count >= 1  # root succeeded
         assert crawl.failed_url_count >= 1  # child 404
         assert crawl.status == CRAWL_STATUS_PARTIALLY_COMPLETED
+        # The shortfall was a URL that could not be FETCHED. Analysis itself
+        # completed, so the crawl must not claim pages could not be analyzed —
+        # a dead link is routine on a real site, and blaming analysis for it
+        # made effectively every crawl report a failure it did not have.
+        assert crawl.partial_reason == CRAWL_PARTIAL_REASON_DISCOVERY
+        assert crawl.analysis_status == ANALYSIS_STATUS_COMPLETED
         # Discovery still terminalizes as completed (some inventory exists).
         assert crawl.discovery_status == DISCOVERY_STATUS_COMPLETED
         assert crawl.inventory_complete is True

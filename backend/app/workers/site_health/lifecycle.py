@@ -38,6 +38,10 @@ from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_STOPPED,
     APPLICABILITY_CRAWL_FINALIZE,
     CRAWL_ACTIVE_STATUSES,
+    CRAWL_PARTIAL_REASON_ANALYSIS,
+    CRAWL_PARTIAL_REASON_BOTH,
+    CRAWL_PARTIAL_REASON_DISCOVERY,
+    CRAWL_PARTIAL_REASON_NONE,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_DRAFT,
     CRAWL_STATUS_FAILED,
@@ -180,6 +184,22 @@ def _reconcile_discovery_state(
             apply_discovery_status(crawl, status)
         crawl.inventory_complete = not discovery_failed
     return fully_failed, discovery_partial
+
+
+def _partial_reason(*, discovery_partial: bool, analysis_partial: bool) -> str:
+    """Name what actually fell short, so the UI never has to guess.
+
+    A crawl that met one dead link and analyzed every page it DID fetch is a
+    normal outcome on a real site; saying "pages could not be analyzed" there
+    is simply false, and it fired on effectively every crawl.
+    """
+    if discovery_partial and analysis_partial:
+        return CRAWL_PARTIAL_REASON_BOTH
+    if discovery_partial:
+        return CRAWL_PARTIAL_REASON_DISCOVERY
+    if analysis_partial:
+        return CRAWL_PARTIAL_REASON_ANALYSIS
+    return CRAWL_PARTIAL_REASON_NONE
 
 
 def _terminalize_analysis_state(
@@ -376,13 +396,20 @@ class CrawlLifecycle(CrawlFinalizeMixin):
             failure_summary = await load_root_failure_summary(session, crawl=crawl)
             if failure_summary is not None and not crawl.error_message:
                 crawl.error_message = failure_summary["message"]
-        elif discovery_partial or (
-            summary.analyze_applicable > 0
-            and summary.analyze_succeeded < summary.analyze_applicable
-        ):
-            apply_crawl_status(crawl, CRAWL_STATUS_PARTIALLY_COMPLETED)
         else:
-            apply_crawl_status(crawl, CRAWL_STATUS_COMPLETED)
+            analysis_partial = (
+                summary.analyze_applicable > 0
+                and summary.analyze_succeeded < summary.analyze_applicable
+            )
+            crawl.partial_reason = _partial_reason(
+                discovery_partial=discovery_partial, analysis_partial=analysis_partial
+            )
+            apply_crawl_status(
+                crawl,
+                CRAWL_STATUS_PARTIALLY_COMPLETED
+                if crawl.partial_reason
+                else CRAWL_STATUS_COMPLETED,
+            )
 
         if crawl.status == CRAWL_STATUS_FAILED:
             record_crawl_event(

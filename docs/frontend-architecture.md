@@ -16,7 +16,7 @@ superseded path is deleted.
 | Station | Destination | Canonical browser location |
 |---|---|---|
 | Overview | Overview | `/projects` |
-| Analyze | Website | `/site?tab=pages` (default), `aeo-readiness`, `changes` |
+| Analyze | Website | `/site?tab=pages` (default), `architecture`, `aeo-readiness`, `changes` |
 | Analyze | Issues / Search Demand / Traffic | `/issues`, `/demand`, `/traffic` |
 | Analyze | Commerce Suite | `/products` |
 | Act | Opportunities / Content | `/opportunities`, `/content` |
@@ -69,15 +69,23 @@ The former multi-panel Site Intelligence workspace is removed. Do not nest a
 second site workspace, knowledge panel, journey panel, correction workflow, or
 comparison surface inside these routes.
 
-PR3's persisted observed-architecture backend projection adds no new route or
-screen by itself. Its planned presentation belongs in the existing Website
-tablist as **Architecture**, never as a second site workspace. The browser must
-render the persisted coverage and abstention states and must not infer parents,
-families, an archetype, or missing structures.
+The persisted observed-architecture projection is presented as the
+**Architecture** tab of the existing Website tablist in
+`components/site-health/architecture-panel.tsx` — never a second site workspace
+and never its own route. The tab shows exactly one thing: the crawl's page
+families, each expanding to the URLs the backend assigned it. It renders no
+hierarchy tree and no site-profile/archetype block; both described the analysis
+rather than the site and did not answer what the tab is opened for. The browser
+still renders the persisted coverage state and its limitation once, and leaves
+an orphan count unmeasured whenever coverage is not `complete` — absence is what
+a partial crawl cannot prove. It infers no family, parent, or archetype.
 
 The backend owns the current Site Health phase. The client renders the provided
 phase and action availability instead of reconstructing a cross-product of
-crawl, discovery, analysis, and phase-run states.
+crawl, discovery, analysis, and phase-run states. That includes why a crawl is
+partial: the client selects copy from the persisted `partial_reason` and never
+infers the cause from a counter. Links that could not be fetched are reported as
+an observation, not as an analysis failure.
 
 The same rule applies to live worker activity. The API supplies a persisted
 blocked/failure breakdown and an evidence-derived `working | waiting | stalled
@@ -93,11 +101,15 @@ an active persisted crawl, otherwise **Run new crawl**. **Export** is the
 secondary action. The client exposes no separate discovery or analysis buttons.
 
 Website uses one tablist on `/site`. **Pages** retains the crawl lifecycle and
-inventory surface. **AEO Readiness** is the adjacent Website tab. It renders the server's seven
-ordered presentation dimensions as pass, fail, not-applicable, and explicit
-expected/observed coverage columns. Bounded persisted evaluation links open the
-existing crawl-bounded page detail. The client does not remap rules, recompute
-coverage, guess a missing bucket, or display a composite readiness score.
+inventory surface. **AEO Readiness** is an adjacent Website tab. It renders the
+server's seven ordered presentation dimensions as cards: the dimension's
+plain-language description, how many checked pages need work, its per-rule
+checks named by catalog title with their remediation, and a sheet listing each
+failing page once with the checks that page failed. It shows no raw rule ID and
+no bare outcome token, and it never presents a bounded evidence list as a total
+— the true failing-page count travels beside it. The client does not remap
+rules, recompute coverage, guess a missing bucket, or display a composite
+readiness score.
 
 **Changes** reads only persisted Change Intelligence summary and cursor pages.
 It shows the four classes, exact before/after values, analysis provenance, and
@@ -157,7 +169,8 @@ screen from its internal presentation files.
 | Onboarding | `components/onboarding/onboarding-screen.tsx` selects the active stage | flow, layout, and stage owners contain the transaction state, responsive chrome, and stage UI |
 | Projects dashboard | `components/projects/dashboard-screen.tsx` owns query gates and project context | dashboard controls, primitives, sections, and command-center action hook own reusable UI and mutations |
 | Traffic | `components/traffic/traffic-screen.tsx` owns query gates and selected analytical controls | toolbar, unified-performance card, and synchronization hook own their scoped behavior |
-| Site Health URL detail | `components/site-health/url-detail.tsx` owns query/rerun control and polling | `url-detail-view.tsx` owns the persisted-detail presentation |
+| Site Health URL detail | `components/site-health/url-detail.tsx` owns query/rerun control and polling | `url-detail-view.tsx` owns the persisted-detail presentation; `internal-links-card.tsx` owns the link-metric section |
+| Site Health architecture | `components/site-health/architecture-panel.tsx` owns the projection query, the family rows, and the Markdown structure export | — |
 | Commerce, prompts, providers, and marketing previews | Existing public panels and dialogs remain their caller-facing owners | small view, cell, topic, preview, and message-bus modules own discrete presentation or local interaction regions |
 
 ### Site Health API schemas
@@ -166,8 +179,8 @@ screen from its internal presentation files.
 facade. The public `lib/api/schemas` barrel re-exports that facade, so API
 consumers retain their existing import boundary and inferred Zod schema names.
 Focused modules under `lib/api/schemas/site-health/` own crawl lifecycle,
-dashboard/change/readiness, inventory, issues, page detail, pagination, and
-shared schema primitives. Do not import a focused file from a feature solely to
+dashboard/change/readiness, observed architecture, inventory, issues, page
+detail, pagination, and shared schema primitives. Do not import a focused file from a feature solely to
 avoid the facade; move a genuinely shared primitive into the focused schema
 folder and re-export it through the facade.
 

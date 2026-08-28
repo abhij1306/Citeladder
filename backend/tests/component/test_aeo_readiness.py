@@ -105,14 +105,30 @@ async def test_seven_dimensions_exactly_reconcile_and_trace_failing_page(
         assert dimension["observed_evaluation_count"] == sum(counts.values())
         assert dimension["expected_evaluation_count"] == sum(counts.values())
         assert dimension["coverage"] == 1.0
-    failing_links = [
-        link
+    # Evidence is page-shaped: each failing page appears once, listing the
+    # checks it failed, and every check carries catalog copy rather than an id.
+    failed_checks = [
+        check
         for dimension in body["dimensions"]
-        for link in dimension["evidence_links"]
-        if link["outcome"] == "fail"
+        for page in dimension["evidence_pages"]
+        for check in page["failed_checks"]
     ]
-    assert any(link["rule_id"] == "aeo.answer_first" for link in failing_links)
-    assert any(link["rule_id"] == "aeo.outbound_citations" for link in failing_links)
+    assert any(check["rule_id"] == "aeo.answer_first" for check in failed_checks)
+    assert any(check["rule_id"] == "aeo.outbound_citations" for check in failed_checks)
+    assert all(
+        check["title"] and check["title"] != check["rule_id"] for check in failed_checks
+    )
+    for dimension in body["dimensions"]:
+        assert dimension["description"]
+        # One row per page, never one per evaluation.
+        page_ids = [page["site_url_id"] for page in dimension["evidence_pages"]]
+        assert len(page_ids) == len(set(page_ids))
+        assert dimension["failing_page_count"] == len(page_ids)
+        assert dimension["evidence_truncated"] is False
+        assert all(
+            check["title"] and check["title"] != check["rule_id"]
+            for check in dimension["checks"]
+        )
 
 
 async def test_readiness_read_is_workspace_isolated(

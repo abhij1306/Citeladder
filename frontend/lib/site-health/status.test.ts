@@ -277,6 +277,7 @@ describe('dashboardRunNotice', () => {
     analyzed_count: 3,
     error_message: '',
     failure_summary: null,
+    partial_reason: '' as const,
   };
 
   it('returns null for a cleanly completed crawl (no notice)', () => {
@@ -291,10 +292,40 @@ describe('dashboardRunNotice', () => {
     expect(notice?.message).toMatch(/re-crawl/i);
   });
 
-  it('labels a partial dashboard with a Partial badge + warning tone', () => {
-    const notice = dashboardRunNotice({ ...noticeBase, status: 'partially_completed' });
+  it('blames analysis only when analysis is what actually fell short', () => {
+    const notice = dashboardRunNotice({
+      ...noticeBase,
+      status: 'partially_completed',
+      partial_reason: 'analysis_incomplete',
+    });
     expect(notice?.badge).toBe('partial');
     expect(notice?.tone).toBe('warning');
+    expect(notice?.message).toMatch(/could not be analyzed/i);
+  });
+
+  it('reports unreachable links as an observation, not an analysis failure', () => {
+    // Every real site has a few dead or non-page links. Reporting that as
+    // "pages could not be analyzed" made effectively every crawl look broken.
+    const notice = dashboardRunNotice({
+      ...noticeBase,
+      status: 'partially_completed',
+      partial_reason: 'discovery_incomplete',
+    });
+    expect(notice?.tone).toBe('info');
+    expect(notice?.message).toMatch(/could not be fetched/i);
+    expect(notice?.message).toMatch(/every page that was fetched has been analyzed/i);
+    expect(notice?.message).not.toMatch(/could not be analyzed/i);
+  });
+
+  it('names both shortfalls when discovery and analysis each fell short', () => {
+    const notice = dashboardRunNotice({
+      ...noticeBase,
+      status: 'partially_completed',
+      partial_reason: 'discovery_and_analysis_incomplete',
+    });
+    expect(notice?.tone).toBe('warning');
+    expect(notice?.message).toMatch(/could not be fetched/i);
+    expect(notice?.message).toMatch(/could not be analyzed/i);
   });
 
   it('labels a paused dashboard with actionable partial-results copy', () => {
@@ -316,6 +347,7 @@ describe('dashboardRunNotice', () => {
   it('drops the "pages analyzed so far" claim when nothing was analyzed (SH-2)', () => {
     const notice = dashboardRunNotice({
       status: 'failed',
+      partial_reason: '',
       analyzed_count: 0,
       error_message: '',
       failure_summary: {

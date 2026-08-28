@@ -57,6 +57,7 @@ const crawl = {
   extractor_version: 'extract-v1',
   analyzer_version: 'page-v1',
   rule_version: 'rules-v1',
+  partial_reason: '' as const,
   scoring_version: 'score-v1',
   error_message: '',
   created_at: '2026-08-15T00:00:00Z',
@@ -69,7 +70,7 @@ const dimensions = [
   ['answerability', 'Answerability'],
   ['structure', 'Structure'],
   ['evidence', 'Evidence'],
-  ['machine-readability', 'Machine-readability'],
+  ['machine-readability', 'Machine readability'],
   ['authority', 'Authority'],
   ['freshness', 'Freshness'],
   ['crawlability', 'Crawlability'],
@@ -123,6 +124,7 @@ async function stubWebsite(page: Page) {
         dimensions: dimensions.map(([key, label], index) => ({
           key,
           label,
+          description: `What ${label.toLowerCase()} means, in one plain sentence.`,
           rule_ids: Array.from({ length: ruleCounts[index] }, (_, ruleIndex) =>
             index === 0 && ruleIndex === 0 ? 'aeo.answer_first' : `aeo.rule_${index}_${ruleIndex}`,
           ),
@@ -133,17 +135,87 @@ async function stubWebsite(page: Page) {
           observed_evaluation_count: ruleCounts[index] * 2,
           expected_evaluation_count: ruleCounts[index] * 2,
           coverage: 1,
-          evidence_links: [
+          checked_page_count: 2,
+          failing_page_count: index ? 0 : 1,
+          checks: [
             {
-              evaluation_id: `abababab-abab-4bab-8bab-abababababa${index}`,
-              analysis_id: TARGET,
-              site_url_id: TARGET,
-              normalized_url: 'https://acme.example/case-study',
               rule_id: index ? `aeo.rule_${index}_0` : 'aeo.answer_first',
-              outcome: index ? 'pass' : 'fail',
+              title: index ? `${label} check` : 'Answer is not stated first',
+              remediation: 'Move the direct answer into the opening paragraph.',
+              pass_count: index ? 2 : 1,
+              fail_count: index ? 0 : 1,
+              not_applicable_count: index === 1 ? 1 : 0,
+              failing_page_count: index ? 0 : 1,
             },
           ],
+          evidence_pages: index
+            ? []
+            : [
+                {
+                  site_url_id: TARGET,
+                  normalized_url: 'https://acme.example/case-study',
+                  failed_checks: [
+                    { rule_id: 'aeo.answer_first', title: 'Answer is not stated first' },
+                  ],
+                },
+              ],
+          evidence_truncated: false,
         })),
+      },
+    ],
+    [
+      new RegExp(`/api/v1/projects/${FIXTURE_PROJECT.id}/site-health/architecture(?:\\?.*)?$`),
+      {
+        state: 'available',
+        crawl_id: CRAWL,
+        coverage_state: 'complete',
+        page_count: 2,
+        page_kind_counts: { article: 2 },
+        archetype: {
+          archetype: 'commerce',
+          source: 'onboarding_profile',
+          reason: 'profile_supported',
+          business_model: 'retail',
+          market_scope: 'national',
+          observed: [],
+          not_observed: [],
+        },
+        families: [
+          {
+            family: '/pages/*',
+            url_count: 2,
+            page_kind_distribution: { article: 2 },
+            median_depth: 1,
+            indexable_count: 2,
+            metadata_duplication_rate: 0,
+            orphan_count: 0,
+          },
+        ],
+        nodes: [
+          {
+            site_url_id: TARGET,
+            url: 'https://acme.example/case-study',
+            title: 'Case study',
+            page_kind: 'article',
+            family: '/pages/*',
+            parent_site_url_id: null,
+            parent_source: 'unknown',
+            depth_from_home: 1,
+          },
+          {
+            site_url_id: SOURCE,
+            url: 'https://acme.example/guide',
+            title: 'Guide',
+            page_kind: 'article',
+            family: '/pages/*',
+            parent_site_url_id: null,
+            parent_source: 'unknown',
+            depth_from_home: 1,
+          },
+        ],
+        architecture_formula_version: 'sh-architecture-1',
+        archetype_policy_version: 'sh-archetypes-1',
+        limitations: [],
       },
     ],
     [
@@ -211,19 +283,40 @@ async function stubWebsite(page: Page) {
   ]);
 }
 
-test('AEO Readiness browser proof: seven reconciled dimensions and failing evidence link', async ({
+test('AEO Readiness browser proof: seven named dimensions and page-grouped evidence', async ({
   page,
 }) => {
   await stubWebsite(page);
   await page.goto('/site');
   await page.getByRole('tab', { name: 'AEO Readiness' }).click();
 
-  const table = page.getByRole('table');
-  await expect(page.getByTestId('aeo-readiness')).toBeVisible();
-  for (const [, label] of dimensions) await expect(table).toContainText(label);
-  await expect(table).toContainText('Not applicable');
-  await page.getByText('View 1 evidence link').first().click();
-  await expect(page.getByText('aeo.answer_first')).toBeVisible();
+  const panel = page.getByTestId('aeo-readiness');
+  await expect(panel).toBeVisible();
+  for (const [, label] of dimensions) await expect(panel).toContainText(label);
+  // Pages needing work, not a bare evaluation count.
+  await expect(panel).toContainText('1 of 2 checked pages need work');
+  // Checks are named the way the catalog names them, never by rule id.
+  await expect(panel).toContainText('Answer is not stated first');
+  await expect(panel).not.toContainText('aeo.answer_first');
+
+  await page.getByRole('button', { name: 'View 1 page to fix' }).click();
+  const evidence = page.getByRole('dialog');
+  await expect(evidence).toContainText('acme.example/case-study');
+  await expect(evidence).toContainText('Answer is not stated first');
+});
+
+test('Architecture browser proof: page families expand to their URLs', async ({ page }) => {
+  await stubWebsite(page);
+  await page.goto('/site');
+  await page.getByRole('tab', { name: 'Architecture' }).click();
+
+  const panel = page.getByTestId('site-architecture');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText('/pages/*');
+  // Pages stay behind the family dropdown until it is opened.
+  await expect(panel).not.toContainText('https://acme.example/case-study');
+  await page.getByRole('button', { name: /\/pages\/\*/ }).click();
+  await expect(panel).toContainText('https://acme.example/case-study');
 });
 
 test('Website Changes browser proof: summary and exact before-after evidence', async ({ page }) => {

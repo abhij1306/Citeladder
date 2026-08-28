@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import uuid
 from collections import Counter, defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from statistics import median
 from urllib.parse import urlsplit, urlunsplit
@@ -350,12 +351,19 @@ def _profile_evidence(business_context: dict) -> dict:
     }
 
 
-def _common_structure_observations(
-    *, archetype: str, pages: list[ArchitecturePage], market_scope: str
+def common_structure_observations(
+    *, archetype: str, pages: Sequence[tuple[str, str]], market_scope: str
 ) -> tuple[list[dict], list[dict]]:
+    """Split an archetype's common structures into observed / not observed.
+
+    ``pages`` is ``(page_kind, url)`` rather than the richer dataclass so the
+    read path can re-run the SAME policy over a persisted hierarchy when the
+    user corrects the archetype — without re-reading artifacts or writing a
+    second implementation of the rule.
+    """
     observed: list[dict] = []
     not_observed: list[dict] = []
-    page_segments = [(page.page_kind, _path_segments(page.url)) for page in pages]
+    page_segments = [(page_kind, _path_segments(url)) for page_kind, url in pages]
     for structure in COMMON_STRUCTURES[archetype]:
         if structure.local_market_only and market_scope not in {"local", "regional"}:
             continue
@@ -397,9 +405,9 @@ def resolve_archetype(
             profile_evidence,
         )
 
-    observed, not_observed = _common_structure_observations(
+    observed, not_observed = common_structure_observations(
         archetype=archetype,
-        pages=pages,
+        pages=[(page.page_kind, page.url) for page in pages],
         market_scope=profile_evidence["market_scope"],
     )
     # Absence advisories are unavailable unless the crawl proved completeness.

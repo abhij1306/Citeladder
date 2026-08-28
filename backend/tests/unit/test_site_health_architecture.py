@@ -7,6 +7,7 @@ import uuid
 from app.analysis.site_health.architecture import (
     ArchitecturePage,
     build_observed_architecture,
+    common_structure_observations,
     evaluate_architecture_rules,
     path_template,
     resolve_archetype,
@@ -289,3 +290,39 @@ def test_structural_rules_fire_positive_observations_and_abstain_on_absence() ->
     assert outcomes["architecture.orphan_pages"] == "fail"
     assert outcomes["architecture.parentless_detail_pages"] == "fail"
     assert outcomes["architecture.unhubbed_family"] == "fail"
+
+
+def _structure_keys(result: tuple[list[dict], list[dict]]) -> set[str]:
+    return {row["key"] for group in result for row in group}
+
+
+def test_common_structures_are_matched_by_kind_or_path_and_gate_local() -> None:
+    """The read path re-runs this policy on a correction, so it must be pure.
+
+    It takes ``(page_kind, url)`` pairs rather than the analysis dataclass, and
+    a location structure stays out of the comparison entirely unless the user
+    confirmed a local/regional market.
+    """
+    pages = [
+        (PAGE_KIND_PRODUCT, "https://x.test/p/widget"),
+        ("trust_policy", "https://x.test/pages/refund-policy"),
+    ]
+    observed, not_observed = common_structure_observations(
+        archetype="commerce", pages=pages, market_scope="national"
+    )
+    assert [row["key"] for row in observed] == ["products", "shipping_returns"]
+    assert [row["key"] for row in not_observed] == [
+        "categories",
+        "contact",
+        "help_hub",
+        "editorial",
+    ]
+
+    national = common_structure_observations(
+        archetype="services", pages=pages, market_scope="national"
+    )
+    local = common_structure_observations(
+        archetype="services", pages=pages, market_scope="local"
+    )
+    assert "locations" not in _structure_keys(national)
+    assert "locations" in _structure_keys(local)

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import {
@@ -14,9 +15,11 @@ import {
 } from '@/components/ui/table';
 import { scoreTextClass } from '@/components/ui/score-band';
 import { cn } from '@/lib/utils';
+import type { PagesSort } from '@/lib/api/site-health';
 import type { PageSummary } from '@/lib/api/types';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import {
+  PLACEHOLDER,
   formatAudited,
   formatIssueCount,
   formatScore,
@@ -30,18 +33,77 @@ import {
  *
  * Renders one row per analyzed page: URL (+ path), the page-kind badge (v2
  * P1), a per-page analysis status badge (queued/running/completed/error/
- * blocked), issue count, Web Fundamentals / AEO scores, last audited, and a View
- * action. Missing / not-yet-analysed scores render the `Not measured` placeholder —
- * never a fabricated zero (an error/blocked row shows `Not measured`, not 0). The whole
- * row is clickable and navigates to the Slice 8 per-URL detail route
- * (`/site/crawls/[crawlId]/pages/[siteUrlId]`); the View link remains
- * as the keyboard/screen-reader affordance.
+ * blocked), issue count, Web Fundamentals / AEO scores, the crawl's internal-link
+ * metrics, last audited, and a View action. Missing / not-yet-analysed scores and
+ * unmeasured link metrics render the `Not measured` placeholder — never a
+ * fabricated zero (an error/blocked row shows `Not measured`, not 0; a page with no
+ * metric row is unmeasured, not unlinked). The whole row is clickable and navigates
+ * to the Slice 8 per-URL detail route (`/site/crawls/[crawlId]/pages/[siteUrlId]`);
+ * the View link remains as the keyboard/screen-reader affordance.
+ *
+ * Sorting is SERVER-SIDE and keyset-paged: each link column asks the backend to
+ * reorder the whole result set, never the current page window. Each sort has one
+ * meaningful direction (most-linked first, shallowest first), so a header selects
+ * a sort rather than toggling one.
  */
+
+const LINK_COLUMNS: ReadonlyArray<{
+  sort: Exclude<PagesSort, 'url'>;
+  label: string;
+  descending: boolean;
+  value: (page: PageSummary) => number | null;
+}> = [
+  {
+    sort: 'inbound',
+    label: 'Inbound',
+    descending: true,
+    value: (page) => page.inbound_count,
+  },
+  {
+    sort: 'main_content_inbound',
+    label: 'Main-content inbound',
+    descending: true,
+    value: (page) => page.main_content_inbound_count,
+  },
+  { sort: 'depth', label: 'Depth', descending: false, value: (page) => page.depth_from_home },
+];
+
+function SortableHead({
+  label,
+  active,
+  descending,
+  onSort,
+}: Readonly<{ label: string; active: boolean; descending: boolean; onSort: () => void }>) {
+  const Icon = active ? (descending ? ArrowDown : ArrowUp) : ArrowUpDown;
+  return (
+    <TableHead numeric aria-sort={active ? (descending ? 'descending' : 'ascending') : undefined}>
+      <button
+        type="button"
+        onClick={onSort}
+        className={cn(
+          'inline-flex items-center gap-1',
+          active ? 'text-accent-text' : 'hover:text-foreground',
+        )}
+      >
+        {label}
+        <Icon className={cn('size-3', !active && 'text-subtle')} aria-hidden />
+      </button>
+    </TableHead>
+  );
+}
 
 export function PagesTable({
   pages,
   crawlId,
-}: Readonly<{ pages: PageSummary[]; crawlId: string }>) {
+  sort = 'url',
+  onSortChange,
+}: Readonly<{
+  pages: PageSummary[];
+  crawlId: string;
+  sort?: PagesSort;
+  /** Omitted where the table is read-only; the link headers then render plain. */
+  onSortChange?: (sort: PagesSort) => void;
+}>) {
   const router = useRouter();
   const openPage = (siteUrlId: string) => {
     const page = pages.find((row) => row.site_url_id === siteUrlId);
@@ -60,6 +122,21 @@ export function PagesTable({
           <TableHead numeric>Issues</TableHead>
           <TableHead numeric>Web Fundamentals</TableHead>
           <TableHead numeric>AEO</TableHead>
+          {LINK_COLUMNS.map((column) =>
+            onSortChange ? (
+              <SortableHead
+                key={column.sort}
+                label={column.label}
+                active={sort === column.sort}
+                descending={column.descending}
+                onSort={() => onSortChange(sort === column.sort ? 'url' : column.sort)}
+              />
+            ) : (
+              <TableHead key={column.sort} numeric>
+                {column.label}
+              </TableHead>
+            ),
+          )}
           <TableHead>Last Audit</TableHead>
           <TableHead className="w-16" />
         </TableRow>
@@ -127,6 +204,18 @@ export function PagesTable({
             <TableCell numeric className={cn('mono font-medium', scoreTextClass(page.aeo_score))}>
               {formatScore(page.aeo_score)}
             </TableCell>
+            {LINK_COLUMNS.map((column) => {
+              const value = column.value(page);
+              return (
+                <TableCell
+                  key={column.sort}
+                  numeric
+                  className={cn('mono', value === null ? 'text-muted text-xs' : 'text-secondary')}
+                >
+                  {value === null ? PLACEHOLDER : value}
+                </TableCell>
+              );
+            })}
             <TableCell className="text-secondary text-xs whitespace-nowrap">
               {formatAudited(page.last_audited)}
             </TableCell>

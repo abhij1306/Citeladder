@@ -3,7 +3,7 @@
 Four sequential PRs, each merged before the next starts, each in its own chat. Every stage below is
 self-contained enough to hand to a fresh session.
 
-**Status:** PR1, PR2, and PR3 implemented; PR4 remains planned.
+**Status:** all four PRs implemented.
 
 **Guiding constraint:** CiteLadder may confidently report **what it observed**. It must be extremely
 conservative about claiming what a site's structure *is* or what it *must* contain.
@@ -16,6 +16,11 @@ change. A disposable database reset does not replace provenance.
 PR3 ships extractor `sh-extractor-12`, analyzer `sh-analyzer-7`, rule catalog
 `sh-rules-6`, architecture formula `sh-architecture-1`, and archetype policy
 `sh-archetypes-1`. Classifier and scoring semantics remain unchanged.
+
+PR4 bumps nothing: it is a read/presentation layer over the same persisted
+evidence. The archetype correction is applied at read time under the SAME
+`sh-archetypes-1` policy and never rewrites a persisted row, so no replay token
+moves.
 
 ---
 

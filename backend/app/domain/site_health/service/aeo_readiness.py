@@ -11,53 +11,19 @@ from app.analysis.site_health.aeo_readiness import (
     ReadinessEvaluationInput,
     project_aeo_readiness,
 )
+from app.analysis.site_health.rules import rule_for
 from app.core.config.site_health_contracts import (
     AEO_READINESS_MAX_EVALUATIONS,
     AEO_READINESS_RULE_DIMENSIONS,
     AEO_READINESS_TAXONOMY_VERSION,
-    CRAWL_STATUS_CANCELLED,
-    CRAWL_STATUS_COMPLETED,
-    CRAWL_STATUS_PARTIALLY_COMPLETED,
     PAGE_ANALYSIS_STATUS_COMPLETED,
 )
-from app.domain.site_health.service.common import (
-    SiteHealthNotFoundError,
-    _load_project,
-)
+from app.domain.site_health.service.common import resolve_usable_crawl
+from app.domain.site_health.service.presentation import display_label_for
 from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.analysis import SitePageAnalysis, SiteRuleEvaluation
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.urls import SiteUrl
-
-_USABLE_CRAWL_STATUSES = (
-    CRAWL_STATUS_COMPLETED,
-    CRAWL_STATUS_PARTIALLY_COMPLETED,
-    CRAWL_STATUS_CANCELLED,
-)
-
-
-async def _resolve_crawl(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    crawl_id: uuid.UUID | None,
-) -> SiteCrawl | None:
-    await _load_project(session, workspace_id=workspace_id, project_id=project_id)
-    statement = select(SiteCrawl).where(
-        SiteCrawl.workspace_id == workspace_id,
-        SiteCrawl.project_id == project_id,
-    )
-    if crawl_id is not None:
-        crawl = await session.scalar(statement.where(SiteCrawl.id == crawl_id))
-        if crawl is None:
-            raise SiteHealthNotFoundError("Crawl not found")
-        return crawl if crawl.status in _USABLE_CRAWL_STATUSES else None
-    return await session.scalar(
-        statement.where(SiteCrawl.status.in_(_USABLE_CRAWL_STATUSES))
-        .order_by(SiteCrawl.created_at.desc(), SiteCrawl.id.desc())
-        .limit(1)
-    )
 
 
 async def _current_analysis_rows(
@@ -93,6 +59,7 @@ def _dimension(item) -> dict:
     return {
         "key": item.key,
         "label": item.label,
+        "description": item.description,
         "rule_ids": list(item.rule_ids),
         "pass_count": item.pass_count,
         "fail_count": item.fail_count,
@@ -101,18 +68,44 @@ def _dimension(item) -> dict:
         "observed_evaluation_count": item.observed_evaluation_count,
         "expected_evaluation_count": item.expected_evaluation_count,
         "coverage": item.coverage,
-        "evidence_links": [
+        "checked_page_count": item.checked_page_count,
+        "failing_page_count": item.failing_page_count,
+        "checks": [
             {
-                "evaluation_id": row.evaluation_id,
-                "analysis_id": row.analysis_id,
-                "site_url_id": row.site_url_id,
-                "normalized_url": row.normalized_url,
-                "rule_id": row.rule_id,
-                "outcome": row.outcome,
+                "rule_id": check.rule_id,
+                "title": check.title,
+                "remediation": check.remediation,
+                "pass_count": check.pass_count,
+                "fail_count": check.fail_count,
+                "not_applicable_count": check.not_applicable_count,
+                "failing_page_count": check.failing_page_count,
             }
-            for row in item.evidence
+            for check in item.checks
         ],
+        "evidence_pages": [
+            {
+                "site_url_id": page.site_url_id,
+                "normalized_url": page.normalized_url,
+                "failed_checks": [
+                    {"rule_id": check.rule_id, "title": check.title}
+                    for check in page.failed_checks
+                ],
+            }
+            for page in item.evidence_pages
+        ],
+        "evidence_truncated": item.evidence_truncated,
     }
+
+
+def _rule_copy(rule_id: str) -> tuple[str, str]:
+    """Current catalog title + remediation for a mapped rule.
+
+    Resolved here rather than in the pure projection so the analysis module
+    never reaches into the rule catalog, and so the surface can never fall back
+    to showing a reader a raw rule id.
+    """
+    rule = rule_for(rule_id)
+    return display_label_for(rule_id), (rule.remediation if rule is not None else "")
 
 
 def _unavailable() -> dict:
@@ -127,7 +120,9 @@ def _unavailable() -> dict:
         "expected_evaluation_count": 0,
         "coverage": None,
         "dimensions": [],
-        "limitations": ["No usable persisted crawl is available for AEO Readiness."],
+        "limitations": [
+            "AEO Readiness appears once a crawl has finished analyzing pages."
+        ],
     }
 
 
@@ -139,7 +134,7 @@ async def get_aeo_readiness(
     crawl_id: uuid.UUID | None = None,
 ) -> dict:
     """Project current persisted evaluations without crawling or repair."""
-    crawl = await _resolve_crawl(
+    crawl = await resolve_usable_crawl(
         session,
         workspace_id=workspace_id,
         project_id=project_id,
@@ -173,6 +168,10 @@ async def get_aeo_readiness(
     )
     truncated = len(evaluation_rows) > AEO_READINESS_MAX_EVALUATIONS
     evaluation_rows = evaluation_rows[:AEO_READINESS_MAX_EVALUATIONS]
+    rule_copy = {
+        rule_id: _rule_copy(rule_id)
+        for rule_id in {row.rule_id for row in evaluation_rows}
+    }
     result = project_aeo_readiness(
         [
             ReadinessEvaluationInput(
@@ -182,6 +181,8 @@ async def get_aeo_readiness(
                 normalized_url=urls[row.analysis_id].normalized_url,
                 rule_id=row.rule_id,
                 outcome=row.outcome,
+                title=rule_copy[row.rule_id][0],
+                remediation=rule_copy[row.rule_id][1],
             )
             for row in evaluation_rows
         ],
@@ -190,7 +191,8 @@ async def get_aeo_readiness(
     limitations = list(result.limitations)
     if truncated:
         limitations.append(
-            f"Evaluation projection is bounded to {AEO_READINESS_MAX_EVALUATIONS} rows."
+            "This crawl produced more check results than one view can hold, so "
+            "the counts below are a bounded sample of them."
         )
     return {
         "state": "incomplete" if truncated else "available",

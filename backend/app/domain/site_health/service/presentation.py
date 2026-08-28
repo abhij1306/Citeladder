@@ -288,6 +288,9 @@ def project_crawl(
         "sample_mode": crawl.sample_mode,
         "seed": crawl.random_seed,
         "inventory_complete": crawl.inventory_complete,
+        # Empty unless the crawl terminalized PARTIALLY_COMPLETED. The client
+        # renders copy from this; it never infers the cause from a counter.
+        "partial_reason": getattr(crawl, "partial_reason", "") or "",
         "visible_url_count": int(crawl.admitted_url_count or 0),
         "analyzed_count": int(crawl.analyzed_url_count or 0),
         "failed_count": int(crawl.failed_url_count or 0),

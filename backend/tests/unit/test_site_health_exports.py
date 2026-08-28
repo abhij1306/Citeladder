@@ -17,9 +17,11 @@ import pytest
 from app.analysis.site_health.exports import (
     _VIEW_COLUMNS,
     EXPORT_VIEWS,
+    architecture_to_markdown,
     rows_to_csv,
     rows_to_markdown,
 )
+from app.core.config.site_health_archetypes import ARCHITECTURE_FAMILY_COLLAPSE_MIN
 
 
 def _parse_csv(text: str) -> list[list[str]]:
@@ -241,3 +243,107 @@ def test_csv_does_not_prefix_safe_leading_characters() -> None:
     data = dict(zip(rows[0], rows[1], strict=True))
     assert data["title"] == "Missing page title"
     assert data["remediation"] == "https://example.test/fix"
+
+
+def _architecture_model(nodes: list[dict], **overrides) -> dict:
+    return {
+        "coverage_state": "complete",
+        "archetype": {
+            "archetype": "commerce",
+            "source": "onboarding_profile",
+            "observed": [{"key": "products", "label": "Product pages"}],
+            "not_observed": [{"key": "help_hub", "label": "Help / FAQ hub"}],
+        },
+        "nodes": nodes,
+        **overrides,
+    }
+
+
+def _node(node_id: str, url: str, *, parent: str | None, kind: str = "product") -> dict:
+    return {
+        "site_url_id": node_id,
+        "url": url,
+        "page_kind": kind,
+        "parent_site_url_id": parent,
+    }
+
+
+def test_architecture_markdown_nests_resolved_parents() -> None:
+    model = _architecture_model(
+        [
+            _node("1", "https://x.test/", parent=None, kind="homepage"),
+            _node("2", "https://x.test/shoes", parent="1", kind="category"),
+            _node("3", "https://x.test/shoes/boot", parent="2"),
+        ]
+    )
+    body = architecture_to_markdown(model)
+    lines = body.splitlines()
+    tree = lines[lines.index("```") + 1 :]
+    assert tree[0] == "/"
+    assert tree[1] == "`-- https://x.test/  [homepage]"
+    assert tree[2] == "    `-- https://x.test/shoes  [category]"
+    assert tree[3] == "        `-- https://x.test/shoes/boot  [product]"
+    assert "Coverage: complete" in body
+    assert "- Help / FAQ hub" in body
+
+
+def test_architecture_markdown_collapses_a_large_family_to_a_count() -> None:
+    """A 142-product family is a count, not 142 lines of URLs."""
+    nodes = [_node("root", "https://x.test/", parent=None, kind="homepage")]
+    nodes += [
+        _node(str(index), f"https://x.test/p/{index}", parent="root")
+        for index in range(ARCHITECTURE_FAMILY_COLLAPSE_MIN)
+    ]
+    tree = architecture_to_markdown(_architecture_model(nodes)).splitlines()
+    assert f"    `-- [{ARCHITECTURE_FAMILY_COLLAPSE_MIN} product]" in tree
+    assert not any("https://x.test/p/" in line for line in tree)
+
+
+def test_architecture_markdown_reparents_nodes_whose_parent_is_absent() -> None:
+    """A parent outside the projection cannot silently swallow its child."""
+    tree = architecture_to_markdown(
+        _architecture_model(
+            [_node("2", "https://x.test/orphan", parent="missing-parent")]
+        )
+    ).splitlines()
+    assert "`-- https://x.test/orphan  [product]" in tree
+
+
+def test_architecture_markdown_states_unknown_coverage_and_omits_absence() -> None:
+    body = architecture_to_markdown(
+        _architecture_model(
+            [_node("1", "https://x.test/", parent=None)],
+            coverage_state="unknown",
+            archetype={
+                "archetype": "other",
+                "source": "abstained",
+                "observed": [],
+                "not_observed": [],
+            },
+        )
+    )
+    assert "Coverage: unknown" in body
+    assert "Common structures not observed" not in body
+    assert "## Observed" not in body
+
+
+def test_architecture_markdown_keeps_a_self_parenting_node() -> None:
+    """A page naming itself as its parent must not delete itself from the tree."""
+    tree = architecture_to_markdown(
+        _architecture_model([_node("1", "https://x.test/loop", parent="1")])
+    ).splitlines()
+    assert "`-- https://x.test/loop  [product]" in tree
+
+
+def test_architecture_markdown_keeps_nodes_trapped_in_a_parent_cycle() -> None:
+    """Two nodes naming each other are unreachable from any root — still shown."""
+    body = architecture_to_markdown(
+        _architecture_model(
+            [
+                _node("1", "https://x.test/a", parent="2"),
+                _node("2", "https://x.test/b", parent="1"),
+            ]
+        )
+    )
+    assert "https://x.test/a" in body
+    assert "https://x.test/b" in body

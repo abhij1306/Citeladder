@@ -3,25 +3,38 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Drawer } from '@/components/ui/drawer';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Label } from '@/components/ui/typography';
 import { siteHealthQueries } from '@/lib/api/site-health';
-import type { ReadinessDimension } from '@/lib/api/types';
+import type { AeoReadiness, ReadinessCheck, ReadinessDimension } from '@/lib/api/types';
+import { cn } from '@/lib/utils';
 
-function coverageLabel(value: number | null) {
-  return value === null ? 'Unavailable' : `${Math.round(value * 100)}%`;
-}
+/**
+ * AEO Readiness — seven dimensions of how ready the site is to be quoted.
+ *
+ * The previous version of this screen was a table of raw counts whose evidence
+ * drawer listed one row per rule evaluation. That produced the same URL five
+ * times under five ids like `aeo.answer_first`, each labelled `fail`, capped at
+ * 25 so every dimension coincidentally claimed "25 evidence links". It was
+ * accurate and unreadable.
+ *
+ * What replaced it, and why:
+ *
+ *  - **Pages, not evaluations.** A dimension reports how many pages it checked
+ *    and how many failed at least one check. Evidence lists each failing page
+ *    ONCE with the checks it failed, so nothing looks duplicated.
+ *  - **Catalog titles, never rule ids.** Every check names itself the way the
+ *    issue catalog does, and carries its remediation.
+ *  - **Honest counts.** The bounded evidence list always renders against the
+ *    true failing-page total, so a capped list never reads as the whole set.
+ *  - **No composite score.** Readiness is still persisted outcomes; the client
+ *    computes nothing, ranks nothing, and invents no grade.
+ */
 
 function pageLabel(url: string) {
   try {
@@ -32,56 +45,197 @@ function pageLabel(url: string) {
   }
 }
 
-const OUTCOME_ORDER: Record<string, number> = { fail: 0, error: 1, pass: 2, not_applicable: 3 };
+/** Share of applicable checks that passed. Presentation only — never persisted. */
+function passShare(dimension: ReadinessDimension): number | null {
+  const applicable = dimension.pass_count + dimension.fail_count;
+  return applicable === 0 ? null : dimension.pass_count / applicable;
+}
+
+function meterSentence(dimension: ReadinessDimension): string {
+  const pages = `${dimension.checked_page_count} checked page${dimension.checked_page_count === 1 ? '' : 's'}`;
+  return dimension.fail_count === 0
+    ? `All ${pages} pass`
+    : `${dimension.failing_page_count} of ${pages} need work`;
+}
+
+function DimensionMeter({ dimension }: Readonly<{ dimension: ReadinessDimension }>) {
+  const share = passShare(dimension);
+  if (share === null) {
+    return (
+      <span className="text-muted text-xs">
+        Not measured on any analyzed page — these checks did not apply.
+      </span>
+    );
+  }
+  return (
+    <div className="grid gap-1.5">
+      <div className="bg-background-alt h-1.5 w-full overflow-hidden rounded-full">
+        <div
+          className={cn(
+            'h-full rounded-full',
+            share === 1 ? 'bg-success' : share >= 0.5 ? 'bg-warning' : 'bg-danger',
+          )}
+          style={{ width: `${Math.round(share * 100)}%` }}
+        />
+      </div>
+      {/* One text node, not a span sandwich: the sentence has to read as a
+          sentence to a screen reader as much as to an eye. */}
+      <span
+        className={cn('text-xs', dimension.fail_count === 0 ? 'text-secondary' : 'text-foreground')}
+      >
+        {meterSentence(dimension)}
+      </span>
+    </div>
+  );
+}
+
+function CheckRow({ check }: Readonly<{ check: ReadinessCheck }>) {
+  const [open, setOpen] = useState(false);
+  const failing = check.fail_count > 0;
+  const applicable = check.pass_count + check.fail_count;
+  const Chevron = open ? ChevronDown : ChevronRight;
+  return (
+    <li className="border-border-subtle border-b last:border-b-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="hover:bg-background-alt flex w-full items-center gap-2.5 rounded-sm py-2 pr-2 text-left transition-colors"
+      >
+        <Chevron className="text-muted size-3.5 shrink-0" aria-hidden />
+        <span className={cn('min-w-0 flex-1 truncate text-sm', failing && 'font-medium')}>
+          {check.title}
+        </span>
+        {applicable === 0 ? (
+          <span className="text-muted shrink-0 text-xs">Did not apply</span>
+        ) : failing ? (
+          <span className="text-danger-text shrink-0 text-xs font-medium">
+            {check.failing_page_count} page{check.failing_page_count === 1 ? '' : 's'}
+          </span>
+        ) : (
+          <span className="text-success-text shrink-0 text-xs">Passing</span>
+        )}
+      </button>
+      {open ? (
+        <div className="text-secondary pb-3 pl-6 text-sm">
+          {check.remediation || 'No remediation guidance is recorded for this check.'}
+          <span className="text-subtle mt-1 block text-xs">
+            {check.pass_count} passed · {check.fail_count} failed · {check.not_applicable_count} did
+            not apply
+          </span>
+        </div>
+      ) : null}
+    </li>
+  );
+}
 
 /**
- * Evidence is a right-side sheet rather than an in-cell disclosure: a dimension
- * can carry dozens of persisted evaluations, and expanding them inside a table
- * cell inflated a single row past the height of the viewport.
+ * Evidence sheet: one row per failing PAGE, listing that page's failed checks.
+ * A right-side sheet rather than an in-card disclosure, because a dimension can
+ * carry dozens of pages and expanding them inline pushed a card past the
+ * viewport.
  */
 function EvidenceDrawer({
   dimension,
   crawlId,
   onClose,
 }: Readonly<{ dimension: ReadinessDimension | null; crawlId: string; onClose: () => void }>) {
-  const links = [...(dimension?.evidence_links ?? [])].sort(
-    (left, right) =>
-      (OUTCOME_ORDER[left.outcome] ?? 9) - (OUTCOME_ORDER[right.outcome] ?? 9) ||
-      left.normalized_url.localeCompare(right.normalized_url),
-  );
+  const shown = dimension?.evidence_pages.length ?? 0;
+  const total = dimension?.failing_page_count ?? 0;
   return (
     <Drawer
       open={Boolean(dimension)}
       onOpenChange={(open) => (open ? undefined : onClose())}
-      title={`${dimension?.label ?? ''} evidence`}
-      description="Persisted rule evaluations behind this dimension, failures first."
+      title={dimension ? `Pages to fix — ${dimension.label}` : ''}
+      description={
+        dimension
+          ? shown < total
+            ? `Showing the ${shown} most affected of ${total} pages, worst first.`
+            : `${total} page${total === 1 ? '' : 's'} failed at least one check, worst first.`
+          : ''
+      }
       closeLabel="Close evidence"
     >
       <ul className="divide-border-subtle divide-y">
-        {links.map((link) => (
-          <li key={link.evaluation_id} className="grid gap-1 py-2.5 first:pt-0">
-            <div className="flex items-baseline justify-between gap-3">
-              <Link
-                className="text-accent-text truncate text-sm hover:underline"
-                href={`/site/crawls/${crawlId}/pages/${link.site_url_id}`}
-              >
-                {pageLabel(link.normalized_url)}
-              </Link>
-              <span
-                className={
-                  link.outcome === 'fail'
-                    ? 'text-danger-text shrink-0 text-xs font-medium'
-                    : 'text-subtle shrink-0 text-xs'
-                }
-              >
-                {link.outcome.replace('_', ' ')}
-              </span>
-            </div>
-            <span className="text-muted text-xs">{link.rule_id}</span>
+        {(dimension?.evidence_pages ?? []).map((page) => (
+          <li key={page.site_url_id} className="grid gap-1.5 py-3 first:pt-0">
+            <Link
+              className="text-accent-text truncate text-sm font-medium hover:underline"
+              href={`/site/crawls/${crawlId}/pages/${page.site_url_id}`}
+            >
+              {pageLabel(page.normalized_url)}
+            </Link>
+            <ul className="grid gap-1">
+              {page.failed_checks.map((check) => (
+                <li key={check.rule_id} className="text-secondary flex items-start gap-2 text-xs">
+                  <span className="bg-danger mt-1.5 size-1.5 shrink-0 rounded-full" aria-hidden />
+                  {check.title}
+                </li>
+              ))}
+            </ul>
           </li>
         ))}
       </ul>
     </Drawer>
+  );
+}
+
+function DimensionCard({
+  dimension,
+  onOpenEvidence,
+}: Readonly<{ dimension: ReadinessDimension; onOpenEvidence: () => void }>) {
+  return (
+    <Card>
+      <CardContent className="grid content-start gap-3">
+        <div className="grid gap-1">
+          <h3 className="text-foreground text-heading-sm">{dimension.label}</h3>
+          <p className="text-muted text-xs leading-relaxed">{dimension.description}</p>
+        </div>
+        <DimensionMeter dimension={dimension} />
+        {dimension.checks.length > 0 ? (
+          <div className="grid gap-1">
+            <Label>Checks</Label>
+            <ul className="grid">
+              {dimension.checks.map((check) => (
+                <CheckRow key={check.rule_id} check={check} />
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {dimension.failing_page_count > 0 ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="justify-self-start"
+            onClick={onOpenEvidence}
+          >
+            View {dimension.failing_page_count} page
+            {dimension.failing_page_count === 1 ? '' : 's'} to fix
+          </Button>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReadinessHeader({ data }: Readonly<{ data: AeoReadiness }>) {
+  const failing = data.dimensions.filter((dimension) => dimension.fail_count > 0);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>AEO Readiness</CardTitle>
+        <CardDescription className="max-w-3xl">
+          Seven things an answer engine needs from a page, checked across {data.analysis_count}{' '}
+          analyzed page{data.analysis_count === 1 ? '' : 's'}.{' '}
+          {failing.length === 0
+            ? 'Every dimension is passing on the pages where its checks applied.'
+            : `${failing.length} of ${data.dimensions.length} need work: ${failing
+                .map((dimension) => dimension.label)
+                .join(', ')}.`}{' '}
+          These are recorded check results, not a score.
+        </CardDescription>
+      </CardHeader>
+    </Card>
   );
 }
 
@@ -105,83 +259,26 @@ export function AeoReadinessPanel({
   if (!readiness.data || readiness.data.state === 'unavailable') {
     return (
       <Alert tone="info">
-        AEO Readiness will appear after a usable crawl has persisted page evaluations.
+        {readiness.data?.limitations[0] ??
+          'AEO Readiness appears once a crawl has finished analyzing pages.'}
       </Alert>
     );
   }
 
   const data = readiness.data;
   return (
-    <div className="grid min-w-0 gap-6" data-testid="aeo-readiness">
-      {data.state === 'incomplete' || data.limitations.length ? (
-        <Alert tone="warning">{data.limitations.join(' ')}</Alert>
-      ) : null}
-      <Card>
-        <CardHeader>
-          <CardTitle>AEO Readiness</CardTitle>
-          <CardDescription className="max-w-3xl">
-            Seven presentation dimensions over {data.analysis_count} analyzed page
-            {data.analysis_count === 1 ? '' : 's'}. Counts are persisted rule outcomes—not a new
-            score. One count is one rule evaluated on one page, so a dimension totals more than the
-            page count.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Dimension</TableHead>
-                <TableHead numeric>Pass</TableHead>
-                <TableHead numeric>Fail</TableHead>
-                <TableHead numeric>Not applicable</TableHead>
-                <TableHead>Coverage</TableHead>
-                <TableHead>Evidence</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.dimensions.map((dimension) => (
-                <TableRow key={dimension.key}>
-                  <TableCell>
-                    <span className="font-medium">{dimension.label}</span>
-                    <span className="text-subtle block text-xs">
-                      {dimension.rule_ids.length} mapped rules
-                    </span>
-                  </TableCell>
-                  <TableCell numeric>{dimension.pass_count}</TableCell>
-                  <TableCell
-                    numeric
-                    className={dimension.fail_count ? 'text-danger-text font-medium' : undefined}
-                  >
-                    {dimension.fail_count}
-                  </TableCell>
-                  <TableCell numeric>{dimension.not_applicable_count}</TableCell>
-                  <TableCell>
-                    <span className="tabular-nums">{coverageLabel(dimension.coverage)}</span>
-                    <span className="text-subtle block text-xs">
-                      {dimension.observed_evaluation_count} of {dimension.expected_evaluation_count}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {dimension.evidence_links.length ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-accent-text hover:text-accent-hover -mx-2"
-                        onClick={() => setEvidenceKey(dimension.key)}
-                      >
-                        View {dimension.evidence_links.length} evidence link
-                        {dimension.evidence_links.length === 1 ? '' : 's'}
-                      </Button>
-                    ) : (
-                      <span className="text-subtle text-xs">No persisted evaluations</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+    <div className="grid min-w-0 gap-4" data-testid="aeo-readiness">
+      <ReadinessHeader data={data} />
+      {data.limitations.length ? <Alert tone="info">{data.limitations.join(' ')}</Alert> : null}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {data.dimensions.map((dimension) => (
+          <DimensionCard
+            key={dimension.key}
+            dimension={dimension}
+            onOpenEvidence={() => setEvidenceKey(dimension.key)}
+          />
+        ))}
+      </div>
       <EvidenceDrawer
         dimension={data.dimensions.find((dimension) => dimension.key === evidenceKey) ?? null}
         crawlId={crawlId}
