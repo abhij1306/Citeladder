@@ -160,7 +160,7 @@ async def test_missing_site_persists_stable_blocking_error(
 
 
 @pytest.mark.asyncio
-async def test_reaper_persists_blocking_code_and_deduplicated_warning(
+async def test_reaper_fails_active_parent_without_regressing_ready_parent(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
@@ -170,12 +170,16 @@ async def test_reaper_persists_blocking_code_and_deduplicated_warning(
         workspace_id = await session.scalar(select(Workspace.id).limit(1))
         assert workspace_id is not None
         discovery = await _seed_ready_discovery(session, workspace_id)
+        discovery.status = "running"
+        discovery.stage = "research"
         discovery.warnings = ["research_degraded"]
+        ready_discovery = await _seed_ready_discovery(session, workspace_id)
         await session.commit()
         discovery_id = discovery.id
+        ready_discovery_id = ready_discovery.id
 
     async def release_expired_detailed(*_args, **_kwargs):
-        return SimpleNamespace(failed_parent_ids=(discovery_id,))
+        return SimpleNamespace(failed_parent_ids=(discovery_id, ready_discovery_id))
 
     async def claim(*_args, **_kwargs):
         return []
@@ -195,6 +199,9 @@ async def test_reaper_persists_blocking_code_and_deduplicated_warning(
         assert persisted.status == "failed"
         assert persisted.error_code == ERROR_BRAND_DISCOVERY
         assert persisted.warnings == ["research_degraded"]
+        ready_persisted = await session.get(BrandDiscovery, ready_discovery_id)
+        assert ready_persisted is not None
+        assert ready_persisted.status == "ready"
 
 
 @pytest.mark.asyncio
