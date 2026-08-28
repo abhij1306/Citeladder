@@ -544,11 +544,11 @@ async def _collect_model_suggestions(
             last_error = exc
             continue
         dropped += batch_dropped
+        batch, duplicate_count = _drop_cross_batch_duplicates(suggestions, batch)
+        dropped += duplicate_count
         batch = filter_for_cohort(
             batch, payload.cohort, brand_context, validator=validator
         )
-        batch, duplicate_count = _drop_cross_batch_duplicates(suggestions, batch)
-        dropped += duplicate_count
         suggestions.extend(batch)
     if not suggestions and last_error is not None:
         raise last_error

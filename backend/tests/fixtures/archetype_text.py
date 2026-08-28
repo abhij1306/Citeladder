@@ -16,7 +16,12 @@ from app.core.config.prompts import (
     PROMPT_COHORT_COMPARISON,
     PROMPT_COHORT_CORE,
 )
-from app.core.config.visibility_prompts import ARCHETYPES_BY_KEY
+from app.core.config.visibility_prompts import (
+    ARCHETYPES_BY_KEY,
+    QUERY_FORM_FIRST_PERSON,
+    QUERY_FORM_QUESTION,
+    QUERY_FORM_SEARCH_PHRASE,
+)
 from app.domain.prompts.query_patterns import PromptSlot, _archetype_is_satisfied
 
 # Two varying words per slot, not one. The shared validator rejects near
@@ -52,32 +57,106 @@ _AUDIENCES = (
     "hikers",
 )
 
+
+def _forms(question: str, first_person: str, search_phrase: str) -> dict[str, str]:
+    return {
+        QUERY_FORM_QUESTION: question,
+        QUERY_FORM_FIRST_PERSON: first_person,
+        QUERY_FORM_SEARCH_PHRASE: search_phrase,
+    }
+
+
 _RENDERERS = {
-    "consideration_recommend": (
-        "Best {marker} {flavour} {topic} stores for {audience}"
+    "consideration_recommend": _forms(
+        "Which {marker} {flavour} {topic} stores are best for {audience}",
+        "I need the best {marker} {flavour} {topic} stores for {audience}",
+        "Best {marker} {flavour} {topic} stores for {audience}",
     ),
-    "decision_buy": "Where {marker} {audience} buy cheap {flavour} {topic}",
-    "consideration_compare": (
-        "{marker} {topic} retailers compared for {flavour} {audience}"
+    "decision_buy": _forms(
+        "Where can {marker} {audience} buy cheap {flavour} {topic}",
+        "I want to buy cheap {marker} {flavour} {topic} for {audience}",
+        "Cheap {marker} {flavour} {topic} stores for {audience}",
     ),
-    "decision_validate": "Is {marker} {flavour} {topic} worth buying for {audience}",
-    "awareness_solve": ("{marker} {audience} outgrew their {flavour} {topic} already"),
-    "awareness_learn": (
-        "Do {marker} {topic} outlast cheaper {flavour} pairs for {audience}"
+    "consideration_compare": _forms(
+        "Which {marker} {topic} options are better for {flavour} {audience}",
+        "I am comparing {marker} {topic} versus {flavour} options for {audience}",
+        "{marker} {topic} versus {flavour} options for {audience}",
     ),
-    "implementation_implement": (
-        "{marker} care guide for washing {flavour} {topic} for {audience}"
+    "decision_validate": _forms(
+        "Are {marker} {flavour} {topic} reliable enough for {audience}",
+        "I need reliable {marker} {flavour} {topic} for {audience}",
+        "Reliable {marker} {flavour} {topic} for {audience}",
     ),
-    "brand_awareness_learn": (
-        "Does {marker} {brand} still sell {flavour} basics for {audience}"
+    "awareness_solve": _forms(
+        "Why have {marker} {audience} outgrown {flavour} {topic} already",
+        "My {marker} {audience} outgrew their {flavour} {topic} already",
+        "{marker} {flavour} {topic} replacement options for {audience}",
     ),
-    "brand_decision_validate": (
-        "Is {marker} {brand} good for {flavour} shopping by {audience}"
+    "awareness_learn": _forms(
+        "Do {marker} {topic} last through {flavour} use for {audience}",
+        "I need to understand {marker} {flavour} {topic} durability for {audience}",
+        "{marker} {flavour} {topic} durability guide for {audience}",
     ),
-    "brand_consideration_compare": (
-        "{marker} {brand} versus {competitor} for {flavour} {topic}"
+    "implementation_implement": _forms(
+        "How should {marker} {audience} clean {flavour} {topic} safely",
+        "I need to clean {marker} {flavour} {topic} safely for {audience}",
+        "{marker} {flavour} {topic} care guide for {audience}",
+    ),
+    "brand_awareness_learn": _forms(
+        "What does {marker} {brand} sell for {flavour} {audience}",
+        "I want to learn what {marker} {brand} sells for {flavour} {audience}",
+        "{marker} {brand} {flavour} product guide for {audience}",
+    ),
+    "brand_decision_validate": _forms(
+        "Is {marker} {brand} reliable for {flavour} shopping by {audience}",
+        "I need a reliable {marker} {brand} option for {flavour} {audience}",
+        "Reliable {marker} {brand} {flavour} option for {audience}",
+    ),
+    "brand_consideration_compare": _forms(
+        "Is {marker} {brand} better than {competitor} for {flavour} {topic}",
+        "I am comparing {marker} {brand} versus {competitor} for {flavour} {topic}",
+        "{marker} {brand} versus {competitor} for {flavour} {topic}",
     ),
 }
+
+_QUESTION_OPENERS = frozenset(
+    {"are", "can", "do", "does", "how", "is", "what", "where", "which", "who", "why"}
+)
+_FIRST_PERSON_OPENERS = frozenset({"i", "my", "looking"})
+_SEARCH_PHRASE_VERBS = frozenset(
+    {
+        "am",
+        "are",
+        "book",
+        "buy",
+        "can",
+        "clean",
+        "compare",
+        "do",
+        "does",
+        "find",
+        "get",
+        "have",
+        "hire",
+        "i",
+        "is",
+        "learn",
+        "looking",
+        "my",
+        "need",
+        "order",
+        "purchase",
+        "sell",
+        "sells",
+        "shop",
+        "should",
+        "want",
+        "where",
+        "which",
+        "who",
+        "why",
+    }
+)
 
 
 def _offset(index: object) -> int:
@@ -90,7 +169,8 @@ def _offset(index: object) -> int:
 def slot_text(slot: dict[str, object], index: object) -> str:
     """Valid text for one planned slot, unique in wording and in opening."""
     competitors = list(slot.get("competitors") or [])
-    return _RENDERERS[str(slot["archetype"])].format(
+    form = str(slot.get("form") or QUERY_FORM_QUESTION)
+    return _RENDERERS[str(slot["archetype"])][form].format(
         marker=f"run{index}",
         flavour=_FLAVOURS[_offset(index) % len(_FLAVOURS)],
         audience=_AUDIENCES[(_offset(index) * 5 + 3) % len(_AUDIENCES)],
@@ -98,6 +178,20 @@ def slot_text(slot: dict[str, object], index: object) -> str:
         brand=str(slot.get("brand") or "Brand"),
         competitor=str(competitors[0]) if competitors else "Competitor",
     )
+
+
+def _satisfies_form(text: str, form: str) -> bool:
+    tokens = text.casefold().split()
+    if not tokens:
+        return False
+    opening = tokens[0]
+    if form == QUERY_FORM_QUESTION:
+        return opening in _QUESTION_OPENERS
+    if form == QUERY_FORM_FIRST_PERSON:
+        return opening in _FIRST_PERSON_OPENERS
+    if form == QUERY_FORM_SEARCH_PHRASE:
+        return not set(tokens) & _SEARCH_PHRASE_VERBS
+    return False
 
 
 def _cohort(archetype_key: str) -> str:
@@ -129,7 +223,12 @@ def slot_from_payload(slot: dict[str, object]) -> PromptSlot:
 
 def satisfies_slot(slot: dict[str, object], text: str) -> bool:
     """Whether text would survive the real archetype gates for this slot."""
-    return bool(text) and _archetype_is_satisfied(text, slot_from_payload(slot))
+    form = str(slot.get("form") or QUERY_FORM_QUESTION)
+    return (
+        bool(text)
+        and _satisfies_form(text, form)
+        and _archetype_is_satisfied(text, slot_from_payload(slot))
+    )
 
 
 SLOT_MARKER = "Buyer-query slots (return one row per slot): "

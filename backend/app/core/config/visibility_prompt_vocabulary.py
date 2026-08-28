@@ -157,6 +157,35 @@ ACQUISITION_WORDS: Final[frozenset[str]] = frozenset(
     }
 )
 
+# Strong transaction signals. Broad acquisition vocabulary also contains
+# interrogatives such as "where" and "which" so provider-seeking questions can
+# be recognized, but those words alone must not turn "Where can I learn ..."
+# into a decision-stage buying query.
+TRANSACTION_WORDS: Final[frozenset[str]] = frozenset(
+    {
+        "book",
+        "booking",
+        "buy",
+        "buying",
+        "anyone",
+        "deliver",
+        "delivery",
+        "hire",
+        "hiring",
+        "order",
+        "purchase",
+        "sell",
+        "sells",
+        "ship",
+        "shipping",
+        "shop",
+        "shopping",
+        "someone",
+        "stock",
+        "stocks",
+    }
+)
+
 PRICE_WORDS: Final[frozenset[str]] = frozenset(
     {
         "price",
@@ -223,6 +252,61 @@ PROCEDURAL_WORDS: Final[frozenset[str]] = frozenset(
         "measure",
         "monitor",
         "track",
+    }
+)
+
+VALIDATION_WORDS: Final[frozenset[str]] = frozenset(
+    {
+        "durable",
+        "fit",
+        "good",
+        "last",
+        "lasting",
+        "lasts",
+        "quality",
+        "reliable",
+        "suitable",
+        "trusted",
+        "worth",
+    }
+)
+
+PROBLEM_WORDS: Final[frozenset[str]] = frozenset(
+    {
+        "broke",
+        "broken",
+        "failed",
+        "fails",
+        "missing",
+        "need",
+        "needs",
+        "not",
+        "outgrew",
+        "outgrown",
+        "replace",
+        "replacement",
+        "stopped",
+        "wears",
+        "worn",
+    }
+)
+
+LEARNING_WORDS: Final[frozenset[str]] = frozenset(
+    {
+        "choose",
+        "choosing",
+        "do",
+        "does",
+        "guide",
+        "learn",
+        "learning",
+        "matter",
+        "matters",
+        "should",
+        "understand",
+        "what",
+        "whether",
+        "why",
     }
 )
 

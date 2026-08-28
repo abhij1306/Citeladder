@@ -196,7 +196,7 @@ describe('LaunchDialog prompt batching', () => {
     expect(screen.getByRole('button', { name: 'Launch audit' })).toBeEnabled();
 
     act(() => {
-      queryClient.setQueryData(queryKeys.prompts.sets(PROJECT_ID), setWithPrompts(12));
+      queryClient.setQueryData(queryKeys.prompts.sets(PROJECT_ID), setWithPrompts(7));
     });
 
     await waitFor(() =>
@@ -204,5 +204,16 @@ describe('LaunchDialog prompt batching', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Launch audit' }));
     expect(launch).not.toHaveBeenCalled();
+
+    const recoverySelect = screen.getByLabelText(/Prompts to run/);
+    expect(screen.getByRole('option', { name: 'All 7 prompts' })).toBeInTheDocument();
+    fireEvent.change(recoverySelect, { target: { value: 'all' } });
+    expect(screen.getByRole('button', { name: 'Launch audit' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Launch audit' }));
+    await waitFor(() =>
+      expect(launch).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt_set_id: PROMPT_SET_ID }),
+      ),
+    );
   });
 });

@@ -25,11 +25,15 @@ from app.core.config.prompts import (
 from app.core.config.visibility_prompt_vocabulary import (
     ACQUISITION_WORDS,
     COMPARISON_WORDS,
+    LEARNING_WORDS,
     MIN_CONSTRAINT_TOKENS,
     PRICE_WORDS,
+    PROBLEM_WORDS,
     PROCEDURAL_WORDS,
     PROVIDER_NOUNS,
     SELECTION_WORDS,
+    TRANSACTION_WORDS,
+    VALIDATION_WORDS,
 )
 from app.core.config.visibility_prompts import (
     ARCHETYPES_BY_KEY,
@@ -63,12 +67,19 @@ _BUSINESS_SEEKING_WORDS = (
 # text is still caught by project-level topical binding before any insert.
 _BINDING_EXEMPT_ARCHETYPES = frozenset({"awareness_solve", "implementation_implement"})
 
-# The one signal per archetype that is genuinely semantic rather than
-# syntactic. An archetype absent here is judged on the shared rules alone.
+# The semantic signal for each archetype's job. These are intentionally
+# job-specific: broad provider-seeking words still help with commercial
+# answerability, but cannot relabel an educational query as buying-ready.
 _ARCHETYPE_SIGNALS: dict[str, frozenset[str]] = {
-    "decision_buy": PRICE_WORDS | ACQUISITION_WORDS,
+    "consideration_recommend": PROVIDER_NOUNS | SELECTION_WORDS,
+    "decision_buy": PRICE_WORDS | TRANSACTION_WORDS,
     "consideration_compare": COMPARISON_WORDS,
+    "decision_validate": VALIDATION_WORDS,
+    "awareness_solve": PROBLEM_WORDS,
+    "awareness_learn": LEARNING_WORDS,
     "implementation_implement": PROCEDURAL_WORDS,
+    "brand_awareness_learn": LEARNING_WORDS,
+    "brand_decision_validate": VALIDATION_WORDS,
     "brand_consideration_compare": COMPARISON_WORDS,
 }
 
@@ -189,6 +200,16 @@ def _named_recipe(cohort: str) -> tuple[QueryArchetype, ...]:
     )
 
 
+def _form_cycle_shift(pairings: int) -> int:
+    """Choose a cycle shift that changes repeats without matching neighbours."""
+    form_count = len(QUERY_FORMS)
+    return next(
+        shift
+        for shift in range(form_count)
+        if (1 + shift) % form_count and (pairings + shift) % form_count
+    )
+
+
 def build_prompt_slots(
     *,
     topics: list[Any],
@@ -215,6 +236,7 @@ def build_prompt_slots(
     # for -- which is what a hard `min(count, topics * recipe)` cap did.
     pairings = len(topic_rows) * len(recipe)
     limit = min(count, pairings * len(QUERY_FORMS))
+    form_cycle_shift = _form_cycle_shift(pairings)
     # Start each topic at a well-separated point in the recipe. Offsetting by
     # one meant a portfolio with several topics never advanced far enough to
     # reach the recipe's tail, so implementation and awareness slots -- the
@@ -243,7 +265,7 @@ def build_prompt_slots(
                 prompt_intent=archetype.intent,
                 intent=archetype.legacy_intent,
                 cohort=cohort,
-                form=QUERY_FORMS[(index + cycle) % len(QUERY_FORMS)],
+                form=QUERY_FORMS[(index + cycle * form_cycle_shift) % len(QUERY_FORMS)],
                 qualifiers=qualifiers,
                 brand_name=brand_name,
                 competitor_names=competitor_names,

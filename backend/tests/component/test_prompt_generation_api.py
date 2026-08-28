@@ -771,12 +771,12 @@ async def test_generate_comparison_cohort_is_active_and_branded(
     )
     assert resp.status_code == 201
     body = resp.json()
-    assert len(body["generated"]) == 1
+    assert len(body["generated"]) == 2
 
     active_branded = [
         p for p in body["generated"] if p["branded"] and p["status"] == "active"
     ]
-    assert len(active_branded) == 1
+    assert len(active_branded) == 2
 
 
 @pytest.mark.asyncio

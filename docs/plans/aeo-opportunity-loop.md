@@ -22,7 +22,7 @@ individually sound but nothing sequences them. A user lands on a dashboard, sees
 path from that score to an action. The reference model — the loop Searchable runs on its own brand —
 is explicit about the sequence:
 
-```
+```text
 Find gap → Owned or earned → Prioritise → Act → Measure → Repeat
 ```
 

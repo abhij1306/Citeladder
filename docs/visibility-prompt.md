@@ -492,9 +492,12 @@ rather than invented. A small set of commercial qualifiers ("affordable",
 "best value") is offered per project, drawn only from words the brand's own
 positioning and demand data already use.
 
-The plan covers every topic-archetype pairing once, then continues in further
-cycles on a different surface form. A request larger than the plan can support
-is reported back as `requested_count` beside what was generated, rather than
+The plan traverses every topic × weighted-recipe occurrence once, then
+continues in further cycles with a different surface form for each repeated
+pairing. Weighting means occurrences are not unique archetypes: the tested
+seven-slot slice repeats `consideration_recommend` and does not yet reach
+`implementation_implement`. A request larger than the plan can support is
+reported back as `requested_count` beside what was generated, rather than
 silently returning fewer rows.
 
 Portfolio-level cohorts are generated once, not per topic: two

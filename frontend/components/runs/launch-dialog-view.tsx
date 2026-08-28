@@ -89,8 +89,9 @@ function PromptSetField({
 /**
  * Which slice of the set to run.
  *
- * Only offered when there is more than one batch: with ten prompts or fewer,
- * "All 7 prompts" and "Prompts 1-7" are the same run and the choice is noise.
+ * Only offered when there is more than one batch, unless a refresh invalidated
+ * a prior choice. In that case it stays visible so the user can explicitly
+ * recover to "All prompts" without silently broadening the launch.
  */
 function BatchField({
   batches,
@@ -101,7 +102,7 @@ function BatchField({
   batchIndex: number | null;
   setBatchIndex: (index: number | null) => void;
 }>) {
-  if (batches.length < 2) return null;
+  if (batches.length < 2 && batchIndex === null) return null;
   const total = batches.reduce((count, batch) => count + batch.length, 0);
   return (
     <Field

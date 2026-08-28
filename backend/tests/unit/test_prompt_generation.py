@@ -21,6 +21,7 @@ from app.domain.prompts.generation import (
 )
 from app.domain.prompts.normalization import normalize_prompt_text, prompt_text_hash
 from app.domain.prompts.query_patterns import build_prompt_slots
+from tests.fixtures.archetype_text import satisfies_slot, slot_text
 
 TOPIC_ID = uuid.uuid4()
 SECOND_TOPIC_ID = uuid.uuid4()
@@ -104,13 +105,19 @@ def test_parse_drops_unknown_duplicate_and_off_job_slots() -> None:
                 {"slot_id": "q1", "text": "Best footwear shops for wide feet"},
                 # Does not do its job: no constraint beyond the topic name.
                 {"slot_id": "q2", "text": "What is activewear?"},
+                # "Where" alone is not a buying signal. This is educational,
+                # so it cannot inherit q3's decision/buy provenance.
+                {
+                    "slot_id": "q3",
+                    "text": "Where can I learn about footwear energy ratings",
+                },
             ]
         }
     )
 
     topics, dropped = parse_generation_output(raw, slots=SLOTS)
 
-    assert dropped == 3
+    assert dropped == 4
     assert len(topics) == 1
     assert topics[0].topic_id == TOPIC_ID
 
@@ -333,6 +340,35 @@ def test_one_topic_no_longer_caps_the_plan_at_one_slot_per_archetype() -> None:
         "first_person",
         "search_phrase",
     }
+
+
+def test_repeated_pairing_advances_form_for_one_topic_brand_diagnostic() -> None:
+    slots = build_prompt_slots(
+        topics=[{"id": "t1", "name": "Running Shoes", "description": "Trainers"}],
+        count=3,
+        cohort="brand_diagnostic",
+        brand_name="Acme",
+    )
+
+    assert slots[0].archetype == slots[2].archetype
+    assert [slot.form for slot in slots] == [
+        "question",
+        "first_person",
+        "search_phrase",
+    ]
+
+
+def test_fixture_renderer_honors_each_planned_surface_form() -> None:
+    slots = build_prompt_slots(
+        topics=[{"id": "t1", "name": "Running Shoes", "description": "Trainers"}],
+        count=3,
+        cohort="core",
+    )
+
+    for index, slot in enumerate(slots):
+        payload = slot.as_model_input()
+        text = slot_text(payload, index)
+        assert satisfies_slot(payload, text)
 
 
 def test_narrowing_intents_stamps_the_archetype_intent_not_the_request() -> None:
