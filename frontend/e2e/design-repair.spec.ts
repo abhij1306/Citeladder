@@ -371,6 +371,7 @@ function siteCrawl(analysisStatus: 'running' | 'stopped') {
     sample_mode: false,
     seed: '1',
     inventory_complete: true,
+    partial_reason: '',
     visible_url_count: 2,
     analyzed_count: 1,
     failed_count: 0,
