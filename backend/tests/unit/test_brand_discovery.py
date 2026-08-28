@@ -25,6 +25,7 @@ from app.domain.projects.discovery_schemas import (
     CompetitorQualification,
     ConfirmedDiscoveryProfile,
     DiscoveryCompetitorSuggestion,
+    DiscoveryPromptSuggestion,
 )
 from app.domain.projects.offering_harvest import harvest_offerings
 from app.domain.projects.onboarding.normalization import (
@@ -77,6 +78,19 @@ def test_rejects_invalid_public_urls(value: str) -> None:
 def test_create_contract_requires_market() -> None:
     with pytest.raises(ValidationError):
         BrandDiscoveryCreate(brand_name="Acme", website_url="https://acme.example")
+
+
+def test_discovery_prompt_contract_normalizes_legacy_unbound_topic() -> None:
+    suggestion = DiscoveryPromptSuggestion.model_validate(
+        {
+            "topic_id": "",
+            "text": "is Acme suitable for growing teams",
+            "intent": "discovery",
+            "cohort": "brand_diagnostic",
+        }
+    )
+
+    assert suggestion.topic_id is None
 
 
 @pytest.mark.parametrize(

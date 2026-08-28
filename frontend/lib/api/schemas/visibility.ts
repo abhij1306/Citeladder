@@ -127,7 +127,9 @@ const discoveryProfileSchema = responseObject({
 });
 
 const discoveryPromptSuggestionSchema = responseObject({
-  topic_id: uuid(),
+  // Brand diagnostics measure the brand as a whole and are intentionally not
+  // filed under one organic topic.
+  topic_id: uuid().nullable(),
   text: z.string(),
   intent: z.enum(['discovery', 'comparison', 'purchase', 'service', 'local']),
   cohort: promptCohortSchema,

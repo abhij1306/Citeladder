@@ -189,7 +189,7 @@ async def _call(
     return [
         {
             "slot_id": prompt.slot_id,
-            "topic_id": str(prompt.topic_id or ""),
+            "topic_id": str(prompt.topic_id) if prompt.topic_id is not None else None,
             "text": prompt.text,
             "intent": prompt.intent,
             "buyer_stage": prompt.buyer_stage,

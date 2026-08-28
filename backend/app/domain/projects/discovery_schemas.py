@@ -205,10 +205,18 @@ class DiscoveryTopic(BaseModel):
 
 
 class DiscoveryPromptSuggestion(BaseModel):
-    topic_id: uuid.UUID
+    # Brand-diagnostic prompts deliberately span the whole brand rather than a
+    # single topic. Older workers persisted that unbound state as an empty
+    # string, so accept it at the read boundary and render the canonical null.
+    topic_id: uuid.UUID | None
     text: str = Field(min_length=1, max_length=2000)
     intent: Literal["discovery", "comparison", "purchase", "service", "local"]
     cohort: Literal["core", "brand_diagnostic", "comparison"]
+
+    @field_validator("topic_id", mode="before")
+    @classmethod
+    def normalize_unbound_topic(cls, value: object) -> object:
+        return None if value == "" else value
 
 
 class BrandDiscoveryProgress(BaseModel):
