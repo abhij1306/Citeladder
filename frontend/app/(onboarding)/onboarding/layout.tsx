@@ -28,7 +28,7 @@ export default function OnboardingLayout({ children }: Readonly<{ children: Reac
 
 function OnboardingFallback() {
   return (
-    <div className="bg-background flex min-h-dvh items-center justify-center p-6">
+    <div className="bg-background flex min-h-dvh items-center justify-center p-[var(--page-section-gap)]">
       <div className="grid w-full max-w-80 gap-3" aria-hidden>
         <Skeleton className="h-6 w-40" />
         <Skeleton className="h-4 w-full" />

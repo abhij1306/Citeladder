@@ -28,7 +28,7 @@ import { VisibilityDashboard } from '@/components/visibility/visibility-dashboar
 export default function VisibilityPage() {
   return (
     <TooltipProvider>
-      <div className="grid gap-6">
+      <div className="grid gap-[var(--workspace-gap)]">
         <Suspense fallback={<DashboardSkeleton />}>
           <VisibilityDashboard />
         </Suspense>

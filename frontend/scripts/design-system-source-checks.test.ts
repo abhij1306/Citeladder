@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { standalonePlaceholderViolations } from './design-system-source-checks.mjs';
+import {
+  productUiSourceViolations,
+  standalonePlaceholderViolations,
+} from './design-system-source-checks.mjs';
 
 describe('standalonePlaceholderViolations', () => {
   it('rejects quoted and JSX em-dash placeholders in product UI', () => {
@@ -33,5 +36,25 @@ describe('standalonePlaceholderViolations', () => {
         false,
       ),
     ).toEqual([]);
+  });
+});
+
+describe('productUiSourceViolations', () => {
+  it('rejects arbitrary product type and raw large spacing', () => {
+    const source = '<div className="text-[13px] gap-6 p-5">Example</div>';
+    expect(productUiSourceViolations(source, 'components/example.tsx', true)).toHaveLength(2);
+  });
+
+  it('allows the even ladder and semantic spacing roles', () => {
+    const source =
+      '<div className="text-sm gap-[var(--workspace-gap)] p-[var(--card-padding)]">Example</div>';
+    expect(productUiSourceViolations(source, 'components/example.tsx', true)).toEqual([]);
+  });
+
+  it('rejects website typography inside product UI', () => {
+    const source = '<h1 className="website-feature-heading">Example</h1>';
+    expect(
+      productUiSourceViolations(source, 'components/onboarding/example.tsx', true),
+    ).toHaveLength(1);
   });
 });

@@ -134,7 +134,7 @@ function PromptRows({
   if (query.isPending) return <Skeleton className="h-24 w-full" />;
   if (!rows.length) {
     return (
-      <p className="text-muted py-6 text-center text-sm">
+      <p className="text-muted py-[var(--card-padding)] text-center text-sm">
         No prompts yet for this target. Generate a set, or add one manually.
       </p>
     );

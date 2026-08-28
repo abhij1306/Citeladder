@@ -23,7 +23,7 @@ import { assignLocation } from '@/lib/navigate';
 export function IntegrationsEmptyState() {
   return (
     <Card data-testid="integrations-empty-state">
-      <CardContent className="grid justify-items-center gap-4 py-12 text-center">
+      <CardContent className="grid justify-items-center gap-4 py-[var(--empty-state-padding)] text-center">
         <CardEyebrow>Integrations</CardEyebrow>
         <IconChip>
           <Unplug className="size-6" aria-hidden />

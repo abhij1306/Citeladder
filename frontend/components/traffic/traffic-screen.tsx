@@ -40,7 +40,11 @@ type ConnectionsQuery = ReturnType<
 
 export function TrafficSkeleton() {
   return (
-    <div className="grid gap-6" aria-busy="true" data-testid="traffic-skeleton">
+    <div
+      className="grid gap-[var(--workspace-gap)]"
+      aria-busy="true"
+      data-testid="traffic-skeleton"
+    >
       <div className="flex flex-wrap items-center gap-2">
         <Skeleton className="h-8 w-40 rounded-full" />
         <Skeleton className="h-10 w-60 rounded-full" />
@@ -51,7 +55,7 @@ export function TrafficSkeleton() {
           <Skeleton key={index} className="h-26" />
         ))}
       </div>
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-[var(--workspace-gap)] xl:grid-cols-2">
         <Skeleton className="h-72" />
         <Skeleton className="h-72" />
       </div>
@@ -205,7 +209,7 @@ function EmptyTrafficDashboard({
   const bounds = rangeToWindow(range);
   if (range !== 'latest')
     return (
-      <div className="grid gap-6">
+      <div className="grid gap-[var(--workspace-gap)]">
         {toolbar}
         <SyncBanner active={sync.syncing} />
         <Alert tone="info">
@@ -216,7 +220,7 @@ function EmptyTrafficDashboard({
       </div>
     );
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       <SyncBanner active={sync.syncing} />
       <TrafficAlerts sync={sync} includeSuccess={false} />
       <TrafficEmptyState
@@ -249,11 +253,11 @@ function PopulatedTrafficDashboard({
   // during a project switch; placeholder dashboard data may belong to the old project.
   const tableKey = `${bounds.from ?? ''}|${bounds.to ?? ''}`;
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       {toolbar}
       <SyncBanner active={sync.syncing} />
       <TrafficAlerts sync={sync} />
-      <div aria-busy={dashboardFetching} className="grid gap-6">
+      <div aria-busy={dashboardFetching} className="grid gap-[var(--workspace-gap)]">
         <UnifiedPerformanceCard dashboard={dashboard} granularity={dashboard.granularity} />
         <NestedTabs
           tabs={TRAFFIC_TABLE_TABS}

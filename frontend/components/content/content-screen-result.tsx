@@ -38,9 +38,9 @@ export function GenerationResult({
   return (
     <Card
       data-component-id="content-result-card"
-      className="border-border bg-panel shadow-card rounded-sm border p-6 sm:p-8"
+      className="border-border bg-panel shadow-card rounded-sm border p-[var(--card-padding)]"
     >
-      <CardContent className="flex flex-col gap-5 p-0">
+      <CardContent className="flex flex-col gap-[var(--workspace-gap)] p-0">
         {detail.output_truncated ? (
           <div data-component-id="content-truncation-warning">
             <Alert tone="warning">

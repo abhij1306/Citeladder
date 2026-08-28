@@ -66,7 +66,7 @@ function OpportunitiesContent({
     summary,
   );
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       <OpportunitiesScreenBody state={screen} projectId={projectId} summary={summary} />
     </div>
   );

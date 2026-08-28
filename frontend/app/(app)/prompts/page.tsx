@@ -47,7 +47,7 @@ function PromptsScreen() {
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       <YourPrompts />
     </div>
   );

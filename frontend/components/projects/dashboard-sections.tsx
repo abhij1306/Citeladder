@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
-import { displayHeadingLgClasses, SectionTitle } from '@/components/ui/typography';
+import { SectionTitle } from '@/components/ui/typography';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { eyebrowClasses } from '@/components/ui/eyebrow';
 import type { CommandCenter, Project } from '@/lib/api/types';
@@ -43,7 +43,7 @@ export function DashboardHeader({
   const facts = data.facts;
   return (
     <section className="bg-panel shadow-card border-border overflow-hidden rounded-[var(--radius-card)] border">
-      <div className="flex flex-wrap items-center justify-between gap-4 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 p-[var(--card-padding)]">
         <div className="flex min-w-0 items-center gap-4">
           <BrandLogo
             name={data.project.brand_name || data.project.name}
@@ -54,7 +54,7 @@ export function DashboardHeader({
           />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h2 className="font-display text-foreground truncate text-2xl font-semibold tracking-[-0.02em]">
+              <h2 className="font-display text-foreground truncate text-xl font-semibold tracking-[-0.02em]">
                 {data.project.brand_name || data.project.name}
               </h2>
               {website ? (
@@ -93,7 +93,7 @@ export function DashboardHeader({
           ) : null}
         </div>
       </div>
-      <div className="border-border-subtle border-t p-5">
+      <div className="border-border-subtle border-t p-[var(--card-padding)]">
         <div className="mb-3 flex items-center justify-between gap-3">
           <SectionTitle id="company-facts">Company facts</SectionTitle>
           <span className="text-muted text-xs font-medium">
@@ -170,7 +170,7 @@ function PdfButton({
 export function SummarySections({ data }: Readonly<{ data: CommandCenter }>) {
   return (
     <>
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid gap-[var(--workspace-gap)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <NextAction data={data} />
         <Track data={data} />
       </div>
@@ -192,14 +192,14 @@ export function SummarySections({ data }: Readonly<{ data: CommandCenter }>) {
 
 function NextAction({ data }: Readonly<{ data: CommandCenter }>) {
   return (
-    <div className="bg-panel-tonal text-foreground border-border shadow-card flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border p-5 sm:p-6">
+    <div className="bg-panel-tonal text-foreground border-border shadow-card flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border p-[var(--card-padding)]">
       <div>
         <div className="flex items-center justify-between">
-          <span className="text-accent-text bg-accent-soft inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-sans text-xs font-semibold tracking-wider uppercase">
+          <span className="text-accent-text bg-accent-soft inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-sans text-xs font-semibold">
             <span className="bg-accent size-1.5 rounded-full" aria-hidden />
             Next action
           </span>
-          <span className="text-muted text-xs font-semibold tracking-wider uppercase">
+          <span className="text-muted text-xs font-semibold">
             {data.next_action.kind === 'monitor' ? 'Optimal state' : 'Action recommended'}
           </span>
         </div>
@@ -225,7 +225,7 @@ function Track({ data }: Readonly<{ data: CommandCenter }>) {
   return (
     <section
       aria-labelledby="citation-share-track"
-      className="bg-panel shadow-card border-border flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border p-5 sm:p-6"
+      className="bg-panel shadow-card border-border flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border p-[var(--card-padding)]"
     >
       <div>
         <div className="flex items-center justify-between">
@@ -235,9 +235,7 @@ function Track({ data }: Readonly<{ data: CommandCenter }>) {
           </span>
         </div>
         <div className="mt-3">
-          <h3 id="citation-share-track" className={displayHeadingLgClasses}>
-            Citation share
-          </h3>
+          <SectionTitle id="citation-share-track">Citation share</SectionTitle>
           <div className="mt-1 flex items-baseline gap-3">
             {data.track.citation_share.value === null ? (
               <UnavailableValue
@@ -279,8 +277,8 @@ function Track({ data }: Readonly<{ data: CommandCenter }>) {
 
 function Movement({ data }: Readonly<{ data: CommandCenter }>) {
   return (
-    <div className="bg-panel shadow-card border-border flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border p-5">
-      <section aria-labelledby="movement" className="grid gap-3.5">
+    <div className="bg-panel shadow-card border-border flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border p-[var(--card-padding)]">
+      <section aria-labelledby="movement" className="grid gap-3">
         <div>
           <SectionTitle id="movement">Movement</SectionTitle>
           <p className="text-muted mt-0.5 text-xs">
@@ -312,7 +310,7 @@ export function ActionsAndProof({
     <>
       <div className="bg-panel shadow-card border-border overflow-hidden rounded-[var(--radius-card)] border">
         <section aria-labelledby="ranked-actions">
-          <div className="border-border-subtle flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
+          <div className="border-border-subtle flex flex-wrap items-center justify-between gap-3 border-b px-[var(--card-padding)] py-4">
             <div>
               <SectionTitle id="ranked-actions">Ranked actions</SectionTitle>
               <p className="text-muted mt-0.5 text-xs">
@@ -340,7 +338,7 @@ export function ActionsAndProof({
               ))}
             </ol>
           ) : (
-            <div className="p-8 text-center">
+            <div className="p-[var(--empty-state-padding)] text-center">
               <p className="text-foreground text-sm font-semibold">No open actions</p>
               <p className="text-muted mt-1 text-xs">
                 Run another audit to look for new opportunities.
@@ -349,7 +347,7 @@ export function ActionsAndProof({
           )}
         </section>
       </div>
-      <div className="bg-panel shadow-card border-border rounded-[var(--radius-card)] border p-5">
+      <div className="bg-panel shadow-card border-border rounded-[var(--radius-card)] border p-[var(--card-padding)]">
         <section
           aria-labelledby="progress-proof"
           className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"

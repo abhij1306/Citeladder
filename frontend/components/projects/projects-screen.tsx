@@ -58,7 +58,7 @@ export function ProjectsScreen() {
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       <DashboardScreen onEditProject={(project) => setEditing(project)} />
 
       {editing ? (

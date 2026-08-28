@@ -107,7 +107,7 @@ export function PromptFormDialog({
           </Field>
         </div>
 
-        <div className="flex flex-wrap gap-6">
+        <div className="flex flex-wrap gap-[var(--workspace-gap)]">
           <Controller
             control={control}
             name="cohort"

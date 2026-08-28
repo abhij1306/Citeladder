@@ -25,6 +25,7 @@ export function Button({
   ...props
 }: Readonly<ButtonProps>) {
   const Comp = asChild ? Slot : 'button';
+  const opensPopup = props['aria-haspopup'] !== undefined;
   return (
     <Comp
       ref={ref}
@@ -33,7 +34,7 @@ export function Button({
       type={asChild ? undefined : (type ?? 'button')}
       data-button-variant={variant ?? 'primary'}
       data-button-size={size ?? 'md'}
-      className={cn(buttonVariants({ variant, size }), className)}
+      className={cn(buttonVariants({ variant, size }), opensPopup && 'active:scale-100', className)}
       {...props}
     />
   );

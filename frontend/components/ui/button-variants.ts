@@ -54,7 +54,7 @@ export const buttonVariants = cva(
       size: {
         sm: 'h-[var(--control-height-sm)] px-2.5 text-xs font-medium',
         md: 'h-[var(--control-height)] px-3.5 text-sm font-medium',
-        lg: 'h-[var(--control-height-lg)] px-5 text-sm font-medium',
+        lg: 'h-[var(--control-height-lg)] px-[var(--card-padding-large)] text-sm font-medium',
         icon: 'size-[var(--control-height)] px-0',
       },
     },

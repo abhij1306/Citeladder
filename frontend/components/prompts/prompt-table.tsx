@@ -30,7 +30,7 @@ const PAGE_SIZE = 10;
 
 /**
  * Prompt table (F7). Dense analytics table with columns text / theme / intent /
- * branded / enabled and per-row actions (edit, delete, enable/disable toggle,
+ * enabled and per-row actions (edit, delete, enable/disable toggle,
  * and — when `onSetStatus` is wired — archive or restore transitions).
  * Client-side pagination footer
  * (mono indicator + ghost buttons) per the prompts frame. Purely
@@ -55,14 +55,13 @@ export function PromptTable({
   const pagedPrompts = prompts.slice(from - 1, to);
 
   return (
-    <div className="bg-panel shadow-card overflow-hidden rounded-lg">
+    <div className="bg-panel border-border overflow-hidden rounded-[var(--radius-card)] border">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Prompt</TableHead>
             <TableHead>Theme</TableHead>
             <TableHead>Intent</TableHead>
-            <TableHead>Branded</TableHead>
             <TableHead>Enabled</TableHead>
             <TableHead className="w-16 text-right">Actions</TableHead>
           </TableRow>
@@ -87,15 +86,6 @@ export function PromptTable({
                 )}
               </TableCell>
               <TableCell className="text-secondary">{intentLabels[prompt.intent]}</TableCell>
-              <TableCell>
-                {prompt.branded ? (
-                  <Badge variant="status" value="info">
-                    Branded
-                  </Badge>
-                ) : (
-                  <span className="text-subtle text-xs font-medium">Not branded</span>
-                )}
-              </TableCell>
               <TableCell>
                 <button
                   type="button"

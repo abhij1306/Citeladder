@@ -101,7 +101,7 @@ export function MentionsCitations({ query, isFiltered, onClearFilters, limit }: 
 
 function ExecutionEvidenceRow({ item }: Readonly<{ item: VisibilityExecutionEvidence }>) {
   return (
-    <li className="hover:bg-panel-tonal/40 grid gap-3.5 px-5 py-4 transition-colors">
+    <li className="hover:bg-panel-tonal/40 grid gap-3 px-[var(--card-padding)] py-4 transition-colors">
       <div className="border-border-subtle bg-well/20 grid gap-1.5 rounded-md border p-3">
         <p className="text-foreground text-sm leading-relaxed font-medium">
           {item.prompt_text || 'Untitled prompt'}

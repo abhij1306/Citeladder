@@ -36,6 +36,14 @@ function renderTable(prompts: Prompt[]) {
 }
 
 describe('PromptTable pagination', () => {
+  it('keeps prompt classification concise without a branded column', () => {
+    renderTable([makePrompt(1, { branded: true })]);
+
+    expect(screen.queryByRole('columnheader', { name: 'Branded' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Branded')).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Intent' })).toBeInTheDocument();
+  });
+
   it('pages through rows with the mono indicator and ghost buttons', async () => {
     const user = userEvent.setup();
     const prompts = Array.from({ length: 12 }, (_, i) => makePrompt(i + 1));

@@ -142,7 +142,7 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
   const goPrev = () => setCursorStack((prev) => prev.slice(0, -1));
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       {summary ? (
         <div className="border-border-subtle bg-panel flex flex-wrap gap-x-6 gap-y-2 rounded-sm border p-4 text-sm">
           <span>
@@ -417,9 +417,7 @@ function AffectedUrlsPanel({
     <div className="border-border-subtle grid rounded-lg border">
       {issue.remediation ? (
         <div className="border-border-subtle grid gap-1 border-b p-3">
-          <span className="text-2xs text-muted font-medium tracking-wide uppercase">
-            How to fix
-          </span>
+          <span className="text-2xs text-muted font-medium">How to fix</span>
           <p className="text-secondary text-sm whitespace-pre-line">{issue.remediation}</p>
         </div>
       ) : null}

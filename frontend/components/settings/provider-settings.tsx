@@ -47,7 +47,7 @@ export function ProviderSettings() {
   const isError = catalogQuery.isError || connectionsQuery.isError;
 
   return (
-    <div className="grid gap-6" data-tour="provider-settings">
+    <div className="grid gap-[var(--workspace-gap)]" data-tour="provider-settings">
       <p className="text-secondary max-w-2xl text-sm">
         Bring your own API keys — save one per engine, then run a connection test. Keys are
         write-only.

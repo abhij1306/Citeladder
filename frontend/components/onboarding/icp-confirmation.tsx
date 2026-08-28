@@ -75,7 +75,7 @@ export function IcpConfirmation({
   return (
     <div className="divide-border-subtle divide-y">
       <ReviewSection title="What you sell" emphasis>
-        <p className="website-label text-muted -mt-1 mb-1">
+        <p className="text-muted -mt-1 mb-1 text-sm font-medium">
           Your competitors and tracked questions are built from this.
         </p>
         <ChipRow>

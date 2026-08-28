@@ -53,7 +53,7 @@ export function StateMetric({
 }>) {
   const positive = delta !== null && (inverse ? delta < 0 : delta > 0);
   return (
-    <div className="flex min-h-[112px] flex-col justify-between p-5">
+    <div className="flex min-h-[112px] flex-col justify-between p-[var(--card-padding)]">
       <p className={eyebrowClasses}>{label}</p>
       <div className="my-2">
         {value === null ? (
@@ -79,7 +79,7 @@ export function StateMetric({
 export function MovementChart({ movements }: Readonly<{ movements: CommandCenter['movements'] }>) {
   if (movements.length === 0)
     return (
-      <div className="border-border-subtle bg-background-alt grid min-h-36 place-items-center rounded-[var(--radius-card)] border p-5 text-center">
+      <div className="border-border-subtle bg-background-alt grid min-h-36 place-items-center rounded-[var(--radius-card)] border p-[var(--card-padding)] text-center">
         <p className="text-muted max-w-md text-xs">
           Movement appears after a run with the same prompts, engines, and measurement mode.
         </p>

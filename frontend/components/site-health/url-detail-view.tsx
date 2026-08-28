@@ -318,7 +318,7 @@ function EvidenceSignals({ evidence }: Readonly<{ evidence: PageKindEvidenceView
 function ScoreTile({ label, value }: Readonly<{ label: string; value: number | null }>) {
   return (
     <Card>
-      <CardContent className="flex flex-col items-center gap-2 py-6">
+      <CardContent className="flex flex-col items-center gap-2 py-[var(--card-padding)]">
         {value === null ? (
           <div className="mono border-border-subtle text-muted flex size-16 items-center justify-center rounded-full border text-base">
             {PLACEHOLDER}

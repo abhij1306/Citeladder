@@ -58,7 +58,7 @@ export type RunStatusValue = keyof typeof runStatusBadge;
  * `runStatusBadgeShape` below.
  */
 export const badgeBase =
-  'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-semibold tracking-wide';
+  'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-semibold';
 
 /** Run-status badges stay pills — the lifecycle dot reads better round. */
 export const runStatusBadgeShape = 'rounded-full px-2';

@@ -106,7 +106,7 @@ function CompetitorRows({
   if (query.isPending) return <Skeleton className="h-24 w-full" />;
   if (!rows.length) {
     return (
-      <p className="text-muted py-6 text-center text-sm">
+      <p className="text-muted py-[var(--card-padding)] text-center text-sm">
         {running
           ? 'Looking for competitors…'
           : 'No candidates yet for this target. Run Find competitors.'}

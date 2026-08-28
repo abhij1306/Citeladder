@@ -83,9 +83,7 @@ export function SkillPicker({
     >
       {byChannel.map((group) => (
         <div key={group.channel} className="flex flex-wrap items-center gap-2">
-          <span className="text-muted w-20 shrink-0 text-xs font-medium tracking-wider uppercase">
-            {group.label}
-          </span>
+          <span className="text-muted w-20 shrink-0 text-xs font-medium">{group.label}</span>
           {group.items.map((skill) => {
             const selected = skill.id === value;
             return (

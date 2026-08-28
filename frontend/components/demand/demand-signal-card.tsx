@@ -238,7 +238,7 @@ export function DemandSignalCard({
 
   return (
     <Card className="bg-panel border-border hover:border-border-strong transition-all hover:shadow-xs">
-      <CardContent className="grid gap-4 p-4 sm:p-5">
+      <CardContent className="grid gap-4 p-4 sm:p-[var(--card-padding)]">
         {/* Header: Rank, Badges, Query Title */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
@@ -317,9 +317,7 @@ export function DemandSignalCard({
           {/* Competing URLs summary pill for cannibalization */}
           {pages.length > 0 && (
             <div className="mt-2.5 grid gap-1.5 border-t border-current/15 pt-2">
-              <span className="text-2xs font-medium tracking-wider uppercase opacity-80">
-                Competing URLs:
-              </span>
+              <span className="text-2xs font-medium opacity-80">Competing URLs:</span>
               <div className="grid gap-1">
                 {pages.slice(0, 2).map((page) => (
                   <div key={page.url} className="text-2xs flex items-center justify-between gap-2">

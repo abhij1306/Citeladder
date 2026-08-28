@@ -3,6 +3,8 @@ import { extname, join, relative, resolve } from 'node:path';
 
 import {
   editorialTypographyViolations,
+  productContractViolations,
+  productUiSourceViolations,
   standalonePlaceholderViolations,
   textContrastViolations,
   websiteContractViolations,
@@ -57,21 +59,24 @@ for (const path of files(root)) {
   const ownsWebsiteEditorialCopy =
     (label.startsWith('components/marketing/') &&
       !label.startsWith('components/marketing/scenes/')) ||
-    label.startsWith('components/auth/') ||
-    label.startsWith('components/onboarding/');
+    label.startsWith('components/auth/');
   const ownsProductUi =
     !label.includes('.test.') &&
     !label.startsWith('components/marketing/') &&
     !label.startsWith('components/auth/') &&
-    !label.startsWith('components/onboarding/') &&
     !label.startsWith('lib/marketing-content/') &&
-    (label.startsWith('app/(app)/') || label.startsWith('components/') || label.startsWith('lib/'));
+    (label.startsWith('app/(app)/') ||
+      label.startsWith('app/(onboarding)/') ||
+      label.startsWith('components/') ||
+      label.startsWith('lib/'));
   violations.push(...editorialTypographyViolations(source, label, ownsWebsiteEditorialCopy));
   violations.push(...standalonePlaceholderViolations(source, label, ownsProductUi));
+  violations.push(...productUiSourceViolations(source, label, ownsProductUi));
 }
 
 violations.push(...websiteContractViolations(root));
 violations.push(...textContrastViolations(root));
+violations.push(...productContractViolations(root));
 
 if (violations.length) {
   console.error(violations.join('\n'));

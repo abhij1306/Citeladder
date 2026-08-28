@@ -231,7 +231,7 @@ export function CommandPalette() {
         }}
         aria-label="Search or jump to"
         aria-keyshortcuts="Meta+K Control+K"
-        className="bg-panel hover:bg-well border-border/70 text-muted hover:text-foreground h-9 w-full justify-start rounded-sm border px-3 text-left shadow-xs transition-colors"
+        className="bg-panel hover:bg-well border-border/70 text-muted hover:text-foreground h-9 w-full justify-start rounded-sm border px-3 text-left shadow-xs transition-colors active:scale-100"
       >
         <Search className="text-muted size-4 shrink-0" aria-hidden strokeWidth={1.75} />
         <span className="min-w-0 truncate text-sm font-normal">Search or jump to…</span>

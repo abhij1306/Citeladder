@@ -57,7 +57,7 @@ function RouteDetails({ state }: Readonly<{ state: ConnectionState }>) {
   return (
     <div className="bg-background-alt border-border-subtle grid gap-1.5 rounded-md border p-3">
       <div className="flex items-center justify-between">
-        <span className="text-muted text-2xs font-semibold tracking-wider uppercase">Route</span>
+        <span className="text-muted text-2xs font-semibold">Route</span>
         <span className="text-foreground text-xs font-medium">{state.route.label}</span>
       </div>
       <div className="text-muted text-2xs grid gap-1 font-mono">
@@ -117,7 +117,7 @@ export function EngineCardView({
           </div>
           <ConnectionStateBadge model={model} />
         </CardHeader>
-        <CardContent className="grid gap-3.5">
+        <CardContent className="grid gap-3">
           <ConnectionError model={model} />
           <RouteDetails state={connectionState} />
           {isConnectable(model) ? <ConnectionControls state={connectionState} /> : null}

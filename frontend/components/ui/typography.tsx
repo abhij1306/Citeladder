@@ -13,9 +13,9 @@ import { cn } from '@/lib/utils';
  * semantic.
  */
 export const displayHeadingLgClasses =
-  'font-display font-semibold text-base leading-[1.3] tracking-[-0.015em] text-foreground';
+  'font-display text-xl font-semibold tracking-[-0.015em] text-foreground';
 export const displayHeadingXlClasses =
-  'font-display text-2xl font-semibold leading-[1.15] tracking-[-0.025em] text-foreground';
+  'font-display text-2xl font-semibold tracking-[-0.025em] text-foreground';
 
 /** Section heading (card / block level). */
 export function SectionTitle({
@@ -27,7 +27,7 @@ export function SectionTitle({
     <h2
       {...props}
       className={cn(
-        'font-display text-foreground text-base leading-[1.3] font-semibold tracking-[-0.015em]',
+        'font-display text-foreground text-base font-semibold tracking-[-0.015em]',
         className,
       )}
     >

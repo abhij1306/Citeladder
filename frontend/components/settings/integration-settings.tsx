@@ -147,7 +147,7 @@ export function IntegrationSettings() {
   const grants = groupIntoGrants(connections);
 
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-[var(--workspace-gap)]">
       <p className="text-secondary max-w-2xl text-sm">
         Connect Google Search Console, Analytics 4, and Bing Webmaster Tools with read-only access.
       </p>

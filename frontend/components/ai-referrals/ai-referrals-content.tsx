@@ -56,7 +56,7 @@ function AiReferralsNoSnapshot({
   windowBounds,
 }: Readonly<{ toolbar: React.ReactNode; windowBounds: { from?: string; to?: string } }>) {
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       {toolbar}
       <Alert tone="info">
         No synced AI-referral snapshot covers {formatWindowDate(windowBounds.from ?? '')} –{' '}

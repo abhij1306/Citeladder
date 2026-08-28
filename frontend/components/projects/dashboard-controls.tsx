@@ -108,7 +108,7 @@ export function FactsDrawer({
         description="Review the canonical facts and competitors used across CiteLadder."
         closeLabel="Close company facts"
       >
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-[var(--workspace-gap)]">
           {profile.isError ? <Alert tone="danger">Company facts could not be loaded.</Alert> : null}
           {profile.data ? (
             <BrandProfilePanel

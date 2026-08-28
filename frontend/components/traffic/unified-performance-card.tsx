@@ -159,10 +159,13 @@ export function UnifiedPerformanceCard({
           />
         ))}
       </div>
-      <CardContent className="p-6">
+      <CardContent className="p-[var(--card-padding)]">
         <div
           data-testid="traffic-metric-panels"
-          className={cn('grid gap-6', PANEL_GRID_COLUMNS[activePanels.length] ?? 'grid-cols-1')}
+          className={cn(
+            'grid gap-[var(--workspace-gap)]',
+            PANEL_GRID_COLUMNS[activePanels.length] ?? 'grid-cols-1',
+          )}
         >
           {activePanels.map((key) => (
             <MetricPanel

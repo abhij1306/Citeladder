@@ -39,7 +39,6 @@ export function EvidenceDrawer({
       onOpenChange={onOpenChange}
       title="Opportunity detail"
       className="sm:max-w-160"
-      bodyClassName="px-4 sm:px-5"
       footer={detail ? <OpportunityStatusFooter detail={detail} projectId={projectId} /> : null}
     >
       {detailQuery.isError ? (

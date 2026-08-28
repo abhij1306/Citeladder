@@ -72,7 +72,7 @@ export function PageHeader({
   if (!showTitle && !summary && !actions && !eyebrow) return heading;
 
   return (
-    <div className={cn('flex flex-col gap-1.5 pb-2', className)}>
+    <div className={cn('mb-[var(--workspace-gap)] flex flex-col gap-2', className)}>
       {eyebrow ? <p className={eyebrowClasses}>{eyebrow}</p> : null}
       <div className="flex flex-nowrap items-start justify-between gap-4">
         {heading}

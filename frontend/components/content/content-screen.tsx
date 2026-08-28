@@ -46,7 +46,7 @@ export function ContentScreen({
 function NoProjectState() {
   return (
     <Card>
-      <CardContent className="flex flex-col items-start gap-3 py-8">
+      <CardContent className="flex flex-col items-start gap-3 py-[var(--empty-state-padding)]">
         <p className="text-secondary text-sm">
           Create a project first — content generation needs a project and its website.
         </p>
@@ -203,8 +203,8 @@ function ContentWorkspace({
   setReasonOpen: (value: boolean) => void;
 }>) {
   return (
-    <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px] [&>*]:min-w-0">
-      <div className="flex min-w-0 flex-col gap-6">
+    <div className="grid grid-cols-1 items-start gap-[var(--workspace-gap)] xl:grid-cols-[minmax(0,1fr)_320px] [&>*]:min-w-0">
+      <div className="flex min-w-0 flex-col gap-[var(--workspace-gap)]">
         <DemandAlerts notFound={demand.notFound} failed={demand.failed} />
         <ContentComposer
           prompt={prompt}
@@ -257,7 +257,7 @@ function ContentWorkspace({
           />
         ) : null}
       </div>
-      <div className="w-full min-w-0 xl:sticky xl:top-6">
+      <div className="w-full min-w-0 xl:sticky xl:top-[var(--workspace-gap)]">
         <GenerationHistory
           items={generation.listQuery.data ?? []}
           loading={generation.listQuery.isLoading}

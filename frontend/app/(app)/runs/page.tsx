@@ -112,7 +112,7 @@ export default function RunsPage() {
         </Card>
       ) : audits.length === 0 ? (
         <Card>
-          <CardContent className="grid justify-items-center gap-3 py-16 text-center">
+          <CardContent className="grid justify-items-center gap-3 py-[var(--empty-state-padding)] text-center">
             <p className={eyebrowClasses}>Runs</p>
             <p className={displayHeadingXlClasses}>No runs yet</p>
             <p className="text-secondary max-w-md text-sm">
@@ -139,7 +139,7 @@ export default function RunsPage() {
           </CardHeader>
           <CardContent className="p-0">
             {filteredAudits.length === 0 ? (
-              <p className="text-secondary border-border-subtle border-t px-6 py-10 text-center text-sm">
+              <p className="text-secondary border-border-subtle border-t px-[var(--card-padding)] py-10 text-center text-sm">
                 No{' '}
                 {STATUS_FILTERS.find((filter) => filter.id === statusFilter)?.label.toLowerCase()}{' '}
                 runs.

@@ -120,16 +120,16 @@ function ScoreCard({
   return (
     <Card className="border-border/70">
       {value === null ? (
-        <CardContent className="grid h-full content-center gap-1 p-5 sm:p-6">
-          <p className="text-muted text-xs font-semibold tracking-wider uppercase">{label}</p>
+        <CardContent className="grid h-full content-center gap-1 p-[var(--card-padding)] sm:p-[var(--card-padding)]">
+          <p className="text-muted text-xs font-semibold">{label}</p>
           <UnavailableValue state="not_measured" className="text-sm" />
           <span className="text-muted text-xs leading-relaxed">{sub}</span>
         </CardContent>
       ) : (
-        <CardContent className="flex h-full items-center gap-4 p-5 sm:p-6">
+        <CardContent className="flex h-full items-center gap-4 p-[var(--card-padding)] sm:p-[var(--card-padding)]">
           <ScoreRing value={value} size={72} label={`${label} score: ${Math.round(value)}`} />
           <div className="grid gap-1">
-            <p className="text-muted text-xs font-semibold tracking-wider uppercase">{label}</p>
+            <p className="text-muted text-xs font-semibold">{label}</p>
             <span className="font-display text-foreground text-xl font-semibold tabular-nums">
               {formatScore(value)} / 100
             </span>

@@ -13,7 +13,7 @@ import { ProductsScreen, ProductsScreenSkeleton } from '@/components/products/pr
 export default function ProductsPage() {
   return (
     <TooltipProvider>
-      <div className="grid gap-6">
+      <div className="grid gap-[var(--workspace-gap)]">
         <Suspense fallback={<ProductsScreenSkeleton />}>
           <ProductsScreen />
         </Suspense>

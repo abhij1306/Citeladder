@@ -8,7 +8,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 export default function SitePage() {
   return (
     <TooltipProvider>
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-[var(--workspace-gap)]">
         <SiteHealthScreen />
         <AgentLauncher
           taskType="build_roadmap"

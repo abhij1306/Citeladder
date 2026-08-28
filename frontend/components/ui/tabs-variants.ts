@@ -5,7 +5,7 @@ export const tabListVariants = cva(
 );
 
 export const tabItemVariants = cva(
-  'focus-ring relative shrink-0 rounded-t-md px-3 pt-1.5 pb-2 text-sm font-medium whitespace-nowrap transition-colors',
+  'focus-ring relative inline-flex h-10 shrink-0 items-center rounded-t-md px-3 text-sm font-medium whitespace-nowrap transition-colors',
   {
     variants: {
       selected: {

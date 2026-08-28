@@ -31,7 +31,7 @@ export function GenerationHistory({
   return (
     <section
       data-component-id="content-history"
-      className="bg-panel shadow-card border-border flex flex-col gap-3.5 rounded-sm border p-5 sm:p-6"
+      className="bg-panel shadow-card border-border flex flex-col gap-3 rounded-sm border p-[var(--card-padding)]"
     >
       <div className="border-border grid gap-1 border-b pb-3">
         <span className={eyebrowClasses}>History</span>
@@ -61,7 +61,7 @@ function HistoryItems({
   // it sits in; this keeps the same icon → line shape at rail scale.
   if (items.length === 0)
     return (
-      <div className="text-muted grid justify-items-center gap-2 py-6 text-center">
+      <div className="text-muted grid justify-items-center gap-2 py-[var(--card-padding)] text-center">
         <FileText className="size-5" aria-hidden />
         <p className="text-sm">No generations yet.</p>
         <p className="text-xs">Your drafts will collect here.</p>

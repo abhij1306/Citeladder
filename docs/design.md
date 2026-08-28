@@ -19,10 +19,11 @@ deliberate, quiet motion treatments.
   and installable-app iconography.
 - **Voice:** direct, confident, specific. One idea per sentence. Prefer evidence
   and outcomes over generic AI language.
-- **Typography:** Plus Jakarta Sans for display headings and Inter for UI, body, and data,
-  loaded from Google Fonts through `next/font/google`. The website and authentication surfaces
-  use a 16px reading baseline and a content-role ladder; the authenticated app
-  keeps its existing compact size scale. Size, leading, weight, tracking, and
+- **Typography:** Geist for UI, body, and data everywhere, with Plus Jakarta Sans reserved for
+  website and authentication display headings. The authenticated app and onboarding use Geist
+  exclusively. The website and authentication surfaces use a 16px reading baseline and a
+  content-role ladder; the authenticated app uses the even-number product ladder below. Size,
+  leading, weight, tracking, and
   colour are one role contract, never independent page-level choices.
 - **Accent:** a single Growth Cobalt (`#315CFF`) for primary actions, explicit
   selection, links, and focus. It is the only chromatic colour on the marketing
@@ -64,16 +65,15 @@ Tokens are semantic; components use the role, not a colour value.
 
 | Role                | Token family                                                                                                                                       | Use                                                                                                      |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Canvas and surfaces | `background` (`#f1f5f9`), `panel` / `elevated` (`#ffffff`), `panel-tonal` (`#f8fafc`), `background-alt` / `well` (`#e8eef6`), `active` (`#e2e8f0`) | Pearl-slate canvas; crisp white panels and floating cards; distinct grey wells and frosted chrome |
-| Text                | `foreground` (`#0f172a`), `secondary` (`#334155`), `muted` (`#526173`), `subtle` (`#596777`), `inverse` (`#ffffff`)                                | Token-driven slate reading ramp; every neutral role remains AA-safe on every shared light surface        |
-| Borders             | `border` (`#d5deea`), `border-subtle` (`#e2e8f0`), `border-strong` (`#cbd5e1`), `border-bold` (`#94a3b8`)                                          | Crisp ledger hairlines for structured separation                                                         |
+| Canvas and surfaces | `background` (`#fafafa`), `panel` / `elevated` (`#ffffff`), `panel-tonal` / `well` (`#f7f7f7`), hover (`#f5f5f5`), `active` (`#efefef`) | Neutral depth through near-white surfaces and hairlines |
+| Text                | `foreground` (`#171717`), `secondary` (`#525252`), `muted` / `subtle` (`#6b6b6b`), disabled (`#a3a3a3`), `inverse` (`#ffffff`) | Three readable product roles; disabled is reserved for inactive controls |
+| Borders             | `border` (`#e5e5e5`), `border-subtle` (`#efefef`), `border-strong` (`#d4d4d4`), `border-bold` (`#a3a3a3`) | Neutral ledger hairlines for structured separation |
 | Primary action      | `accent-*`                                                                                                                                         | Growth Cobalt (`#315CFF`) CTAs, active indicators, explicit selection, links, and focus rings            |
 | Status              | `success-*` (`#31a57a`), `warning-*` (`#d9822b`), `danger-*` (`#d96b55`), `info-*`, `neutral-bg`                                                   | App only; always paired with text or an icon                                                             |
 | Evidence and scores | `citation-*`, `run-*`, `score-*`, `series-*`, `chart-*`                                                                                            | Persisted evidence, audit status, score bands, and charts                                                |
 
 The accent is Growth Cobalt: `#315CFF` at rest, `#2347D9` on hover, and `#1A38B5` on press.
-`accent-text` (`#1E40AF`) is the accessible cobalt for text on white or tinted backgrounds. Page canvas is pearl slate (`#f1f5f9`), while panel, card,
-dialog, and drawer surfaces are crisp white (`#ffffff`). `#e8eef6` provides alternate surfaces and neutral wells; `#e2e8f0` is the active treatment. The darker canvas, defined card edge, and offset ambient shadow keep white surfaces visibly separated without relying on colour alone.
+`accent-text` (`#1E40AF`) is the accessible cobalt for text on white or tinted backgrounds. Product canvas is neutral `#fafafa`; panel, card, dialog, and drawer surfaces are crisp white. Marketing and authentication retain their established scoped surface values.
 
 Text hierarchy is semantic rather than route-specific: `foreground` owns headings,
 primary values, and actions; `secondary` owns body copy and row values; `muted`
@@ -91,9 +91,7 @@ alone; it is always paired with a label or icon.
 
 ## Typography
 
-Two families only: Plus Jakarta Sans for display headings (`font-display`) and Inter for
-UI, body, and data (`font-sans`). Both are loaded through `next/font/google` with
-variable fonts and swap display. Interface weights remain concentrated at 400–600. Metrics, dates, ranks,
+Two families only: Geist for UI, body, and data (`font-sans`) and for every authenticated-app and onboarding heading; Plus Jakarta Sans is the website/authentication display face. Both are loaded through `next/font/google` with variable fonts and swap display. Interface weights remain concentrated at 400–600. Metrics, dates, ranks,
 and percentages use tabular numerals, never a monospace face.
 
 ### Website and authentication ladder
@@ -110,38 +108,39 @@ tracking, weight, and colour combinations.
 | Section heading         | Plus Jakarta Sans |         32/38 → 40/46px |     600 |                        -0.03em | foreground                                  |
 | Feature heading         | Plus Jakarta Sans |                 24/30px |     600 |                        -0.02em | foreground                                  |
 | Small heading           | Plus Jakarta Sans |                 20/26px |     600 |                        -0.01em | foreground                                  |
-| Lead                    | Inter             |                 20/30px |     400 |                        -0.01em | secondary                                   |
-| Large body              | Inter             |                 18/28px |     400 |                              0 | secondary                                   |
-| Body baseline           | Inter             |                 16/24px |     400 |                              0 | secondary                                   |
-| Navigation and actions  | Inter             |                 16/20px | 500–600 |                              0 | foreground or inverse                       |
-| Label, caption, eyebrow | Inter             |                 14/20px | 500–600 | 0; +0.06em only when uppercase | muted or subtle                             |
+| Lead                    | Geist             |                 20/30px |     400 |                        -0.01em | secondary                                   |
+| Large body              | Geist             |                 18/28px |     400 |                              0 | secondary                                   |
+| Body baseline           | Geist             |                 16/24px |     400 |                              0 | secondary                                   |
+| Navigation and actions  | Geist             |                 16/20px | 500–600 |                              0 | foreground or inverse                       |
+| Label, caption, eyebrow | Geist             |                 14/20px | 500–600 | 0; +0.06em only when uppercase | muted or subtle                             |
 
 Ordinary website paragraphs never render below 16px. Fourteen pixels is reserved
 for short labels, metadata, captions, and legal support. Prose stays within a
 45–75 character measure. Accent cobalt never carries a long paragraph. Large text
 uses tighter leading and tracking; body text stays at zero tracking with more
 leading. Pricing values are the one non-editorial website display role:
-`website-data-display` uses Inter at 40/46px with tabular numerals and never
+`website-data-display` uses Geist at 40/46px with tabular numerals and never
 applies to prose or headings.
 
 ### Product app ladder
 
-The authenticated enterprise application uses a strict token-driven typography ladder
-built on Inter (`font-sans`) and Plus Jakarta Sans (`font-display`). It enforces consistent visual
-hierarchy, strict tabular numerals for metrics, and high-density information architecture.
+The authenticated enterprise application and onboarding use a strict Geist-only typography
+ladder. It enforces consistent visual hierarchy, strict tabular numerals for metrics, and
+high-density information architecture.
 Ad-hoc inline text sizes, weights, and color overrides are prohibited in favor of token
 classes.
 
-| Role                       | Family            | Size / line height |  Weight | Tracking | Class / Token                            | Text Colour                   |
-| -------------------------- | ----------------- | -----------------: | ------: | -------: | :--------------------------------------- | :---------------------------- |
-| App Hero / Screen Title    | Plus Jakarta Sans |            26/30px |     600 | -0.025em | `displayHeadingXlClasses`                | `text-foreground`             |
-| Section / Surface Heading  | Plus Jakarta Sans |         16–18/23px |     600 | -0.015em | `text-base` / `text-lg font-display`     | `text-foreground`             |
-| Primary KPI / Metric Value | Plus Jakarta Sans |    28/35 → 32/40px |     600 |  -0.02em | `text-2xl` / `text-3xl` + `tabular-nums` | `text-foreground`             |
-| Metric Subtitle / Delta    | Inter             |            13/20px | 500–600 |        0 | `text-xs` + `tabular-nums`               | `text-secondary` / delta tone |
-| UI / Form Field Label      | Inter             |            13/20px |     500 |        0 | `text-xs font-medium`                    | `text-foreground`             |
-| Standard Body / Content    | Inter             |            14/21px |     400 |        0 | `text-sm text-secondary`                 | `text-secondary`              |
-| Compact Body / Row Data    | Inter             |            13/20px |     400 |        0 | `text-xs text-secondary`                 | `text-secondary`              |
-| Micro Eyebrow / Meta Pill  | Inter             |            12/16px |     600 |  +0.08em | `text-2xs uppercase`                     | `text-muted` / `text-subtle`  |
+| Role | Family | Size / line height | Weight | Tracking | Class / Token | Text Colour |
+| --- | --- | ---: | ---: | ---: | :--- | :--- |
+| Micro metadata | Geist | 10/14px | 500–600 | 0 | `text-2xs` | `text-muted` |
+| Secondary / table header | Geist | 12/16px | 400–600 | 0 | `text-xs` | `text-secondary` / `text-muted` |
+| Baseline UI and body | Geist | 14/20px | 400–600 | 0 | `text-sm` | semantic text role |
+| Emphasis / section title | Geist | 16/22px | 500–600 | -0.015em | `text-base` | `text-foreground` |
+| Heading S | Geist | 18/24px | 600 | -0.015em | `text-lg` | `text-foreground` |
+| Heading M | Geist | 20/28px | 600 | -0.015em | `text-xl` | `text-foreground` |
+| Heading L | Geist | 24/32px | 600 | -0.025em | `text-2xl` | `text-foreground` |
+| Metric M | Geist | 28/36px | 600 | -0.02em | `text-3xl` + `tabular-nums` | `text-foreground` |
+| Metric L | Geist | 32/40px | 600 | -0.02em | `text-4xl` + `tabular-nums` | `text-foreground` |
 
 ### High density layout and elevation standard
 
@@ -169,12 +168,14 @@ and crisp semantic hairlines to maintain clear structure without visual clutter:
 | ------------------------ | ----------: | ------------------: |
 | Top bar                  |        52px |                52px |
 | Sidebar rail             |       236px |       mobile drawer |
-| Content gutter           |        24px |                16px |
+| Content gutter           |        16px |                16px |
 | Navigation / control row |        36px | 44px minimum target |
-| Primary CTA              | 42px height | 44px minimum target |
+| Primary CTA              | 32–36px height | 44px minimum target |
 | Table row                |        40px |     labelled record |
 
-The content area caps at 1360px. Standard cards use 24px internal padding and gap.
+The content area caps at 1360px. Standard cards use 16px internal padding and a 16px workspace
+gap. Compact toolbars use 12px; major page sections separate by 24px; dialogs and drawers use
+20px.
 Authenticated-app geometry is role-driven: controls and fields use 6px corners, cards use
 8px, and drawers, dialogs, menus, and popovers use 10px. Marketing and authentication retain
 their documented website treatment. Fully rounded geometry is reserved for chips, badges,
@@ -489,9 +490,9 @@ Before merging a visual change, verify:
 
 - It uses semantic global tokens and an existing primitive where one applies.
 - Website/auth type uses a documented content role with a 16px body baseline;
-  app type keeps its compact scale. Both stay within weights 400–600.
+  app and onboarding type use the even Geist product scale. Both stay within weights 400–600.
 - Marketing stays monochrome-plus-blue; functional colour appears only in the app.
-- The default canvas is `#f1f5f9`, quiet tonal panels use `#f8fafc`, and elevation
+- The default product canvas is `#fafafa`, quiet tonal panels use `#f7f7f7`, and elevation
   does not force card backgrounds onto structural regions.
 - Elevation uses the shared shadow tokens; app controls use 6px, cards use 8px, and overlays use
   10px through semantic geometry roles.
@@ -502,9 +503,9 @@ Before merging a visual change, verify:
 - App data absence uses an explicit semantic label; observed zero remains distinct and authored
   prose punctuation is unaffected.
 
-This authenticated-app refinement does not introduce new colour families, gradients,
+This authenticated-app and onboarding refinement does not introduce new colour families, gradients,
 decorative glows, nested cards, or unsupported reference concepts such as AI-context rules or
-new competitor mutations. Marketing, authentication, and onboarding composition remain outside
-its scope.
+new competitor mutations. Marketing and authentication composition remain outside its scope;
+onboarding keeps its existing split composition and transaction flow.
 - Focused tests, `pnpm check:policy`, and the appropriate build or visual checks
   pass. React Doctor is the final verification command.

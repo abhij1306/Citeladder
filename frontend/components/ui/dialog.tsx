@@ -40,7 +40,7 @@ export function Dialog({
             className,
           )}
         >
-          <header className="border-border-subtle flex items-start justify-between gap-4 border-b px-6 pt-6 pb-4">
+          <header className="border-border-subtle flex items-start justify-between gap-4 border-b px-[var(--modal-padding)] pt-[var(--modal-padding)] pb-4">
             <div className="grid min-w-0 gap-1">
               <DialogPrimitive.Title className="text-foreground text-lg">
                 {title}
@@ -57,11 +57,11 @@ export function Dialog({
               </Button>
             </DialogPrimitive.Close>
           </header>
-          <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-6 py-1">
+          <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-[var(--modal-padding)] py-1">
             {children}
           </div>
           {footer ? (
-            <footer className="border-border-subtle flex items-center justify-end gap-2 border-t px-6 pt-4 pb-6">
+            <footer className="border-border-subtle flex items-center justify-end gap-2 border-t px-[var(--modal-padding)] pt-4 pb-[var(--modal-padding)]">
               {footer}
             </footer>
           ) : null}

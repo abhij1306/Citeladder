@@ -59,7 +59,7 @@ export function GrowthAgentWorkspace({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-[var(--card-padding)] py-4">
         <p className="text-muted mb-4 flex items-center gap-2 text-xs">
           <ShieldCheck aria-hidden className="text-accent-text size-4 shrink-0" />
           <span className="min-w-0 truncate">

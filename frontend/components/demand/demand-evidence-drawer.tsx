@@ -86,7 +86,7 @@ function DemandEvidenceContent({
         </div>
       }
     >
-      <div className="grid gap-5">
+      <div className="grid gap-[var(--workspace-gap)]">
         {/* Header Info */}
         <div className="border-border-subtle grid gap-2 border-b pb-4">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -114,9 +114,7 @@ function DemandEvidenceContent({
 
         {/* Observed GSC Metrics */}
         <section className="grid gap-2">
-          <h3 className="text-muted text-xs font-semibold tracking-wider uppercase">
-            Observed GSC Performance
-          </h3>
+          <h3 className="text-muted text-xs font-semibold">Observed GSC Performance</h3>
           <div className="border-border bg-panel grid grid-cols-2 gap-2 rounded-md border p-3 sm:grid-cols-4">
             <div>
               <span className="text-2xs text-muted">Impressions</span>
@@ -156,7 +154,7 @@ function DemandEvidenceContent({
         {/* Cannibalization Breakdown if applicable */}
         {details.pages.length > 0 && (
           <section className="grid gap-2">
-            <div className="text-muted flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
+            <div className="text-muted flex items-center gap-1.5 text-xs font-semibold">
               <Split className="text-warning size-3.5" />
               <span>Competing URL Breakdown ({details.pages.length} Pages)</span>
             </div>
@@ -179,9 +177,7 @@ function DemandEvidenceContent({
         {/* CTR Gap Cohort Benchmark if applicable */}
         {details.cohortMedianCtr !== null && (
           <section className="grid gap-2">
-            <h3 className="text-muted text-xs font-semibold tracking-wider uppercase">
-              Position Cohort Benchmark
-            </h3>
+            <h3 className="text-muted text-xs font-semibold">Position Cohort Benchmark</h3>
             <div className="border-border bg-panel grid gap-2 rounded-md border p-3 text-xs">
               <div className="flex justify-between">
                 <span className="text-muted">Position Band:</span>
@@ -212,7 +208,7 @@ function DemandEvidenceContent({
 
         {/* Provenance & Audit Info */}
         <section className="border-border-subtle grid gap-2 border-t pt-3">
-          <div className="text-muted flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
+          <div className="text-muted flex items-center gap-1.5 text-xs font-semibold">
             <ShieldCheck className="text-accent size-3.5" />
             <span>Audit Trail & Provenance</span>
           </div>

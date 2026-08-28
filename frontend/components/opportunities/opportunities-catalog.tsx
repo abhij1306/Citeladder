@@ -197,7 +197,7 @@ export function OpportunitiesCatalog({ projectId }: Readonly<{ projectId: string
   const featured = useFeaturedRecommendation(rows, filters.statusFilter, filters.pager.cursor);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       <FeaturedSection featured={featured} onOpen={setSelectedId} />
       <RecommendationsSection
         projectId={projectId}

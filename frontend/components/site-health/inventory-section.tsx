@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert } from '@/components/ui/alert';
-import { Card, CardContent } from '@/components/ui/card';
 import { CursorPager } from '@/components/ui/cursor-pager';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -22,7 +21,7 @@ import { PagesTable } from '@/components/site-health/pages-table';
 import { RootErrorsBlock } from '@/components/site-health/root-errors-block';
 import { siteHealthQueries, type PagesParams, type PagesSort } from '@/lib/api/site-health';
 import type { PagesPage, SiteCrawl } from '@/lib/api/types';
-import { segmentedItemClasses, segmentedTrackClasses } from '@/components/ui/segmented';
+import { tabItemClasses, tabListClasses } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useCursorStack } from '@/lib/site-health/use-cursor-stack';
 import { PAGE_LIMIT, statusLabel, type InventoryMode } from '@/lib/site-health/status';
@@ -55,11 +54,9 @@ export function InventorySection({
   let content: ReactNode;
   if (mode === 'none' || !crawl) {
     content = (
-      <Card>
-        <CardContent className="py-6 text-center">
-          <p className="text-secondary text-sm">Pages appear here as discovery finds them.</p>
-        </CardContent>
-      </Card>
+      <p className="text-secondary py-[var(--empty-state-padding)] text-center text-sm">
+        Pages appear here as discovery finds them.
+      </p>
     );
   } else if (mode === 'discovering') {
     content = <DiscoveringInventory crawl={crawl} />;
@@ -68,9 +65,9 @@ export function InventorySection({
   }
 
   return (
-    <div className="grid min-w-0 gap-2" data-testid="inventory-section">
+    <section className="grid min-w-0 gap-2" data-testid="inventory-section">
       {content}
-    </div>
+    </section>
   );
 }
 
@@ -134,29 +131,25 @@ function DiscoveringInventory({ crawl }: Readonly<{ crawl: SiteCrawl }>) {
   }
 
   return (
-    <Card>
-      <CardContent className="grid gap-2">
-        <Label>Pages discovered so far</Label>
-        {body}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {crawl.status === 'running' || crawl.status === 'queued' ? (
-            <p className="text-muted text-xs">More URLs appear as discovery continues.</p>
-          ) : (
-            <span />
-          )}
-          {pager.canPrev || nextCursor ? (
-            <div className="flex items-center gap-2">
-              <CursorPager
-                canPrev={pager.canPrev}
-                canNext={Boolean(nextCursor)}
-                onPrev={pager.pop}
-                onNext={() => pager.push(nextCursor)}
-              />
-            </div>
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="grid gap-3">
+      <Label>Pages discovered so far</Label>
+      {body}
+      <div className="border-border-subtle flex flex-wrap items-center justify-between gap-3 border-t pt-2">
+        {crawl.status === 'running' || crawl.status === 'queued' ? (
+          <p className="text-muted text-xs">More URLs appear as discovery continues.</p>
+        ) : (
+          <span />
+        )}
+        {pager.canPrev || nextCursor ? (
+          <CursorPager
+            canPrev={pager.canPrev}
+            canNext={Boolean(nextCursor)}
+            onPrev={pager.pop}
+            onNext={() => pager.push(nextCursor)}
+          />
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -197,14 +190,10 @@ function ScoredInventoryBody({
   onSortChange: (sort: PagesSort) => void;
 }>) {
   if (query.isError)
-    return (
-      <div className="p-[var(--card-padding)]">
-        <Alert tone="danger">Could not load pages for this view. Try again.</Alert>
-      </div>
-    );
+    return <Alert tone="danger">Could not load pages for this view. Try again.</Alert>;
   if (query.isLoading)
     return (
-      <div className="grid min-h-40 gap-2 p-[var(--card-padding)]">
+      <div className="grid min-h-40 gap-2 py-[var(--card-padding)]">
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
@@ -212,12 +201,12 @@ function ScoredInventoryBody({
     );
   if (rows.length === 0 && rootErrors.length === 0)
     return (
-      <p className="text-secondary p-[var(--card-padding)] text-sm">
+      <p className="text-secondary py-[var(--empty-state-padding)] text-center text-sm">
         {active ? 'Pages appear here as the audit reaches them.' : 'No pages in this view.'}
       </p>
     );
   return (
-    <div className="grid gap-3 p-[var(--card-padding)]">
+    <div className="grid gap-3">
       <RootErrorsBlock errors={rootErrors} />
       {rows.length > 0 ? (
         <PagesTable pages={rows} crawlId={crawlId} sort={sort} onSortChange={onSortChange} />
@@ -326,44 +315,45 @@ function ScoredInventory({
   );
 
   return (
-    <Card>
-      <CardContent className="grid gap-4 p-0">
-        <div className="border-border-subtle flex flex-wrap items-center gap-2 border-b px-[var(--card-padding)] pt-[var(--card-padding)]">
-          <div className={cn(segmentedTrackClasses, 'flex flex-wrap')}>
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                onMouseEnter={() => prefetchTab(t)}
-                onFocus={() => prefetchTab(t)}
-                aria-current={t.key === tab ? 'true' : undefined}
-                className={segmentedItemClasses(t.key === tab)}
-              >
-                {active && tab === 'monitored' && t.key === 'monitored'
-                  ? 'Audited so far'
-                  : t.label}
-              </button>
-            ))}
-          </div>
-          <div className="mb-1 ml-auto flex items-center gap-2">
-            <PageKindSelect value={pageKind} onChange={selectPageKind} />
-          </div>
+    <div className="grid gap-3">
+      <div className="flex min-h-10 flex-wrap items-end gap-2">
+        <div
+          className={cn(tabListClasses, 'min-w-0 flex-1')}
+          role="tablist"
+          aria-label="Page inventory views"
+        >
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              onMouseEnter={() => prefetchTab(t)}
+              onFocus={() => prefetchTab(t)}
+              role="tab"
+              aria-selected={t.key === tab}
+              className={tabItemClasses(t.key === tab)}
+            >
+              {active && tab === 'monitored' && t.key === 'monitored' ? 'Audited so far' : t.label}
+            </button>
+          ))}
         </div>
+        <div className="mb-1 ml-auto flex items-center gap-2">
+          <PageKindSelect value={pageKind} onChange={selectPageKind} />
+        </div>
+      </div>
 
-        {body}
+      {body}
 
-        {pager.canPrev || nextCursor ? (
-          <div className="border-border-subtle flex items-center justify-end gap-2 border-t px-[var(--card-padding)] py-3">
-            <CursorPager
-              canPrev={pager.canPrev}
-              canNext={Boolean(nextCursor)}
-              onPrev={pager.pop}
-              onNext={() => pager.push(nextCursor)}
-            />
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+      {pager.canPrev || nextCursor ? (
+        <div className="border-border-subtle flex items-center justify-end gap-2 border-t py-2">
+          <CursorPager
+            canPrev={pager.canPrev}
+            canNext={Boolean(nextCursor)}
+            onPrev={pager.pop}
+            onNext={() => pager.push(nextCursor)}
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }

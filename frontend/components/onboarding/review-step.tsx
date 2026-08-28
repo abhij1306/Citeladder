@@ -122,7 +122,7 @@ export function ReviewStep({
         meta={domains.length > 0 ? `${selectedDomains} of ${domains.length}` : undefined}
       >
         {domains.length === 0 ? (
-          <p className="website-label text-muted">No websites were found.</p>
+          <p className="text-muted text-sm font-medium">No websites were found.</p>
         ) : (
           <ChipRow>
             {domains.map((entry, index) => (
@@ -154,7 +154,7 @@ export function ReviewStep({
         }
       >
         {competitors.length === 0 ? (
-          <p className="website-label text-muted">
+          <p className="text-muted text-sm font-medium">
             No competitors were confirmed. Add the companies you lose deals to.
           </p>
         ) : (

@@ -85,7 +85,7 @@ export function VisibilityTrends({
   const onePoint = points.length === 1;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       {onePoint ? (
         <Alert tone="info">
           Only one completed run is in range, so there is no movement to plot yet. Add another run
@@ -99,7 +99,7 @@ export function VisibilityTrends({
         ))}
       </div>
 
-      <section className="grid gap-6">
+      <section className="grid gap-[var(--workspace-gap)]">
         {/* A single run plots one dot. Two full-height empty axes below a banner
             that already says there is no movement yet is noise, not evidence —
             the rankings and model comparison carry that run's real detail. */}
@@ -128,7 +128,7 @@ export function VisibilityTrends({
         {/* With one run the two bookends are the same run, so the comparison
             column is a half-width card holding one sentence. Give the rankings
             the full width until there is a second run to compare against. */}
-        <div className={cn('grid gap-6', !onePoint && 'lg:grid-cols-2')}>
+        <div className={cn('grid gap-[var(--workspace-gap)]', !onePoint && 'lg:grid-cols-2')}>
           <RankingHistoryCard
             title={onePoint ? 'Rankings' : 'Rankings (Latest)'}
             point={rankingBookends(points).latest}
@@ -159,7 +159,7 @@ function TrendEmptyState({
   if (isFiltered)
     return (
       <Card>
-        <CardContent className="grid justify-items-center gap-2 py-12 text-center">
+        <CardContent className="grid justify-items-center gap-2 py-[var(--empty-state-padding)] text-center">
           <CardEyebrow>Trends</CardEyebrow>
           <h2 className={displayHeadingLgClasses}>No runs match these filters</h2>
           <p className="text-secondary max-w-md text-sm">
@@ -171,7 +171,7 @@ function TrendEmptyState({
     );
   return (
     <Card>
-      <CardContent className="grid justify-items-center gap-4 py-12 text-center">
+      <CardContent className="grid justify-items-center gap-4 py-[var(--empty-state-padding)] text-center">
         <CardEyebrow>Trends</CardEyebrow>
         <div className="grid gap-1">
           <h2 className={displayHeadingLgClasses}>No trend history yet</h2>
@@ -309,7 +309,7 @@ function RankingHistoryCard({
 
 function TrendsSkeleton() {
   return (
-    <div className="grid gap-6" aria-hidden>
+    <div className="grid gap-[var(--workspace-gap)]" aria-hidden>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {[0, 1, 2, 3, 4].map((i) => (
           <Card key={i}>

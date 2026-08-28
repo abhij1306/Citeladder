@@ -25,12 +25,12 @@ export function BrandStage({
   onSubmit: () => void;
 }>) {
   return (
-    <form noValidate onSubmit={onSubmit} className="space-y-4 sm:space-y-5">
+    <form noValidate onSubmit={onSubmit} className="space-y-4">
       <div className="space-y-1">
-        <h1 className="website-feature-heading text-foreground">
+        <h1 className="text-foreground text-2xl font-semibold tracking-[-0.025em]">
           {isAdditional ? 'Add a project' : "Let's get started"}
         </h1>
-        <p className="website-body text-muted">
+        <p className="text-muted text-sm">
           We&apos;ll review your website, suggest comparable brands, and prepare balanced questions.
         </p>
       </div>
@@ -123,8 +123,10 @@ export function DiscoveryStage({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <h1 className="website-feature-heading text-foreground">Finding what to track</h1>
-        <p className="website-body text-muted">
+        <h1 className="text-foreground text-2xl font-semibold tracking-[-0.025em]">
+          Finding what to track
+        </h1>
+        <p className="text-muted text-sm">
           We&apos;re learning about {brandName || 'your brand'} and preparing useful questions. You
           can review everything before the project is created.
         </p>
@@ -137,7 +139,7 @@ export function DiscoveryStage({
         />
       </div>
       {(discovery.discovery?.warnings ?? []).map((warning) => (
-        <Alert key={warning} tone="warning" className="website-body px-3 py-2.5">
+        <Alert key={warning} tone="warning">
           {warningMessage(warning)}
         </Alert>
       ))}
@@ -208,15 +210,17 @@ export function ReviewStage({
   return (
     <div className="space-y-3.5">
       <div className="space-y-1">
-        <h1 className="website-feature-heading text-foreground">Does this look right?</h1>
-        <p className="website-body text-muted">
+        <h1 className="text-foreground text-2xl font-semibold tracking-[-0.025em]">
+          Does this look right?
+        </h1>
+        <p className="text-muted text-sm">
           Deselect anything you don&apos;t want — you can change all of it after setup.
         </p>
       </div>
-      <div className="grid gap-3.5 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         <div className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-md border p-4">
           <div className="border-border-subtle flex items-center justify-between border-b pb-2">
-            <span className="text-muted font-sans text-xs font-semibold tracking-wider uppercase">
+            <span className="text-muted font-sans text-xs font-semibold">
               Brand Positioning &amp; Market
             </span>
             <span className="bg-accent-soft text-accent-text border-accent-border/50 text-2xs inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-semibold">
@@ -228,7 +232,7 @@ export function ReviewStage({
         </div>
         <div className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-md border p-4">
           <div className="border-border-subtle flex items-center justify-between border-b pb-2">
-            <span className="text-muted font-sans text-xs font-semibold tracking-wider uppercase">
+            <span className="text-muted font-sans text-xs font-semibold">
               Online Footprint &amp; Peers
             </span>
             <span className="text-2xs text-muted font-medium">Auto-verified domains</span>

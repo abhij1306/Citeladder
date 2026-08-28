@@ -50,9 +50,9 @@ export function ContentComposer({
   return (
     <Card
       data-component-id="content-prompt-box"
-      className="border-border bg-panel shadow-card rounded-sm border p-6 sm:p-8"
+      className="border-border bg-panel shadow-card rounded-sm border p-[var(--card-padding)]"
     >
-      <CardContent className="flex flex-col gap-5 p-0">
+      <CardContent className="flex flex-col gap-[var(--workspace-gap)] p-0">
         <div className="grid gap-1">
           <span className={eyebrowClasses}>New generation</span>
           <h2 className="font-display text-foreground text-xl font-semibold tracking-tight">
@@ -198,7 +198,7 @@ export function GeneratingPanel({
   return (
     <Card
       data-component-id="content-generating-panel"
-      className="border-border bg-panel shadow-card rounded-sm border p-6"
+      className="border-border bg-panel shadow-card rounded-sm border p-[var(--card-padding)]"
     >
       <CardContent className="flex items-center gap-4 p-0">
         <div role="status" aria-label="Generating content" className="flex items-center gap-3">
@@ -237,7 +237,7 @@ export function GenerationErrorPanel({
   return (
     <Card
       data-component-id="content-error-panel"
-      className="border-danger-border bg-danger-bg shadow-card rounded-sm border p-6"
+      className="border-danger-border bg-danger-bg shadow-card rounded-sm border p-[var(--card-padding)]"
     >
       <CardContent className="flex flex-col gap-4 p-0">
         <div role="alert" className="text-danger-text flex items-start gap-2.5 text-sm">

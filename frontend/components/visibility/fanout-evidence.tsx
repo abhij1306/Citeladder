@@ -93,7 +93,7 @@ export function FanoutEvidence({ query, isFiltered, onClearFilters, limit }: Evi
 
 function PromptGroupBlock({ group }: Readonly<{ group: PromptGroup }>) {
   return (
-    <section className="grid gap-3.5 px-5 py-4">
+    <section className="grid gap-3 px-[var(--card-padding)] py-4">
       <div className="flex items-start gap-2">
         <h3 className="text-foreground text-sm leading-relaxed font-semibold sm:text-base">
           {group.promptText}

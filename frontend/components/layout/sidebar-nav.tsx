@@ -22,15 +22,13 @@ function NavLink({ item, active }: Readonly<{ item: NavItem; active: boolean }>)
       href={item.href}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'relative flex h-[var(--nav-item-height)] items-center gap-2.5 rounded-sm px-2.5 text-xs font-semibold transition-all duration-150',
+        'relative flex h-[var(--nav-item-height)] items-center gap-2.5 rounded-sm px-2.5 text-sm font-semibold transition-all duration-150',
         active
-          ? 'bg-accent-subtle text-accent-text font-bold shadow-xs'
+          ? 'bg-active text-foreground font-semibold'
           : 'text-secondary hover:text-foreground hover:bg-well hover:translate-x-0.5',
       )}
     >
-      {active ? (
-        <span aria-hidden className="bg-accent absolute inset-y-1.5 start-0 w-1 rounded-e-sm" />
-      ) : null}
+      {active ? <span aria-hidden className="bg-accent absolute inset-y-2 start-0 w-px" /> : null}
       <Icon
         className={cn('size-4 shrink-0', active ? 'text-accent opacity-100' : 'opacity-80')}
         aria-hidden
@@ -59,7 +57,7 @@ export function StationLinks({
                 className={cn(
                   'focus-ring inline-flex min-h-11 items-center rounded-sm px-3 text-sm font-medium',
                   isNavItemActive(pathname, searchParams, item)
-                    ? 'bg-accent-soft text-accent-hover'
+                    ? 'bg-active text-foreground'
                     : 'text-secondary',
                 )}
               >
@@ -90,7 +88,7 @@ export function SidebarNav({ className }: Readonly<{ className?: string }>) {
         return (
           <div key={group.title} className="flex flex-col gap-0">
             {showHeading ? (
-              <p className={cn(eyebrowClasses, 'px-1 pb-0.5')}>{group.title}</p>
+              <p className={cn(eyebrowClasses, 'px-1 pb-0.5 text-sm')}>{group.title}</p>
             ) : null}
             <StationLinks group={group} />
           </div>

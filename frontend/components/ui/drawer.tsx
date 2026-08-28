@@ -63,7 +63,7 @@ export function Drawer({
             className,
           )}
         >
-          <header className="border-border-subtle flex items-start justify-between gap-3 border-b px-5 py-4">
+          <header className="border-border-subtle flex items-start justify-between gap-3 border-b px-[var(--modal-padding)] py-4">
             <div className="min-w-0">
               <DialogPrimitive.Title className="text-foreground text-heading-sm truncate">
                 {title}
@@ -82,7 +82,7 @@ export function Drawer({
           </header>
           <div
             className={cn(
-              'min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-4',
+              'min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-[var(--modal-padding)] py-4',
               bodyClassName,
             )}
           >

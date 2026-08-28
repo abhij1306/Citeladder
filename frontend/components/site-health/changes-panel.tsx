@@ -158,7 +158,7 @@ function ChangesTable({
   const rows = changes.items;
   const counts = summary.summary.counts_by_class as Record<string, number> | undefined;
   return (
-    <div className="grid min-w-0 gap-6" data-testid="website-changes">
+    <div className="grid min-w-0 gap-[var(--workspace-gap)]" data-testid="website-changes">
       {!summary.complete_pair ? (
         <Alert tone="warning">
           This comparison includes shared observed URLs only. Added and removed page claims are

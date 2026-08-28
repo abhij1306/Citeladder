@@ -151,12 +151,12 @@ export function YourPrompts() {
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--compact-gap)]">
       {isError ? (
         <Alert tone="danger">Could not load prompts. Check your connection and try again.</Alert>
       ) : null}
 
-      <div className="bg-panel shadow-card flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-3">
+      <div className="bg-panel border-border flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border px-[var(--card-padding)] py-[var(--card-padding-compact)]">
         <p className="text-secondary text-sm">
           The {project?.brand_name ?? 'brand'} configuration includes{' '}
           <span className="text-foreground font-medium">{activePrompts.length}</span> visibility{' '}
@@ -192,7 +192,7 @@ export function YourPrompts() {
       </div>
 
       {activePrompts.length === 0 ? (
-        <div className="bg-panel shadow-card border-border/70 grid place-items-center gap-3 rounded-sm border p-8 text-center sm:p-12">
+        <div className="bg-panel shadow-card border-border/70 grid place-items-center gap-3 rounded-sm border p-[var(--empty-state-padding)] text-center">
           <p className={eyebrowClasses}>Your prompts</p>
           <h2 className={displayHeadingLgClasses}>No active prompts yet</h2>
           <p className="text-secondary max-w-md text-sm leading-relaxed">
@@ -207,11 +207,11 @@ export function YourPrompts() {
           </Link>
         </div>
       ) : visiblePrompts.length === 0 ? (
-        <div className="bg-panel shadow-card text-secondary border-border/70 rounded-sm border p-8 text-center text-sm">
+        <div className="bg-panel shadow-card text-secondary border-border/70 rounded-sm border p-[var(--empty-state-padding)] text-center text-sm">
           No prompts match your search.
         </div>
       ) : (
-        <div className="bg-panel shadow-card border-border/70 overflow-hidden rounded-sm border">
+        <div className="bg-panel border-border overflow-hidden rounded-[var(--radius-card)] border">
           <Table>
             <TableHeader>
               <TableRow>

@@ -36,7 +36,7 @@ export function Field({
     [error ? errorId : null, hint ? hintId : null].filter(Boolean).join(' ') || undefined;
 
   return (
-    <div className={cn('grid gap-1.5', className)}>
+    <div className={cn('grid gap-2', className)}>
       <label htmlFor={id} className={cn('text-foreground text-sm font-medium', labelClassName)}>
         {label}
         {required ? <span className="text-danger ms-0.5">*</span> : null}

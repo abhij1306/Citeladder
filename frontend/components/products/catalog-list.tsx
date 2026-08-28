@@ -295,7 +295,7 @@ export function CatalogList({
       </div>
       <div className="grid min-w-0 gap-3 p-[var(--card-padding)] pt-3">
         {empty ? (
-          <p className="text-muted px-2 py-8 text-center text-sm">
+          <p className="text-muted px-2 py-[var(--empty-state-padding)] text-center text-sm">
             {needle
               ? `Nothing matches “${search.trim()}”.`
               : 'Nothing projected yet. Run a Site Health crawl or import a CSV.'}

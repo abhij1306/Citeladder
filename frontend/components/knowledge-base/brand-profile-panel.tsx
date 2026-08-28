@@ -137,7 +137,7 @@ function ProfileTabPanel({
 }>) {
   if (activeTab === 'facts') {
     return (
-      <div className="grid gap-5">
+      <div className="grid gap-[var(--workspace-gap)]">
         <Field label="Description" hint="Core mission, value proposition, and brand summary.">
           {(field) => (
             <Textarea
@@ -169,7 +169,7 @@ function ProfileTabPanel({
 
   if (activeTab === 'audience') {
     return (
-      <div className="grid gap-5">
+      <div className="grid gap-[var(--workspace-gap)]">
         <Field
           label="Target audience"
           hint="Key demographics, customer personas, and ideal buyers."
@@ -200,7 +200,7 @@ function ProfileTabPanel({
   }
 
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-[var(--workspace-gap)]">
       <section aria-labelledby="tracked-competitors" className="grid gap-2">
         <h3 id="tracked-competitors" className="text-foreground text-sm font-semibold">
           Tracked competitors

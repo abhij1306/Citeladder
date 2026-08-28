@@ -2,13 +2,11 @@
    authenticated product. The --text-* remap keeps legacy/supporting UI usable,
    while the named website roles below own the exact editorial hierarchy. */
 .website-type {
+  --font-sans: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: var(--font-plus-jakarta-sans), var(--font-geist), -apple-system, sans-serif;
   /* Keep public/auth surfaces on their established Proof palette and geometry.
      The authenticated app overrides these shared roles at the root. */
-  --color-background: var(--color-panel-tonal);
-  --color-background-alt: var(--color-neutral-bg);
-  --color-well: var(--color-neutral-bg);
-  --color-border: var(--color-active);
-  --color-border-subtle: var(--color-neutral-bg);
   --radius-control: var(--radius-sm);
   --radius-card: var(--radius-sm);
   --radius-overlay: var(--radius-md);
@@ -51,7 +49,7 @@
 .website-type :where(h1, h2, h3, h4, h5, h6):not(.app-type-scale *) {
   font-family:
     var(--font-plus-jakarta-sans),
-    var(--font-inter),
+    var(--font-geist),
     -apple-system,
     sans-serif;
   font-optical-sizing: auto;
@@ -84,7 +82,7 @@
 .website-small-heading {
   font-family:
     var(--font-plus-jakarta-sans),
-    var(--font-inter),
+    var(--font-geist),
     -apple-system,
     sans-serif;
   font-optical-sizing: auto;
@@ -128,7 +126,7 @@
 .website-label,
 .website-eyebrow {
   font-family:
-    var(--font-inter),
+    var(--font-geist),
     -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
@@ -137,7 +135,7 @@
 
 .website-data-display {
   font-family:
-    var(--font-inter),
+    var(--font-geist),
     -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
@@ -255,17 +253,18 @@
 
 /* A coded product preview is product UI, not oversized marketing copy. */
 .app-type-scale {
-  --text-2xs: 0.6875rem;
+  --font-display: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --text-2xs: 0.625rem;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
-  --text-lg: 1.0625rem;
-  --text-xl: 1.375rem;
-  --text-2xl: 2rem;
-  --text-3xl: 2.5rem;
-  --text-4xl: 2.75rem;
-  --text-5xl: 3rem;
-  --text-heading-sm: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.75rem;
+  --text-4xl: 2rem;
+  --text-5xl: 2rem;
+  --text-heading-sm: 1.125rem;
   --leading-relaxed: 1.625;
   font-size: 0.875rem;
   line-height: 1.5;

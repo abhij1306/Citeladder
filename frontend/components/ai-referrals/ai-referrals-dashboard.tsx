@@ -30,10 +30,10 @@ export function AiReferralsDashboard({
   fetching,
 }: Readonly<{ data: AiReferrals; toolbar: ReactNode; fetching: boolean }>) {
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       {toolbar}
-      <div aria-busy={fetching} className="grid gap-6">
-        <div className="grid gap-6 lg:grid-cols-2">
+      <div aria-busy={fetching} className="grid gap-[var(--workspace-gap)]">
+        <div className="grid gap-[var(--workspace-gap)] lg:grid-cols-2">
           <ReferralVolumeCard data={data} />
           <ReferralShareCard data={data} />
         </div>

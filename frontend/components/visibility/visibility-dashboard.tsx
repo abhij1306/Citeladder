@@ -75,7 +75,7 @@ function DashboardState({
       </Alert>
     );
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
       <VisibilityEmptyState hasActiveRun={Boolean(activeRun)} />
     </div>
@@ -92,7 +92,7 @@ function VisibilityWorkspace({
   promptQuery: ReturnType<typeof usePromptQuery>;
 }>) {
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       {queries.activeRun ? <ActiveRunBanner run={queries.activeRun} /> : null}
       <VisibilityToolbar
         activeTab={filters.activeTab}

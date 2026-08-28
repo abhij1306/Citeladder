@@ -45,7 +45,7 @@ export function UserMenu({ className }: Readonly<{ className?: string }>) {
           >
             {emailInitials(user.email)}
           </span>
-          <span className="text-secondary min-w-0 flex-1 truncate text-xs">{user.email}</span>
+          <span className="text-secondary min-w-0 flex-1 truncate text-sm">{user.email}</span>
         </DropdownTrigger>
         <DropdownContent align="start" side="top" className="w-56">
           <DropdownLabel>{user.email}</DropdownLabel>

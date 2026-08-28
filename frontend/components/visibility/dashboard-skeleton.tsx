@@ -8,8 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
  */
 export function DashboardSkeleton() {
   return (
-    <div className="grid gap-6" aria-hidden>
-      <div className="grid gap-6 lg:grid-cols-[minmax(260px,1fr)_2fr]">
+    <div className="grid gap-[var(--workspace-gap)]" aria-hidden>
+      <div className="grid gap-[var(--workspace-gap)] lg:grid-cols-[minmax(260px,1fr)_2fr]">
         <Card>
           <CardContent className="grid justify-items-center gap-4">
             <Skeleton className="size-28 rounded-full" />

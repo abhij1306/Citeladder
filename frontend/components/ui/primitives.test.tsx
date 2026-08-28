@@ -67,6 +67,19 @@ describe('Button', () => {
       'h-[var(--control-height-sm)]',
     );
   });
+
+  it('keeps popup triggers stationary while preserving button press feedback elsewhere', () => {
+    render(
+      <>
+        <Button aria-haspopup="menu">Filters</Button>
+        <Button>Save</Button>
+      </>,
+    );
+    const trigger = screen.getByRole('button', { name: 'Filters' });
+    expect(trigger.className).toContain('active:scale-100');
+    expect(trigger.className).not.toContain('active:scale-[0.98]');
+    expect(screen.getByRole('button', { name: 'Save' }).className).toContain('active:scale-[0.98]');
+  });
 });
 
 describe('Badge', () => {
@@ -156,13 +169,12 @@ describe('Card', () => {
     render(<CardEyebrow>Visibility score</CardEyebrow>);
     const eyebrow = screen.getByText('Visibility score');
     expect(eyebrow.tagName).toBe('SPAN');
-    // Micro-label: 12/16 @600, muted, uppercase, tracked, and never the mono
-    // face (reserved for values).
+    // Micro-label: 10/14 @600, muted, sentence case, and never the mono face.
     expect(eyebrow.className).toContain('text-2xs');
     expect(eyebrow.className).toContain('text-muted');
     expect(eyebrow.className).toContain('font-semibold');
-    expect(eyebrow.className).toContain('uppercase');
-    expect(eyebrow.className).toContain('tracking-');
+    expect(eyebrow.className).not.toContain('uppercase');
+    expect(eyebrow.className).not.toContain('tracking-');
     expect(eyebrow.className).not.toContain('font-mono');
   });
 });
@@ -202,6 +214,7 @@ describe('Table (dense)', () => {
     // no tracking); mono stays for values.
     expect(headers[0].className).toContain('text-xs');
     expect(headers[0].className).toContain('font-medium');
+    expect(headers[0].className).toContain('whitespace-nowrap');
     expect(headers[0].className).not.toContain('uppercase');
     expect(headers[0].className).not.toContain('font-mono');
     // Flat grid: header sits on the panel and is left-aligned even when numeric.
@@ -252,7 +265,10 @@ describe('Alert', () => {
     render(<Alert tone="danger">Something failed</Alert>);
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('Something failed');
-    expect(alert.className).toContain('bg-danger-bg');
+    expect(alert.className).toContain('text-danger-text');
+    expect(alert.className).not.toContain('bg-danger-bg');
+    expect(alert.className).not.toContain('border');
+    expect(alert.className).not.toContain('p-4');
   });
 });
 

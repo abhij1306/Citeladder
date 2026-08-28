@@ -204,6 +204,97 @@ export function standalonePlaceholderViolations(source, label, ownsProductUi) {
   return violations;
 }
 
+/** Product UI must consume the even type ladder and semantic large-spacing roles. */
+export function productUiSourceViolations(source, label, ownsProductUi) {
+  if (!ownsProductUi || !label.endsWith('.tsx')) return [];
+  const violations = [];
+  for (const entry of jsxClassData(source, label)) {
+    if (/\btext-5xl\b|\btext-\[[^\]]+\]/.test(entry.classes)) {
+      violations.push(`${label}:${entry.line}: product type must use the approved even ladder`);
+    }
+    if (/\b(?:(?:sm|md|lg|xl):)?(?:gap|p|px|py)-(?:5|6|8)\b/.test(entry.classes)) {
+      violations.push(
+        `${label}:${entry.line}: product large spacing must use a semantic CSS variable`,
+      );
+    }
+    if (
+      /\bwebsite-(?:hero|page|section|feature|small|lead|body|nav|label|eyebrow)/.test(
+        entry.classes,
+      )
+    ) {
+      violations.push(`${label}:${entry.line}: product UI must not consume website type roles`);
+    }
+  }
+  return violations;
+}
+
+function tokenDeclaration(source, token, value) {
+  return new RegExp(`${escapeRegExp(token)}\\s*:\\s*${escapeRegExp(value)}\\s*;`).test(source);
+}
+
+/** Exact global contract for the spatial/type migration's shared owners. */
+export function productContractViolations(root) {
+  const violations = [];
+  const css = readFileSync(join(root, 'app', 'globals.css'), 'utf8');
+  const tokenContract = new Map([
+    ['--text-2xs', '0.625rem'],
+    ['--text-xs', '0.75rem'],
+    ['--text-sm', '0.875rem'],
+    ['--text-base', '1rem'],
+    ['--text-lg', '1.125rem'],
+    ['--text-xl', '1.25rem'],
+    ['--text-2xl', '1.5rem'],
+    ['--text-3xl', '1.75rem'],
+    ['--text-4xl', '2rem'],
+    ['--content-gutter', '16px'],
+    ['--workspace-gap', '16px'],
+    ['--compact-gap', '12px'],
+    ['--page-section-gap', '24px'],
+    ['--card-padding', '16px'],
+    ['--modal-padding', '20px'],
+    ['--control-height', '32px'],
+    ['--control-height-lg', '36px'],
+  ]);
+  for (const [token, value] of tokenContract) {
+    if (!tokenDeclaration(css, token, value)) {
+      violations.push(`app/globals.css: ${token} must equal ${value}`);
+    }
+  }
+
+  const layout = readFileSync(join(root, 'app', 'layout.tsx'), 'utf8');
+  if (!layout.includes('Geist') || !layout.includes("variable: '--font-geist'")) {
+    violations.push('app/layout.tsx: Geist must own the shared UI/body font variable');
+  }
+  if (/\bInter\b|--font-inter/.test(layout + css)) {
+    violations.push('app layout/global tokens: Inter must not remain in the font contract');
+  }
+
+  const shell = readFileSync(join(root, 'components', 'layout', 'app-shell.tsx'), 'utf8');
+  if (!shell.includes('px-[var(--content-gutter)]') || /\b(?:sm|md|lg):p[xy]?-\d/.test(shell)) {
+    violations.push('components/layout/app-shell.tsx: shell chrome must own one semantic gutter');
+  }
+  const alert = readFileSync(join(root, 'components', 'ui', 'alert-variants.ts'), 'utf8');
+  if (
+    !alert.includes("cva('flex items-start gap-2 text-xs'") ||
+    /rounded|\bborder\b|\bp-4\b/.test(alert)
+  ) {
+    violations.push('components/ui/alert-variants.ts: alerts must remain unboxed inline feedback');
+  }
+  const table = readFileSync(join(root, 'components', 'ui', 'table.tsx'), 'utf8');
+  if (!table.includes('text-xs text-secondary font-medium whitespace-nowrap')) {
+    violations.push('components/ui/table.tsx: table headers must be 12px and single-line');
+  }
+  const eyebrow = readFileSync(join(root, 'components', 'ui', 'eyebrow.tsx'), 'utf8');
+  if (
+    !eyebrow.includes(
+      "export const eyebrowClasses = 'font-sans text-2xs font-semibold text-muted';",
+    )
+  ) {
+    violations.push('components/ui/eyebrow.tsx: product eyebrows must be sentence case');
+  }
+  return violations;
+}
+
 function cssRules(source) {
   const clean = source.replace(/\/\*[\s\S]*?\*\//g, '');
   const rules = [];

@@ -89,7 +89,7 @@ function ExecutionsSection({
   if (executions.length === 0) {
     return (
       <Card>
-        <CardContent className="text-secondary py-8 text-center text-sm">
+        <CardContent className="text-secondary py-[var(--empty-state-padding)] text-center text-sm">
           No executions yet. They appear as the run is planned and processed.
         </CardContent>
       </Card>
@@ -106,7 +106,7 @@ function ExecutionsSection({
 
 export function RunDetailView(props: RunDetailViewProps) {
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       <Link href="/runs" className="text-accent-text text-xs font-medium hover:underline">
         ← Back to runs
       </Link>

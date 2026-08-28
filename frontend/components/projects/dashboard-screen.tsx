@@ -72,8 +72,8 @@ function DashboardData({
 }>) {
   const actions = useCommandCenterActions(data, activeProject);
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid gap-6" data-tour="command-center">
+    <div className="flex flex-col gap-[var(--workspace-gap)]">
+      <div className="grid gap-[var(--workspace-gap)]" data-tour="command-center">
         <DashboardHeader
           data={data}
           projects={projects}

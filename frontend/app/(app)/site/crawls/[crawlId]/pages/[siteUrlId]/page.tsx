@@ -12,7 +12,7 @@ export default function UrlDetailPage() {
   return (
     <Suspense
       fallback={
-        <div className="grid gap-6" aria-hidden>
+        <div className="grid gap-[var(--workspace-gap)]" aria-hidden>
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-64 w-full" />

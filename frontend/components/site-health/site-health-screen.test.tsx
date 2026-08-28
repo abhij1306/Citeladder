@@ -444,7 +444,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
 
     // The failed terminal view keeps the tabbed page browser (B3 decision).
     await screen.findByText(/The site returned HTTP 404 for the start URL/);
-    await user.click(screen.getByRole('button', { name: 'Errors & Blocked' }));
+    await user.click(screen.getByRole('tab', { name: 'Errors & Blocked' }));
     const block = await screen.findByTestId('root-errors-block');
     expect(within(block).getByText('http_4xx')).toBeInTheDocument();
     expect(within(block).getByText('HTTP 404')).toBeInTheDocument();
@@ -499,7 +499,11 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     // Wait for the screen to settle past the initial loading skeleton.
     await waitFor(() => expect(screen.queryByText(/Discovering pages/)).toBeInTheDocument());
     const stop = screen.getByRole('button', { name: 'Stop crawl' });
+    const analysisTabs = screen.getByRole('tablist', { name: 'Website analysis' });
     expect(screen.getByTestId('inventory-section')).not.toContainElement(stop);
+    expect(
+      stop.compareDocumentPosition(analysisTabs) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Run new crawl' })).not.toBeInTheDocument();
     expect(hiddenPagesRequests).toBe(0);
   });
@@ -527,17 +531,17 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
 
     renderScreen();
 
-    expect(await screen.findByRole('button', { name: 'Audited so far' })).toHaveAttribute(
-      'aria-current',
+    expect(await screen.findByRole('tab', { name: 'Audited so far' })).toHaveAttribute(
+      'aria-selected',
       'true',
     );
     await waitFor(() => expect(requestedStatuses).toContain('completed'));
 
-    await user.click(screen.getByRole('button', { name: 'All Discovered' }));
+    await user.click(screen.getByRole('tab', { name: 'All Discovered' }));
     await waitFor(() => expect(requestedStatuses).toContain(null));
-    expect(screen.getByRole('button', { name: 'Monitored' })).not.toHaveAttribute(
-      'aria-current',
-      'true',
+    expect(screen.getByRole('tab', { name: 'Monitored' })).toHaveAttribute(
+      'aria-selected',
+      'false',
     );
   });
 

@@ -94,7 +94,7 @@ export function Insight({
       data-insight-id={insight.id}
       data-layer={insight.layer}
       className={cn(
-        'bg-panel border-border shadow-card flex flex-col gap-3.5 rounded-sm border p-4 sm:p-5',
+        'bg-panel border-border shadow-card flex flex-col gap-3 rounded-sm border p-4 sm:p-[var(--card-padding)]',
         className,
       )}
     >
@@ -102,7 +102,7 @@ export function Insight({
       <div className="flex items-center justify-between gap-3">
         <span
           className={cn(
-            'text-2xs inline-flex items-center rounded px-1.5 py-0.5 font-semibold tracking-[0.06em] uppercase',
+            'text-2xs inline-flex items-center rounded px-1.5 py-0.5 font-semibold',
             PRIORITY_TONE[insight.priority],
           )}
         >

@@ -22,7 +22,11 @@ export function ScreenHeader({ actions }: Readonly<{ actions?: ReactNode }>) {
 
 export function ScreenSkeleton({ label = 'Loading Site Health…' }: Readonly<{ label?: string }>) {
   return (
-    <div className="grid gap-6" aria-busy="true" data-testid="site-health-skeleton">
+    <div
+      className="grid gap-[var(--workspace-gap)]"
+      aria-busy="true"
+      data-testid="site-health-skeleton"
+    >
       <div role="status" className="flex min-h-8 items-center gap-3">
         <Skeleton className="size-2 shrink-0 rounded-full" />
         <p className="text-secondary text-sm font-medium">{label}</p>
@@ -44,7 +48,7 @@ export function ScreenSkeleton({ label = 'Loading Site Health…' }: Readonly<{ 
       </div>
 
       <Card>
-        <CardContent className="grid gap-5" aria-hidden>
+        <CardContent className="grid gap-[var(--workspace-gap)]" aria-hidden>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="grid gap-2">
               <Skeleton className="h-5 w-36" />

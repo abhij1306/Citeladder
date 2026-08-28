@@ -26,7 +26,7 @@ import { UserMenu } from './user-menu';
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <TooltipProvider>
-      <div className="bg-background relative flex h-dvh overflow-hidden">
+      <div className="product-app bg-background relative flex h-dvh overflow-hidden">
         <aside className="border-border-subtle bg-sidebar relative z-1 hidden w-[var(--sidebar-width)] shrink-0 flex-col border-r transition-[width] md:flex">
           {/* Logo row — matches topbar height */}
           <div className="border-border-subtle flex h-[var(--topbar-height)] shrink-0 items-center border-b px-4">
@@ -48,7 +48,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
 
         <div className="relative z-1 flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Top bar with frosted glassmorphism utility chrome. */}
-          <header className="border-border-subtle bg-background/80 sticky top-0 z-20 flex h-[var(--topbar-height)] shrink-0 items-center justify-between gap-3 border-b px-4 backdrop-blur-md md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,440px)_minmax(0,1fr)] md:px-6">
+          <header className="border-border-subtle bg-background/80 sticky top-0 z-20 flex h-[var(--topbar-height)] shrink-0 items-center justify-between gap-3 border-b px-[var(--content-gutter)] backdrop-blur-md md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,440px)_minmax(0,1fr)]">
             <div className="flex items-center gap-2 md:hidden">
               <Link
                 href="/projects"
@@ -78,7 +78,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             className="content-scroll safe-bottom min-h-0 flex-1 overflow-y-auto pb-20 md:pb-0"
           >
             <MobileStationNavigation />
-            <div className="mx-auto grid w-full max-w-[var(--content-max-width)] grid-cols-[minmax(0,1fr)] gap-[var(--card-gap)] p-4 pt-4 sm:p-6 sm:pt-6 lg:p-8">
+            <div className="mx-auto grid w-full max-w-[var(--content-max-width)] grid-cols-[minmax(0,1fr)] gap-0 p-[var(--content-gutter)]">
               <PageHeader />
               {children}
             </div>

@@ -1,44 +1,34 @@
 @import 'tailwindcss';
 @import './website-type.css';
 
-/*
- * CiteLadder's single design-system owner (Cube27 Growth Ledger).
- *
- * Plus Jakarta Sans display + Inter body/UI loaded from Google Fonts via next/font/google, one chromatic accent
- * (Cube Cobalt #315CFF), warm paper ledger canvases (#f7f7f4), graphite slate hierarchy, and a
- * crisp micro-radius geometry ladder (2px–6px). See docs/design.md.
- *
- * No @theme, raw hex, shared control recipe, or unregistered animation lives
- * outside this file; `pnpm check:policy` enforces that.
- */
+/* CiteLadder's single design-system owner: Geist UI, Plus Jakarta Sans website
+   display, one cobalt accent, and semantic product geometry. See docs/design.md. */
 @theme {
-  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display: var(--font-plus-jakarta-sans), var(--font-inter), -apple-system, sans-serif;
+  --font-sans: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  /* Surfaces — Pearl-slate canvas with crisp white panels and distinct tonal wells. */
-  --color-background: #f1f5f9;
-  --color-background-alt: #e8eef6;
+  --color-background: #fafafa;
+  --color-background-alt: #f7f7f7;
   --color-panel: #ffffff;
-  --color-panel-tonal: #f8fafc;
+  --color-panel-tonal: #f7f7f7;
   --color-elevated: #ffffff;
-  --color-well: #e8eef6;
-  --color-active: #e2e8f0;
+  --color-well: #f7f7f7;
+  --color-active: #efefef;
   --color-input: #ffffff;
   --color-sidebar: #ffffff;
-  --color-surface-inverse: #0f172a;
+  --color-surface-inverse: #171717;
 
-  /* Borders — Refined slate hairlines and precise ledger rules. */
-  --color-border: #d5deea;
-  --color-border-subtle: #e2e8f0;
-  --color-border-strong: #cbd5e1;
-  --color-border-bold: #94a3b8;
+  --color-border: #e5e5e5;
+  --color-border-subtle: #efefef;
+  --color-border-strong: #d4d4d4;
+  --color-border-bold: #a3a3a3;
 
-  /* Text — four semantic roles, each AA-safe on every shared light surface. */
-  --color-foreground: #0f172a;
-  --color-secondary: #334155;
-  --color-muted: #526173;
-  --color-subtle: #596777;
+  --color-foreground: #171717;
+  --color-secondary: #525252;
+  --color-muted: #6b6b6b;
+  --color-subtle: #6b6b6b;
+  --color-disabled: #a3a3a3;
   --color-inverse: #ffffff;
   --color-on-inverse: #ffffff;
   --color-link: #2563eb;
@@ -98,7 +88,7 @@
   --color-info-bg: #eff4ff;
   --color-info-border: #c3d3ff;
   --color-info-text: #1e40af;
-  --color-neutral-bg: #f1f5f9;
+  --color-neutral-bg: #f7f7f7;
 
   --color-sentiment-positive: #10b981;
   --color-sentiment-positive-bg: #ecfdf5;
@@ -203,19 +193,30 @@
   --shadow-lg: 0 0 0 1px rgb(15 23 42 / 0.07), 0 10px 28px -4px rgb(15 23 42 / 0.09), 0 28px 64px -12px rgb(15 23 42 / 0.15);
   --shadow-modal-value: 0 0 0 1px rgb(15 23 42 / 0.08), 0 16px 36px rgb(15 23 42 / 0.14), 0 32px 72px -16px rgb(15 23 42 / 0.24);
 
-  /* Product-app type scale. Standardized legible typography. */
-  --text-2xs: 0.75rem; /* 12px — fine print / micro-label minimum */
-  --text-xs: 0.8125rem; /* 13px — compact tags / secondary labels */
-  --text-sm: 0.875rem; /* 14px — UI body / labels / buttons / inputs / tables */
-  --text-base: 1rem; /* 16px — comfortable body prose / card body */
-  --text-lg: 1.125rem; /* 18px — card section titles */
-  --text-xl: 1.375rem; /* 22px — surface titles */
-  --text-2xl: 1.75rem; /* 28px — main page anchors / screen titles */
-  --text-3xl: 2rem; /* 32px — primary KPI metrics */
-  --text-4xl: 2.5rem; /* 40px — hero at md */
-  --text-5xl: 3rem; /* 48px — hero at lg */
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 0.875rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl: 1.75rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl: 2rem;
+  --text-4xl--line-height: 2.5rem;
+  /* Website compatibility only; product policy rejects text-5xl. */
+  --text-5xl: 2rem;
+  --text-5xl--line-height: 2.5rem;
   --text-heading-sm: 1.125rem; /* 18px — compact headings */
   --text-heading-xs: 1rem; /* 16px — structural sub-headings */
+  --text-heading-md: 1.25rem; /* 20px — screen state headings */
 
   --leading-tight: 1.25;
   --leading-body: 1.5;
@@ -236,14 +237,22 @@
   --sidebar-width: 236px;
   --topbar-height: 52px;
   --nav-item-height: 36px;
-  --content-gutter: 24px;
+  --content-gutter: 16px;
   --content-max-width: 1360px;
   --container-max: 1360px;
-  --card-padding: 24px;
-  --card-gap: 24px;
+  --page-section-gap: 24px;
+  --workspace-gap: 16px;
+  --compact-gap: 12px;
+  --card-padding: 16px;
+  --card-padding-compact: 12px;
+  --card-padding-large: 20px;
+  --modal-padding: 20px;
+  --storytelling-gap: 32px;
+  --empty-state-padding: 40px;
+  --card-gap: var(--workspace-gap);
   --control-height-sm: 32px;
-  --control-height: 36px;
-  --control-height-lg: 42px;
+  --control-height: 32px;
+  --control-height-lg: 36px;
   --table-row-height: 40px;
   --table-header-height: 36px;
   --table-cell-padding-x: 16px;
@@ -265,6 +274,25 @@
   --value-placeholder: var(--color-subtle);
 }
 
+/* Marketing and authentication preserve their incumbent palette while sharing
+   the same semantic token names. The token owner remains this file. */
+.website-type {
+  --color-background: #f1f5f9;
+  --color-background-alt: #e8eef6;
+  --color-panel: #ffffff;
+  --color-panel-tonal: #f8fafc;
+  --color-well: #e8eef6;
+  --color-active: #e2e8f0;
+  --color-border: #d5deea;
+  --color-border-subtle: #e2e8f0;
+  --color-border-strong: #cbd5e1;
+  --color-border-bold: #94a3b8;
+  --color-foreground: #0f172a;
+  --color-secondary: #334155;
+  --color-muted: #526173;
+  --color-subtle: #596777;
+}
+
 *,
 *::before,
 *::after {
@@ -282,7 +310,7 @@ body {
   min-height: 100dvh;
   background: var(--color-background);
   color: var(--color-foreground);
-  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 0.875rem;
   line-height: 1.5;
   letter-spacing: normal;
@@ -298,7 +326,7 @@ body {
   h5,
   h6 {
     margin: 0;
-    font-family: var(--font-plus-jakarta-sans), var(--font-inter), -apple-system, sans-serif;
+    font-family: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-weight: 600;
     letter-spacing: normal;
     line-height: 1.2;
@@ -335,7 +363,7 @@ code,
 pre,
 kbd,
 samp {
-  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-variant-numeric: tabular-nums;
   font-synthesis: none;
 }
@@ -362,7 +390,7 @@ samp {
 
 .menu-panel[data-state='closed'] {
   opacity: 0;
-  transform: translateY(-2px) scale(0.98);
+  transform: translateY(-2px);
   transition-duration: 140ms;
 }
 
@@ -426,7 +454,7 @@ samp {
   .menu-panel[data-state='open'],
   .menu-panel[data-open='true'] {
     opacity: 0;
-    transform: translateY(-2px) scale(0.98);
+    transform: translateY(-2px);
   }
 }
 

@@ -21,7 +21,7 @@ export function RootErrorsBlock({ errors }: Readonly<{ errors: RootError[] }>) {
         The start URL could not be fetched — the crawl never reached any page. Each row is one
         network call the crawler made.
       </p>
-      <ul className="grid gap-1">
+      <ul className="divide-border-subtle border-border-subtle divide-y border-y">
         {errors.map((error) => {
           const signature = JSON.stringify([
             error.method,
@@ -37,7 +37,7 @@ export function RootErrorsBlock({ errors }: Readonly<{ errors: RootError[] }>) {
             <li
               key={`${signature}:${occurrence}`}
               data-testid="root-error-row"
-              className="border-border-subtle bg-background-alt flex flex-wrap items-center gap-x-3 gap-y-1 rounded-sm border px-3 py-2"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"
             >
               <span className="mono text-foreground text-sm font-medium">{error.method}</span>
               <span className="mono text-muted min-w-0 flex-1 truncate text-sm">

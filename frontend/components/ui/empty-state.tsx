@@ -41,7 +41,7 @@ export function EmptyState({
 }>) {
   return (
     <Card className={className}>
-      <CardContent className="grid justify-items-center gap-4 py-12 text-center">
+      <CardContent className="grid justify-items-center gap-4 py-[var(--empty-state-padding)] text-center">
         <IconChip>
           <Icon className="size-6" aria-hidden />
         </IconChip>

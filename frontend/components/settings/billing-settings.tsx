@@ -105,7 +105,7 @@ export function BillingSettings({ enabled = true }: Readonly<{ enabled?: boolean
 
 function BillingSkeleton() {
   return (
-    <div className="bg-panel shadow-card border-border-subtle grid gap-3 rounded-md border p-5">
+    <div className="bg-panel shadow-card border-border-subtle grid gap-3 rounded-md border p-[var(--card-padding)]">
       <Skeleton className="h-6 w-40" />
       <Skeleton className="h-20 w-full" />
     </div>
@@ -136,7 +136,7 @@ function BillingContent({
     subscription && catalog ? (catalogPlanByKey(catalog, subscription.catalog_key) ?? null) : null;
 
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-[var(--workspace-gap)]">
       <CurrentPlan
         entitlement={entitlement}
         currentPlan={currentPlan}
@@ -144,7 +144,7 @@ function BillingContent({
         cancelError={cancellation.error}
         onCancel={() => state.setCancelOpen(true)}
       />
-      <div className="grid gap-5 lg:grid-cols-12 lg:items-start">
+      <div className="grid gap-[var(--workspace-gap)] lg:grid-cols-12 lg:items-start">
         <PlanCatalog
           catalog={catalog}
           loading={catalogLoading}
@@ -180,10 +180,10 @@ function CurrentPlan({
   const subscription = entitlement?.subscription ?? null;
   const periodEnd = subscription?.current_period_end;
   return (
-    <div className="bg-panel shadow-card border-border-subtle rounded-md border p-5">
+    <div className="bg-panel shadow-card border-border-subtle rounded-md border p-[var(--card-padding)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-muted text-2xs font-semibold tracking-wider uppercase">Current plan</p>
+          <p className="text-muted text-2xs font-semibold">Current plan</p>
           <div className="mt-1 flex items-center gap-2.5">
             <p className="text-foreground text-heading-sm font-semibold">
               {currentPlan?.name ?? subscription?.catalog_key ?? 'No active plan'}
@@ -236,7 +236,7 @@ function PlanCatalog({
   onCheckout: (key: SelfServePlanKey) => void;
 }>) {
   return (
-    <div className="bg-panel shadow-card border-border-subtle grid gap-4 rounded-md border p-5 lg:col-span-7">
+    <div className="bg-panel shadow-card border-border-subtle grid gap-4 rounded-md border p-[var(--card-padding)] lg:col-span-7">
       <div>
         <h2 className="text-foreground text-sm font-semibold tracking-tight">Change plan</h2>
         <p className="text-muted mt-0.5 text-xs">
@@ -251,7 +251,7 @@ function PlanCatalog({
       ) : loading || !catalog ? (
         <Skeleton className="h-24 w-full" />
       ) : (
-        <div className="grid gap-3.5">
+        <div className="grid gap-3">
           <CountryInput country={country} setCountry={setCountry} />
           <div className="grid gap-2.5">
             {catalog.plans.map((plan) => (

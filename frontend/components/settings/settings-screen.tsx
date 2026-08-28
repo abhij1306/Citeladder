@@ -50,7 +50,7 @@ function DetailRow({
   mono = false,
 }: Readonly<{ label: string; children: React.ReactNode; mono?: boolean }>) {
   return (
-    <div className="border-border-subtle grid grid-cols-[minmax(0,180px)_1fr] items-center gap-4 border-b py-4 last:border-b-0 last:pb-0">
+    <div className="border-border-subtle grid min-h-12 grid-cols-[minmax(0,180px)_1fr] items-center gap-4 border-b py-2 last:border-b-0">
       <dt className="text-secondary text-sm font-medium">{label}</dt>
       <dd className={mono ? 'mono text-secondary text-xs' : 'text-foreground text-sm'}>
         {children}
@@ -166,7 +166,7 @@ export function SettingsScreen() {
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       <div
         role="tablist"
         aria-label="Settings sections"
@@ -247,7 +247,7 @@ export function SettingsScreen() {
               {/* Only what the header above does NOT already state. Email, role
                   and status were each rendered twice — once in the identity row
                   and again as a detail row. */}
-              <dl className="border-border-subtle mt-5 border-t">
+              <dl className="border-border-subtle mt-[var(--card-padding-large)] border-t">
                 {createdLabel ? (
                   <DetailRow label="Account created" mono>
                     {createdLabel}

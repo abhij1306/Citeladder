@@ -254,7 +254,7 @@ function LoadedRunDetail({
   onCancel: (run: AgentTaskRun) => void;
 }>) {
   return (
-    <article className="grid min-w-0 gap-5">
+    <article className="grid min-w-0 gap-[var(--workspace-gap)]">
       <RunDetailHeader run={run} cancelling={cancelling} onCancel={onCancel} />
       {run.error_detail || cancelError ? (
         <RunErrors detail={run.error_detail} cancelError={cancelError} />
@@ -372,7 +372,7 @@ export function TaskForm({
     // result, so the form is one objective field over a task/submit row rather
     // than a full stacked page form.
     <form
-      className="border-border-subtle bg-background-alt grid min-w-0 gap-3 border-t px-5 py-4"
+      className="border-border-subtle bg-background-alt grid min-w-0 gap-3 border-t px-[var(--card-padding)] py-4"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();

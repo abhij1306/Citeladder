@@ -29,7 +29,7 @@ import { useProjectContext } from '@/lib/project/project-context';
 
 export function DemandProjectionSkeleton() {
   return (
-    <div className="grid gap-5" aria-busy="true">
+    <div className="grid gap-[var(--workspace-gap)]" aria-busy="true">
       <output className="sr-only">Loading search demand</output>
       {/* Header skeleton */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -135,7 +135,7 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
   }, [snapshot.signals, activeTab, searchQuery]);
 
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-[var(--workspace-gap)]">
       {/* Top Header & Recompute Bar */}
       <div className="border-border-subtle flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="grid gap-1">
@@ -267,7 +267,7 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
           ))}
         </div>
       ) : snapshot.signals.length === 0 ? (
-        <div className="bg-panel border-border rounded-md border p-8 text-center">
+        <div className="bg-panel border-border rounded-md border p-[var(--empty-state-padding)] text-center">
           <Sparkles className="text-muted/60 mx-auto size-8" />
           <h3 className="text-foreground mt-2 text-sm font-semibold">
             No qualifying search gaps observed
@@ -278,7 +278,7 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
           </p>
         </div>
       ) : (
-        <div className="bg-panel border-border rounded-md border p-8 text-center">
+        <div className="bg-panel border-border rounded-md border p-[var(--empty-state-padding)] text-center">
           <Search className="text-muted/60 mx-auto size-8" />
           <h3 className="text-foreground mt-2 text-sm font-semibold">
             No signals match your filter

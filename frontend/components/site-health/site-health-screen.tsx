@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { MutationNotice } from '@/components/ui/mutation-notice';
+import { tabItemClasses, tabListClasses } from '@/components/ui/tabs';
 import { SiteHealthDashboardLayout } from '@/components/site-health/dashboard-layout';
 import { AeoReadinessPanel } from '@/components/site-health/aeo-readiness-panel';
 import { ArchitecturePanel } from '@/components/site-health/architecture-panel';
@@ -72,7 +73,8 @@ function LoadedSiteHealthScreen({
     />
   ) : undefined;
   return (
-    <div className="grid min-w-0 gap-6">
+    <div className="grid min-w-0 gap-[var(--workspace-gap)]">
+      <ScreenHeader actions={headerActions} />
       {exportError ? <Alert tone="danger">{exportError}</Alert> : null}
       {createMutation.isError ? (
         <MutationNotice
@@ -92,7 +94,7 @@ function LoadedSiteHealthScreen({
           persisted remain visible below.
         </Alert>
       ) : null}
-      <AnalysisTabs tab={tab} setTab={setTab} actions={headerActions} />
+      <AnalysisTabs tab={tab} setTab={setTab} />
       <AnalysisPanel
         tab={tab}
         crawlId={crawl?.id}
@@ -120,29 +122,26 @@ function analysisTabFrom(value: string | null): AnalysisTab {
 function AnalysisTabs({
   tab,
   setTab,
-  actions,
 }: Readonly<{
   tab: string;
   setTab: (tab: AnalysisTab) => void;
-  actions: React.ReactNode;
 }>) {
   return (
-    <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b">
-      <div className="-mb-px flex gap-1" role="tablist" aria-label="Website analysis">
+    <div className="min-h-10">
+      <div className={tabListClasses} role="tablist" aria-label="Website analysis">
         {ANALYSIS_TABS.map(({ value, label }) => (
           <button
             key={value}
             type="button"
             role="tab"
             aria-selected={tab === value}
-            className={`min-h-10 border-b-2 px-3 text-sm font-medium transition-colors ${tab === value ? 'border-accent text-foreground' : 'text-muted hover:text-foreground border-transparent'}`}
+            className={tabItemClasses(tab === value)}
             onClick={() => setTab(value)}
           >
             {label}
           </button>
         ))}
       </div>
-      {actions ? <div className="pb-1">{actions}</div> : null}
     </div>
   );
 }
@@ -214,7 +213,7 @@ function ScreenMessage({
   children,
 }: Readonly<{ tone: 'danger' | 'warning' | 'info'; children: string }>) {
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       <ScreenHeader />
       <Alert tone={tone}>{children}</Alert>
     </div>

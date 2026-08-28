@@ -19,9 +19,9 @@ const STEPS = [
  * the remaining spacing; this keeps all three transitions visually stable.
  */
 export const STEP_MAIN_ALIGNMENT = [
-  'justify-start min-[900px]:pt-6 xl:pt-8',
-  'justify-start min-[900px]:pt-6 xl:pt-8',
-  'justify-start min-[900px]:pt-6 xl:pt-8',
+  'justify-start min-[900px]:pt-[var(--page-section-gap)]',
+  'justify-start min-[900px]:pt-[var(--page-section-gap)]',
+  'justify-start min-[900px]:pt-[var(--page-section-gap)]',
 ] as const;
 
 function StepMarker({ index, step }: Readonly<{ index: number; step: OnboardingStep }>) {
@@ -45,14 +45,14 @@ function StepMarker({ index, step }: Readonly<{ index: number; step: OnboardingS
 
 export function OnboardingSidebar({ step }: Readonly<{ step: OnboardingStep }>) {
   return (
-    <BrandCanvas className="col-span-5 h-screen max-h-screen justify-between p-6 lg:col-span-4 xl:p-10">
-      <div className="relative z-10 flex flex-col gap-8">
+    <BrandCanvas className="col-span-5 h-screen max-h-screen justify-between p-[var(--page-section-gap)] lg:col-span-4 xl:p-[var(--storytelling-gap)]">
+      <div className="relative z-10 flex flex-col gap-[var(--page-section-gap)]">
         <AuthWordmark surface="dark" />
         <div className="space-y-1.5">
-          <h2 className="website-feature-heading text-brand-canvas-foreground">
+          <h2 className="text-brand-canvas-foreground text-xl font-semibold">
             Set up your project
           </h2>
-          <p className="website-body text-brand-canvas-secondary">
+          <p className="text-brand-canvas-secondary text-sm">
             Create your workspace in a few clicks.
           </p>
         </div>
@@ -61,7 +61,7 @@ export function OnboardingSidebar({ step }: Readonly<{ step: OnboardingStep }>) 
             className="bg-brand-canvas-border absolute top-4 bottom-4 left-4.5 w-0.5"
             aria-hidden="true"
           />
-          <ol className="relative list-none space-y-10 p-0 pl-1 sm:space-y-12">
+          <ol className="relative list-none space-y-[var(--storytelling-gap)] p-0 pl-1">
             {STEPS.map((stage, index) => {
               const isDone = index < step;
               const isCurrent = index === step;
@@ -75,7 +75,7 @@ export function OnboardingSidebar({ step }: Readonly<{ step: OnboardingStep }>) 
                   <div className="space-y-1">
                     <p
                       className={cn(
-                        'website-small-heading transition-colors',
+                        'text-base font-semibold transition-colors',
                         isCurrent && 'text-brand-canvas-foreground',
                         isDone && 'text-brand-canvas-secondary',
                         !isDone && !isCurrent && 'text-brand-canvas-muted',
@@ -83,7 +83,7 @@ export function OnboardingSidebar({ step }: Readonly<{ step: OnboardingStep }>) 
                     >
                       {stage.title}
                     </p>
-                    <p className="website-label text-brand-canvas-muted">{stage.description}</p>
+                    <p className="text-brand-canvas-muted text-xs">{stage.description}</p>
                   </div>
                 </li>
               );
@@ -91,7 +91,7 @@ export function OnboardingSidebar({ step }: Readonly<{ step: OnboardingStep }>) 
           </ol>
         </div>
       </div>
-      <div className="website-label border-brand-canvas-border/80 text-brand-canvas-muted relative z-10 border-t pt-4">
+      <div className="border-brand-canvas-border/80 text-brand-canvas-muted relative z-10 border-t pt-4 text-xs">
         <span>© {new Date().getFullYear()} CiteLadder · Onboarding</span>
       </div>
     </BrandCanvas>

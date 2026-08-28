@@ -38,7 +38,7 @@ export function OnboardingGate({ children }: Readonly<{ children: ReactNode }>) 
 
   if (isLoading || needsOnboarding) {
     return (
-      <div className="bg-background flex min-h-dvh items-center justify-center p-6">
+      <div className="bg-background flex min-h-dvh items-center justify-center p-[var(--card-padding)]">
         <div className="grid w-full max-w-70 gap-3" aria-hidden>
           <Skeleton className="h-6 w-32" />
           <Skeleton className="h-4 w-full" />

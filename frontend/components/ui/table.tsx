@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
  * (12/16 @600, text-subtle, sentence case), and keeping the strings separate
  * stops a future eyebrow change from silently restyling every table.
  */
-const tableHeadClasses = 'text-xs text-secondary font-medium';
+const tableHeadClasses = 'text-xs text-secondary font-medium whitespace-nowrap';
 export function Table({
   children,
   className,
@@ -34,11 +34,7 @@ export function Table({
 }>) {
   return (
     <div ref={wrapperRef} className={cn('relative w-full overflow-auto', wrapperClassName)}>
-      <table
-        className={cn('w-full border-collapse text-[length:var(--table-font-size)]', className)}
-      >
-        {children}
-      </table>
+      <table className={cn('w-full border-collapse text-sm', className)}>{children}</table>
     </div>
   );
 }

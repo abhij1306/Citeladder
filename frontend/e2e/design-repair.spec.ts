@@ -506,9 +506,17 @@ test('Site Health keeps its single crawl action and URLs above diagnostics', asy
   await page.goto('/site');
   const stopCrawl = page.getByRole('button', { name: 'Stop crawl' });
   await expect(stopCrawl).toBeVisible();
+  const analysisTabs = page.getByRole('tablist', { name: 'Website analysis' });
+  await expect(analysisTabs).toBeVisible();
+  const stopBox = await stopCrawl.boundingBox();
+  const tabsBox = await analysisTabs.boundingBox();
+  expect(stopBox).not.toBeNull();
+  expect(tabsBox).not.toBeNull();
+  expect(stopBox!.y).toBeLessThan(tabsBox!.y);
+  expect(stopBox!.x).toBeGreaterThan(tabsBox!.x);
   await expect(page.getByText('Start discovery')).toHaveCount(0);
   await expect(page.getByText('Start analysis')).toHaveCount(0);
-  const urlWorkspace = page.getByRole('button', { name: 'Audited so far' });
+  const urlWorkspace = page.getByRole('tab', { name: 'Audited so far' });
   await expect(urlWorkspace).toBeVisible();
   await expect(page.getByText('Crawler details')).toBeVisible();
   const inventoryTop = await urlWorkspace.evaluate(

@@ -17,7 +17,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 export default function TrafficPage() {
   return (
     <TooltipProvider>
-      <div className="grid gap-6">
+      <div className="grid gap-[var(--workspace-gap)]">
         <Suspense fallback={<TrafficSkeleton />}>
           <TrafficScreen />
         </Suspense>

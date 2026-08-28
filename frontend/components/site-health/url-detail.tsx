@@ -95,7 +95,7 @@ export function UrlDetail({
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       <UrlDetailView
         detail={detailQuery.data}
         rerunPending={rerun.isPending}
@@ -146,7 +146,7 @@ function rerunErrorMessage(error: unknown): string {
 
 function DetailSkeleton() {
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-[var(--workspace-gap)]">
       <Skeleton className="h-24 w-full" />
       <Skeleton className="h-32 w-full" />
       <Skeleton className="h-64 w-full" />
