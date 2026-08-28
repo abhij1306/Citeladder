@@ -523,7 +523,12 @@ class DiscoverPersistenceMixin(PhaseSupport):
             runtime=runtime,
         )
         await self._dispose_fetched_page(
-            session, crawl=crawl, task=task, outcome=outcome, depth=depth
+            session,
+            crawl=crawl,
+            task=task,
+            outcome=outcome,
+            result=outcome.result,
+            depth=depth,
         )
         admitted_delta = int(crawl.admitted_url_count or 0) - admitted_before
         return artifact_id, admission, admitted_delta
@@ -535,6 +540,7 @@ class DiscoverPersistenceMixin(PhaseSupport):
         crawl: SiteCrawl,
         task: SiteCrawlTask,
         outcome: _DiscoverOutcome,
+        result: FetchResult,
         depth: int,
     ) -> None:
         """Decide what this page IS, now that its evidence is committed.
@@ -547,7 +553,7 @@ class DiscoverPersistenceMixin(PhaseSupport):
         # product reached through six collection paths, all declaring one
         # `rel=canonical`. Analyzing each alias produced duplicate analyses,
         # duplicate catalog rows, and spent budget on pages already covered.
-        is_document = outcome.result.content_type in DOCUMENT_MEDIA_TYPES
+        is_document = result.content_type in DOCUMENT_MEDIA_TYPES
         if is_document:
             await mark_inventory_document(
                 session,
@@ -560,7 +566,7 @@ class DiscoverPersistenceMixin(PhaseSupport):
             crawl=crawl,
             url_hash_value=task.url_hash,
             declared_canonical=str((outcome.facts or {}).get("canonical_url") or ""),
-            base_url=str(outcome.result.final_url or task.requested_url or ""),
+            base_url=str(result.final_url or task.requested_url or ""),
         )
         if duplicate_of:
             await mark_duplicate_url(
