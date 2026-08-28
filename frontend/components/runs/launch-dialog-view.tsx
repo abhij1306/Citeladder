@@ -149,7 +149,7 @@ export function LaunchDialogView({
           </>
         }
       >
-        <div className="grid gap-5">
+        <div className="grid gap-[var(--workspace-gap)]">
           {launchNotice ? <MutationNotice notice={launchNotice} onRetry={onLaunch} /> : null}
           <PromptSetField
             promptSets={promptSets}

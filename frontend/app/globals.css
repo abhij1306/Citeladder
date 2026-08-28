@@ -277,7 +277,7 @@
 /* Marketing and authentication preserve their incumbent palette while sharing
    the same semantic token names. The token owner remains this file. */
 .website-type {
-  --color-background: #f1f5f9;
+  --color-background: #f8fafc;
   --color-background-alt: #e8eef6;
   --color-panel: #ffffff;
   --color-panel-tonal: #f8fafc;
