@@ -21,6 +21,8 @@ from app.core.config.brand_discovery import (
     CAPTURE_METHOD_CRAWLER,
     CAPTURE_METHOD_EXTERNAL_FETCH,
     CAPTURE_METHOD_EXTERNAL_SEARCH,
+    IDENTITY_CONFLICT_CONFIDENCE_CEILING,
+    IDENTITY_CONFLICT_FIELDS,
     MARKET_CONTEXT_TERMS,
     brand_discovery_settings,
     same_business_class,
@@ -439,7 +441,32 @@ async def _run_competitor_phase(
 
 
 def _identity_conflicts(identity: IdentityResearchEnvelope | None) -> bool:
-    return identity is not None and identity.status == "conflicting_evidence"
+    """Whether a reported conflict actually left the identity in doubt.
+
+    The status flag alone is not the signal. The model is told that an
+    unresolved conflict "must use status conflicting_evidence AND lower
+    confidence", so a response that sets the flag while reporting high
+    confidence on the very fields the warning names has told us it resolved
+    the disagreement. Warning there sends the user to carefully review a
+    positioning the same response is 0.97 sure of -- which is how a warning
+    stops being read at all.
+
+    Requiring corroboration keeps the warning for the case it exists for: the
+    model saw sources it could not reconcile, and said so in both places.
+    """
+    if identity is None or identity.status != "conflicting_evidence":
+        return False
+    confidence = identity.profile.field_confidence or {}
+    scored = [
+        float(confidence[field])
+        for field in IDENTITY_CONFLICT_FIELDS
+        if isinstance(confidence.get(field), int | float)
+    ]
+    # No confidence reported at all is not reassurance -- it is the absence of
+    # the corroboration, so the flag stands on its own.
+    if not scored:
+        return True
+    return min(scored) < IDENTITY_CONFLICT_CONFIDENCE_CEILING
 
 
 def _successful_model_provenance(model_calls: list[dict]) -> tuple[str, str]:

@@ -95,8 +95,13 @@ repair lifecycle state, or call a model.
   path content remains byte-preserving crawler identity; `canonicalize()` and
   `canonical_identity()` retain their reserved-escape semantics.
 - `analyze`, `inventory_only`, and `exclude` dispositions stay distinct.
-- Supported documents may remain inventory-only and never enter the HTML rule
-  evaluator.
+- Supported office/PDF/Markdown documents are successful inventory evidence
+  and never enter the HTML rule evaluator. A response whose recognized media
+  type reveals an extensionless document is reprojected the same way.
+- Declared canonicals remain observed evidence and never replace crawler URL
+  identity. An in-scope canonical may key the Commerce projection; an
+  automatically selected alias is skipped only when that canonical URL was
+  also admitted to the same crawl. Explicit user selections are not collapsed.
 - The screen phase is resolved once by the backend. Worker bookkeeping states
   are not independently reinterpreted by the frontend.
 
@@ -218,7 +223,9 @@ cursor cannot be replayed under a different ordering (400). Page rows and page
 detail both carry the crawl's persisted link metrics, and detail adds bounded
 top inbound/outbound neighbours. A URL with no metric row reports `null`, never
 `0`: unmeasured and unlinked are different facts, and the UI renders the
-not-measured placeholder for the former.
+not-measured placeholder for the former. Persisted analysis status and page-kind
+filters are applied before keyset pagination, so a page of completed results is
+never thinned by unfinished URLs that happen to sort earlier.
 
 ## AEO Readiness
 
@@ -400,8 +407,10 @@ placeholder identity owner is introduced.
 
 Current versions are owned in the focused `backend/app/core/config/site_health_*`
 modules. The observed-architecture slice ships extractor `sh-extractor-12`,
-classifier `sh-classifier-7`, analyzer `sh-analyzer-7`, rule catalog
-`sh-rules-6`, and scoring `sh-scoring-3`. Coverage uses `sh-coverage-1`,
+classifier `sh-classifier-8`, analyzer `sh-analyzer-7`, rule catalog
+`sh-rules-6`, and scoring `sh-scoring-4`. An unclassified `other` page retains
+its Technical score but has no AEO score; its count remains visible in the
+page-kind rollup. Coverage uses `sh-coverage-1`,
 internal-link metrics use `sh-link-metrics-1`, architecture uses
 `sh-architecture-1`, and the archetype policy uses `sh-archetypes-1`; tests pin
 persistence and replay behavior.

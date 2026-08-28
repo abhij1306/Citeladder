@@ -59,6 +59,7 @@ from app.core.config.site_health_runtime import (
 from app.core.config.task_queue import TASK_STATUS_RUNNING
 from app.core.database import SessionLocal
 from app.core.telemetry import configure_logging, instrument_worker
+from app.domain.site_health.phase_common import lock_crawl_for_evidence_commit
 from app.domain.site_health.schemas import (
     DiscoveryOutput,
 )
@@ -486,14 +487,11 @@ class SiteHealthWorker(
     async def _leased(self, task_id: uuid.UUID) -> AsyncIterator[None]:
         """Heartbeat ``task_id``'s lease for the whole body, fetch AND persist.
 
-        The persist phase is NOT cheap — it takes the crawl row ``FOR UPDATE``
-        (contending with every sibling task's finalize), writes the artifact,
-        page analysis, rule evaluations, issues and the link-check enqueue, and
-        only then acknowledges the queue row. Ending the heartbeat when the
-        fetch returned left that whole window running against the remaining
-        lease: a slow persist expired the lease, the sweeper reclaimed the task
-        and (at max attempts) failed it terminally, which is what stalls a
-        crawl. One heartbeat spans both phases; never two loops for one task.
+        The persist phase writes the artifact, page analysis, evaluations,
+        issues, and downstream tasks before its short final lock/commit. Ending
+        the heartbeat when the fetch returned would leave that work running
+        against the remaining lease and let the sweeper reclaim a task still
+        writing. One heartbeat spans both phases; never two loops for one task.
         """
         heartbeat = asyncio.create_task(self._heartbeat_loop(task_id))
         try:
@@ -510,14 +508,16 @@ class SiteHealthWorker(
         task_id: uuid.UUID,
         crawl_id: uuid.UUID,
     ) -> tuple[SiteCrawlTask, SiteCrawl] | None:
-        """Lock the crawl + task FOR UPDATE and verify we still own it.
+        """Lock the crawl + task for final validation and verify ownership.
 
         Guards invariant 3/acceptance-criterion 7 (single writer, no artifact
         for a cancelled/lost-lease task). Between the fetch finishing and this
         write the lease could have expired (sweeper -> another worker) or the
-        crawl could have been cancelled. Returns ``(task, crawl)`` only when the
-        task is still leased to THIS worker, still ``running``, and the crawl is
-        still active; otherwise ``None`` and the fetch result is discarded.
+        crawl could have been cancelled. Callers acquire these locks after
+        preparing persistence writes but before commit, so a failed check rolls
+        the whole transaction back. Returns ``(task, crawl)`` only when the task
+        is still leased to THIS worker, still ``running``, and the crawl is
+        still active.
 
         CANONICAL LOCK HIERARCHY — every Site Health write path takes these in
         exactly this order, and none may invert a pair:
@@ -547,8 +547,8 @@ class SiteHealthWorker(
         # Crawl BEFORE task. A concurrent cancellation/terminalization must not
         # be able to commit between the active check and the evidence commit
         # (invariant 3: a cancelled task writes NOTHING).
-        crawl = await session.get(
-            SiteCrawl, crawl_id, with_for_update=True, populate_existing=True
+        crawl = await lock_crawl_for_evidence_commit(
+            session, workspace_id=task_hint.workspace_id, crawl_id=crawl_id
         )
         if not crawl_is_active(crawl):
             return None

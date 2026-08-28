@@ -20,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config.entitlements import KEY_MONITORED_URLS
 from app.core.config.site_health_contracts import (
     CRAWL_STATUS_FAILED,
+    PAGE_ANALYSIS_STATUS_COMPLETED,
+    PAGE_ANALYSIS_STATUS_PARTIALLY_COMPLETED,
     TASK_KIND_ANALYZE,
 )
 from app.core.config.site_health_runtime import (
@@ -515,9 +517,12 @@ async def get_inventory(
             )
         )
 
-    # A status/page_kind filter is applied in Python from the derived
-    # presentation status, so the SQL window is widened to keep pages full.
-    over_fetch = status is not None or page_kind is not None
+    analysis_filters, derived_status = _analysis_page_filters(
+        crawl_id=crawl_id, status=status, page_kind=page_kind
+    )
+    # Task-derived statuses are applied in Python from the presentation state,
+    # so only those filters still require a widened scan window.
+    over_fetch = derived_status is not None
     fetch_size = _scan_window(limit, over_fetch=over_fetch)
 
     monitored_ids = await _monitored_site_url_ids(session, project_id=project_id)
@@ -533,7 +538,7 @@ async def get_inventory(
         filters=filters,
         limit=limit,
         over_fetch=over_fetch,
-        extra_where=search,
+        extra_where=[*search, *analysis_filters],
     )
     if stmt is None:
         return {"items": [], "next_cursor": None}
@@ -573,8 +578,8 @@ async def get_inventory(
         analyses=analyses,
         tasks=tasks,
         monitored_ids=monitored_ids,
-        status=status,
-        page_kind=page_kind,
+        status=derived_status,
+        page_kind=None,
         limit=limit,
         project=project_inventory_row,
     )
@@ -601,6 +606,41 @@ def _scan_window(limit: int, *, over_fetch: bool) -> int:
     """
     fetch = limit + 1
     return fetch * 4 if over_fetch else fetch
+
+
+_PERSISTED_ANALYSIS_STATUSES = {
+    PAGE_ANALYSIS_STATUS_COMPLETED,
+    PAGE_ANALYSIS_STATUS_PARTIALLY_COMPLETED,
+}
+
+
+def _analysis_page_filters(
+    *, crawl_id: uuid.UUID, status: str | None, page_kind: str | None
+) -> tuple[list[Any], str | None]:
+    """Push persisted-analysis filters ahead of keyset pagination.
+
+    Completed status and page kind come directly from the current analysis row.
+    Filtering them after the URL window produced sparse pages with a valid Next
+    cursor even when many matching analyses existed later in the crawl.
+    Task-derived statuses still use the bounded presentation scan.
+    """
+    analysis_filters: list[Any] = [
+        SitePageAnalysis.crawl_id == crawl_id,
+        SitePageAnalysis.is_current.is_(True),
+    ]
+    persisted_status = status in _PERSISTED_ANALYSIS_STATUSES
+    if persisted_status:
+        analysis_filters.append(SitePageAnalysis.status == status)
+    if page_kind is not None:
+        analysis_filters.append(SitePageAnalysis.page_kind == page_kind)
+    clauses: list[Any] = []
+    if persisted_status or page_kind is not None:
+        clauses.append(
+            SiteUrl.id.in_(
+                select(SitePageAnalysis.site_url_id).where(*analysis_filters)
+            )
+        )
+    return clauses, None if persisted_status else status
 
 
 _DEFAULT_PAGE_SORT = "url"

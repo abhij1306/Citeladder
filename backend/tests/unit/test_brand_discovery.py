@@ -717,6 +717,99 @@ def test_category_vocabulary_never_unbans_a_real_brand_token() -> None:
     )
 
 
+def test_a_resolved_conflict_does_not_warn_the_user_to_review_it() -> None:
+    """The status flag alone told users to re-check a 0.97-confident profile.
+
+    The identity model is instructed that an unresolved conflict "must use
+    status conflicting_evidence AND lower confidence". One real brand set the
+    flag while reporting 0.95-0.97 on its category, description, positioning
+    and business model -- it had reconciled the sources and said so in the
+    numbers. Onboarding still showed "Sources disagreed about this business.
+    Review the suggested positioning carefully", which is advice with nothing
+    behind it and trains people to skip the warning that does matter.
+    """
+    from app.domain.projects.discovery_schemas import DiscoveryProfile
+    from app.domain.projects.onboarding.identity_research import (
+        IdentityResearchEnvelope,
+    )
+    from app.domain.projects.onboarding.research import _identity_conflicts
+
+    def envelope(status: str, confidence: dict[str, float]):
+        return IdentityResearchEnvelope(
+            status=status,
+            profile=DiscoveryProfile(field_confidence=confidence),
+        )
+
+    confident = {
+        "category": 0.97,
+        "description": 0.97,
+        "positioning": 0.97,
+        "products_services": 0.95,
+        "business_model": 0.95,
+    }
+    assert not _identity_conflicts(envelope("conflicting_evidence", confident))
+
+    # A conflict the model really could not resolve still warns.
+    assert _identity_conflicts(
+        envelope("conflicting_evidence", {**confident, "category": 0.4})
+    )
+    # No confidence reported is the ABSENCE of corroboration, not reassurance.
+    assert _identity_conflicts(envelope("conflicting_evidence", {}))
+    assert not _identity_conflicts(envelope("ready", {"category": 0.4}))
+
+
+def test_brand_owning_its_category_vocabulary_stays_banned() -> None:
+    """An outlet for ONE label writes that label all over its own category.
+
+    ilovedooney.com confirmed a category of "Designer handbag & accessories
+    outlet (Dooney & Bourke official clearance)" with terms like "dooney
+    outlet" and "discounted dooney handbags". Reading every token of that
+    vocabulary as category language unbanned "dooney", so nothing rejected an
+    organic prompt that named the tracked brand: the shipped portfolio ran
+    20 core prompts of which nearly every one said "Dooney", and measured no
+    unbranded demand at all -- the only demand an outlet can actually win.
+
+    The head of each phrase is what the phrase IS. "Dooney" is never one.
+    """
+    vocabulary = [
+        "Designer handbag & accessories outlet (Dooney & Bourke official clearance)",
+        "Dooney & Bourke handbags (satchels, totes, crossbodies)",
+        "dooney outlet",
+        "discounted dooney handbags",
+        "Small leather goods (wallets, wristlets)",
+        "Bags",
+        "Shoes",
+    ]
+    terms = brand_terms("I Love Dooney", ["ilovedooney"], vocabulary)
+    assert "dooney" in terms
+
+    validator = _validator(brand_terms=terms)
+    assert _offer(validator, "Which Dooney satchel is the best value under 200") == (
+        "tracked_name"
+    )
+    # The unbranded category demand the portfolio existed to measure is still
+    # admissible -- every head noun of that vocabulary stays usable.
+    assert _offer(validator, "affordable leather tote for work under 200") == ""
+    outlet_query = "authenticated designer handbag outlet with clearance prices"
+    assert _offer(validator, outlet_query) == ""
+
+
+def test_category_head_noun_still_unbans_a_brand_named_for_what_it_sells() -> None:
+    """The Red Dress hatch survives the narrowing, via the phrase head.
+
+    "dress" is the head of "Maxi dresses", so it is what the phrase IS and
+    stays usable. This is the case the escape hatch exists for, and narrowing
+    it to heads must not take it away.
+    """
+    terms = brand_terms(
+        "Red Dress", ["reddress"], ["Maxi dresses", "Women's dresses and clothing"]
+    )
+    assert "dress" not in terms
+    validator = _validator(brand_terms=terms)
+    assert _offer(validator, "best affordable maxi dress for a summer wedding") == ""
+    assert _offer(validator, "is Red Dress good for petite sizing") == "tracked_name"
+
+
 def test_one_unreadable_row_no_longer_voids_its_whole_batch() -> None:
     """An unknown slot is dropped without discarding a valid planned row."""
     import json

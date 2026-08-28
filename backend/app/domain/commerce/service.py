@@ -25,6 +25,7 @@ from app.core.config.commerce_catalog import (
     COMMERCE_PROJECTOR_VERSION,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
+from app.domain.commerce.eligibility import project_sells_catalog
 from app.domain.commerce.schemas import (
     CatalogEditRequest,
     CatalogImportRequest,
@@ -763,6 +764,10 @@ async def enqueue_catalog_projection(
     project_id: uuid.UUID,
     source_analysis_id: uuid.UUID,
 ) -> None:
+    if not await project_sells_catalog(
+        session, workspace_id=workspace_id, project_id=project_id
+    ):
+        return
     key = f"commerce:project:{source_analysis_id}:{COMMERCE_PROJECTOR_VERSION}"
     await session.execute(
         insert(AnalyticsTask)

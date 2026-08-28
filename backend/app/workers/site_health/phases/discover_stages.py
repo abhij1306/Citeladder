@@ -36,12 +36,20 @@ from app.core.config.site_health_contracts import (
     OBSERVATION_SOURCE_ROOT,
     OBSERVATION_SOURCE_SITEMAP,
 )
-from app.core.config.site_health_crawl_policy import INPUT_MODE_EXACT_URLS
+from app.core.config.site_health_crawl_policy import (
+    DOCUMENT_MEDIA_TYPES,
+    INPUT_MODE_EXACT_URLS,
+)
 from app.core.config.site_health_rules import SITEMAP_CONTENT_TYPES
 from app.core.config.site_health_runtime import site_health_settings
+from app.core.config.task_queue import TASK_STATUS_RUNNING
 from app.domain.site_health.discovery import admit_candidates, build_frontier_candidates
+from app.domain.site_health.entitlements import lock_runtime
 from app.domain.site_health.frontier_support import (
     enqueue_analysis_for_discovered_url,
+    mark_duplicate_url,
+    mark_inventory_document,
+    resolve_duplicate_of_admitted_page,
 )
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.schemas import (
@@ -53,9 +61,11 @@ from app.domain.site_health.state_events import (
     apply_discovery_status,
     record_crawl_event,
 )
+from app.domain.site_health.task_guards import crawl_is_active, lease_is_owned
 from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
 from app.models.site_health.urls import SiteUrlObservation
 from app.workers.site_health.helpers import _count_disclosure
 from app.workers.site_health.outcomes import DiscoverOutcome as _DiscoverOutcome
@@ -93,6 +103,22 @@ def _crawler_stance(requested_url: str, robots_body: str | None) -> dict[str, st
         ).can_fetch(requested_url)
         stance[bot] = AI_CRAWLER_STANCE_ALLOW if allowed else AI_CRAWLER_STANCE_BLOCK
     return stance
+
+
+def _discover_task_is_viable(
+    task: SiteCrawlTask | None,
+    crawl: SiteCrawl | None,
+    *,
+    owner: str,
+) -> bool:
+    """Cheap preflight before staging discovery writes."""
+    return bool(
+        task is not None
+        and crawl is not None
+        and lease_is_owned(task, owner=owner)
+        and task.status == TASK_STATUS_RUNNING
+        and crawl_is_active(crawl)
+    )
 
 
 def _llms_url(authority: str) -> str:
@@ -340,26 +366,25 @@ class DiscoverPersistenceMixin(PhaseSupport):
         should_retry = False
         retry_attempt = 0
         succeeded_artifact_id: uuid.UUID | None = None
+        admission: AdmissionResult | None = None
+        admitted_delta = 0
         async with self._session_factory() as session:
-            locked = await self._lock_owned_running_task(
-                session, task_id=task_id, crawl_id=crawl_id
-            )
-            if locked is None:
-                # Lease lost or crawl cancelled/terminal: discard everything.
+            task_hint = await session.get(SiteCrawlTask, task_id)
+            crawl_hint = await session.get(SiteCrawl, crawl_id)
+            if not _discover_task_is_viable(task_hint, crawl_hint, owner=self.owner):
                 await session.rollback()
                 return
-            task, crawl = locked
-
-            # v2 P2: the root task's site setup persists its bounded facts
-            # even when the root page fetch itself failed — the AI-crawler
-            # stance / llms.txt result is site-level evidence that stays
-            # visible on the dashboard (spec §5.3).
-            if depth == 0 and outcome.site_facts is not None:
-                crawl.site_facts = outcome.site_facts
+            assert task_hint is not None and crawl_hint is not None
+            task = task_hint
+            crawl = crawl_hint
 
             artifact_id: uuid.UUID | None = None
             if outcome.output is not None and outcome.result is not None:
-                artifact_id, admission = await self._persist_discover_success(
+                (
+                    artifact_id,
+                    admission,
+                    admitted_delta,
+                ) = await self._persist_discover_success(
                     session,
                     crawl=crawl,
                     task=task,
@@ -367,28 +392,31 @@ class DiscoverPersistenceMixin(PhaseSupport):
                     depth=depth,
                 )
                 succeeded_artifact_id = artifact_id
-                if admission.sample_capped:
-                    # Free stop-at-10: terminate discovery at the cap. No
-                    # total-bearing value is computed or persisted.
-                    apply_discovery_status(crawl, DISCOVERY_STATUS_SAMPLE_COMPLETED)
-                record_crawl_event(
+
+            # Validate ownership/crawl liveness after the heavy writes. Any
+            # cancellation or lease loss rolls the transaction back, while the
+            # crawl row itself is held only for the final counters and commit.
+            locked = await self._lock_owned_running_task(
+                session, task_id=task_id, crawl_id=crawl_id
+            )
+            if locked is None:
+                await session.rollback()
+                return
+            task, crawl = locked
+            if depth == 0 and outcome.site_facts is not None:
+                crawl.site_facts = outcome.site_facts
+            if succeeded_artifact_id is not None:
+                assert admission is not None
+                self._apply_discover_success(
                     session,
-                    crawl_id=crawl_id,
-                    event_type=EVENT_DISCOVERY_PROGRESS,
-                    message="discovery progress",
-                    payload={
-                        "admitted": admission.admitted,
-                        "depth": depth,
-                    },
-                    count_disclosure=_count_disclosure(crawl),
+                    crawl=crawl,
+                    task=task,
+                    artifact_id=succeeded_artifact_id,
+                    admission=admission,
+                    admitted_delta=admitted_delta,
+                    depth=depth,
                 )
             else:
-                # Failure path: append the attempt and decide retry vs. terminal
-                # fail from the retry budget. ``crawl.failed_url_count`` is NOT
-                # bumped here — ``CrawlLifecycle.reconcile`` derives it from the
-                # task table (every kind, every route to terminal), which is the
-                # only place that can count an analyze failure or a sweeper
-                # reclaim too.
                 should_retry, retry_attempt = self._failure_retry_state(task, outcome)
 
             self._write_attempt(
@@ -414,6 +442,31 @@ class DiscoverPersistenceMixin(PhaseSupport):
             retry_after_seconds=outcome.retry_after_seconds,
         )
 
+    @staticmethod
+    def _apply_discover_success(
+        session: AsyncSession,
+        *,
+        crawl: SiteCrawl,
+        task: SiteCrawlTask,
+        artifact_id: uuid.UUID,
+        admission: AdmissionResult,
+        admitted_delta: int,
+        depth: int,
+    ) -> None:
+        if admission.sample_capped:
+            apply_discovery_status(crawl, DISCOVERY_STATUS_SAMPLE_COMPLETED)
+        crawl.admitted_url_count += admitted_delta
+        crawl.discovered_url_count += 1
+        task.result_artifact_id = artifact_id
+        record_crawl_event(
+            session,
+            crawl_id=crawl.id,
+            event_type=EVENT_DISCOVERY_PROGRESS,
+            message="discovery progress",
+            payload={"admitted": admission.admitted, "depth": depth},
+            count_disclosure=_count_disclosure(crawl),
+        )
+
     async def _persist_discover_success(
         self,
         session: AsyncSession,
@@ -422,7 +475,7 @@ class DiscoverPersistenceMixin(PhaseSupport):
         task: SiteCrawlTask,
         outcome: _DiscoverOutcome,
         depth: int,
-    ) -> tuple[uuid.UUID, AdmissionResult]:
+    ) -> tuple[uuid.UUID, AdmissionResult, int]:
         assert outcome.output is not None and outcome.result is not None
         artifact_id = await self._write_artifact(
             session,
@@ -439,6 +492,16 @@ class DiscoverPersistenceMixin(PhaseSupport):
             depth=depth,
             artifact_id=artifact_id,
         )
+        # Taken HERE, not at the top of the transaction. Hoisting it above the
+        # artifact/observation writes does make the lock order total, but it
+        # then serializes every discover persist in the workspace for the whole
+        # write -- measured, that turned 2 self-healing deadlocks per crawl into
+        # 3 tasks killed outright by `lock_timeout`, and the crawl finalized
+        # `partially_completed`. The narrow hold plus transient requeue is the
+        # cheaper trade; `is_transient_db_conflict` covers both lock races.
+        runtime = await lock_runtime(session, crawl.workspace_id)
+        await session.refresh(crawl, attribute_names=["admitted_url_count"])
+        admitted_before = int(crawl.admitted_url_count or 0)
         input_mode = (crawl.configuration or {}).get("input_mode", "auto")
         admission = await admit_candidates(
             session,
@@ -448,6 +511,7 @@ class DiscoverPersistenceMixin(PhaseSupport):
             ),
             enqueue_children=input_mode != INPUT_MODE_EXACT_URLS,
             phase_run_id=task.phase_run_id,
+            runtime=runtime,
         )
         await self._persist_sitemap_candidates(
             session,
@@ -456,31 +520,57 @@ class DiscoverPersistenceMixin(PhaseSupport):
             depth=depth,
             input_mode=input_mode,
             phase_run_id=task.phase_run_id,
+            runtime=runtime,
         )
-        # Hand this page's analysis over now that its artifact is committed.
-        # Admission deliberately does NOT queue the analyze task for a URL it
-        # is also queuing for discovery: created up front, that task woke while
-        # the fetch was still in flight and deferred, pushing its own
-        # availability back every time until analysis was starved behind the
-        # entire discovery tree. Queued here it always finds the artifact, so
-        # the task is claimed once and reuses that artifact, rather than
-        # burning a claim to discover it must wait.
-        await enqueue_analysis_for_discovered_url(
+        # This page may be an alias of one the crawl already owns -- the same
+        # product reached through six collection paths, all declaring one
+        # `rel=canonical`. Analyzing each alias produced duplicate analyses,
+        # duplicate catalog rows, and spent budget on pages already covered.
+        is_document = outcome.result.content_type in DOCUMENT_MEDIA_TYPES
+        if is_document:
+            await mark_inventory_document(
+                session,
+                workspace_id=crawl.workspace_id,
+                project_id=crawl.project_id,
+                url_hash_value=task.url_hash,
+            )
+        duplicate_of = await resolve_duplicate_of_admitted_page(
             session,
             crawl=crawl,
-            # The seeded root discover carries no site_url_id -- its identity
-            # is created lazily by the admission just above -- so resolve by
-            # hash rather than skipping the page the crawl most needs.
-            site_url_id=task.site_url_id,
-            url=task.requested_url,
             url_hash_value=task.url_hash,
-            depth=depth,
-            value_priority=task.priority,
-            phase_run_id=task.phase_run_id,
+            declared_canonical=str((outcome.facts or {}).get("canonical_url") or ""),
         )
-        crawl.discovered_url_count += 1
-        task.result_artifact_id = artifact_id
-        return artifact_id, admission
+        if duplicate_of:
+            await mark_duplicate_url(
+                session,
+                workspace_id=crawl.workspace_id,
+                project_id=crawl.project_id,
+                url_hash_value=task.url_hash,
+            )
+        elif not is_document:
+            # Hand this page's analysis over now that its artifact is committed.
+            # Admission deliberately does NOT queue the analyze task for a URL it
+            # is also queuing for discovery: created up front, that task woke while
+            # the fetch was still in flight and deferred, pushing its own
+            # availability back every time until analysis was starved behind the
+            # entire discovery tree. Queued here it always finds the artifact, so
+            # the task is claimed once and reuses that artifact, rather than
+            # burning a claim to discover it must wait.
+            await enqueue_analysis_for_discovered_url(
+                session,
+                crawl=crawl,
+                # The seeded root discover carries no site_url_id -- its identity
+                # is created lazily by the admission just above -- so resolve by
+                # hash rather than skipping the page the crawl most needs.
+                site_url_id=task.site_url_id,
+                url=task.requested_url,
+                url_hash_value=task.url_hash,
+                depth=depth,
+                value_priority=task.priority,
+                phase_run_id=task.phase_run_id,
+            )
+        admitted_delta = int(crawl.admitted_url_count or 0) - admitted_before
+        return artifact_id, admission, admitted_delta
 
     async def _persist_sitemap_candidates(
         self,
@@ -491,6 +581,7 @@ class DiscoverPersistenceMixin(PhaseSupport):
         depth: int,
         input_mode: str,
         phase_run_id: uuid.UUID | None,
+        runtime: WorkspaceSiteHealthRuntime | None = None,
     ) -> None:
         if (
             depth != 0
@@ -505,6 +596,7 @@ class DiscoverPersistenceMixin(PhaseSupport):
             crawl=crawl,
             candidates=candidates,
             phase_run_id=phase_run_id,
+            runtime=runtime,
         )
         await self._write_sitemap_observations(
             session,

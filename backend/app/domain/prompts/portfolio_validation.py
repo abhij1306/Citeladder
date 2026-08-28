@@ -22,6 +22,7 @@ dropped with a reason, and the reason is fed back into a single retry.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
@@ -95,6 +96,9 @@ def brand_terms(
     token that is ordinary English rather than category language and so never
     appears in a confirmed category either. "I Love Dooney" banned "love" and
     lost nearly every organic apparel query with it.
+
+    The escape hatch reads only the HEAD of each vocabulary phrase -- see
+    `_category_heads`. Any looser reading hands the brand back its own name.
     """
     generic = (
         {
@@ -105,9 +109,7 @@ def brand_terms(
         | TOPICAL_BINDING_STOPWORDS
         | BRAND_TOKEN_COMMON_WORDS
     )
-    category = {
-        _stem(token) for phrase in category_vocabulary or [] for token in words(phrase)
-    }
+    category = _category_heads(category_vocabulary)
     tokens = [
         token
         for token in words(brand_name)
@@ -117,6 +119,42 @@ def brand_terms(
         and _stem(token) not in category
     ]
     return list(dict.fromkeys([brand_name, *aliases, *tokens]))
+
+
+_CATEGORY_PHRASE_SPLIT = re.compile(r"[(),;/–—|]+")
+
+
+def _category_heads(category_vocabulary: list[str] | None) -> set[str]:
+    """The nouns a confirmed category names, as the THING being sold.
+
+    Reading every token of the category vocabulary was too generous, because
+    the vocabulary is written about the brand and routinely contains it. An
+    outlet for one designer label confirmed a category of "Designer handbag &
+    accessories outlet (Dooney & Bourke official clearance)" with terms like
+    "dooney outlet" and "discounted dooney handbags" -- so "dooney" read as
+    category language, dropped out of the brand bans, and every organic prompt
+    was free to name the tracked brand. The portfolio came back measuring
+    nothing but branded demand, which is the one thing an outlet does not need
+    to find out.
+
+    A phrase's HEAD is what it is; the rest modifies it. "Dooney" is never the
+    head of "Dooney & Bourke handbags" (handbags is), nor of "dooney outlet"
+    (outlet is), so it stays banned -- while "dress" IS the head of "Maxi
+    dresses" and stays usable, which is the "Red Dress" case this hatch was
+    built for.
+
+    Separators split a phrase into the several things it lists, so
+    "Small leather goods (wallets, wristlets)" yields goods, wallets AND
+    wristlets. "&" deliberately does NOT split: it joins the halves of a name
+    ("Dooney & Bourke"), and splitting there would make "Dooney" a head again.
+    """
+    heads: set[str] = set()
+    for phrase in category_vocabulary or []:
+        for segment in _CATEGORY_PHRASE_SPLIT.split(str(phrase)):
+            tokens = words(segment)
+            if tokens:
+                heads.add(_stem(tokens[-1]))
+    return heads
 
 
 def _singular(token: str) -> str:

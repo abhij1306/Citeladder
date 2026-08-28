@@ -143,9 +143,6 @@ class HostGate:
                         # `release` nor `evict_idle` can drop the host's state
                         # before a robots-widened delay has elapsed.
                         self._applied_delays[host] = delay
-                        elapsed = time.monotonic() - self._last_started.get(host, 0.0)
-                        if elapsed < delay:
-                            await asyncio.sleep(delay - elapsed)
                         self._last_started[host] = time.monotonic()
                     await waiting.aclose()
                     yield

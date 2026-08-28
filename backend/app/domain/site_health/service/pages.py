@@ -31,6 +31,7 @@ from app.domain.site_health.service.presentation import (
     presentation_status_for,
 )
 from app.domain.site_health.service.queries import (
+    _analysis_page_filters,
     _issue_counts_by_site_url,
     _latest_analysis_by_site_url,
     _latest_analyze_task_by_site_url,
@@ -131,7 +132,10 @@ async def get_pages(
         "sort": sort,
     }
 
-    over_fetch = status is not None or page_kind is not None
+    analysis_filters, derived_status = _analysis_page_filters(
+        crawl_id=crawl_id, status=status, page_kind=page_kind
+    )
+    over_fetch = derived_status is not None
     fetch_size = _scan_window(limit, over_fetch=over_fetch)
 
     monitored_ids = await _monitored_site_url_ids(session, project_id=project_id)
@@ -147,6 +151,7 @@ async def get_pages(
         filters=filters,
         limit=limit,
         over_fetch=over_fetch,
+        extra_where=analysis_filters,
         sort=sort,
     )
     if stmt is None:
@@ -207,8 +212,8 @@ async def get_pages(
         analyses=analyses,
         tasks=tasks,
         monitored_ids=monitored_ids,
-        status=status,
-        page_kind=page_kind,
+        status=derived_status,
+        page_kind=None,
         limit=limit,
         project=project_pages_row,
     )

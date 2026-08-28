@@ -12,14 +12,17 @@ from app.core.config.site_health_contracts import (
     PAGE_ANALYSIS_STATUS_COMPLETED,
     RULE_OUTCOME_FAIL,
 )
+from app.core.config.site_health_crawl_policy import SELECTION_SOURCE_USER
 from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
     SiteRuleEvaluation,
 )
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
-from tests.component.site_health_api_helpers import _register, _seed_scenario
+from tests.component.site_health_api_helpers import _hash, _register, _seed_scenario
 from tests.component.site_health_helpers import seed_monitored_urls_allowance
 
 pytestmark = pytest.mark.asyncio
@@ -211,6 +214,81 @@ async def test_pages_and_issues_projection(
     assert any(
         au["site_url_id"] == str(scn.issue_url_id) for au in dbody["affected_urls"]
     )
+
+
+async def test_completed_pages_filter_precedes_keyset_pagination(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _register(client, "completed-pages@example.com")
+    async with session_factory() as session:
+        scn = await _seed_scenario(session, email="completed-pages@example.com")
+        crawl = await session.get(SiteCrawl, scn.crawl_id)
+        completed_b = await session.get(SiteUrl, scn.issue_url_id)
+        assert crawl is not None and completed_b is not None
+        session.add(
+            MonitoredSiteUrl(
+                workspace_id=scn.workspace_id,
+                project_id=scn.project_id,
+                profile_id=crawl.profile_id,
+                site_url_id=completed_b.id,
+                active=True,
+                selection_source=SELECTION_SOURCE_USER,
+            )
+        )
+        # These pending URLs sort between the two completed rows. Filtering
+        # after the widened URL window would return only /a plus a Next cursor.
+        for index in range(12):
+            url = f"https://acme.test/a{index:02d}"
+            site_url = SiteUrl(
+                workspace_id=scn.workspace_id,
+                project_id=scn.project_id,
+                normalized_url=url,
+                url_hash=_hash(url),
+                display_url=url,
+                host="acme.test",
+                last_seen_crawl_id=scn.crawl_id,
+            )
+            session.add(site_url)
+            await session.flush()
+            session.add_all(
+                [
+                    SiteUrlObservation(
+                        workspace_id=scn.workspace_id,
+                        project_id=scn.project_id,
+                        crawl_id=scn.crawl_id,
+                        site_url_id=site_url.id,
+                        source_kind="link",
+                        depth=1,
+                        observed_url=url,
+                        final_url=url,
+                        status_code=200,
+                        content_type="text/html",
+                    ),
+                    MonitoredSiteUrl(
+                        workspace_id=scn.workspace_id,
+                        project_id=scn.project_id,
+                        profile_id=crawl.profile_id,
+                        site_url_id=site_url.id,
+                        active=True,
+                        selection_source=SELECTION_SOURCE_USER,
+                    ),
+                ]
+            )
+        await session.commit()
+
+    response = await client.get(
+        f"/api/v1/site-crawls/{scn.crawl_id}/pages",
+        params={"limit": 2, "monitored": "true", "status": "completed"},
+        headers={"X-Workspace-Id": str(scn.workspace_id)},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert [row["site_url_id"] for row in body["items"]] == [
+        str(scn.monitored_url_id),
+        str(scn.issue_url_id),
+    ]
+    assert body["next_cursor"] is None
 
 
 async def test_issue_catalog_separates_defect_and_advisory_quantities(

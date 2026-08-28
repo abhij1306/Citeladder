@@ -89,6 +89,23 @@ async def lock_crawl(
     return crawl
 
 
+async def lock_crawl_for_evidence_commit(
+    session: AsyncSession, *, workspace_id: uuid.UUID, crawl_id: uuid.UUID
+) -> SiteCrawl | None:
+    """Refresh and lock a crawl without conflicting with child FK inserts.
+
+    Evidence transactions already hold KEY SHARE through artifact/task foreign
+    keys. ``FOR NO KEY UPDATE`` serializes status and counters while remaining
+    compatible with sibling inserts; ``FOR UPDATE`` creates a deadlock cycle.
+    """
+    return await session.scalar(
+        select(SiteCrawl)
+        .where(SiteCrawl.id == crawl_id, SiteCrawl.workspace_id == workspace_id)
+        .execution_options(populate_existing=True)
+        .with_for_update(key_share=True)
+    )
+
+
 async def next_ordinal(
     session: AsyncSession, *, crawl_id: uuid.UUID, phase: str
 ) -> int:

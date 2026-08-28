@@ -43,6 +43,8 @@ export function PageKindScores({
   if (summary === null) return null;
 
   const rows = byPageKindRows(summary.by_page_kind);
+  const unclassified = summary.by_page_kind.other?.analyzed_count ?? 0;
+  const measured = rows.reduce((total, row) => total + row.analyzed_count, 0);
 
   return (
     <Card data-testid="page-kind-scores">
@@ -50,7 +52,9 @@ export function PageKindScores({
         <div className="grid gap-0.5">
           <Label>Scores by Page Kind</Label>
           <span className="text-secondary text-sm">
-            Mean scores across the analyzed pages of each type.
+            {unclassified > 0
+              ? `${unclassified} of ${measured} analyzed pages could not be classified; their AEO score is not measured.`
+              : 'Mean scores across the analyzed pages of each type.'}
           </span>
         </div>
         {rows.length === 0 ? (

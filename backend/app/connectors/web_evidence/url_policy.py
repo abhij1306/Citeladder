@@ -73,6 +73,7 @@ from app.core.config.site_health_crawl_policy import (
     URL_HARD_EXCLUSION_HOST_LABELS,
     URL_HARD_EXCLUSION_PATH_PATTERNS,
     URL_HARD_EXCLUSION_QUERY_KEYS,
+    URL_IDENTITY_IGNORED_QUERY_KEYS,
     URL_VALUE_PRIORITIES,
 )
 from app.core.config.site_health_rules import (
@@ -345,7 +346,7 @@ def _normalize_query(query: str) -> str:
     pairs = [
         (key, value)
         for key, value in parse_qsl(query, keep_blank_values=True)
-        if key.lower() not in TRACKING_QUERY_PARAMS
+        if key.lower() not in (TRACKING_QUERY_PARAMS | URL_IDENTITY_IGNORED_QUERY_KEYS)
     ]
     if not pairs:
         return ""
@@ -446,10 +447,45 @@ def canonicalize(url: str, *, base_url: str | None = None) -> str:
     return urlunsplit((scheme, netloc, path, query, ""))
 
 
+#: A URL that opens with its own scheme, e.g. ``https:`` or ``mailto:``.
+_SCHEME_PREFIX_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+
+
 def _resolve_relative(base_url: str, ref: str) -> str:
+    """Resolve ``ref`` against ``base_url``, rejecting refs that are not paths.
+
+    ``urljoin`` treats anything without a scheme as a path on the base host,
+    which is right for ``../x`` and wrong for the two href shapes real pages
+    keep emitting:
+
+      * a scheme-less absolute link, ``twitter.com/thekindlab``, which became
+        ``https://<site>/blogs/blog/twitter.com/thekindlab``;
+      * a double-joined href, ``allhttps://<site>/collections/all``, which
+        became ``https://<site>/collections/allhttps://<site>/collections/all``.
+
+    Both are URLs that cannot exist. Admitted anyway, each cost a fetch and a
+    404 and then counted as a crawl FAILURE, which is how a crawl that reached
+    every real page still finalized ``partially_completed``. Rejecting here
+    means they never reach the frontier.
+    """
     from urllib.parse import urljoin
 
-    return urljoin(base_url, ref)
+    candidate = str(ref or "").strip()
+    # A scheme separator anywhere but the very start is a join artifact: a
+    # genuine absolute URL starts with its scheme, and no valid path segment
+    # contains "://".
+    if "://" in candidate and not _SCHEME_PREFIX_RE.match(candidate):
+        raise UrlPolicyError(f"malformed relative reference: {candidate[:120]}")
+    # A bare host as the first segment ("twitter.com/x") is an authority the
+    # author forgot to write a scheme for, not a directory on this site. Only
+    # a first segment that the public-suffix list recognizes as a registrable
+    # domain qualifies, so ordinary paths like `/guide/what-is-aeo` are
+    # untouched.
+    if not _SCHEME_PREFIX_RE.match(candidate) and not candidate.startswith("/"):
+        first_segment = candidate.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
+        if "." in first_segment and registrable_domain(first_segment):
+            raise UrlPolicyError(f"scheme-less absolute reference: {candidate[:120]}")
+    return urljoin(base_url, candidate)
 
 
 def split_host_port(url: str) -> tuple[str, int]:

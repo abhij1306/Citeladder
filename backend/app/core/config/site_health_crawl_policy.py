@@ -17,7 +17,7 @@ MANUAL_PHASE_LIFECYCLE_KEY: Final = "manual_phase_lifecycle"
 SAMPLE_URL_LIMIT: Final = 10
 SAMPLE_DISCOVERY_URL_CAP: Final = 200
 
-URL_ADMISSION_POLICY_VERSION: Final = "sh-url-admission-3"
+URL_ADMISSION_POLICY_VERSION: Final = "sh-url-admission-4"
 INPUT_MODE_AUTO: Final = "auto"
 INPUT_MODE_EXACT_URLS: Final = "exact_urls"
 INPUT_MODE_DISCOVERY_SEEDS: Final = "discovery_seeds"
@@ -109,6 +109,21 @@ URL_HARD_EXCLUSION_HOST_LABELS: Final[frozenset[str]] = frozenset(
         "payments",
         "orders",
         "wishlist",
+        # APP SHELLS, not content. `app.<domain>` is the logged-in product,
+        # `affiliates.<domain>` a partner portal: client-rendered, gated, and
+        # nothing an answer engine will ever cite. One crawl pulled in
+        # `affiliates.<domain>`, classified its root as a SECOND homepage for
+        # the site (a subdomain root has path "/" like any other) and scored it
+        # 13.3 -- a real measurement of a page that does not belong to the
+        # content corpus at all. `docs.<domain>` is deliberately NOT here: API
+        # and product documentation is exactly the material AI answers cite.
+        "app",
+        "affiliates",
+        "partners",
+        "portal",
+        "my",
+        "secure",
+        "billing",
     }
 )
 URL_HARD_EXCLUSION_QUERY_KEYS: Final[frozenset[str]] = frozenset(
@@ -126,9 +141,16 @@ URL_HARD_EXCLUSION_QUERY_KEYS: Final[frozenset[str]] = frozenset(
         "preview",
     }
 )
+
+# Query keys that select a presentation variant without identifying a distinct
+# page. Unlike tracking parameters, these are normalized away but do not cause
+# admission to reject the URL outright.
+URL_IDENTITY_IGNORED_QUERY_KEYS: Final[frozenset[str]] = frozenset(
+    {"variant", "variant_id"}
+)
 # Documents remain inventory evidence.  Only unsafe/contentless assets exclude.
 INVENTORY_DOCUMENT_EXTENSIONS: Final[frozenset[str]] = frozenset(
-    {".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx"}
+    {".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".md"}
 )
 DOCUMENT_MEDIA_TYPES: Final[frozenset[str]] = frozenset(
     {
@@ -139,6 +161,7 @@ DOCUMENT_MEDIA_TYPES: Final[frozenset[str]] = frozenset(
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/markdown",
     }
 )
 URL_HARD_EXCLUSION_EXTENSIONS: Final[frozenset[str]] = frozenset(

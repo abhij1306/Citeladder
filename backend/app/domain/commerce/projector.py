@@ -11,12 +11,18 @@ from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.connectors.web_evidence.url_policy import UrlPolicyError, canonicalize
 from app.core.config.commerce_catalog import (
     COMMERCE_PROJECTOR_VERSION,
     COMMERCE_VISIBLE_PRICE_AMBIGUOUS_TOKENS,
     COMMERCE_VISIBLE_PRICE_CURRENCY_MARKERS,
 )
+from app.domain.commerce.catalog_membership import (
+    _catalog_identity,
+    _identity_base_url,
+    _link_product_to_projected_shelves,
+    _link_shelf_products,
+)
+from app.domain.commerce.facts import _dict_value, _list_value
 from app.domain.commerce.price import normalized_price_value
 from app.domain.commerce.service import (
     CommerceNotFoundError,
@@ -174,14 +180,6 @@ def _json_observed_fields(values: dict[str, Any]) -> dict[str, Any]:
     return observed
 
 
-def _dict_value(value: Any) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
-
-
-def _list_value(value: Any) -> list[Any]:
-    return value if isinstance(value, list) else []
-
-
 async def project_catalog_analysis(session_factory, task: AnalyticsTask) -> None:
     """Idempotently project persisted Site Health analysis evidence."""
     raw_id = str((task.payload or {}).get("source_analysis_id") or "")
@@ -306,155 +304,15 @@ async def _project_category_source(
     category = await _category_from_analysis(
         session,
         analysis=analysis,
-        canonical_url=site_url.normalized_url,
+        canonical_url=_catalog_identity(
+            facts, _identity_base_url(artifact.final_url, site_url.normalized_url)
+        ),
         title=_category_title(facts, str(site_url.latest_title or "Uncategorized")),
         role=str(commerce.get("category_role") or "unknown"),
     )
     await _link_shelf_products(
         session, analysis=analysis, artifact=artifact, category=category
     )
-
-
-def _shelf_product_urls(facts: dict[str, Any]) -> list[str]:
-    """Product-card URLs from the extractor's bounded shelf region."""
-    cards = _list_value(_dict_value(facts.get("commerce")).get("product_cards"))
-    return list(
-        dict.fromkeys(
-            url
-            for card in cards
-            if (url := str(_dict_value(card).get("url") or "").strip())
-        )
-    )
-
-
-async def _link_shelf_products(
-    session: AsyncSession,
-    *,
-    analysis: SitePageAnalysis,
-    artifact: SiteFetchArtifact,
-    category: CommerceCategory,
-) -> None:
-    """Attach the products a category page actually lists to that category.
-
-    Membership used to come ONLY from each product page's own metadata -- its
-    JSON-LD ``category`` and its breadcrumb trail. A storefront that publishes
-    neither (most Shopify themes) produced no membership at all, so every
-    product fell into the "Uncategorized" bucket and every real collection
-    reported zero products. The shelf page is the authority on what is on the
-    shelf, and it is already crawled, parsed and stored -- it was simply never
-    read for this.
-
-    Only products the catalog already knows are linked: this reads the crawl's
-    own evidence, it does not invent products from hrefs.
-    """
-    urls = _shelf_product_urls(_dict_value(artifact.normalized_facts))
-    if not urls:
-        return
-    candidates = {_canonical_or_blank(url) for url in urls}
-    candidates.discard("")
-    if not candidates:
-        return
-    product_ids = list(
-        (
-            await session.scalars(
-                select(CommerceProduct.id).where(
-                    CommerceProduct.project_id == analysis.project_id,
-                    CommerceProduct.workspace_id == analysis.workspace_id,
-                    CommerceProduct.canonical_url.in_(sorted(candidates)),
-                )
-            )
-        ).all()
-    )
-    await _add_shelf_memberships(
-        session,
-        workspace_id=analysis.workspace_id,
-        project_id=analysis.project_id,
-        category_id=category.id,
-        product_ids=product_ids,
-    )
-
-
-async def _add_shelf_memberships(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    category_id: uuid.UUID,
-    product_ids: list[uuid.UUID],
-) -> None:
-    if not product_ids:
-        return
-    await session.execute(
-        pg_insert(CommerceProductCategory)
-        .values(
-            [
-                {
-                    "id": uuid.uuid4(),
-                    "workspace_id": workspace_id,
-                    "project_id": project_id,
-                    "product_id": product_id,
-                    "category_id": category_id,
-                }
-                for product_id in product_ids
-            ]
-        )
-        .on_conflict_do_nothing(
-            index_elements=[
-                CommerceProductCategory.product_id,
-                CommerceProductCategory.category_id,
-            ]
-        )
-    )
-
-
-def _canonical_or_blank(url: str) -> str:
-    try:
-        return canonicalize(url)
-    except UrlPolicyError:
-        return ""
-
-
-async def _link_product_to_projected_shelves(
-    session: AsyncSession,
-    *,
-    analysis: SitePageAnalysis,
-    product: CommerceProduct,
-) -> None:
-    """Complete shelf membership when the product projection lands second."""
-    shelves = (
-        await session.execute(
-            select(CommerceCategory, SiteFetchArtifact)
-            .join(
-                SitePageAnalysis,
-                SitePageAnalysis.id == CommerceCategory.source_analysis_id,
-            )
-            .join(
-                SiteFetchArtifact,
-                SiteFetchArtifact.id == SitePageAnalysis.artifact_id,
-            )
-            .where(
-                CommerceCategory.workspace_id == analysis.workspace_id,
-                CommerceCategory.project_id == analysis.project_id,
-            )
-        )
-    ).all()
-    product_url = _canonical_or_blank(product.canonical_url)
-    if not product_url:
-        return
-    for category, artifact in shelves:
-        linked_urls = {
-            _canonical_or_blank(url)
-            for url in _shelf_product_urls(_dict_value(artifact.normalized_facts))
-        }
-        if product_url not in linked_urls:
-            continue
-        await _add_shelf_memberships(
-            session,
-            workspace_id=analysis.workspace_id,
-            project_id=analysis.project_id,
-            category_id=category.id,
-            product_ids=[product.id],
-        )
 
 
 async def _project_product_source(
@@ -472,9 +330,12 @@ async def _project_product_source(
     )
     if prior is not None:
         return
-    values, evidence_paths = _crawl_projection(
-        _dict_value(artifact.normalized_facts), site_url.normalized_url
+    facts = _dict_value(artifact.normalized_facts)
+    # One identity per product, not one per address it is reachable at.
+    identity = _catalog_identity(
+        facts, _identity_base_url(artifact.final_url, site_url.normalized_url)
     )
+    values, evidence_paths = _crawl_projection(facts, identity)
     if not _has_product_identity(values):
         # The classifier promotes a collection page to a product on nothing
         # more than a price regex plus a cart marker, which every Shopify
@@ -488,11 +349,10 @@ async def _project_product_source(
         # same pages analyzed. A listing page IS a category, so project it as
         # one -- the crawl's evidence reaches the catalog under the kind it
         # actually supports.
-        facts = _dict_value(artifact.normalized_facts)
         category = await _category_from_analysis(
             session,
             analysis=analysis,
-            canonical_url=site_url.normalized_url,
+            canonical_url=identity,
             title=_category_title(facts, str(site_url.latest_title or "Uncategorized")),
             role=str(
                 _dict_value(facts.get("commerce")).get("category_role") or "unknown"
@@ -507,20 +367,12 @@ async def _project_product_source(
             session, analysis=analysis, artifact=artifact, category=category
         )
         return
-    product = await session.scalar(
-        select(CommerceProduct).where(
-            CommerceProduct.project_id == analysis.project_id,
-            CommerceProduct.canonical_url == site_url.normalized_url,
-        )
+    product = await _product_for_identity(
+        session,
+        workspace_id=analysis.workspace_id,
+        project_id=analysis.project_id,
+        canonical_url=identity,
     )
-    if product is None:
-        product = CommerceProduct(
-            workspace_id=analysis.workspace_id,
-            project_id=analysis.project_id,
-            canonical_url=site_url.normalized_url,
-        )
-        session.add(product)
-        await session.flush()
     _apply_projected_values(
         product,
         values=values,
@@ -556,6 +408,41 @@ async def _project_product_source(
         analysis=analysis,
         product=product,
     )
+
+
+async def _product_for_identity(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    canonical_url: str,
+) -> CommerceProduct:
+    """Return the one product row for a canonical catalog identity.
+
+    Multiple crawl aliases can project concurrently. A select-then-ORM-add
+    races on the unique ``(project_id, canonical_url)`` key, so creation uses
+    the database conflict boundary and then reads the winner.
+    """
+    await session.execute(
+        pg_insert(CommerceProduct)
+        .values(
+            id=uuid.uuid4(),
+            workspace_id=workspace_id,
+            project_id=project_id,
+            canonical_url=canonical_url,
+        )
+        .on_conflict_do_nothing(index_elements=["project_id", "canonical_url"])
+    )
+    product = await session.scalar(
+        select(CommerceProduct).where(
+            CommerceProduct.workspace_id == workspace_id,
+            CommerceProduct.project_id == project_id,
+            CommerceProduct.canonical_url == canonical_url,
+        )
+    )
+    if product is None:
+        raise RuntimeError("Commerce product upsert did not return a row")
+    return product
 
 
 def _apply_projected_values(
@@ -597,17 +484,48 @@ async def _merge_projected_categories(
     structured = _dict_value(_dict_value(facts.get("structured_data")).get("product"))
     names = [str(value) for value in _list_value(structured.get("category"))]
     commerce = _dict_value(facts.get("commerce"))
-    breadcrumbs = [str(value) for value in _list_value(commerce.get("breadcrumbs"))]
+    # Separators are dropped BEFORE the slice, not after. Themes mark a
+    # breadcrumb trail up as one node per crumb AND one per separator, so
+    # "Home / Women / Dresses / Linen Dress" arrives as seven nodes. Slicing
+    # that raw both took the bare "/" as a category name -- creating a catalog
+    # category literally named "/" that all 413 of a site's products hung off
+    # while its 19 real collections reported zero -- and shifted the [1:-1]
+    # window off the crumbs it is meant to select.
+    breadcrumbs = [
+        crumb
+        for value in _list_value(commerce.get("breadcrumbs"))
+        if _is_named(crumb := str(value))
+    ]
     if len(breadcrumbs) > 2:
         names.extend(breadcrumbs[1:-1])
+    named = [name for name in dict.fromkeys(names) if _is_named(name)]
+    if not named and await _has_membership(session, product_id=product.id):
+        # "Uncategorized" is a FALLBACK, not a label. The shelf pages assign
+        # membership independently and may be projected before or after this
+        # product, so adding the bucket unconditionally filed all 413 products
+        # under it in addition to the real collections they belong to -- the
+        # catalog then showed one enormous "Uncategorized" group next to the
+        # shelves, which is the view this projection exists to replace.
+        return
     await _merge_categories(
         session,
         workspace_id=analysis.workspace_id,
         project_id=analysis.project_id,
         product_id=product.id,
-        names=list(dict.fromkeys(names)) or ["Uncategorized"],
+        names=named or ["Uncategorized"],
         source_observation_id=observation.id,
     )
+
+
+async def _has_membership(session: AsyncSession, *, product_id: uuid.UUID) -> bool:
+    """Whether any category already claims this product."""
+    return (
+        await session.scalar(
+            select(CommerceProductCategory.id)
+            .where(CommerceProductCategory.product_id == product_id)
+            .limit(1)
+        )
+    ) is not None
 
 
 async def _category_from_analysis(
@@ -642,6 +560,15 @@ async def _category_from_analysis(
             canonical_url=canonical_url,
         )
         session.add(category)
+        # FLUSH, not just add: sessions run ``autoflush=False``
+        # (``core/database.py``), and the shelf memberships below are written
+        # by a Core ``pg_insert`` that the unit of work does not order against
+        # a pending ORM add. Without this the child INSERT reached Postgres
+        # first and the whole projection died on
+        # ``commerce_product_categories_category_id_fkey`` -- 55 of 267
+        # projection tasks, which is why every product stayed in
+        # "Uncategorized" while the real collections reported zero.
+        await session.flush()
     sources = dict(category.field_sources or {})
     source = {
         "kind": "site_health",

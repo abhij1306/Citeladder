@@ -20,10 +20,8 @@ from app.core.config.site_health_acquisition import (
 from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_CANCELLED,
     ANALYSIS_STATUS_COMPLETED,
-    ANALYSIS_STATUS_FAILED,
     ANALYZER_VERSION,
     CRAWL_STATUS_COMPLETED,
-    CRAWL_STATUS_PARTIALLY_COMPLETED,
     CRAWL_STATUS_RUNNING,
     EXTRACTOR_VERSION,
     PAGE_ANALYSIS_STATUS_COMPLETED,
@@ -439,7 +437,10 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
         assert analysis.status == PAGE_ANALYSIS_STATUS_COMPLETED
         assert analysis.overall_score is not None
         assert analysis.technical_score is not None
-        assert analysis.aeo_score is not None
+        # `other` is classifier abstention, so AEO is unmeasured rather than a
+        # perfect score from the few universal rules that remain applicable.
+        assert analysis.page_kind == "other"
+        assert analysis.aeo_score is None
         assert analysis.site_url_id == site_url_id
 
         eval_count = await session.scalar(
@@ -499,8 +500,8 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
 
     assert (ANALYZER_VERSION, SCORING_VERSION, CLASSIFIER_VERSION) == (
         "sh-analyzer-7",
-        "sh-scoring-3",
-        "sh-classifier-7",
+        "sh-scoring-4",
+        "sh-classifier-8",
     )
 
     seed, _site_url_id, _task_id = await _seed_analyze_ready(
@@ -520,9 +521,9 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
         ).scalar_one()
         # The /blog/ path pattern classified the page as an article.
         assert analysis.page_kind == "article"
-        assert analysis.classifier_version == "sh-classifier-7"
+        assert analysis.classifier_version == "sh-classifier-8"
         assert analysis.analyzer_version == "sh-analyzer-7"
-        assert analysis.scoring_version == "sh-scoring-3"
+        assert analysis.scoring_version == "sh-scoring-4"
 
         # The bounded classifier evidence persisted WITH the row (it used to
         # be computed, injected into the facts dict after the artifact flush,
@@ -556,7 +557,7 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         assert crawl is not None
         summary = crawl.score_summary or {}
-        assert summary.get("scoring_version") == "sh-scoring-3"
+        assert summary.get("scoring_version") == "sh-scoring-4"
         by_page_kind = summary.get("by_page_kind") or {}
         assert set(by_page_kind) == {"article"}
         assert by_page_kind["article"]["analyzed_count"] == 1
@@ -623,8 +624,9 @@ async def test_analyze_robots_denied_fails_task_without_page_fetch(
 
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         assert crawl is not None
-        assert crawl.analysis_status == ANALYSIS_STATUS_FAILED
-        assert crawl.status == CRAWL_STATUS_PARTIALLY_COMPLETED
+        assert crawl.analysis_status == ANALYSIS_STATUS_CANCELLED
+        assert crawl.status == CRAWL_STATUS_COMPLETED
+        assert crawl.partial_reason in (None, "")
 
 
 @pytest.mark.asyncio

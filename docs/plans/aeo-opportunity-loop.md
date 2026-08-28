@@ -7,6 +7,13 @@ Turn CiteLadder's existing evidence into one weekly operating loop:
 
 **Status:** planned. The foundations listed below are shipped; the five stages in this plan are not.
 
+**Decision update (2026-08-28):** the first complete-loop release includes comparable
+verification, not only opportunity discovery. Product measurement uses approved first-party,
+citation-capable frontier-engine routes; Content uses an independently approved frontier
+generation route. Tavily, MiniMax, GLM, and other synthetic or externally scaffolded simulations
+may support isolated evaluations, but they never populate product visibility measurements or
+masquerade as another logical engine.
+
 **Depends on:** the shipped buyer-stage prompt taxonomy (`docs/visibility-prompt.md`) and the
 shipped Opportunity implementation/verification lifecycle in the active AEO rebuild.
 
@@ -25,7 +32,7 @@ This is an extension of the existing Opportunities owner, not a new work-managem
 | Find gaps | Visibility, Site Health, Demand, traffic, and change detectors feed one Opportunity store | Earned-source opportunity |
 | Describe sources | Deterministic `classify_source_domain()` and per-gap source-pattern evidence | Portfolio routing, social/institutional classes, and coverage |
 | Prioritize | Deterministic severity × value × gap score with formula provenance | Buyer-stage and source-usage factors |
-| Act | Opportunity status/order plus immutable `OpportunityImplementationEvent` declarations | Earned action copy and target handling in the same flow |
+| Act | Opportunity status/order plus immutable `OpportunityImplementationEvent` declarations | Typed Owned/Earned Content handoff, earned action copy, target handling, and generation linkage |
 | Verify | Append-only `OpportunityVerificationEvent` observations | Comparable three-signal result |
 | Repeat | Scheduled audits and Opportunity recompute | Clear no-longer-observed, persistent, and new gap presentation |
 
@@ -37,7 +44,25 @@ later observation. Do **not** add another `Action` table or a parallel lifecycle
 - a pitch sent but not published stays `in_progress`, not implemented; and
 - later evidence never changes the human status automatically.
 
-## Demo-first scope decisions
+## Product evidence and provider boundary
+
+1. Visibility audits use the existing config-owned logical-engine policy. Every enabled engine
+   resolves to an approved citation-capable frontier route before provider I/O; the exact logical
+   engine, provider, transport model, native retrieval state, locale, repetition policy, and
+   request configuration are frozen on the audit.
+2. No external search surrogate or synthetic model trace is accepted as a ChatGPT, Claude, Gemini,
+   or other first-party engine observation. Unsupported retrieval is `unavailable`; it never falls
+   back silently to Tavily, MiniMax, GLM, or model-invented URLs.
+3. Opportunity analysis remains deterministic over immutable answers and citations already
+   persisted by those audits. Opportunity read APIs never invoke a provider or retrieve the web.
+4. Content generation has separate provenance and a config-owned allowlist of approved frontier
+   generation routes. Its provider/model identity never changes the measurement identity of the
+   audit that produced the opportunity.
+5. Generated content is an inspectable, untrusted draft grounded only in the frozen Content
+   context. It cannot create or repair citation evidence, provider observations, or visibility
+   metrics.
+
+## Delivery scope decisions
 
 1. Route sources into **Owned**, **Competitive evidence**, or **Earned**. A competitor-owned page
    is evidence for an owned-content response, never an outreach target.
@@ -61,6 +86,9 @@ Audited prompt gap
   -> observed source route + coverage
   -> grouped, usage-aware Opportunity
   -> human starts or dismisses it
+  -> Content receives a frozen Owned/Earned evidence handoff
+  -> approved frontier model generates a reviewable draft
+  -> human publishes, submits, or contributes outside CiteLadder
   -> human declares the published change
   -> later comparable evidence verifies, contradicts, or remains limited
   -> Opportunity recompute shows no-longer-observed, persistent, and new gaps
@@ -133,6 +161,28 @@ The Opportunities headline is three-way and always carries coverage, for example
 
 Copy must say "source observations," not "54% of your gap" or "what caused the answer."
 
+Persist a separately labelled two-way **action-path projection** for worklist filtering and the
+Owned-versus-Earned operating view:
+
+- **Owned action path:** `brand_owned` plus `competitor_owned`, because competitor pages are
+  evidence for content the brand controls rather than outreach targets.
+- **Earned action path:** actionable earned classes. `other_third_party` contributes to measured
+  non-owned source observations but cannot create a class-specific earned task.
+
+The two-way action view must not replace or be presented as the three-way observational mix. It
+uses the same frozen population, coverage, source IDs, versions, and unavailable/not-applicable
+rules.
+
+### Backend/frontend contract
+
+The Opportunity owner exposes `source_mix`, `action_path_mix`, and bounded domain rollups through
+the existing summary/detail routes. Backend schemas and strict frontend schemas change in the same
+slice. The frontend does not reclassify domains, infer pathways, or calculate denominators.
+
+Both contracts support `social` and `institutional` before those values can be persisted. The
+frontend renders the server-provided three-way headline, two-way filters, coverage, limitations,
+and explicit `unavailable`/`not_applicable` states.
+
 **Done when:** a citation-bearing audit renders its measured three-way mix from persisted data; a
 no-gap audit renders `not_applicable`; a gap with no usable citations renders `unavailable`; and
 competitor-owned domains never appear as earned outreach tasks.
@@ -192,18 +242,58 @@ guarantee inclusion will change an engine answer.
   this**. An earned declaration may have no owned-page target and can carry a visibility expected
   check; it remains an explicit user claim.
 
+### Opportunity to Content handoff
+
+The Opportunity owner projects one typed, bounded `content_handoff` on the existing detail
+contract. It is not a second brief or action store. It contains:
+
+- action pathway (`owned` or `earned`), source class, canonical domain, and suggested role;
+- a config-owned suggested Content skill/output kind;
+- editable task seed and target URL/theme when one exists;
+- representative cited page URLs/titles, affected prompts/themes, observed competitors, coverage,
+  limitations, truncation state, and exact source-analysis IDs; and
+- Opportunity snapshot, detector, formula, taxonomy, and handoff-template versions.
+
+The Content owner accepts `opportunity_id`, authorizes it in the active workspace/project, freezes
+that exact handoff into the generation context manifest, and records omissions and budgets before
+provider I/O. Observed third-party page metadata remains untrusted evidence; Content does not fetch
+the domain or use a second search provider.
+
+The Opportunities drawer offers **Create owned content** or **Prepare earned content** and routes to
+the existing Content screen with `opportunity_id`. Content displays the pathway, cited domain/page
+evidence, coverage, and limitations; preselects the server-suggested skill; seeds an editable
+instruction once; and never overwrites user edits on refetch.
+
+Initial earned outputs are transparent human-led assets such as an editorial inclusion brief,
+expert-contribution outline, review/profile evidence pack, or outreach draft. They must not
+impersonate independent users, fabricate experience, or automate posting, sending, or publishing.
+
+### Generation to implementation linkage
+
+After a successful generation, Content offers **Return to opportunity** and the Opportunity detail
+shows linked generations. Drafting or sending a pitch keeps the item `in_progress`. Only the user
+can declare that the external change is public or otherwise implemented.
+
+An implementation declaration created from this flow includes `generation_id`. The backend rejects
+a generation unless it belongs to the same workspace, project, and opportunity and is in an
+eligible successful state. Expected checks are config-owned server projections for the rule and
+pathway; the browser never invents a visibility threshold. The immutable event freezes the exact
+Opportunity snapshot and accepted expected checks.
+
 Evidence-gated follow-ons—not demo requirements—may add `EarnedProfileEvidence` for bounded
 review/marketplace profile checks and cited-page brand-presence extraction. Those detectors must
 abstain on `unavailable`; missing citations alone can never establish domain-wide absence.
 
 **Done when:** the first three rows are grouped actions a person could reasonably take this week;
 a source used in many eligible answers outranks an otherwise equal source used once; one recurring
-domain does not produce a row per prompt; and an earned item can enter the shipped
-start → implemented → observed lifecycle without a second action model.
+domain does not produce a row per prompt; both pathways reach Content with inspectable frozen
+evidence; unrelated/failed generations are rejected; and an earned item can enter the shipped
+start → generate → human implement → observed lifecycle without a second action model.
 
-### Demo milestone
+### Actionable milestone
 
-Stages 1–3 are the first releasable demo. They change the answer from "your score is 37" to:
+Stages 1–3 are the first actionable milestone, but not a complete-loop release. They change the
+answer from "your score is 37" to:
 
 > "These are the sources engines repeatedly used beside your gaps. This one is yours to improve,
 > this one is competitor evidence, and this one is a realistic earned path. Here is the first
@@ -270,20 +360,24 @@ snapshot pair. This projection does not silently set the human Opportunity statu
 
 **Done when:** a user can move from one implementation declaration to a comparable before/after
 view; missing GA4 leaves only that leg unavailable; a changed prompt/provider cohort suppresses the
-visibility delta; and overlapping actions are explicit.
+visibility delta; overlapping actions are explicit; and the UI offers the next comparable audit or
+schedule action without implying that CiteLadder caused the observed change.
 
 ---
 
 ## Sequencing and non-goals
 
 ```text
-Demo:      Stage 1 Priority -> Stage 2 Route -> Stage 3 Act
-Follow-on: Stage 4 Understand -> Stage 5 Measure and Repeat
+Actionable slice:      Stage 1 Priority -> Stage 2 Route -> Stage 3 Act and Generate
+Complete-loop release: Stage 1 -> Stage 2 -> Stage 3 -> Stage 5 Measure and Repeat
+Independent follow-on: Stage 4 Understand recommendation strength
 ```
 
-Do not pull the follow-on stages into the first demo PR. Each stage is one gated slice and leaves
-the repository runnable. Schema-changing slices fold changes into `0001_initial.py` and prove a
-clean database before completion.
+Do not combine all stages into one PR. Each stage is one gated slice and leaves the repository
+runnable. Stage 5 is nevertheless required before the product is described as a complete
+opportunity loop. Stage 4 may ship before or after Stage 5 but is not a verification prerequisite.
+Schema-changing slices fold changes into `0001_initial.py` and prove a clean database before
+completion.
 
 Explicitly out of scope for this plan:
 
@@ -292,7 +386,7 @@ Explicitly out of scope for this plan:
 - domain authority, paid keyword/SERP data, or causal lift claims;
 - a second Opportunity, action, verification, queue, or source-usage owner;
 - template-level Site Health grouping without a deterministic template identity owner; and
-- an LLM dependency for the demo.
+- a model dependency for Opportunity detection, classification, routing, scoring, or verification.
 
 ## Verification and demo acceptance
 
@@ -318,7 +412,17 @@ Also require:
    - competitor-owned evidence routes to Owned/Content;
    - the same earned domain is grouped into one work item;
    - priority factors explain why the first item ranks first; and
-   - the item can use the existing start, implementation, and later observation flow.
+   - Owned and Earned filters use the backend action-path projection;
+   - the item reaches Content with the same persisted evidence and suggested skill;
+   - a successful generation links back to the same Opportunity;
+   - a sent-but-not-published earned draft remains `in_progress`; and
+   - an explicit implementation reaches the comparable later-observation flow.
 5. A dated sanitized evaluation artifact under `docs/evaluations/` recording inputs, versions,
    coverage, the top three actions, and any abstentions. A detector need not occur naturally in the
    sample if deterministic fixtures prove its positive behavior.
+6. One mapped end-to-end test covering frontier audit fixture -> persisted source/action mix ->
+   grouped earned Opportunity -> Content handoff -> successful generation -> explicit implementation
+   with `generation_id` -> comparable verification -> no-longer-observed/persistent/new display.
+7. Negative contract tests proving that foreign or unrelated generations are rejected, unsupported
+   retrieval is unavailable rather than substituted, provider/model cohort mismatches are
+   non-comparable, and no Tavily/MiniMax/GLM provenance can appear as a first-party product engine.

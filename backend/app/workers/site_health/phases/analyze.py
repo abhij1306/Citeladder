@@ -2,9 +2,8 @@
 
 The heart of the crawl. Fetches through the SSRF-safe ladder, extracts bounded
 page facts, evaluates the per-page rule catalog, and writes ONE immutable
-artifact + attempt rows + page analysis + rule evaluations + issues + scores in
-a single transaction gated by a FOR UPDATE owner/liveness re-check. The queue
-row is acknowledged outside that transaction after the durable analysis write.
+artifact plus derived evidence in a transaction finalized by locked guard checks.
+The queue row is acknowledged after the durable analysis write.
 
 Split out of SiteHealthWorker for readability only — see the package
 docstring; this is a mixin on the one worker class, not a separate process.
@@ -45,6 +44,7 @@ from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.domain.commerce.service import enqueue_catalog_projection
+from app.domain.site_health.phase_common import lock_crawl_for_evidence_commit
 from app.domain.site_health.state_events import record_crawl_event
 from app.domain.site_health.task_guards import evaluate_task_guard, lease_is_owned
 from app.models.site_health.analysis import (
@@ -71,6 +71,12 @@ from app.workers.site_health.phases.support import PhaseSupport
 from app.workers.site_health.urls import authority_key as _authority_key
 
 
+def _has_analyzable_outcome(outcome: _AnalyzeOutcome) -> bool:
+    return outcome.facts is not None and (
+        outcome.result is not None or outcome.reused_artifact_id is not None
+    )
+
+
 class AnalyzePhaseMixin(PhaseSupport):
     """TASK_KIND_ANALYZE handling."""
 
@@ -83,7 +89,7 @@ class AnalyzePhaseMixin(PhaseSupport):
         URL through the SSRF-safe fetcher (heartbeating the lease), parse the
         bounded page facts, then persist ONE immutable artifact + attempt +
         page analysis + rule evaluations + issues + scores in a single
-        transaction gated by a ``FOR UPDATE`` owner/liveness re-check. The queue
+        transaction finalized by a ``FOR UPDATE`` owner/liveness re-check. The queue
         row is succeeded / retried / failed OUTSIDE that transaction.
         """
         # If evidence committed but the out-of-transaction queue acknowledgement
@@ -221,6 +227,7 @@ class AnalyzePhaseMixin(PhaseSupport):
                 .where(
                     WorkspaceSiteHealthRuntime.workspace_id == crawl_hint.workspace_id
                 )
+                .execution_options(populate_existing=True)
                 .with_for_update()
             )
         ).scalar_one_or_none()
@@ -231,21 +238,13 @@ class AnalyzePhaseMixin(PhaseSupport):
                     MonitoredSiteUrl.project_id == crawl_hint.project_id,
                     MonitoredSiteUrl.site_url_id == task_hint.site_url_id,
                 )
+                .execution_options(populate_existing=True)
                 .with_for_update()
             )
         ).scalar_one_or_none()
-        # ``populate_existing`` is load-bearing, not defensive. Both rows are
-        # already in this session's identity map from the unlocked hint reads
-        # above, and a plain ``get(..., with_for_update=True)`` re-SELECTs under
-        # the lock but does NOT overwrite attributes that are already loaded —
-        # so the caller would go on to read (and increment) the value from
-        # BEFORE the lock was taken. That is a textbook lost update:
-        # ``crawl.analyzed_url_count += 1`` under concurrent analyze tasks
-        # silently dropped increments (observed: a crawl with 7 completed
-        # analyses whose counter read 5, which the dashboard then reported as
-        # 2 phantom "queued" pages).
-        crawl = await session.get(
-            SiteCrawl, crawl_id, with_for_update=True, populate_existing=True
+        # Refresh identity-map rows under lock or stale counters lose increments.
+        crawl = await lock_crawl_for_evidence_commit(
+            session, workspace_id=crawl_hint.workspace_id, crawl_id=crawl_id
         )
         task = await session.get(
             SiteCrawlTask, task_id, with_for_update=True, populate_existing=True
@@ -376,60 +375,98 @@ class AnalyzePhaseMixin(PhaseSupport):
         retry_attempt = 0
         succeeded_artifact_id: uuid.UUID | None = None
         guard_denied = False
+        abandon = False
         async with self._session_factory() as session:
-            locked, guard_denied = await self._lock_guarded_analyze_task(
+            context, guard_denied = await self._analyze_preflight(
                 session, task_id=task_id, crawl_id=crawl_id
             )
-            if locked is None:
+            if context is None:
                 await session.rollback()
-                if not guard_denied:
-                    return
+                abandon = not guard_denied
             else:
-                task, crawl = locked
+                task_hint, crawl_hint = context
                 artifact_id: uuid.UUID | None = None
-                if outcome.facts is not None and (
-                    outcome.result is not None or outcome.reused_artifact_id is not None
-                ):
+                if _has_analyzable_outcome(outcome):
                     artifact_id = await self._persist_successful_analysis(
                         session,
-                        crawl=crawl,
-                        task=task,
+                        crawl=crawl_hint,
+                        task=task_hint,
                         requested_url=requested_url,
                         outcome=outcome,
                     )
                     succeeded_artifact_id = artifact_id
-                else:
-                    exhausted = task.attempt_count + 1 >= task.max_attempts
-                    should_retry = outcome.retryable and not exhausted
-                    retry_attempt = task.attempt_count + 1
 
-                if outcome.reused_artifact_id is None:
-                    self._write_attempt(
-                        session,
-                        crawl=crawl,
-                        task=task,
-                        outcome=outcome,
-                        succeeded=outcome.facts is not None,
-                        requested_url=requested_url,
-                        artifact_id=artifact_id,
-                    )
-                task.attempt_count += 1
-                await session.commit()
+                # The final guard rolls staged writes back if liveness changed.
+                locked, guard_denied = await self._lock_guarded_analyze_task(
+                    session, task_id=task_id, crawl_id=crawl_id
+                )
+                if locked is None:
+                    await session.rollback()
+                    succeeded_artifact_id = None
+                    abandon = not guard_denied
+                else:
+                    task, crawl = locked
+                    if artifact_id is None:
+                        retry_attempt = task.attempt_count + 1
+                        should_retry = (
+                            outcome.retryable and retry_attempt < task.max_attempts
+                        )
+                    if outcome.reused_artifact_id is None:
+                        self._write_attempt(
+                            session,
+                            crawl=crawl,
+                            task=task,
+                            outcome=outcome,
+                            succeeded=outcome.facts is not None,
+                            requested_url=requested_url,
+                            artifact_id=artifact_id,
+                        )
+                    task.attempt_count += 1
+                    if artifact_id is not None:
+                        task.result_artifact_id = artifact_id
+                        crawl.analyzed_url_count += 1
+                        record_crawl_event(
+                            session,
+                            crawl_id=crawl.id,
+                            event_type=EVENT_ANALYSIS_PROGRESS,
+                            message="analysis progress",
+                            payload={"analyzed": crawl.analyzed_url_count},
+                            count_disclosure=_count_disclosure(crawl),
+                        )
+                    await session.commit()
 
         if guard_denied:
             await self._queue.cancel(task_id=task_id)
-            return
+        elif not abandon:
+            await self._finalize_queue_row(
+                task_id=task_id,
+                succeeded=succeeded_artifact_id is not None,
+                succeeded_artifact_id=succeeded_artifact_id,
+                should_retry=should_retry,
+                retry_attempt=retry_attempt,
+                error_code=outcome.error_code,
+                error_detail=outcome.error_detail,
+                retry_after_seconds=outcome.retry_after_seconds,
+            )
 
-        await self._finalize_queue_row(
-            task_id=task_id,
-            succeeded=succeeded_artifact_id is not None,
-            succeeded_artifact_id=succeeded_artifact_id,
-            should_retry=should_retry,
-            retry_attempt=retry_attempt,
-            error_code=outcome.error_code,
-            error_detail=outcome.error_detail,
-            retry_after_seconds=outcome.retry_after_seconds,
+    async def _analyze_preflight(
+        self,
+        session: AsyncSession,
+        *,
+        task_id: uuid.UUID,
+        crawl_id: uuid.UUID,
+    ) -> tuple[tuple[SiteCrawlTask, SiteCrawl] | None, bool]:
+        """Load an unlocked snapshot and reject work that is already stale."""
+        task = await session.get(SiteCrawlTask, task_id)
+        crawl = await session.get(SiteCrawl, crawl_id)
+        if task is None or crawl is None:
+            return None, False
+        guard = await self._evaluate_analyze_guard(
+            session, task=task, crawl=crawl, lock=False
         )
+        if not guard.ok:
+            return None, lease_is_owned(task, owner=self.owner)
+        return (task, crawl), False
 
     async def _persist_successful_analysis(
         self,
@@ -466,16 +503,6 @@ class AnalyzePhaseMixin(PhaseSupport):
                 project_id=crawl.project_id,
                 source_analysis_id=analysis_id,
             )
-        crawl.analyzed_url_count += 1
-        task.result_artifact_id = artifact_id
-        record_crawl_event(
-            session,
-            crawl_id=crawl.id,
-            event_type=EVENT_ANALYSIS_PROGRESS,
-            message="analysis progress",
-            payload={"analyzed": crawl.analyzed_url_count},
-            count_disclosure=_count_disclosure(crawl),
-        )
         return artifact_id
 
     async def _write_page_analysis(
@@ -583,7 +610,7 @@ class AnalyzePhaseMixin(PhaseSupport):
             # which solely owns those rules' rows (single-writer per scope).
             if not _is_crawl_finalize_rule(ev.rule_id)
         ]
-        scores = score_analysis(evaluations)
+        scores = score_analysis(evaluations, page_kind=assessment.page_kind)
         return assessment, evaluations, scores
 
     async def _refresh_analyzed_url_state(

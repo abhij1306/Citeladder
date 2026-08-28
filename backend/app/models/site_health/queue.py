@@ -130,6 +130,9 @@ class SiteCrawlTask(QueueLeaseStateMixin, Base):
     max_attempts: Mapped[int] = mapped_column(
         Integer, default=site_health_settings.max_attempts
     )
+    # Database serialization/deadlock retries are not page/network attempts.
+    # They have their own bound so contention cannot consume acquisition budget.
+    conflict_count: Mapped[int] = mapped_column(Integer, default=0)
 
     # --- Execution result (single-writer = claiming worker, invariant 3) --
     result_artifact_id: Mapped[uuid.UUID | None] = mapped_column(

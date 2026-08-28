@@ -126,6 +126,26 @@ def is_service_business(business_model: str) -> bool:
     return business_model in SERVICE_BUSINESS_MODELS
 
 
+# Business models that sell a CATALOG OF SKUS -- the only ones for which a
+# product/category shelf is a real object. The Commerce projector used to run
+# for any page the classifier called `category` or `product`, whatever the
+# brand sold, so a B2B SaaS crawl minted 68 "categories" named after its own
+# blog posts ("Searchable just raised $14M...") and zero products. A shelf is
+# not a thing every business has; the projection has to ask first.
+COMMERCE_BUSINESS_MODELS: Final[frozenset[str]] = frozenset(
+    {
+        "d2c_product",
+        "retail",
+        "marketplace",
+    }
+)
+
+
+def sells_a_catalog(business_model: str) -> bool:
+    """Whether this business has products and shelves to project at all."""
+    return business_model in COMMERCE_BUSINESS_MODELS
+
+
 def same_business_class(left: str, right: str) -> bool:
     """True when two business models describe the same KIND of company."""
     return is_service_business(left) is is_service_business(right)
@@ -139,6 +159,28 @@ CAPTURE_METHOD_EXTERNAL_FETCH: Final = "external_fetch"
 CAPTURE_METHOD_USER: Final = "user_input"
 BRAND_DISCOVERY_VERSION: Final = "brand-discovery-v8"
 BRAND_IDENTITY_PROMPT_VERSION: Final = "brand-identity-v2"
+
+# The identity fields a "sources disagreed" warning would actually be ABOUT.
+# The warning tells the user to go re-read the positioning, so it has to be
+# these fields that are in doubt -- not some incidental facet.
+IDENTITY_CONFLICT_FIELDS: Final[tuple[str, ...]] = (
+    "category",
+    "description",
+    "positioning",
+    "products_services",
+    "business_model",
+)
+# Below this, a reported conflict really did leave the identity uncertain.
+#
+# The model is instructed that an unresolved conflict "must use status
+# conflicting_evidence AND lower confidence", so the two travel together. One
+# real brand came back `conflicting_evidence` while reporting 0.97 on its
+# category, description and positioning -- the flag was set for a disagreement
+# the model had already resolved. The user was told to carefully review a
+# positioning nothing was actually unsure about, which teaches people to
+# ignore the warning that matters. Corroborating the flag against the
+# confidence the same response reported keeps the warning about a real doubt.
+IDENTITY_CONFLICT_CONFIDENCE_CEILING: Final = 0.75
 BRAND_COMPETITOR_QUALIFICATION_VERSION: Final = "brand-competitor-qualification-v3"
 KEENABLE_RESEARCH_VERSION: Final = "keenable-research-v1"
 BRAND_DISCOVERY_PROMPT_GENERATOR_VERSION: Final = "brand-discovery-prompts-v10"

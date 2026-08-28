@@ -29,7 +29,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.site_health_acquisition import (
-    ERROR_URL_ADMISSION_REJECTED,
+    CORPUS_EXCLUSION_ERROR_CODES,
 )
 from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_CANCELLED,
@@ -162,12 +162,12 @@ class _TaskSummary:
     def analyze_applicable(self) -> int:
         """Pages this crawl was ever going to be able to analyze.
 
-        Excludes both cancelled tasks and URLs our own admission policy
-        rejected once the fetch resolved (a redirect onto a customer-account
-        host, a target that turned out to be out of scope). Those are pages
-        the crawl decided not to analyze, not pages it failed to analyze, so
-        counting them as failures made a complete crawl report itself
-        ``partially_completed`` one page short of its own limit.
+        Excludes cancelled tasks and every page that left the corpus by policy
+        (``CORPUS_EXCLUSION_ERROR_CODES``): a redirect onto a customer-account
+        host, or a URL robots told us not to fetch. Those are pages the crawl
+        decided not to analyze, not pages it failed to analyze, so counting
+        them as failures made a crawl that reached everything it could report
+        itself ``partially_completed``.
         """
         return self.analyze_total - self.analyze_cancelled - self.analyze_excluded
 
@@ -608,10 +608,13 @@ class CrawlLifecycle(CrawlFinalizeMixin):
                 select(func.count(func.distinct(SiteCrawlTask.url_hash))).where(
                     SiteCrawlTask.crawl_id == crawl_id,
                     SiteCrawlTask.status == TASK_STATUS_FAILED,
-                    # A URL our own admission policy rejected once the fetch
-                    # resolved is an exclusion, not a failure: nothing went
-                    # wrong, we decided not to analyze it.
-                    SiteCrawlTask.error_code != ERROR_URL_ADMISSION_REJECTED,
+                    # A page that left the corpus by policy is an exclusion,
+                    # not a failure: our admission rejected the resolved URL,
+                    # robots told us not to fetch it. Nothing went wrong in
+                    # either case.
+                    SiteCrawlTask.error_code.not_in(
+                        sorted(CORPUS_EXCLUSION_ERROR_CODES)
+                    ),
                     SiteCrawlTask.task_kind.in_(
                         [TASK_KIND_DISCOVER, TASK_KIND_ANALYZE]
                     ),
@@ -655,7 +658,9 @@ class CrawlLifecycle(CrawlFinalizeMixin):
                     func.count()
                     .filter(
                         SiteCrawlTask.status == TASK_STATUS_FAILED,
-                        SiteCrawlTask.error_code == ERROR_URL_ADMISSION_REJECTED,
+                        SiteCrawlTask.error_code.in_(
+                            sorted(CORPUS_EXCLUSION_ERROR_CODES)
+                        ),
                     )
                     .label("excluded"),
                 )

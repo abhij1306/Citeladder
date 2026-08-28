@@ -383,6 +383,6 @@ ANALYZER_VERSION: Final = "sh-analyzer-7"
 
 RULE_CATALOG_VERSION: Final = "sh-rules-6"
 
-SCORING_VERSION: Final = "sh-scoring-3"
+SCORING_VERSION: Final = "sh-scoring-4"
 
-CLASSIFIER_VERSION: Final = "sh-classifier-7"
+CLASSIFIER_VERSION: Final = "sh-classifier-8"

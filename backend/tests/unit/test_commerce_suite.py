@@ -25,9 +25,11 @@ from app.domain.commerce.competitors import (
     _validated_results,
 )
 from app.domain.commerce.projector import (
+    _catalog_identity,
     _category_from_analysis,
     _category_title,
     _crawl_values,
+    _identity_base_url,
     _link_product_to_projected_shelves,
     _link_shelf_products,
     _project_product_source,
@@ -60,6 +62,28 @@ from app.domain.commerce.shelf import (
 )
 from app.domain.commerce.shelf_metrics import _first_position_rate
 from app.models.commerce import CommerceProduct
+
+
+def test_catalog_identity_uses_only_in_scope_declared_canonical() -> None:
+    fetched = "https://shop.example.com/collections/all/products/widget?variant=1"
+
+    assert (
+        _catalog_identity(
+            {"canonical_url": "https://shop.example.com/products/widget"}, fetched
+        )
+        == "https://shop.example.com/products/widget"
+    )
+    assert (
+        _catalog_identity(
+            {"canonical_url": "https://attacker.example.net/products/widget"}, fetched
+        )
+        == fetched
+    )
+    assert (
+        _identity_base_url("https://shop.example.com/products/widget", fetched)
+        == "https://shop.example.com/products/widget"
+    )
+    assert _identity_base_url("", fetched) == fetched
 
 
 @pytest.mark.asyncio
@@ -633,17 +657,19 @@ async def test_a_listing_page_classified_as_a_product_projects_as_a_category() -
             added.append(row)
 
         async def flush(self) -> None:
-            raise AssertionError("no product row is written for a listing page")
+            return None
 
     analysis = SimpleNamespace(
         id=uuid.uuid4(),
         workspace_id=uuid.uuid4(),
         project_id=uuid.uuid4(),
+        crawl_id=uuid.uuid4(),
         classifier_version="c1",
     )
     artifact = SimpleNamespace(
         id=uuid.uuid4(),
         extractor_version="e1",
+        final_url="",
         normalized_facts={
             "title": "Women's Clothing Online | Shop Now",
             "structured_data": {"product": {}},
@@ -971,11 +997,19 @@ async def test_a_shelf_page_links_its_products_into_the_category() -> None:
 
         async def execute(self, statement: object):
             statements.append(statement)
+            if len(statements) == 1:
+                return SimpleNamespace(all=lambda: [])
+            return SimpleNamespace()
 
     analysis = SimpleNamespace(
-        id=uuid.uuid4(), workspace_id=workspace_id, project_id=project_id
+        id=uuid.uuid4(),
+        workspace_id=workspace_id,
+        project_id=project_id,
+        crawl_id=uuid.uuid4(),
     )
     artifact = SimpleNamespace(
+        requested_url="https://shop.test/collections/all",
+        final_url="https://shop.test/collections/all",
         normalized_facts={
             "commerce": {
                 "product_cards": [
@@ -990,7 +1024,7 @@ async def test_a_shelf_page_links_its_products_into_the_category() -> None:
                     {"url": "https://shop.test/products/nav", "is_internal": True}
                 ]
             },
-        }
+        },
     )
 
     await _link_shelf_products(
@@ -1000,13 +1034,17 @@ async def test_a_shelf_page_links_its_products_into_the_category() -> None:
         category=category,  # type: ignore[arg-type]
     )
 
-    assert len(statements) == 1
+    # The membership insert, plus the retraction of the "Uncategorized"
+    # fallback for the products the shelf has now claimed.
+    assert len(statements) == 3
 
 
 @pytest.mark.asyncio
 async def test_a_product_landing_after_its_shelf_still_gets_membership() -> None:
     category = SimpleNamespace(id=uuid.uuid4())
     artifact = SimpleNamespace(
+        requested_url="https://shop.test/collections/dresses",
+        final_url="https://shop.test/collections/dresses",
         normalized_facts={
             "commerce": {
                 "product_cards": [
@@ -1016,7 +1054,7 @@ async def test_a_product_landing_after_its_shelf_still_gets_membership() -> None
                     }
                 ]
             }
-        }
+        },
     )
     statements: list[object] = []
 
@@ -1025,9 +1063,15 @@ async def test_a_product_landing_after_its_shelf_still_gets_membership() -> None
             statements.append(statement)
             if len(statements) == 1:
                 return SimpleNamespace(all=lambda: [(category, artifact)])
+            if len(statements) == 2:
+                return SimpleNamespace(all=lambda: [])
             return SimpleNamespace()
 
-    analysis = SimpleNamespace(workspace_id=uuid.uuid4(), project_id=uuid.uuid4())
+    analysis = SimpleNamespace(
+        workspace_id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        crawl_id=uuid.uuid4(),
+    )
     product = SimpleNamespace(
         id=uuid.uuid4(), canonical_url="https://shop.test/products/linen-dress"
     )
@@ -1038,7 +1082,8 @@ async def test_a_product_landing_after_its_shelf_still_gets_membership() -> None
         product=product,  # type: ignore[arg-type]
     )
 
-    assert len(statements) == 2
+    # Shelf lookup, membership insert, and the "Uncategorized" retraction.
+    assert len(statements) == 4
 
 
 @pytest.mark.asyncio

@@ -17,9 +17,17 @@ from app.core.config.site_health_runtime import site_health_settings
 from app.models.site_health.queue import SiteCrawlTask
 
 # Postgres SQLSTATEs that mean "this transaction lost a race, run it again":
-# 40001 serialization_failure, 40P01 deadlock_detected. Neither says anything
-# about the page being crawled, so neither is a terminal task failure.
-_TRANSIENT_DB_SQLSTATES = frozenset({"40001", "40P01"})
+# 40001 serialization_failure, 40P01 deadlock_detected, 55P03 lock_not_available.
+# None says anything about the page being crawled, so none is a terminal task
+# failure.
+#
+# 55P03 is what `lock_timeout` raises, and it was missing: a sibling holding a
+# contended row just long enough killed the waiter outright, with
+# `attempt_count` and `conflict_count` both still 0 because the crash never
+# reached the retry path at all. Three tasks died that way in one measured
+# crawl and finalized it `partially_completed` -- a lock this worker would have
+# got on a second try, reported as pages that could not be analyzed.
+_TRANSIENT_DB_SQLSTATES = frozenset({"40001", "40P01", "55P03"})
 
 
 class _RetryableQueue(Protocol):
@@ -57,7 +65,12 @@ def is_transient_db_conflict(exc: BaseException) -> bool:
     if coded:
         return False
     return isinstance(exc, DBAPIError) and any(
-        token in str(exc) for token in ("deadlock detected", "could not serialize")
+        token in str(exc)
+        for token in (
+            "deadlock detected",
+            "could not serialize",
+            "canceling statement due to lock timeout",
+        )
     )
 
 
@@ -69,23 +82,17 @@ async def requeue_conflicted_task(
     task_id: uuid.UUID,
     detail: str,
 ) -> bool:
-    """Re-queue a lock-conflicted task; False once its attempts are spent.
-
-    The crashed transaction rolled back without spending an attempt, so the
-    increment happens here — the existing ``max_attempts`` budget is what
-    stops a permanently conflicting task from cycling forever.
-    """
+    """Re-queue a lock-conflicted task without spending a fetch attempt."""
     async with session_factory() as session:
         task = await session.get(SiteCrawlTask, task_id)
-        attempt = (task.attempt_count if task is not None else 0) + 1
-        max_attempts = task.max_attempts if task is not None else 0
-    if task is None or attempt >= max_attempts:
+        conflict_count = int(getattr(task, "conflict_count", 0)) + 1
+    if task is None or conflict_count > site_health_settings.db_conflict_max_requeues:
         return False
     return await queue.retry(
         task_id=task_id,
         owner=owner,
-        delay_seconds=site_health_settings.retry_delay(attempt),
+        delay_seconds=site_health_settings.db_conflict_retry_delay(conflict_count),
         error_code="crawl_task_lock_conflict",
         error_detail=detail,
-        mutate=lambda row: setattr(row, "attempt_count", attempt),
+        mutate=lambda row: setattr(row, "conflict_count", conflict_count),
     )

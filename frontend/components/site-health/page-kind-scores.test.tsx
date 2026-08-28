@@ -176,6 +176,39 @@ describe('PageKindScores', () => {
     expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
   });
 
+  it('surfaces the unclassified share and its scoring treatment', () => {
+    render(
+      <PageKindScores
+        crawl={null}
+        dashboard={dashboard(
+          summary({
+            analyzed_count: 10,
+            by_page_kind: {
+              article: {
+                analyzed_count: 6,
+                technical_score: 80,
+                aeo_score: 70,
+                overall_score: 75,
+              },
+              other: {
+                analyzed_count: 4,
+                technical_score: 90,
+                aeo_score: null,
+                overall_score: 90,
+              },
+            },
+          }),
+        )}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        '4 of 10 analyzed pages could not be classified; their AEO score is not measured.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('falls back to the crawl score summary when the dashboard has none', () => {
     render(
       <PageKindScores

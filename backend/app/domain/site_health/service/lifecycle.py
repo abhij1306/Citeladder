@@ -18,11 +18,12 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.site_health_acquisition import (
+    CORPUS_EXCLUSION_ERROR_CODES,
     ERROR_HTTP_4XX,
     ERROR_HTTP_5XX,
     ERROR_ROBOTS_DENIED,
     ERROR_TIMEOUT,
-    ERROR_URL_ADMISSION_REJECTED,
+    NON_ERROR_TERMINAL_CODES,
     POLICY_BLOCKING_ERROR_CODES,
 )
 from app.core.config.site_health_contracts import (
@@ -167,9 +168,15 @@ async def _crawl_counters(session: AsyncSession, crawl: SiteCrawl) -> dict:
                 func.count()
                 .filter(
                     latest_tasks.c.status == TASK_STATUS_FAILED,
-                    latest_tasks.c.error_code == ERROR_URL_ADMISSION_REJECTED,
+                    latest_tasks.c.error_code.in_(sorted(CORPUS_EXCLUSION_ERROR_CODES)),
                 )
                 .label("excluded"),
+                func.count()
+                .filter(
+                    latest_tasks.c.status == TASK_STATUS_FAILED,
+                    latest_tasks.c.error_code.in_(sorted(NON_ERROR_TERMINAL_CODES)),
+                )
+                .label("not_errors"),
                 func.count()
                 .filter(
                     latest_tasks.c.status == TASK_STATUS_FAILED,
@@ -293,9 +300,10 @@ async def _crawl_counters(session: AsyncSession, crawl: SiteCrawl) -> dict:
         "running": int(task_counts.running),
         "analyzed": int(task_counts.analyzed),
         # ``failed`` here counts analyze tasks only, so it is the ANALYZE-scoped
-        # exclusion that nets out of it; subtracting the cross-kind count could
-        # take this below zero.
-        "errors": max(int(task_counts.failed) - blocked - int(task_counts.excluded), 0),
+        # count that nets out of it. Subtracting `blocked` and `excluded`
+        # separately double-counted `robots_denied`, which is in both, and hid
+        # a real error behind it; one pre-unioned count cannot.
+        "errors": max(int(task_counts.failed) - int(task_counts.not_errors), 0),
         "blocked": blocked,
         "failure_breakdown": {
             "robots_denied": int(task_counts.robots_denied),
@@ -318,7 +326,7 @@ async def _policy_excluded_url_count(session: AsyncSession, crawl_id: uuid.UUID)
                 SiteCrawlTask.crawl_id == crawl_id,
                 SiteCrawlTask.task_kind.in_([TASK_KIND_DISCOVER, TASK_KIND_ANALYZE]),
                 SiteCrawlTask.status == TASK_STATUS_FAILED,
-                SiteCrawlTask.error_code == ERROR_URL_ADMISSION_REJECTED,
+                SiteCrawlTask.error_code.in_(sorted(CORPUS_EXCLUSION_ERROR_CODES)),
                 SiteCrawlTask.url_hash != "",
             )
         )

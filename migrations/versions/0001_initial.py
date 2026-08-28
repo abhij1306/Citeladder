@@ -3007,6 +3007,7 @@ def upgrade() -> None:
         sa.Column("heartbeat_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("attempt_count", sa.Integer(), nullable=False),
         sa.Column("max_attempts", sa.Integer(), nullable=False),
+        sa.Column("conflict_count", sa.Integer(), nullable=False),
         sa.Column("result_artifact_id", sa.UUID(), nullable=True),
         sa.Column("error_code", sa.String(length=32), nullable=False),
         sa.Column("error_detail", sa.Text(), nullable=False),

@@ -101,6 +101,33 @@ def test_canonicalize_resolves_relative_against_base():
     assert out == "https://example.com/c"
 
 
+def test_product_variant_query_normalizes_without_rejecting_admission() -> None:
+    url = "https://example.com/products/widget?variant=123"
+
+    assert canonicalize(url) == "https://example.com/products/widget"
+    decision = classify_url_admission(url, root_registrable_domain="example.com")
+    assert decision.accepted
+    assert decision.canonical_url == "https://example.com/products/widget"
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "allhttps://example.com/collections/all",
+        "twitter.com/thekindlab",
+    ],
+)
+def test_malformed_relative_references_are_rejected(reference: str) -> None:
+    decision = classify_url_admission(
+        reference,
+        base_url="https://example.com/blog/post",
+        root_registrable_domain="example.com",
+    )
+
+    assert not decision.accepted
+    assert decision.reason_code == "invalid_url"
+
+
 # --- registrable domain + scope (offline PSL) -----------------------------
 
 
@@ -237,6 +264,7 @@ def test_admission_rejects_urls_too_long_for_persistence():
     [
         "https://example.com/downloads/prospectus.pdf",
         "https://example.com/policies/fees.docx",
+        "https://example.com/agents.md",
     ],
 )
 def test_supported_documents_are_inventoried_not_hard_excluded(url):

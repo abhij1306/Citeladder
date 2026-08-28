@@ -55,9 +55,6 @@ _PATH_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     for page_kind, pattern in _config.PAGE_KIND_PATH_PATTERNS
 )
 
-#: Schema types that corroborate a listing structure (never create one).
-_LISTING_SCHEMA_TYPES: frozenset[str] = frozenset({"ItemList", "CollectionPage"})
-
 #: Signal precedence WITHIN a tier. Reaching two signals in one tier is a
 #: genuine disagreement, recorded as a conflict; this table decides it.
 _TIER_SIGNAL_ORDER: tuple[str, ...] = (
@@ -409,7 +406,7 @@ def _structural_signals(
                 product_detail,
             )
         )
-    listing_detail = _listing_evidence(facts, _mapping(entity.get("listing")))
+    listing_detail = _listing_evidence(_mapping(entity.get("listing")))
     if listing_detail:
         signals.append(
             _signal(
@@ -478,26 +475,34 @@ def _single_product_schema(facts: dict) -> bool:
     return has_offer or bool(_mapping(structured.get("product")).get("price"))
 
 
-def _listing_evidence(facts: dict, listing: dict) -> str:
+def _listing_evidence(listing: dict) -> str:
     """Decisive listing evidence: a real grid PLUS a listing affordance.
 
     The grid size alone is not enough — a related-products strip is also a
-    grid. Requiring a result count, a sort control, a filter control or an
-    ItemList/CollectionPage node is what separates a page that IS a listing
-    from a page that merely contains one.
+    grid. Requiring a result count, a sort control or a filter control is what
+    separates a page that IS a listing from a page that merely contains one.
+
+    An ``ItemList``/``CollectionPage`` node used to count as a fourth
+    affordance, and it was the wrong test: ``structured_data.types`` is the set
+    of schema types found ANYWHERE on the page, not the type of the node
+    wrapping the grid. Every blog post carrying a related-posts strip and a
+    site-wide ``ItemList`` therefore satisfied it, the structural tier won, and
+    the route tier's ``article`` verdict was discarded as a conflict — one site
+    classified 87 pages ``category`` against 9 ``article``, and a SaaS crawl
+    minted a shelf per blog post. A page-wide schema type is exactly the "page's
+    own claim about itself" this module places in the WEAKEST tier; it must not
+    decide the strongest one. It still reaches ``structured_data``, which is
+    where a claim belongs.
     """
     size = listing.get("largest_card_list_size")
     if not isinstance(size, int) or size < _config.LISTING_MIN_CARD_ITEMS:
         return ""
-    structured = _mapping(facts.get("structured_data"))
-    schema_types = set(_str_sequence(structured.get("types")))
     affordances = [
         name
         for name, present in (
             ("result_count", listing.get("has_result_count")),
             ("sort_control", listing.get("has_sort_control")),
             ("filter_control", listing.get("has_filter_control")),
-            ("item_list_schema", bool(schema_types & _LISTING_SCHEMA_TYPES)),
         )
         if present
     ]

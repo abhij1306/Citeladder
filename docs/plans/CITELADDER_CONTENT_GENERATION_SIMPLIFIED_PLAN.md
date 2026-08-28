@@ -3,6 +3,11 @@
 **Audience:** Codex / implementation agent
 **Goal:** Make CiteLadder content generation produce logical, grounded, useful content for the upcoming demos without turning the feature into a complex agentic content system.
 
+**Decision update (2026-08-28):** production Content Generation uses only config-approved frontier
+model routes. The former MiniMax M3/GMI demo mandate is superseded. Tavily, MiniMax, GLM, and other
+evaluation scaffolds are not production Content providers and never supply product visibility
+evidence.
+
 ---
 
 ## 1. Objective
@@ -20,8 +25,9 @@ Build useful context from:
 - Brand/project data
 - Relevant Site Crawl content
 - GSC data when connected
+- Frozen Opportunity handoff when generation starts from an action
         ↓
-ONE strong MiniMax M3 generation call
+ONE approved frontier-model generation call
         ↓
 Editable / copyable generated content
 ```
@@ -53,7 +59,7 @@ The goal is not to build an enterprise CMS.
 
 The goal is:
 
-> **Give MiniMax M3 the right brand context, the right relevant website/GSC evidence, and a good platform-specific skill prompt, then generate the content once.**
+> **Give the approved frontier model the right brand context, the right relevant website/GSC or Opportunity evidence, and a good platform-specific skill prompt, then generate the content once.**
 
 ---
 
@@ -152,7 +158,7 @@ Top relevant pages:     5–10
 Homepage:               include only if useful for brand context
 ```
 
-Allow a larger total text budget if MiniMax M3 handles the supplied context comfortably, but relevance matters more than raw size.
+Keep the context within the configured model budget; relevance matters more than raw size.
 
 ---
 
@@ -169,6 +175,7 @@ ContentGenerationContext(
     skill=...,
     target_url=...,
     target_query=...,
+    opportunity_handoff=...,
     site_pages=[...],
     gsc_context=...,
 )
@@ -176,13 +183,14 @@ ContentGenerationContext(
 
 This is an internal context builder, not a new persistent product domain.
 
-The model should receive four clearly separated sections:
+The model should receive clearly separated sections:
 
 ```text
 1. BRAND
 2. TASK
-3. RELEVANT WEBSITE CONTENT
-4. SEARCH PERFORMANCE DATA (only when available)
+3. OPPORTUNITY EVIDENCE (only when supplied)
+4. RELEVANT WEBSITE CONTENT
+5. SEARCH PERFORMANCE DATA (only when available)
 ```
 
 ---
@@ -205,19 +213,20 @@ Include, when available:
 
 Do not require every field to be manually confirmed before the model can write naturally.
 
-The purpose of this context is to help MiniMax:
+The purpose of this context is to help the generation model:
 
 - understand who it is writing for
 - use correct brand terminology
 - avoid generic output
 - maintain the right market/locale
 
-Brand Profile remains **context**, not a third content-data integration.
+Brand Profile remains **context**, not another content-data integration.
 
-The two primary content evidence sources remain:
+The evidence inputs remain owned by their existing domains:
 
-1. Site Crawl
-2. GSC
+1. Site Crawl for observed owned-site facts.
+2. GSC for optional observed demand evidence.
+3. Opportunity handoff for the exact persisted action evidence and provenance.
 
 ---
 
@@ -225,7 +234,7 @@ The two primary content evidence sources remain:
 
 Site Crawl must support useful generation even with zero GSC data.
 
-For each selected relevant page send MiniMax a compact representation:
+For each selected relevant page send the generation model a compact representation:
 
 ```text
 URL
@@ -310,7 +319,7 @@ GSC
 Site Crawl
 → provide the actual target page content
 
-MiniMax
+Approved frontier model
 → rewrite/improve the page
 ```
 
@@ -343,19 +352,26 @@ This lets CiteLadder create content that fills an actual content gap while still
 
 Keep this simple.
 
-Currently an opportunity can be linked to a generation, but the generation should also receive the useful opportunity text.
+An opportunity can be linked to a generation. The generation must also receive the exact useful
+evidence projected by the Opportunity owner.
 
 When `opportunity_id` exists, include:
 
 ```text
 Opportunity title
 Opportunity remediation
+Action pathway and source class
+Canonical earned domain when applicable
 Target URL
 Target theme
-Relevant evidence summary
+Representative cited page URLs/titles
+Affected prompts/themes and observed competitors
+Coverage, limitations, truncation state, exact source-analysis IDs, and versions
 ```
 
-Do not build a new Opportunity agent or complex brief system.
+Do not build a new Opportunity agent or parallel brief store. Consume the typed, bounded
+`content_handoff` from the existing Opportunity detail contract and freeze it in the generation
+context manifest.
 
 Convert the opportunity into a small text block and add it to the task context.
 
@@ -374,7 +390,18 @@ Target theme:
 School uniform sizing
 ```
 
-This is sufficient for the demo.
+The Opportunities drawer routes to Content with `opportunity_id` and labels the action **Create
+owned content** or **Prepare earned content**. Content shows the supplied evidence, preselects the
+server-suggested skill, and seeds an editable instruction once without overwriting user edits.
+
+For earned work, initial outputs are transparent editorial inclusion briefs, expert-contribution
+outlines, review/profile evidence packs, or outreach drafts. They never impersonate an independent
+customer, fabricate first-person experience, or autonomously post, send, or publish.
+
+After a successful generation, Content links back to the Opportunity. An implementation declaration
+may attach `generation_id`; the backend accepts it only when it belongs to the same workspace,
+project, and opportunity and has an eligible successful status. Drafting or sending an earned pitch
+keeps the Opportunity `in_progress`; only the user declares a public implementation.
 
 ---
 
@@ -529,39 +556,35 @@ Skills should be **short, opinionated templates**, not giant prompts.
 
 ---
 
-# 11. MiniMax M3 / GMI Cloud
+# 11. Frontier content-provider policy
 
-For the demo period, use **MiniMaxAI/MiniMax-M3 through GMI Cloud** for Content Generation.
+Production Content Generation uses the existing provider-neutral transport with a config-owned
+allowlist of approved frontier generation routes. Provider, requested model, returned model,
+reasoning policy, request configuration, usage, and attempt status are frozen as generation
+provenance.
 
-GMI Cloud exposes an OpenAI-compatible chat-completions API.
+The Content provider identity is separate from the logical engine/provider identity of any
+visibility audit. Generating a draft never changes or impersonates the engine observation that
+created an Opportunity.
 
-Do not build a dedicated complex integration.
+Do not silently fall back to Tavily, MiniMax, GLM, model-invented citations, or another synthetic
+route. If no approved frontier route is configured or available, generation fails explicitly and
+the frozen context remains inspectable.
 
-Extend the existing content provider abstraction so configuration can select:
+Extend the existing content provider abstraction only when an approved frontier endpoint requires
+it. Configuration selects the transport and exact model; service code does not hardcode provider
+policy:
 
 ```text
-provider = gmi
-model = MiniMaxAI/MiniMax-M3
-base_url = https://api.gmi-serving.com/v1
+provider = <approved frontier provider>
+model = <approved frontier model>
+base_url = <approved endpoint when applicable>
 api_key = ...
 ```
 
-Before hardcoding the model ID, use the provider's `/v1/models` result or configuration to confirm the exact ID available to the API key.
-
-## Configuration
-
-Runtime environment variables:
-
-```text
-CONTENT_PROVIDER=gmi
-GMICLOUD_MODEL=MiniMaxAI/MiniMax-M3
-GMICLOUD_API_KEY=...
-GMICLOUD_BASE_URL=https://api.gmi-serving.com/v1
-```
-
-The shipped provider-neutral OpenAI-compatible transport records the selected
-provider and requested/returned model on every attempt. Mistral remains
-selectable as a dormant fallback through its existing Content configuration.
+Provider credentials remain secret, are resolved only by the owning connector, and never enter
+DTOs, context snapshots, logs, or generated artifacts. Tests inject fake configuration and mock
+provider I/O; they never read `.env`.
 
 ---
 
@@ -721,7 +744,8 @@ Format
 [ Generate content ]
 ```
 
-The important difference from the current implementation is that the opportunity information must actually be supplied to MiniMax.
+The important difference from the current implementation is that the frozen Opportunity handoff
+must actually be supplied to the approved frontier model and remain inspectable in Content.
 
 ---
 
@@ -740,8 +764,9 @@ Keep the result experience lightweight.
 │                                                                     │
 ├─────────────────────────────────────────────────────────────────────┤
 │ Grounded with: Website crawl · 7 pages                              │
+│ Opportunity: Earned · example.com · 3 cited pages                  │
 │                                                                     │
-│ [ Copy ] [ Export Markdown ] [ Regenerate ]                         │
+│ [ Copy ] [ Export Markdown ] [ Regenerate ] [ Return to opportunity ]│
 │                                                                     │
 │ Was this useful?   [ Yes ] [ No ]                                  │
 └─────────────────────────────────────────────────────────────────────┘
@@ -884,7 +909,7 @@ Brand data
 +
 Site Crawl
 +
-MiniMax M3
+Approved frontier content model
 ```
 
 Example demo flow:
@@ -898,7 +923,7 @@ Example demo flow:
    Website crawl · 8 relevant pages
    Search Console · Not connected
 5. Generate
-6. MiniMax receives relevant schoolwear/category/product content
+6. The approved frontier model receives relevant schoolwear/category/product content
 7. Output contains brand-specific, grounded information
 ```
 
@@ -1073,16 +1098,24 @@ For each skill verify:
 
 ---
 
-### GMI provider
+### Approved frontier provider
 
 Mock the OpenAI-compatible endpoint and verify:
 
 ```text
-model = configured MiniMax M3 model
+model = configured allowlisted frontier model
 messages are correct
 API key never enters persisted output
 response is parsed through existing generation flow
+disallowed providers and returned-model mismatches fail explicitly
 ```
+
+### Opportunity lifecycle linkage
+
+Verify that the Content request freezes the server-projected handoff, a successful generation can
+return to the originating Opportunity, and an implementation declaration rejects foreign,
+unrelated, or failed generations. A generated or sent earned draft remains `in_progress` until the
+user explicitly declares implementation.
 
 ---
 
@@ -1092,7 +1125,7 @@ Implement in this order.
 
 ## P0 — Required before demo
 
-1. Add GMI Cloud / MiniMax M3 provider configuration.
+1. Configure and enforce the approved frontier Content provider/model allowlist.
 2. Make crawl context selection relevant to the generation prompt.
 3. Always include target URL when rewriting.
 4. Simplify grounding instructions so unsupported details are omitted rather than surfaced as "unavailable".
@@ -1133,7 +1166,7 @@ CiteLadder automatically picks relevant pages
         ↓
 UI tells user that website crawl context is being used
         ↓
-MiniMax M3 receives:
+The approved frontier model receives:
 - brand context
 - user task
 - skill instructions
@@ -1169,6 +1202,6 @@ STRONG MODEL
 GOOD OUTPUT
 ```
 
-For the current demo period, MiniMax M3 gives CiteLadder access to a substantially stronger generation model at effectively no inference cost during the promotion.
-
-Use that advantage by improving **what CiteLadder sends to the model**, not by surrounding the model with unnecessary layers.
+Model quality does not replace evidence quality. Improve **what CiteLadder sends to the approved
+frontier model**, preserve the frozen context and provenance, and do not surround the model with
+unnecessary layers.

@@ -18,14 +18,14 @@ listed here must prove a current operational purpose or move to the archive.
 |---|---|
 | [`architecture.md`](architecture.md) | Canonical product architecture |
 | [`plans/citeladder-aeo-product-rebuild.md`](plans/citeladder-aeo-product-rebuild.md) | Implementation-ready delivery plan for the AEO product rebuild (subordinate to `architecture.md`) |
-| [`plans/CITELADDER_CONTENT_GENERATION_SIMPLIFIED_PLAN.md`](plans/CITELADDER_CONTENT_GENERATION_SIMPLIFIED_PLAN.md) | Demo-first Content Generation improvement proposal |
+| [`plans/CITELADDER_CONTENT_GENERATION_SIMPLIFIED_PLAN.md`](plans/CITELADDER_CONTENT_GENERATION_SIMPLIFIED_PLAN.md) | Frontier-model Content Generation plan with crawl, demand, and typed Opportunity grounding |
 | [`plans/citeladder-onboarding-discovery-v7.md`](plans/citeladder-onboarding-discovery-v7.md) | Implemented evidence-first onboarding discovery. Its GMI Cloud cutover was later reverted to Mistral. |
 | [`plans/commerce-suite-atomic-rebuild.md`](plans/commerce-suite-atomic-rebuild.md) | Active staged delivery plan and open gates for the Commerce Suite replacement |
 | [`plans/commerce-ui-redesign.md`](plans/commerce-ui-redesign.md) | Proposed master-detail redesign of the Commerce workspace, replacing the four verb tabs and their repeated target selectors |
 | [`plans/commerce-suite-retirement-manifest.md`](plans/commerce-suite-retirement-manifest.md) | Exact retired Commerce authorities and version lineage for the atomic cutover |
 | [`plans/site-health-site-model.md`](plans/site-health-site-model.md) | Active four-PR plan for structurally scoped page facts, internal link metrics, and the observed site architecture model |
 | [`plans/crawl-onboarding-prompt-repair.md`](plans/crawl-onboarding-prompt-repair.md) | Implemented repair of five long-standing defects: the crawl that always finished one page short, discovery starving analysis on a cold crawl, commerce category prompts generated for the wrong industry, the onboarding completion timeout, and brand-dominated portfolios for brands named with ordinary words |
-| [`plans/aeo-opportunity-loop.md`](plans/aeo-opportunity-loop.md) | Demo-first buyer-stage priority, owned/competitive/earned source routing, grouped earned worklists, recommendation strength, and comparable three-signal verification |
+| [`plans/aeo-opportunity-loop.md`](plans/aeo-opportunity-loop.md) | Complete buyer-stage priority, owned/competitive/earned routing, Content handoff, implementation linkage, and comparable verification loop |
 
 ## Active implementation plans
 

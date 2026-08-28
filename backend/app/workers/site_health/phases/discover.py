@@ -32,6 +32,7 @@ from app.core.config.site_health_acquisition import (
 from app.core.config.site_health_contracts import (
     TASK_KIND_DISCOVER,
 )
+from app.core.config.site_health_crawl_policy import DOCUMENT_MEDIA_TYPES
 from app.core.config.site_health_rules import (
     HTML_CONTENT_TYPES,
 )
@@ -198,7 +199,7 @@ class DiscoverPhaseMixin(DiscoverPersistenceMixin):
         request = FetchRequest(
             url=requested_url,
             purpose=FETCH_PURPOSE_DISCOVER,
-            allowed_content_types=HTML_CONTENT_TYPES,
+            allowed_content_types=HTML_CONTENT_TYPES | DOCUMENT_MEDIA_TYPES,
         )
         started = time.monotonic()
         try:
@@ -225,42 +226,62 @@ class DiscoverPhaseMixin(DiscoverPersistenceMixin):
                 sitemap_files=sitemap_files,
             )
 
+        return self._parse_discover_result(
+            result,
+            root_registrable_domain=root_registrable_domain,
+            include_globs=include_globs,
+            exclude_globs=exclude_globs,
+            site_facts=site_facts,
+            sitemap_urls=sitemap_urls,
+            sitemap_files=sitemap_files,
+        )
+
+    def _parse_discover_result(
+        self,
+        result: FetchResult,
+        *,
+        root_registrable_domain: str,
+        include_globs: list[str] | None,
+        exclude_globs: list[str] | None,
+        site_facts: dict | None,
+        sitemap_urls: tuple[str, ...],
+        sitemap_files: tuple[str, ...],
+    ) -> _DiscoverOutcome:
+        """Classify and parse one completed discovery response."""
+        outcome = _DiscoverOutcome(
+            result=result,
+            attempts=result.attempts,
+            site_facts=site_facts,
+            sitemap_urls=sitemap_urls,
+            sitemap_files=sitemap_files,
+        )
         status = result.status_code
-        # A challenge-platform marker in the body is a terminal
-        # ``ERROR_BOT_BLOCKED`` (presentation: ``blocked``), not the generic
-        # 4xx token. Checked BEFORE status classification because a challenge
-        # interstitial can even ride a 200.
         if _is_bot_block(result):
-            return _DiscoverOutcome(
-                result=result,
-                error_code=ERROR_BOT_BLOCKED,
-                retryable=False,
-                latency_ms=result.latency_ms,
-                status_code=status,
-                attempts=result.attempts,
-                site_facts=site_facts,
-                sitemap_urls=sitemap_urls,
-                sitemap_files=sitemap_files,
-            )
-        # A 4xx/5xx is returned by the fetcher (not raised); classify it.
+            outcome.error_code = ERROR_BOT_BLOCKED
+            outcome.latency_ms = result.latency_ms
+            outcome.status_code = status
+            return outcome
         classified = _classify_http_error(status)
         if classified is not None:
-            error_code, retryable = classified
-            return _DiscoverOutcome(
-                result=result,
-                error_code=error_code,
-                retryable=retryable,
-                latency_ms=result.latency_ms,
+            outcome.error_code, outcome.retryable = classified
+            outcome.latency_ms = result.latency_ms
+            outcome.status_code = status
+            return outcome
+        if result.content_type in DOCUMENT_MEDIA_TYPES:
+            outcome.output = DiscoveryOutput(
+                requested_url=result.requested_url,
+                final_url=result.final_url,
                 status_code=status,
-                attempts=result.attempts,
-                site_facts=site_facts,
-                sitemap_urls=sitemap_urls,
-                sitemap_files=sitemap_files,
+                content_type=result.content_type,
+                title="",
+                links=(),
+                redirect_chain=tuple(_serialize_redirect_chain(result)),
             )
+            return outcome
 
         facts = extract_page_facts(
             result.body,
-            final_url=result.final_url or requested_url,
+            final_url=result.final_url or result.requested_url,
             content_type=result.content_type,
             charset=result.charset,
             status_code=status,
@@ -274,7 +295,7 @@ class DiscoverPhaseMixin(DiscoverPersistenceMixin):
         # Success: parse in-scope canonical links (HTML only; empty otherwise).
         title, links = extract_discovery_links(
             result.body,
-            base_url=result.final_url or requested_url,
+            base_url=result.final_url or result.requested_url,
             root_registrable_domain=root_registrable_domain,
             include_globs=include_globs,
             exclude_globs=exclude_globs,
@@ -289,15 +310,9 @@ class DiscoverPhaseMixin(DiscoverPersistenceMixin):
             links=tuple(links),
             redirect_chain=tuple(_serialize_redirect_chain(result)),
         )
-        return _DiscoverOutcome(
-            result=result,
-            output=output,
-            facts=facts,
-            attempts=result.attempts,
-            site_facts=site_facts,
-            sitemap_urls=sitemap_urls,
-            sitemap_files=sitemap_files,
-        )
+        outcome.output = output
+        outcome.facts = facts
+        return outcome
 
     def _cached_robots_entry(
         self, authority: str

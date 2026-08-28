@@ -31,6 +31,12 @@ def _require_positive(settings: object, names: tuple[str, ...]) -> None:
             raise ValueError(f"{name} must be positive")
 
 
+def _require_non_negative(settings: object, names: tuple[str, ...]) -> None:
+    for name in names:
+        if getattr(settings, name) < 0:
+            raise ValueError(f"{name} must not be negative")
+
+
 class SiteHealthSettings(BaseSettings):
     """Env-overridable Site Health crawler/queue guardrails.
 
@@ -168,6 +174,9 @@ class SiteHealthSettings(BaseSettings):
     retry_base_delay_seconds: float = 2.0
     retry_max_delay_seconds: float = 60.0
     retry_jitter_seconds: float = 1.5
+    db_conflict_max_requeues: int = 20
+    db_conflict_base_delay_seconds: float = 0.05
+    db_conflict_jitter_seconds: float = 0.2
     worker_concurrency: int = 8
     poll_interval_seconds: float = 1.0
     # Bounded recheck when analyze observes a still-running discover task for
@@ -286,21 +295,32 @@ class SiteHealthSettings(BaseSettings):
         would let the sweeper reclaim a still-live task before it ever gets a
         chance to send its first heartbeat.
         """
-        if self.lease_ttl_seconds <= 0:
-            raise ValueError("lease_ttl_seconds must be positive")
-        if self.heartbeat_interval_seconds <= 0:
-            raise ValueError("heartbeat_interval_seconds must be positive")
+        _require_positive(
+            self,
+            (
+                "lease_ttl_seconds",
+                "heartbeat_interval_seconds",
+                "lease_reclaim_batch_size",
+                "stalled_crawl_reconcile_batch",
+                "global_concurrency",
+                "per_host_concurrency",
+                "worker_concurrency",
+                "db_conflict_max_requeues",
+            ),
+        )
         if self.heartbeat_interval_seconds >= self.lease_ttl_seconds:
             raise ValueError(
                 "heartbeat_interval_seconds must be strictly less than "
                 "lease_ttl_seconds"
             )
-        if self.lease_reclaim_batch_size <= 0:
-            raise ValueError("lease_reclaim_batch_size must be positive")
-        if self.stalled_crawl_reconcile_batch <= 0:
-            raise ValueError("stalled_crawl_reconcile_batch must be positive")
-        if self.stalled_crawl_reconcile_seconds < 0:
-            raise ValueError("stalled_crawl_reconcile_seconds must not be negative")
+        _require_non_negative(
+            self,
+            (
+                "stalled_crawl_reconcile_seconds",
+                "db_conflict_base_delay_seconds",
+                "db_conflict_jitter_seconds",
+            ),
+        )
         if (
             0 < self.stalled_crawl_reconcile_seconds
             and self.stalled_crawl_reconcile_seconds <= self.lease_ttl_seconds
@@ -311,13 +331,6 @@ class SiteHealthSettings(BaseSettings):
                 "stalled_crawl_reconcile_seconds must exceed lease_ttl_seconds "
                 "(or be 0 to disable)"
             )
-        for name in (
-            "global_concurrency",
-            "per_host_concurrency",
-            "worker_concurrency",
-        ):
-            if getattr(self, name) <= 0:
-                raise ValueError(f"{name} must be positive")
         if self.per_host_concurrency > self.global_concurrency:
             raise ValueError("per_host_concurrency must not exceed global_concurrency")
         return self
@@ -337,6 +350,11 @@ class SiteHealthSettings(BaseSettings):
         base = self.retry_base_delay_seconds * (2**attempt)
         jitter = (attempt * 0.37) % 1.0 * self.retry_jitter_seconds
         return min(base, cap) + jitter
+
+    def db_conflict_retry_delay(self, conflict_count: int) -> float:
+        """Short deterministic jitter for database-only contention retries."""
+        jitter = (conflict_count * 0.37) % 1.0 * self.db_conflict_jitter_seconds
+        return self.db_conflict_base_delay_seconds + jitter
 
 
 site_health_settings = SiteHealthSettings()

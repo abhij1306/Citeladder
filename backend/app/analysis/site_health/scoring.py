@@ -40,6 +40,7 @@ from app.core.config.site_health_rules import (
     DIMENSION_WEIGHT_TECHNICAL,
     SCORE_ROUNDING_DECIMALS,
 )
+from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER
 
 
 class _ScoredLike(Protocol):
@@ -163,25 +164,39 @@ def overall_score(dimension_scores: dict[str, float | None]) -> float | None:
     return _round(weighted_sum / weight_total)
 
 
-def score_analysis(evaluations: Iterable[_ScoredLike]) -> AnalysisScores:
+def score_analysis(
+    evaluations: Iterable[_ScoredLike], *, page_kind: str = ""
+) -> AnalysisScores:
     """Score a whole page analysis: per-dimension scores + the overall score.
 
     ``evaluations`` is the full set for one analysis (both dimensions). Returns
     an ``AnalysisScores`` with each dimension's score (None when N/A) and the
     config-weighted overall (None when no dimension scored).
+
+    An UNCLASSIFIABLE page has NO AEO score. Almost every AEO rule is
+    page-kind-scoped, so a page the classifier could not place resolved 12 of
+    15 of them ``not_applicable`` and scored a perfect 100 off the three that
+    are universal — 46% of one site's pages, every one of them exactly 100.0,
+    all of it flowing into the crawl average. "We could not tell what this page
+    is" is not evidence that its answer-engine readiness is perfect; the
+    dimension has no score, which the aggregate already knows how to skip.
+    Technical rules are not page-kind-scoped, so that dimension still scores.
     """
     evals = list(evaluations)
     technical = score_dimension(evals, dimension=DIMENSION_TECHNICAL)
     aeo = score_dimension(evals, dimension=DIMENSION_AEO)
+    aeo_score_value = (
+        None if str(page_kind or "").strip().lower() == PAGE_KIND_OTHER else aeo.score
+    )
     overall = overall_score(
         {
             DIMENSION_TECHNICAL: technical.score,
-            DIMENSION_AEO: aeo.score,
+            DIMENSION_AEO: aeo_score_value,
         }
     )
     return AnalysisScores(
         technical_score=technical.score,
-        aeo_score=aeo.score,
+        aeo_score=aeo_score_value,
         overall_score=overall,
     )
 

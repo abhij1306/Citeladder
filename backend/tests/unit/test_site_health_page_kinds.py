@@ -390,6 +390,26 @@ def test_content_heuristic_outranks_schema_on_conflict() -> None:
     assert assessment.schema_suggested_type == "article"
 
 
+def test_article_with_related_item_list_stays_article() -> None:
+    facts = _facts(
+        schema_types=["Article", "ItemList"],
+        entity={
+            "listing": {
+                "largest_card_list_size": 20,
+                "distinct_card_list_targets": 20,
+                "has_result_count": False,
+                "has_sort_control": False,
+                "has_filter_control": False,
+            }
+        },
+    )
+
+    assessment = classify("https://example.com/blog/what-is-aeo", facts)
+
+    assert assessment.page_kind == "article"
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_PATH_PATTERN
+
+
 # --- Signal 4: structured-data types -----------------------------------------
 
 

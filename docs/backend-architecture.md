@@ -245,6 +245,16 @@ The default host-gate concurrency and start spacing permit at least six request
 starts per second on a responsive host, while robots crawl-delay overrides
 upward and observed throughput remains workload-dependent.
 
+Worker persistence writes immutable and derived rows before completing the
+canonical runtime → monitored membership → crawl → task lock sequence. The
+crawl uses `FOR NO KEY UPDATE`: staged child rows already hold foreign-key key
+share locks, so `FOR UPDATE` would deadlock sibling evidence transactions. The
+final locks cover only ownership/liveness validation, monotonic counter updates,
+and commit; a losing cancellation, entitlement, membership, or lease race rolls
+the transaction back. Database serialization and deadlock retries use a
+separately bounded short-jitter counter and never spend the page's acquisition
+attempt budget.
+
 Acquisition is shared, not page understanding. Discovery extracts and persists
 the complete bounded normalized-facts payload once; a matching-version analysis
 references that immutable discovery artifact and writes no duplicate artifact
@@ -258,12 +268,11 @@ the same host. This adds no fetch-artifact column or mutable crawl-config state.
 
 A terminal crawl records WHY it is partial. `SiteCrawl.partial_reason` freezes
 `discovery_incomplete`, `analysis_incomplete`, or both at terminalization and is
-empty on every other status. URLs that could not be fetched during discovery are
-routine on a real site — a dead link, a PDF, a blocked host — and are not an
-analysis failure; the two shared one status and one analysis-worded message, so
-nearly every crawl reported that pages could not be analyzed. Reads project the
-reason and the client selects copy from it; it never infers the cause from a
-counter.
+empty on every other status. A real fetch failure such as a dead link remains a
+discovery shortfall. Admission exclusions and robots-denied URLs leave the
+applicable analysis set, while supported documents complete as inventory-only
+evidence. Reads project the reason and the client selects copy from it; it never
+infers the cause from a counter.
 
 Usable terminal Site Health evidence has one change-intelligence downstream DAG.
 A conflict-safe `change_intel` task selects the immediate persisted A/B pair,

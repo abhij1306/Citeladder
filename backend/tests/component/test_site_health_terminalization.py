@@ -16,6 +16,7 @@ from app.core.config.analytics import (
 )
 from app.core.config.site_health_acquisition import (
     ERROR_HTTP_4XX,
+    ERROR_ROBOTS_DENIED,
     ERROR_URL_ADMISSION_REJECTED,
     FETCH_ATTEMPT_OUTCOME_ERROR,
 )
@@ -280,8 +281,12 @@ async def test_partial_failure_terminalizes_crawl_as_partially_completed(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "excluded_error_code", [ERROR_URL_ADMISSION_REJECTED, ERROR_ROBOTS_DENIED]
+)
 async def test_discovery_policy_exclusion_does_not_make_the_crawl_partial(
     session_factory: async_sessionmaker[AsyncSession],
+    excluded_error_code: str,
 ) -> None:
     async with session_factory() as session:
         seed = await seed_site_crawl(session, task_count=0)
@@ -313,7 +318,7 @@ async def test_discovery_policy_exclusion_does_not_make_the_crawl_partial(
                     ],
                     idempotency_key=f"{seed.crawl_id}:discover:excluded:0",
                     status=TASK_STATUS_FAILED,
-                    error_code=ERROR_URL_ADMISSION_REJECTED,
+                    error_code=excluded_error_code,
                     completed_at=now,
                 ),
                 SiteCrawlTask(

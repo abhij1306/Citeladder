@@ -205,3 +205,29 @@ POLICY_BLOCKING_ERROR_CODES: Final[frozenset[str]] = frozenset(
         ERROR_BOT_BLOCKED,
     }
 )
+
+# Terminal outcomes that mean the page LEFT the corpus, not that we failed to
+# get it. Nothing went wrong for any of these: we decided not to analyze the
+# page (our admission policy rejected the resolved URL), or the site told us
+# not to (``robots_denied`` -- a directive we chose to obey, and obeying it is
+# not a defect). Supported documents complete successfully as inventory-only
+# evidence and therefore never need an error-code exception here.
+#
+# Counting these as failures is what left a crawl that reached every real page
+# reporting ``partially_completed`` / ``discovery_incomplete``. They must leave
+# the applicable set on BOTH sides of the ratio, never be counted as errors.
+# ``robots_unavailable`` is deliberately absent: that is a fetch that did not
+# work, and it may work on the next attempt.
+CORPUS_EXCLUSION_ERROR_CODES: Final[frozenset[str]] = frozenset(
+    {
+        ERROR_URL_ADMISSION_REJECTED,
+        ERROR_ROBOTS_DENIED,
+    }
+)
+
+# Everything that must not be reported to the user as an error: a page we were
+# blocked from, plus a page that left the corpus by policy. Kept as one set so
+# the two overlap (``robots_denied`` is both) without being subtracted twice.
+NON_ERROR_TERMINAL_CODES: Final[frozenset[str]] = (
+    POLICY_BLOCKING_ERROR_CODES | CORPUS_EXCLUSION_ERROR_CODES
+)

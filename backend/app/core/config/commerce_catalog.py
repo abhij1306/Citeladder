@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.core.config.dotenv import dotenv_sources
 from app.core.config.visibility_prompts import PROMPT_EXEMPLARS
 
-COMMERCE_PROJECTOR_VERSION: Final = "commerce-projector-4"
+COMMERCE_PROJECTOR_VERSION: Final = "commerce-projector-5"
 COMMERCE_IMPORTER_VERSION: Final = "commerce-catalog-importer-1"
 COMMERCE_EDIT_VERSION: Final = "commerce-catalog-edit-2"
 COMMERCE_CATEGORY_EDIT_VERSION: Final = "commerce-category-edit-1"

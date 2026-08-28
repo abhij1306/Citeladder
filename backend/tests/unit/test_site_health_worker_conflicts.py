@@ -18,6 +18,7 @@ from typing import Any, cast
 import pytest
 from sqlalchemy.exc import DBAPIError
 
+from app.core.config.site_health_runtime import site_health_settings
 from app.workers.site_health.db_conflicts import is_transient_db_conflict
 from app.workers.site_health_worker import SiteHealthWorker
 
@@ -35,6 +36,13 @@ def _dbapi_error(sqlstate: str) -> DBAPIError:
 def test_deadlock_and_serialization_failures_are_transient() -> None:
     assert is_transient_db_conflict(_dbapi_error("40P01"))  # deadlock_detected
     assert is_transient_db_conflict(_dbapi_error("40001"))  # serialization_failure
+    # `lock_timeout` raises this, and it was missing from the set: a sibling
+    # holding a contended row just past the timeout killed the waiter outright,
+    # with attempt_count AND conflict_count still 0 because the crash never
+    # reached the retry path. Three tasks died that way in one measured crawl
+    # and finalized it `partially_completed` -- a lock a second try would have
+    # taken, reported to the user as pages that could not be analyzed.
+    assert is_transient_db_conflict(_dbapi_error("55P03"))  # lock_not_available
 
 
 def test_every_other_failure_stays_terminal() -> None:
@@ -81,8 +89,10 @@ def _worker(task: object | None) -> tuple[SiteHealthWorker, _Queue]:
 
 
 @pytest.mark.asyncio
-async def test_a_deadlocked_task_is_requeued_with_its_attempt_spent() -> None:
-    worker, queue = _worker(SimpleNamespace(attempt_count=0, max_attempts=3))
+async def test_a_deadlocked_task_is_requeued_without_spending_an_attempt() -> None:
+    worker, queue = _worker(
+        SimpleNamespace(attempt_count=2, max_attempts=3, conflict_count=0)
+    )
 
     await worker._record_crash(uuid.uuid4(), _dbapi_error("40P01"))
 
@@ -90,15 +100,22 @@ async def test_a_deadlocked_task_is_requeued_with_its_attempt_spent() -> None:
     assert len(queue.retried) == 1
     requeued = queue.retried[0]
     assert requeued["error_code"] == "crawl_task_lock_conflict"
-    # The crashed transaction rolled back without spending an attempt, so the
-    # re-queue spends it — that budget is what bounds the retry loop.
     assert requeued["mutate"] is not None
     assert requeued["delay_seconds"] > 0
+    row = SimpleNamespace(attempt_count=2, conflict_count=0)
+    requeued["mutate"](row)
+    assert row.attempt_count == 2
+    assert row.conflict_count == 1
 
 
 @pytest.mark.asyncio
-async def test_a_task_out_of_attempts_still_fails_terminally() -> None:
-    worker, queue = _worker(SimpleNamespace(attempt_count=2, max_attempts=3))
+async def test_a_task_out_of_conflict_requeues_fails_terminally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(site_health_settings, "db_conflict_max_requeues", 2)
+    worker, queue = _worker(
+        SimpleNamespace(attempt_count=0, max_attempts=3, conflict_count=2)
+    )
 
     await worker._record_crash(uuid.uuid4(), _dbapi_error("40P01"))
 

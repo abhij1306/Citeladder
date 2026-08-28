@@ -143,6 +143,19 @@ def test_score_analysis_missing_dimension_not_zero():
     assert scores.overall_score == pytest.approx(100.0)
 
 
+def test_unclassified_page_has_no_aeo_score() -> None:
+    evals = [
+        _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_TECHNICAL),
+        _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO),
+    ]
+
+    scores = score_analysis(evals, page_kind="other")
+
+    assert scores.technical_score == pytest.approx(100.0)
+    assert scores.aeo_score is None
+    assert scores.overall_score == pytest.approx(100.0)
+
+
 # --- aggregation ----------------------------------------------------------
 
 

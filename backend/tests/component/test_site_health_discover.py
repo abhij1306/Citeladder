@@ -152,6 +152,54 @@ async def test_progressive_analysis_keeps_discovered_page_priority(
 
 
 @pytest.mark.asyncio
+async def test_markdown_document_is_successful_inventory_only_evidence(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    root = "https://example.com/"
+    document = "https://example.com/agents.md"
+    seed = await _seed_root_discover(session_factory, root=root)
+    worker = _worker(
+        session_factory,
+        {
+            "/": _html([document]),
+            "/agents.md": (b"# Agent guidance", {"content-type": "text/markdown"}),
+        },
+        owner="document-inventory",
+    )
+
+    for _ in range(3):
+        await worker.run_once()
+
+    _canonical, document_hash = canonical_identity(document)
+    async with session_factory() as session:
+        site_url = await session.scalar(
+            select(SiteUrl).where(
+                SiteUrl.project_id == seed.project_id,
+                SiteUrl.url_hash == document_hash,
+            )
+        )
+        assert site_url is not None
+        assert site_url.corpus_disposition == "inventory_only"
+        assert site_url.item_kind == "document"
+        tasks = list(
+            await session.scalars(
+                select(SiteCrawlTask).where(
+                    SiteCrawlTask.crawl_id == seed.crawl_id,
+                    SiteCrawlTask.url_hash == document_hash,
+                )
+            )
+        )
+        assert [(task.task_kind, task.status) for task in tasks] == [
+            (TASK_KIND_DISCOVER, TASK_STATUS_SUCCEEDED)
+        ]
+        artifact = await session.scalar(
+            select(SiteFetchArtifact).where(SiteFetchArtifact.task_id == tasks[0].id)
+        )
+        assert artifact is not None
+        assert artifact.content_type == "text/markdown"
+
+
+@pytest.mark.asyncio
 async def test_sitemap_observations_use_bounded_bulk_statements(
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,

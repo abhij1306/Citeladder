@@ -40,6 +40,7 @@ from app.domain.site_health.frontier_support import (
 )
 from app.domain.site_health.schemas import AdmissionResult, FrontierCandidate
 from app.models.site_health.crawl import SiteCrawl, SiteDiscoveryFrontier
+from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
 
 
 async def _record_sample_admission(
@@ -362,6 +363,7 @@ async def admit_candidates(
     candidates: list[FrontierCandidate],
     enqueue_children: bool = True,
     phase_run_id: uuid.UUID | None = None,
+    runtime: WorkspaceSiteHealthRuntime | None = None,
 ) -> AdmissionResult:
     """Admit a deterministically-ordered batch of candidates.
 
@@ -377,9 +379,21 @@ async def admit_candidates(
     computing a hidden total.
 
     Caller owns the commit (progressive batches commit per admission call).
+
+    ``runtime`` lets a caller that has ALREADY locked the workspace runtime row
+    hand it in. The canonical lock hierarchy is
+    ``workspace entitlement -> monitored membership -> crawl -> task``, and a
+    caller inside a crawl-locked transaction that let this function take the
+    entitlement lock for itself inverted the first and third rungs — a discover
+    holding the crawl and waiting on the runtime, against an analyze holding
+    the runtime and waiting on the crawl. That ABBA pair produced 27 deadlocks
+    across two ordinary crawls, each one rolling a whole task back into a
+    two-second retry.
     """
     configuration = dict(crawl.configuration or {})
-    progress = _AdmissionProgress(remaining=await _automatic_remaining(session, crawl))
+    progress = _AdmissionProgress(
+        remaining=await _automatic_remaining(session, crawl, runtime=runtime)
+    )
     for position, (frontier, candidate) in enumerate(
         await _admission_batch(
             session,
