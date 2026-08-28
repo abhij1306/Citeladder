@@ -1,16 +1,13 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 
 import { OpportunityStatusBadge } from '@/components/opportunities/opportunity-status-badge';
 import { useUpdateOpportunityStatus } from '@/components/opportunities/use-opportunity-status';
 import { Button } from '@/components/ui/button';
 import { MutationNotice } from '@/components/ui/mutation-notice';
 import { mutationNoticeForError } from '@/lib/api/mutation-notice';
-import {
-  opportunitiesMutations,
-  opportunitiesQueries,
-  type ExpectedCheck,
-} from '@/lib/api/opportunities';
+import { opportunitiesMutations, opportunitiesQueries } from '@/lib/api/opportunities';
 import type { OpportunityDetail, OpportunityStatus } from '@/lib/api/types';
 
 export function OpportunityStatusFooter({
@@ -69,29 +66,10 @@ function declarationPayload(detail: OpportunityDetail, projectId: string, idempo
     input: {
       opportunity_id: detail.id,
       target_site_url_ids: targetId ? [targetId] : [],
+      generation_id: detail.linked_generations.find((item) => item.status === 'succeeded')?.id,
       declared_implemented_at: new Date().toISOString(),
-      expected_checks: [expectedCheck(detail, targetId)],
+      expected_checks: [],
     },
-  };
-}
-
-function expectedCheck(detail: OpportunityDetail, targetId: string | undefined): ExpectedCheck {
-  if (detail.opportunity_type === 'site')
-    return {
-      kind: 'site_rule',
-      ...(targetId ? { target_site_url_id: targetId } : {}),
-      rule_id:
-        typeof detail.evidence.issue_rule_id === 'string'
-          ? detail.evidence.issue_rule_id
-          : detail.rule_id,
-      expected_outcome: 'pass',
-    };
-  const traffic = detail.opportunity_type === 'traffic';
-  return {
-    kind: traffic ? 'traffic_metric' : 'visibility_metric',
-    metric: traffic ? 'clicks' : 'visibility_score',
-    direction: 'increase',
-    expected_value: 1,
   };
 }
 
@@ -124,7 +102,15 @@ function MutationErrors({
 
 function ImplementationState({
   implementation,
-}: Readonly<{ implementation: { state: string; limitations: string[] } | undefined }>) {
+}: Readonly<{
+  implementation:
+    | {
+        state: string;
+        limitations: string[];
+        verification_events?: Array<{ result: Record<string, unknown> }>;
+      }
+    | undefined;
+}>) {
   if (!implementation) return null;
   const color =
     implementation.state === 'verified'
@@ -132,14 +118,51 @@ function ImplementationState({
       : implementation.state === 'contradicted'
         ? 'text-danger-text'
         : 'text-muted';
+  const latest = implementation.verification_events?.at(-1);
+  const result = latest?.result;
+  const legs = result && typeof result === 'object' && 'legs' in result ? result.legs : null;
   return (
-    <p className={`${color} text-xs`}>
-      {implementation.state === 'declared'
-        ? 'Declared for verification.'
-        : `Verification: ${implementation.state}.`}
-      {implementation.limitations.length ? ` ${implementation.limitations.join(' ')}` : null}
+    <div className={`${color} grid gap-1 text-xs`}>
+      <p>
+        {implementation.state === 'declared'
+          ? 'Declared for verification.'
+          : `Verification: ${implementation.state}.`}
+        {implementation.limitations.length ? ` ${implementation.limitations.join(' ')}` : null}
+      </p>
+      {legs && typeof legs === 'object'
+        ? Object.entries(legs).map(([name, leg]) => (
+            <p key={name}>
+              {name.replaceAll('_', ' ')}: {legState(leg)}
+            </p>
+          ))
+        : null}
+      <GapChanges result={result} />
+      <Link className="focus-ring w-fit underline underline-offset-2" href="/runs">
+        Run a comparable audit
+      </Link>
+    </div>
+  );
+}
+
+function GapChanges({ result }: Readonly<{ result: Record<string, unknown> | undefined }>) {
+  const changes = result?.gap_changes;
+  if (!changes || typeof changes !== 'object' || !('state' in changes)) return null;
+  if (changes.state !== 'available') return <p>Gap comparison: not run</p>;
+  const count = (key: string) => {
+    const value = key in changes ? changes[key as keyof typeof changes] : null;
+    return Array.isArray(value) ? value.length : 0;
+  };
+  return (
+    <p>
+      Gaps: {count('no_longer_observed')} no longer observed · {count('persistent')} persistent ·{' '}
+      {count('new')} new
     </p>
   );
+}
+
+function legState(value: unknown): string {
+  if (!value || typeof value !== 'object' || !('state' in value)) return 'unavailable';
+  return String(value.state).replaceAll('_', ' ');
 }
 
 function StatusActions({

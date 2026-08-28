@@ -27,6 +27,14 @@ from app.core.config.projects import (
     PROMPT_INTENT_PURCHASE,
     PROMPT_INTENT_SERVICE,
 )
+from app.core.config.source_patterns import (
+    SOURCE_CLASS_COMMUNITY,
+    SOURCE_CLASS_EDITORIAL_THIRD_PARTY,
+    SOURCE_CLASS_INSTITUTIONAL,
+    SOURCE_CLASS_REVIEW_MARKETPLACE,
+    SOURCE_CLASS_SOCIAL,
+    SOURCE_CLASS_VIDEO,
+)
 
 # =========================================================================
 # Provenance versions (invariant 4)
@@ -36,12 +44,13 @@ from app.core.config.projects import (
 # catalog change, and ``FORMULA_VERSION`` on any scoring change so a derived
 # row is always traceable to the exact logic that produced it (mirrors
 # ``SCORING_RULE_VERSION`` in ``config/analysis.py``).
-ANALYZER_VERSION: Final = "opp-analyzer-6"
-RULE_VERSION: Final = "opp-rules-7"
+ANALYZER_VERSION: Final = "opp-analyzer-7"
+RULE_VERSION: Final = "opp-rules-8"
 RULE_PRODUCT_NOT_MENTIONED: Final = "product_not_mentioned"
 RULE_CITED_ALTERNATIVES: Final = "cited_alternatives_without_uploaded_presence"
 RULE_CATALOG_FIELDS_MISSING: Final = "catalog_fields_missing"
-FORMULA_VERSION: Final = "opp-formula-1"
+RULE_EARNED_SOURCE_RECURS: Final = "earned_source_recurs_beside_gap"
+FORMULA_VERSION: Final = "opp-formula-3"
 CONFIRMED_DECLINE_MIN_FACTOR: Final = 0.1
 CONFIRMED_DECLINE_GAP_NORMALIZER: Final = 10.0
 DEMAND_SIGNAL_GAP_FACTOR: Final = 2.0
@@ -118,9 +127,35 @@ IMPLEMENTATION_EVENT_MAX_LIMIT: Final = 200
 IMPLEMENTATION_IDEMPOTENCY_KEY_MAX_LEN: Final = 160
 IMPLEMENTATION_EXPECTED_CHECKS_MAX: Final = 32
 IMPLEMENTATION_TARGETS_MAX: Final = 64
-IMPLEMENTATION_VERIFIER_VERSION: Final = "implementation-verifier-1"
+IMPLEMENTATION_VERIFIER_VERSION: Final = "implementation-verifier-2"
 IMPLEMENTATION_VERIFICATION_BATCH_MAX: Final = 100
 IMPLEMENTATION_VERIFICATION_HISTORY_MAX: Final = 50
+SOURCE_ROLLUP_MAX_DOMAINS: Final = 100
+ACTION_PATH_OWNED: Final = "owned"
+ACTION_PATH_EARNED: Final = "earned"
+ACTION_PATHS: Final[frozenset[str]] = frozenset({ACTION_PATH_OWNED, ACTION_PATH_EARNED})
+SOURCE_ROLLUP_MAX_URLS: Final = 6
+SOURCE_ROLLUP_MAX_PROMPTS: Final = 12
+EARNED_SOURCE_MIN_ANSWERS: Final = 2
+EARNED_SOURCE_MIN_USAGE_RATE: Final = 0.1
+EARNED_USAGE_FACTOR_MAX: Final = 2.0
+EARNED_COMPETITOR_FACTOR_MAX: Final = 1.5
+EARNED_SUGGESTED_SKILL_BY_CLASS: Final[dict[str, str]] = {
+    SOURCE_CLASS_REVIEW_MARKETPLACE: "comparison",
+    SOURCE_CLASS_EDITORIAL_THIRD_PARTY: "article",
+    SOURCE_CLASS_COMMUNITY: "reddit",
+    SOURCE_CLASS_SOCIAL: "linkedin",
+    SOURCE_CLASS_INSTITUTIONAL: "article",
+    SOURCE_CLASS_VIDEO: "youtube",
+}
+EARNED_SUGGESTED_ROLE_BY_CLASS: Final[dict[str, str]] = {
+    SOURCE_CLASS_REVIEW_MARKETPLACE: "Marketing",
+    SOURCE_CLASS_EDITORIAL_THIRD_PARTY: "PR",
+    SOURCE_CLASS_COMMUNITY: "Founder",
+    SOURCE_CLASS_SOCIAL: "Marketing",
+    SOURCE_CLASS_INSTITUTIONAL: "PR",
+    SOURCE_CLASS_VIDEO: "Marketing",
+}
 
 # =========================================================================
 # Rule catalog
@@ -195,6 +230,18 @@ OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
             "Strengthen the owned page that should win this prompt: align its"
             " title, headings, and opening answer with the prompt intent so"
             " answer engines have a citable owned source."
+        ),
+    ),
+    OpportunityRule(
+        rule_id="earned_source_recurs_beside_gap",
+        opportunity_type=OPPORTUNITY_TYPE_VISIBILITY,
+        severity=SEVERITY_MEDIUM,
+        title="Earned source recurs beside visibility gaps",
+        remediation=(
+            "Inspect the cited pages, decide whether the brand belongs there, then "
+            "prepare a human-led contribution, profile update, or editorial inclusion "
+            "request. This observation does not establish domain-wide absence or "
+            "guarantee a later citation."
         ),
     ),
     OpportunityRule(
@@ -542,6 +589,31 @@ INTENT_VALUE_WEIGHTS: Final[dict[str, float]] = {
 }
 # Fallback for an empty/unknown intent.
 INTENT_VALUE_DEFAULT: Final = 1.0
+
+BUYER_STAGE_VALUE_WEIGHTS: Final[dict[str, float]] = {
+    "awareness": 1.0,
+    "consideration": 1.35,
+    "decision": 1.75,
+    "implementation": 1.2,
+}
+PROMPT_INTENT_VALUE_WEIGHTS: Final[dict[str, float]] = {
+    "learn": 1.0,
+    "solve": 1.1,
+    "compare": 1.4,
+    "recommend": 1.55,
+    "validate": 1.5,
+    "buy": 1.75,
+    "implement": 1.2,
+}
+RECOMMENDATION_STRENGTH_FACTORS: Final[dict[str, float]] = {
+    "recommended_against": 1.5,
+    "recommended": 1.35,
+    "hedged": 1.15,
+    "mentioned": 1.0,
+    "absent": 1.0,
+    "not_assessed": 1.0,
+    "unavailable": 1.0,
+}
 
 # Gap factor: competitor pressure (bounded) + owned-citation shortfall.
 GAP_COMPETITOR_WEIGHT: Final = 1.0

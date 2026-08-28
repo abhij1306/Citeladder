@@ -92,7 +92,7 @@ class ImplementationEventCreate(_Model):
     generation_id: uuid.UUID | None = None
     declared_implemented_at: AwareDatetime
     expected_checks: list[ExpectedCheck] = Field(
-        min_length=1, max_length=IMPLEMENTATION_EXPECTED_CHECKS_MAX
+        default_factory=list, max_length=IMPLEMENTATION_EXPECTED_CHECKS_MAX
     )
 
 
@@ -105,6 +105,7 @@ class VerificationEventView(_Model):
     source_analysis_ids: list[uuid.UUID]
     source_rule_evaluation_ids: list[uuid.UUID]
     source_metric_ids: list[uuid.UUID]
+    result: dict[str, Any]
     verifier_version: str
     limitations: list[str]
     created_at: datetime
@@ -218,6 +219,8 @@ class OpportunityDetail(OpportunityItem):
     analyzer_version: str
     rule_version: str
     formula_version: str
+    content_handoff: dict[str, Any]
+    linked_generations: list[dict[str, Any]]
     superseded_by_id: uuid.UUID | None
     superseded_at: str | None
 
@@ -238,6 +241,9 @@ class OpportunitySummary(_Model):
     demand_source_revision: str | None
     coverage: dict[str, Any]
     limitations: list[str]
+    source_mix: dict[str, Any]
+    action_path_mix: dict[str, Any]
+    domain_rollups: list[dict[str, Any]]
     counts_by_type: dict[str, int]
     counts_by_severity: dict[str, int]
     counts_by_status: dict[str, int]
@@ -267,6 +273,9 @@ class RecomputeResponse(_Model):
     demand_source_revision: str | None
     coverage: dict[str, Any]
     limitations: list[str]
+    source_mix: dict[str, Any]
+    action_path_mix: dict[str, Any]
+    domain_rollups: list[dict[str, Any]]
     counts_by_type: dict[str, int]
     counts_by_severity: dict[str, int]
     counts_by_status: dict[str, int]

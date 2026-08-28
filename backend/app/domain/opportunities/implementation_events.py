@@ -15,7 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config.opportunities import (
     IMPLEMENTATION_TARGETS_MAX,
     IMPLEMENTATION_VERIFICATION_HISTORY_MAX,
+    OPPORTUNITY_TYPE_SITE,
+    OPPORTUNITY_TYPE_TRAFFIC,
 )
+from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
 from app.domain.demand.page_equivalence import resolve_owned_page
 from app.models.content import ContentGeneration
 from app.models.opportunity import (
@@ -47,6 +50,39 @@ class ImplementationDeclaration:
     generation_id: uuid.UUID | None
     declared_implemented_at: datetime
     expected_checks: list[dict]
+
+
+def _project_expected_checks(opportunity: Opportunity) -> list[dict]:
+    """Server-owned verification intent for the rule/pathway."""
+    evidence = opportunity.evidence or {}
+    if opportunity.opportunity_type == OPPORTUNITY_TYPE_SITE:
+        check: dict = {
+            "kind": "site_rule",
+            "rule_id": str(evidence.get("issue_rule_id") or opportunity.rule_id),
+            "expected_outcome": "pass",
+        }
+        if evidence.get("site_url_id"):
+            check["target_site_url_id"] = str(evidence["site_url_id"])
+        return [check]
+    if opportunity.opportunity_type == OPPORTUNITY_TYPE_TRAFFIC:
+        return [
+            {
+                "kind": "traffic_metric",
+                "metric": "clicks",
+                "direction": "increase",
+                "expected_value": 1,
+                "tolerance": 0,
+            }
+        ]
+    return [
+        {
+            "kind": "visibility_metric",
+            "metric": "visibility_score",
+            "direction": "increase",
+            "expected_value": 1,
+            "tolerance": 0,
+        }
+    ]
 
 
 def _fingerprint(payload: dict) -> str:
@@ -145,6 +181,7 @@ async def _validate_generation(
     *,
     workspace_id: uuid.UUID,
     project_id: uuid.UUID,
+    opportunity_id: uuid.UUID,
     generation_id: uuid.UUID | None,
 ) -> None:
     if generation_id is None:
@@ -154,6 +191,8 @@ async def _validate_generation(
             ContentGeneration.workspace_id == workspace_id,
             ContentGeneration.project_id == project_id,
             ContentGeneration.id == generation_id,
+            ContentGeneration.opportunity_id == opportunity_id,
+            ContentGeneration.status == TASK_STATUS_SUCCEEDED,
         )
     )
     if generation is None:
@@ -247,6 +286,7 @@ async def create_implementation_event(
         session,
         workspace_id=workspace_id,
         project_id=project_id,
+        opportunity_id=opportunity.id,
         generation_id=declaration.generation_id,
     )
     row = OpportunityImplementationEvent(
@@ -257,7 +297,8 @@ async def create_implementation_event(
         target_site_url_ids=[str(item) for item in targets],
         generation_id=declaration.generation_id,
         declared_implemented_at=declaration.declared_implemented_at,
-        expected_checks=declaration.expected_checks,
+        expected_checks=declaration.expected_checks
+        or _project_expected_checks(opportunity),
         actor_user_id=actor_user_id,
         idempotency_key=idempotency_key,
         request_fingerprint=fingerprint,

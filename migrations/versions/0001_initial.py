@@ -1796,6 +1796,8 @@ def upgrade() -> None:
         sa.Column("text", sa.Text(), nullable=False),
         sa.Column("theme", sa.String(length=255), nullable=False),
         sa.Column("intent", sa.String(length=32), nullable=False),
+        sa.Column("buyer_stage", sa.String(length=32), nullable=False),
+        sa.Column("prompt_intent", sa.String(length=32), nullable=False),
         sa.Column(
             "cohort", sa.String(length=32), server_default="core", nullable=False
         ),
@@ -2057,6 +2059,13 @@ def upgrade() -> None:
             postgresql.JSONB(astext_type=sa.Text()),
             nullable=False,
         ),
+        sa.Column("source_mix", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column(
+            "action_path_mix", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
+        sa.Column(
+            "domain_rollups", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column(
             "counts_by_type", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
@@ -2191,6 +2200,7 @@ def upgrade() -> None:
         sa.Column(
             "source_metric_ids", postgresql.JSONB(astext_type=Text()), nullable=False
         ),
+        sa.Column("result", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column("verifier_version", sa.String(length=32), nullable=False),
         sa.Column("limitations", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column("idempotency_key", sa.String(length=160), nullable=False),
@@ -3566,6 +3576,9 @@ def upgrade() -> None:
         sa.Column("sentiment", sa.String(length=16), nullable=True),
         sa.Column("avg_position", sa.Float(), nullable=True),
         sa.Column("score", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column(
+            "entity_assessments", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
             ["artifact_id"], ["raw_response_artifacts.id"], ondelete="CASCADE"

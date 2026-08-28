@@ -5,7 +5,9 @@ Turn CiteLadder's existing evidence into one weekly operating loop:
 > **When AI recommends another brand and not yours, what did CiteLadder observe, which path can
 > you act on, and what should you do first?**
 
-**Status:** planned. The foundations listed below are shipped; the five stages in this plan are not.
+**Status:** implemented on 2026-08-28. The five stages extend the existing Opportunities,
+Content, audit-analysis, and verification owners; this document remains the shipped contract and
+evaluation checklist.
 
 **Decision update (2026-08-28):** the first complete-loop release includes comparable
 verification, not only opportunity discovery. Product measurement uses approved first-party,
@@ -389,6 +391,11 @@ Explicitly out of scope for this plan:
 - a model dependency for Opportunity detection, classification, routing, scoring, or verification.
 
 ## Verification and demo acceptance
+
+The automated contract, projection, lifecycle, and UI fixtures described below ship with the
+implementation. The sanitized deterministic evaluation record is
+[`../evaluations/2026-08-28-aeo-opportunity-loop.md`](../evaluations/2026-08-28-aeo-opportunity-loop.md).
+It does not substitute fixture evidence for a live provider observation.
 
 Every stage must pass the repository gates once, in order:
 

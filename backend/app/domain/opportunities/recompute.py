@@ -18,7 +18,14 @@ from app.analysis.opportunities.detectors import (
     detect_owned_page_not_cited,
     detect_site_issue_opportunities,
 )
+from app.analysis.opportunities.earned_detector import (
+    detect_earned_source_opportunities,
+)
 from app.analysis.opportunities.scoring import priority_score
+from app.analysis.opportunities.source_mix import (
+    build_source_projection,
+    empty_source_projection,
+)
 from app.analysis.opportunities.source_patterns import CitationEvidence
 from app.core.config.audits import (
     AUDIT_STATUS_COMPLETED,
@@ -60,6 +67,7 @@ from app.domain.opportunities.site_coverage import site_coverage
 from app.domain.opportunities.snapshot_build import build_snapshot
 from app.domain.opportunities.snapshot_projection import project_snapshot
 from app.domain.prompts.locks import acquire_project_lock
+from app.domain.prompts.normalization import prompt_text_hash
 from app.models.analysis import (
     Citation,
     CompetitorMention,
@@ -259,6 +267,8 @@ async def _load_visibility_evidence(
                 owned_citation_count=owned_counts.get(a.id, 0),
                 competitor_names=tuple(sorted(competitor_names.get(a.id, ()))),
                 citations=citation_evidence.get(a.id, ()),
+                artifact_id=a.artifact_id,
+                entity_assessments=tuple(a.entity_assessments or []),
             )
             for a in analyses
         ),
@@ -269,6 +279,9 @@ async def _load_visibility_evidence(
                 text=s.text or "",
                 theme=s.theme or "",
                 intent=s.intent or "",
+                buyer_stage=s.buyer_stage or "",
+                prompt_intent=s.prompt_intent or "",
+                snapshot_id=s.id,
             )
             for s in snapshots
         ),
@@ -419,42 +432,30 @@ async def _collect_recompute_hits(
     audit: Audit | None,
     crawl: SiteCrawl | None,
     explicit_audit: bool,
-) -> tuple[Audit | None, DemandSnapshot | None, list[DetectorHit]]:
+) -> tuple[
+    Audit | None,
+    DemandSnapshot | None,
+    list[DetectorHit],
+    dict,
+    dict,
+    list[dict],
+]:
     hits: list[DetectorHit] = []
+    source_mix, action_path_mix, domain_rollups = _empty_projection()
     demand_snapshot, demand_hits = await load_demand_hits(
         session, workspace_id=workspace_id, project_id=project_id
     )
     hits.extend(demand_hits)
     if audit is not None:
-        visibility, metric_snapshot = await _load_visibility_evidence(
-            session, workspace_id=workspace_id, audit=audit
+        audit, audit_hits, projections = await _audit_hits(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            audit=audit,
+            explicit_audit=explicit_audit,
         )
-        if metric_snapshot is None and not explicit_audit:
-            audit = None
-        else:
-            visibility_hits = detect_brand_absent_high_value_prompt(
-                visibility
-            ) + detect_owned_page_not_cited(visibility)
-            if metric_snapshot is not None:
-                metric_ids = (str(metric_snapshot.id),)
-                visibility_hits = [
-                    replace(hit, source_metric_ids=metric_ids)
-                    for hit in visibility_hits
-                ]
-            hits.extend(visibility_hits)
-            hits.extend(
-                await load_commerce_opportunity_hits(
-                    session,
-                    workspace_id=workspace_id,
-                    project_id=project_id,
-                    audit_id=audit.id,
-                )
-            )
-            hits.extend(
-                await _confirmed_decline_hits(
-                    session, workspace_id=workspace_id, audit=audit
-                )
-            )
+        hits.extend(audit_hits)
+        source_mix, action_path_mix, domain_rollups = projections
     if crawl is not None:
         site = await _load_site_evidence(
             session, workspace_id=workspace_id, crawl=crawl
@@ -463,7 +464,75 @@ async def _collect_recompute_hits(
         hits.extend(
             await load_change_hits(session, workspace_id=workspace_id, crawl=crawl)
         )
-    return audit, demand_snapshot, hits
+    return audit, demand_snapshot, hits, source_mix, action_path_mix, domain_rollups
+
+
+async def _audit_hits(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    audit: Audit,
+    explicit_audit: bool,
+) -> tuple[Audit | None, list[DetectorHit], tuple[dict, dict, list[dict]]]:
+    visibility, metric_snapshot = await _load_visibility_evidence(
+        session, workspace_id=workspace_id, audit=audit
+    )
+    if metric_snapshot is None and not explicit_audit:
+        return None, [], _empty_projection()
+    visibility_hits = detect_brand_absent_high_value_prompt(
+        visibility
+    ) + detect_owned_page_not_cited(visibility)
+    gap_indices = {
+        int(hit.evidence["prompt_index"])
+        for hit in visibility_hits
+        if "prompt_index" in hit.evidence
+    }
+    projections = build_source_projection(
+        analyses=visibility.analyses,
+        snapshots=visibility.prompt_snapshots,
+        gap_prompt_indices=gap_indices,
+    )
+    _stamp_source_projections(
+        audit=audit,
+        snapshots=visibility.prompt_snapshots,
+        gap_indices=gap_indices,
+        projections=projections[:2],
+    )
+    visibility_hits.extend(detect_earned_source_opportunities(projections[2]))
+    if metric_snapshot is not None:
+        metric_ids = (str(metric_snapshot.id),)
+        visibility_hits = [
+            replace(hit, source_metric_ids=metric_ids) for hit in visibility_hits
+        ]
+    visibility_hits.extend(
+        await load_commerce_opportunity_hits(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            audit_id=audit.id,
+        )
+    )
+    visibility_hits.extend(
+        await _confirmed_decline_hits(session, workspace_id=workspace_id, audit=audit)
+    )
+    return audit, visibility_hits, projections
+
+
+def _empty_projection() -> tuple[dict, dict, list[dict]]:
+    """The canonical "nothing to project" source mix (no gap in scope)."""
+    empty = empty_source_projection()
+    return empty, dict(empty), []
+
+
+def _stamp_source_projections(*, audit, snapshots, gap_indices, projections) -> None:
+    selected = [row for row in snapshots if row.prompt_index in gap_indices]
+    for projection in projections:
+        projection["audit_id"] = str(audit.id)
+        projection["prompt_snapshot_ids"] = [
+            str(row.snapshot_id) if row.snapshot_id else None for row in selected
+        ]
+        projection["gap_keys"] = sorted(prompt_text_hash(row.text) for row in selected)
 
 
 def _score_hits(hits: list[DetectorHit]) -> list[tuple[DetectorHit, float]]:
@@ -514,6 +583,9 @@ async def _write_recompute(
     crawl: SiteCrawl | None,
     demand_snapshot: DemandSnapshot | None,
     scored: list[tuple[DetectorHit, float]],
+    source_mix: dict,
+    action_path_mix: dict,
+    domain_rollups: list[dict],
     skip_if_current: bool,
 ) -> dict:
     await acquire_project_lock(session, project_id)
@@ -589,6 +661,9 @@ async def _write_recompute(
         demand_snapshot=demand_snapshot,
         new_rows=new_rows,
         scored=scored,
+        source_mix=source_mix,
+        action_path_mix=action_path_mix,
+        domain_rollups=domain_rollups,
     )
     session.add(snapshot)
     await session.commit()
@@ -633,7 +708,14 @@ async def recompute(
         not_found_detail=_CRAWL_NOT_FOUND,
     )
 
-    audit, demand_snapshot, hits = await _collect_recompute_hits(
+    (
+        audit,
+        demand_snapshot,
+        hits,
+        source_mix,
+        action_path_mix,
+        domain_rollups,
+    ) = await _collect_recompute_hits(
         session,
         workspace_id=workspace_id,
         project_id=project_id,
@@ -658,5 +740,8 @@ async def recompute(
         crawl=crawl,
         demand_snapshot=demand_snapshot,
         scored=scored,
+        source_mix=source_mix,
+        action_path_mix=action_path_mix,
+        domain_rollups=domain_rollups,
         skip_if_current=skip_if_current,
     )

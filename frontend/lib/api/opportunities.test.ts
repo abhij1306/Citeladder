@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { mswServer } from '@/test/msw-server';
-import { opportunitiesApi } from './opportunities';
+import { opportunitiesApi, opportunitiesQueries } from './opportunities';
 import { queryKeys } from './query-keys';
 import {
   implementationEventSchema,
@@ -22,6 +22,19 @@ const OPP = '22222222-2222-4222-8222-222222222222';
 const AUDIT = '33333333-3333-4333-8333-333333333333';
 const CRAWL = '44444444-4444-4444-8444-444444444444';
 const IMPLEMENTATION = '55555555-5555-4555-8555-555555555555';
+
+const emptySourceMix = {
+  state: 'not_applicable' as const,
+  projection_version: 'opportunity-source-mix-1',
+  taxonomy_version: 'source-taxonomy-2',
+  counts: {},
+  percentages: {},
+  observation_count: 0,
+  answers_with_sources: 0,
+  eligible_analyzed_answers: 0,
+  coverage_rate: null,
+  limitations: [],
+};
 
 const item = {
   id: OPP,
@@ -57,6 +70,27 @@ const detail = {
   analyzer_version: 'opp-analyzer-1',
   rule_version: 'opp-rules-1',
   formula_version: 'opp-formula-1',
+  content_handoff: {
+    opportunity_id: OPP,
+    pathway: 'owned' as const,
+    source_class: null,
+    canonical_domain: null,
+    suggested_role: 'Content',
+    suggested_skill_id: 'comparison',
+    task_seed: 'Publish a comparison page.',
+    target_url: null,
+    target_theme: 'crm',
+    representative_citations: [],
+    affected_prompt_indices: [],
+    affected_themes: ['crm'],
+    observed_competitors: ['Globex'],
+    coverage: {},
+    limitations: [],
+    truncated: false,
+    source_analysis_ids: [AUDIT],
+    snapshot_versions: { analyzer_version: 'opp-analyzer-1' },
+  },
+  linked_generations: [],
   superseded_by_id: null,
   superseded_at: null,
 };
@@ -71,6 +105,9 @@ const summary = {
   demand_source_revision: null,
   coverage: { crawl_status: 'completed' },
   limitations: [],
+  source_mix: emptySourceMix,
+  action_path_mix: emptySourceMix,
+  domain_rollups: [],
   counts_by_type: { site: 2, topic: 0, traffic: 0, visibility: 2 },
   counts_by_severity: { critical: 0, high: 1, info: 0, low: 1, medium: 2 },
   counts_by_status: { dismissed: 0, in_progress: 0, open: 4, resolved: 0 },
@@ -93,6 +130,9 @@ const recomputeResponse = {
   demand_source_revision: null,
   coverage: summary.coverage,
   limitations: summary.limitations,
+  source_mix: emptySourceMix,
+  action_path_mix: emptySourceMix,
+  domain_rollups: [],
   counts_by_type: summary.counts_by_type,
   counts_by_severity: summary.counts_by_severity,
   counts_by_status: summary.counts_by_status,
@@ -132,6 +172,7 @@ const implementationEvent = {
       source_analysis_ids: [AUDIT],
       source_rule_evaluation_ids: [OPP],
       source_metric_ids: [],
+      result: {},
       verifier_version: 'implementation-verifier-1',
       limitations: [],
       created_at: '2026-07-25T00:01:00Z',
@@ -180,6 +221,25 @@ describe('opportunity schemas (strictValidate drift policy)', () => {
       stale: false,
     };
     expect(strictValidate(opportunitySummarySchema, empty, 'test')).toEqual(empty);
+  });
+
+  it('preserves an available three-way source mix', () => {
+    const available = {
+      ...emptySourceMix,
+      state: 'available' as const,
+      counts: { earned: 2, owned: 1, competitive_evidence: 1 },
+      percentages: { earned: 50, owned: 25, competitive_evidence: 25 },
+      observation_count: 4,
+      answers_with_sources: 3,
+      eligible_analyzed_answers: 4,
+      coverage_rate: 0.75,
+    };
+    const parsed = strictValidate(
+      opportunitySummarySchema,
+      { ...summary, source_mix: available },
+      'test',
+    );
+    expect(parsed.source_mix).toEqual(available);
   });
 
   it('carries the backend-owned target_label on items and details (C1)', () => {
@@ -394,5 +454,13 @@ describe('opportunity query keys', () => {
     ]);
     expect(queryKeys.opportunities.detail(OPP)).toEqual(['opportunities', 'detail', OPP]);
     expect(queryKeys.opportunities.summary(PROJECT)).toEqual(['opportunities', 'summary', PROJECT]);
+  });
+
+  it('separates owned and earned action paths for identical filters', () => {
+    const owned = opportunitiesQueries.list(PROJECT, { severity: 'high', action_path: 'owned' });
+    const earned = opportunitiesQueries.list(PROJECT, { severity: 'high', action_path: 'earned' });
+    expect(owned.queryKey).not.toEqual(earned.queryKey);
+    expect(owned.queryKey.at(-1)).toMatchObject({ action_path: 'owned' });
+    expect(earned.queryKey.at(-1)).toMatchObject({ action_path: 'earned' });
   });
 });

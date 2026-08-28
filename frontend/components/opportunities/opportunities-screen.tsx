@@ -189,6 +189,7 @@ function SummaryStrip({
             <span className="text-muted"> · </span>
             <span className="mono font-medium">{inProgressCount}</span> in progress
           </p>
+          <SourceMixHeadline mix={summary.source_mix} />
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-muted text-xs">
               Last computed {formatAudited(summary.computed_at)} from your latest available
@@ -230,5 +231,27 @@ function SummaryStrip({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function SourceMixHeadline({ mix }: Readonly<{ mix: OpportunitySummary['source_mix'] }>) {
+  if (mix.state === 'not_applicable') return null;
+  if (mix.state !== 'available') {
+    return <p className="text-muted text-xs">Source mix is unavailable for the observed gaps.</p>;
+  }
+  return (
+    <div className="grid gap-0.5">
+      <p className="text-foreground text-sm font-medium">
+        {mix.percentages.earned ?? 0}% Earned
+        <span className="text-muted"> · </span>
+        {mix.percentages.competitive_evidence ?? 0}% Competitive evidence
+        <span className="text-muted"> · </span>
+        {mix.percentages.owned ?? 0}% Owned
+      </p>
+      <p className="text-muted text-xs">
+        Based on {mix.observation_count} source observations across {mix.answers_with_sources} of{' '}
+        {mix.eligible_analyzed_answers} eligible analyzed gap answers.
+      </p>
+    </div>
   );
 }

@@ -14,6 +14,20 @@ const PROJECT = '11111111-1111-4111-8111-111111111111';
 const OPP_A = '22222222-2222-4222-8222-222222222222';
 const OPP_B = '33333333-3333-4333-8333-333333333333';
 const RUN = '44444444-4444-4444-8444-444444444444';
+const GENERATION = '88888888-8888-4888-8888-888888888888';
+
+const emptySourceMix = {
+  state: 'not_applicable' as const,
+  projection_version: 'opportunity-source-mix-1',
+  taxonomy_version: 'source-taxonomy-2',
+  counts: {},
+  percentages: {},
+  observation_count: 0,
+  answers_with_sources: 0,
+  eligible_analyzed_answers: 0,
+  coverage_rate: null,
+  limitations: [],
+};
 
 it('stops summary polling after an uncached request error', () => {
   expect(opportunitySummaryPollingInterval({ status: 'error' })).toBe(false);
@@ -95,6 +109,9 @@ const summary = {
   demand_source_revision: null,
   coverage: { crawl_status: 'completed' },
   limitations: [],
+  source_mix: emptySourceMix,
+  action_path_mix: emptySourceMix,
+  domain_rollups: [],
   counts_by_type: { site: 1, topic: 0, traffic: 0, visibility: 1 },
   counts_by_severity: { critical: 0, high: 1, info: 0, low: 1, medium: 0 },
   counts_by_status: { dismissed: 0, in_progress: 0, open: 2, resolved: 0 },
@@ -117,6 +134,9 @@ const recomputeResponse = {
   demand_source_revision: null,
   coverage: summary.coverage,
   limitations: summary.limitations,
+  source_mix: emptySourceMix,
+  action_path_mix: emptySourceMix,
+  domain_rollups: [],
   counts_by_type: summary.counts_by_type,
   counts_by_severity: summary.counts_by_severity,
   counts_by_status: summary.counts_by_status,
@@ -148,6 +168,34 @@ const detail = {
   analyzer_version: 'opp-analyzer-1',
   rule_version: 'opp-rules-1',
   formula_version: 'opp-formula-1',
+  content_handoff: {
+    opportunity_id: OPP_A,
+    pathway: 'owned' as const,
+    source_class: null,
+    canonical_domain: null,
+    suggested_role: 'Content',
+    suggested_skill_id: 'comparison',
+    task_seed: 'Publish a comparison page.',
+    target_url: null,
+    target_theme: 'crm',
+    representative_citations: [],
+    affected_prompt_indices: [],
+    affected_themes: ['crm'],
+    observed_competitors: ['Globex'],
+    coverage: {},
+    limitations: [],
+    truncated: false,
+    source_analysis_ids: [RUN],
+    snapshot_versions: { analyzer_version: 'opp-analyzer-1' },
+  },
+  linked_generations: [
+    {
+      id: GENERATION,
+      status: 'succeeded',
+      skill_id: 'comparison',
+      created_at: '2026-07-24T00:00:00Z',
+    },
+  ],
   superseded_by_id: null,
   superseded_at: null,
 };
@@ -436,7 +484,7 @@ describe('OpportunitiesScreen', () => {
               opportunity_id: OPP_A,
               opportunity_snapshot_id: RUN,
               target_site_url_ids: [],
-              generation_id: null,
+              generation_id: GENERATION,
               declared_implemented_at: '2026-07-24T00:00:00Z',
               expected_checks: [
                 {
@@ -492,6 +540,11 @@ describe('OpportunitiesScreen', () => {
     await user.click(within(drawer).getByRole('button', { name: 'I implemented this' }));
     expect(await within(drawer).findByText('Declared for verification.')).toBeInTheDocument();
     expect(declarations).toHaveLength(1);
+    expect(declarations[0]).toMatchObject({
+      opportunity_id: OPP_A,
+      generation_id: GENERATION,
+      expected_checks: [],
+    });
 
     // Footer workflow: Mark in progress patches the row.
     await user.click(screen.getByRole('button', { name: 'Mark in progress' }));
@@ -521,6 +574,18 @@ describe('OpportunitiesScreen', () => {
       analyzer_version: 'opp-analyzer-1',
       rule_version: 'opp-rules-2',
       formula_version: 'opp-formula-1',
+      content_handoff: {
+        ...detail.content_handoff,
+        opportunity_id: OPP_B,
+        suggested_skill_id: 'content_page',
+        task_seed: 'Add substantive body content.',
+        target_url: 'https://acme.com/blog',
+        target_theme: null,
+        affected_themes: [],
+        observed_competitors: [],
+        source_analysis_ids: [],
+      },
+      linked_generations: [],
       superseded_by_id: null,
       superseded_at: null,
     };

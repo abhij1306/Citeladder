@@ -267,20 +267,20 @@ Unknown, unavailable, zero, historical, conflicting, excluded, and
 not-applicable states retain distinct labels and are never communicated by
 color alone.
 
-The Opportunity evidence section renders the backend's `source_pattern` block
-for visibility gaps: the distinct cited domains grouped by source class, the
-competitor-to-domain map, representative citations, and the suggested next
-action. `lib/opportunities/source-pattern.ts` parses the persisted payload
-defensively and never re-derives a class from a domain; an absent block or a
-gap with nothing cited renders nothing rather than a measured zero. Badge color
-tracks ownership only, so independence is never presented as a quality ranking,
-and the copy stays observational — these are sources seen alongside a measured
-gap, never its stated cause.
+Opportunities renders the backend's persisted three-way source mix and coverage,
+plus server-filtered Owned and Earned paths. Detail renders a typed Content
+handoff with bounded citations, coverage, limitations, suggested skill, and
+linked generations; the browser never reclassifies a domain or invents the
+handoff. Content seeds the editable task once and preserves user edits on
+refetch. Source copy remains observational and never claims that a citation
+caused a recommendation.
 
 The Opportunity detail footer owns the explicit **I implemented this** action.
 It posts an idempotent declaration with resolved target IDs and expected
-checks, then renders the persisted lifecycle as `declared`, `observed`,
-`verified`, or `contradicted`, including verifier limitations. Reloading reads
+checks projected by the server, optionally linking the latest successful
+generation. It renders the persisted lifecycle and independent visibility,
+AI-referral, and branded-demand verification legs, including unavailable and
+non-comparable states. Reloading reads
 the same state from the implementation-event projection; a workflow status
 such as Resolved neither creates nor replaces this action record.
 

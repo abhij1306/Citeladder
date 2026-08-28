@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from app.domain.opportunities.common import _iso
+from app.domain.opportunities.content_handoff import project_content_handoff
 from app.models.opportunity import Opportunity, OpportunityOrder
 
 
@@ -69,6 +70,7 @@ def project_item(
             "severity": row.severity,
             "system_score": row.priority_score,
             "formula_version": row.formula_version,
+            **dict((row.evidence or {}).get("priority_factors") or {}),
         },
         "evidence_summary": _evidence_summary(row),
         "created_at": _iso(row.created_at),
@@ -117,6 +119,8 @@ def project_detail(row: Opportunity) -> dict:
         "analyzer_version": row.analyzer_version,
         "rule_version": row.rule_version,
         "formula_version": row.formula_version,
+        "content_handoff": project_content_handoff(row),
+        "linked_generations": [],
         "superseded_by_id": row.superseded_by_id,
         "superseded_at": _iso(row.superseded_at),
     }

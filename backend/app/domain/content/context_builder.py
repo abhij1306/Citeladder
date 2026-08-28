@@ -34,6 +34,7 @@ from app.core.config.content import (
     GROUNDING_STATUS_UNAVAILABLE,
 )
 from app.domain.content.website_context import select_crawl_fragments
+from app.domain.opportunities.content_handoff import project_content_handoff
 from app.models.brand import BrandProfile
 from app.models.opportunity import Opportunity
 
@@ -138,15 +139,28 @@ def _render_brand(
     return "BRAND\n" + "\n".join(rendered), fields
 
 
-def _render_opportunity(opportunity: Opportunity | None) -> str:
-    if opportunity is None:
+def _render_opportunity(handoff: dict | None, opportunity: Opportunity | None) -> str:
+    if opportunity is None or handoff is None:
         return ""
+    citations = handoff.get("representative_citations") or []
     lines = _labelled(
         [
             ("Issue", opportunity.title),
             ("Recommended action", opportunity.remediation),
-            ("Target URL", opportunity.target_url),
-            ("Target theme", opportunity.target_theme),
+            ("Action pathway", handoff.get("pathway")),
+            ("Source class", handoff.get("source_class")),
+            ("Cited domain", handoff.get("canonical_domain")),
+            ("Suggested role", handoff.get("suggested_role")),
+            ("Target URL", handoff.get("target_url")),
+            ("Target theme", handoff.get("target_theme")),
+            ("Affected themes", handoff.get("affected_themes")),
+            ("Observed competitors", handoff.get("observed_competitors")),
+            ("Coverage", handoff.get("coverage")),
+            ("Limitations", handoff.get("limitations")),
+            (
+                "Representative cited pages",
+                [item.get("url") for item in citations if item.get("url")],
+            ),
         ]
     )
     if not lines:
@@ -194,6 +208,7 @@ def _render_summary(
     *,
     brand_fields: list[str],
     opportunity: Opportunity | None,
+    handoff: dict | None,
 ) -> dict[str, Any]:
     """Bounded provenance for the UI and the persisted snapshot."""
     crawl = selection.summary or {}
@@ -204,6 +219,7 @@ def _render_summary(
         "crawl_completed_at": crawl.get("crawl_completed_at"),
         "brand_fields": brand_fields,
         "opportunity_id": str(opportunity.id) if opportunity else None,
+        "opportunity_handoff": handoff,
         # GSC is not wired yet; the block stays empty and the flag stays False
         # so the UI can render "not connected" as a neutral state, not a fault.
         "search_connected": False,
@@ -237,7 +253,8 @@ async def build_content_context(
     brand_block, brand_fields = _render_brand(
         profile, brand_name=brand_name, website=website, locale=locale
     )
-    task_block = _render_opportunity(opportunity)
+    handoff = project_content_handoff(opportunity) if opportunity else None
+    task_block = _render_opportunity(handoff, opportunity)
 
     # The opportunity's theme sharpens page ranking, and its target URL pins
     # the page being rewritten to the front of the context.
@@ -255,7 +272,10 @@ async def build_content_context(
         website_block=_render_pages(selection.pages),
         search_block="",
         summary=_render_summary(
-            selection, brand_fields=brand_fields, opportunity=opportunity
+            selection,
+            brand_fields=brand_fields,
+            opportunity=opportunity,
+            handoff=handoff,
         ),
     )
 

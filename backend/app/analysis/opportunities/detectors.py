@@ -18,7 +18,8 @@ from typing import Any
 
 from app.analysis.opportunities.scoring import (
     gap_factor_visibility,
-    value_factor_for_intent,
+    recommendation_strength_factor,
+    value_factor_for_prompt,
 )
 from app.analysis.opportunities.source_patterns import (
     CitationEvidence,
@@ -56,6 +57,8 @@ class AnalysisEvidence:
     # change whether a rule fires. Defaults to empty so a caller that has no
     # citation rows (or predates them) still builds valid evidence.
     citations: tuple[CitationEvidence, ...] = ()
+    artifact_id: uuid.UUID | None = None
+    entity_assessments: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,9 @@ class PromptSnapshotEvidence:
     text: str
     theme: str
     intent: str
+    buyer_stage: str = ""
+    prompt_intent: str = ""
+    snapshot_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -187,6 +193,17 @@ def _gap_hit(
         prompt_index=prompt_index,
     )
     intent = snapshot.intent if snapshot is not None else ""
+    buyer_stage = snapshot.buyer_stage if snapshot is not None else ""
+    prompt_intent = snapshot.prompt_intent if snapshot is not None else ""
+    value_factor, value_source, value_key = value_factor_for_prompt(
+        buyer_stage, prompt_intent, intent
+    )
+    recommendation_factor = recommendation_strength_factor(
+        item
+        for analysis in analyses
+        for item in analysis.entity_assessments
+        if item.get("entity_kind") == "competitor"
+    )
     return DetectorHit(
         rule_id=rule.rule_id,
         target_key=target_key,
@@ -196,6 +213,8 @@ def _gap_hit(
         evidence={
             "prompt_text": snapshot.text if snapshot is not None else "",
             "prompt_intent": intent,
+            "buyer_stage": buyer_stage,
+            "new_prompt_intent": prompt_intent,
             "prompt_theme": snapshot.theme if snapshot is not None else "",
             "prompt_index": prompt_index,
             "repetitions": len(analyses),
@@ -203,6 +222,12 @@ def _gap_hit(
             "source_pattern": _gap_source_pattern(analyses),
             **extras(analyses, competitor_names),
             "audit_id": str(evidence.audit_id),
+            "priority_factors": {
+                "value_factor": value_factor,
+                "value_source": value_source,
+                "value_key": value_key,
+                "recommendation_strength_factor": recommendation_factor,
+            },
         },
         source_analysis_ids=tuple(
             str(a.analysis_id)
@@ -210,9 +235,11 @@ def _gap_hit(
         ),
         source_issue_ids=(),
         source_metric_ids=(),
-        value_factor=value_factor_for_intent(intent),
+        value_factor=value_factor,
         gap_factor=gap_factor_visibility(
-            competitor_count=len(competitor_names), owned_citation_rate=0.0
+            competitor_count=len(competitor_names),
+            owned_citation_rate=0.0,
+            recommendation_strength=recommendation_factor,
         ),
     )
 

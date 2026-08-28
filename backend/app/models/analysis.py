@@ -132,6 +132,7 @@ class ResponseAnalysis(DerivedRowProvenanceMixin, Base):
 
     # Full deterministic score dict (the source of truth for aggregation).
     score: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    entity_assessments: Mapped[list] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

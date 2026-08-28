@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -80,6 +80,13 @@ export function useContentGenerations(
       return isTerminalContentStatus(record.status) ? false : CONTENT_DETAIL_POLL_MS;
     },
   });
+
+  useEffect(() => {
+    if (!opportunityId || detailQuery.data?.status !== 'succeeded') return;
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.opportunities.detail(opportunityId),
+    });
+  }, [detailQuery.data?.status, opportunityId, queryClient]);
 
   const invalidateList = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.content.all });

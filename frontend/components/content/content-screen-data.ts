@@ -82,9 +82,16 @@ export function useContentContextPreview(projectId: string) {
 
 /** The opportunity behind a `?opportunity_id=` arrival, in its own words. */
 export type ContentOpportunityContext = {
+  id: string;
   title: string;
   remediation: string;
   target: string;
+  pathway: 'owned' | 'earned';
+  canonicalDomain: string | null;
+  taskSeed: string;
+  suggestedSkillId: string;
+  limitations: string[];
+  citations: Array<Record<string, unknown>>;
 };
 
 export function useOpportunityContext(
@@ -98,9 +105,16 @@ export function useOpportunityContext(
   return useMemo(() => {
     if (!data) return null;
     return {
+      id: data.id,
       title: data.title,
       remediation: data.remediation ?? '',
       target: data.target_url ?? data.target_theme ?? '',
+      pathway: data.content_handoff.pathway,
+      canonicalDomain: data.content_handoff.canonical_domain,
+      taskSeed: data.content_handoff.task_seed,
+      suggestedSkillId: data.content_handoff.suggested_skill_id,
+      limitations: data.content_handoff.limitations,
+      citations: data.content_handoff.representative_citations,
     };
   }, [data]);
 }

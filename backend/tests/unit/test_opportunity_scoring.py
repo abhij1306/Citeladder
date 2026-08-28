@@ -6,6 +6,7 @@ from app.analysis.opportunities.scoring import (
     gap_factor_visibility,
     priority_score,
     value_factor_for_intent,
+    value_factor_for_prompt,
 )
 from app.core.config.opportunities import (
     GAP_COMPETITOR_CAP,
@@ -85,6 +86,17 @@ def test_value_factor_fallbacks() -> None:
 
 def test_intent_value_monotonic_purchase_over_discovery() -> None:
     assert value_factor_for_intent("purchase") > value_factor_for_intent("discovery")
+
+
+def test_prompt_value_prefers_buyer_stage_then_new_intent_then_legacy() -> None:
+    decision = value_factor_for_prompt("decision", "learn", "discovery")
+    awareness = value_factor_for_prompt("awareness", "buy", "purchase")
+    new_intent = value_factor_for_prompt("", "buy", "discovery")
+    legacy = value_factor_for_prompt("", "", "purchase")
+    assert decision[0] > awareness[0]
+    assert decision[1] == "buyer_stage"
+    assert new_intent[1] == "prompt_intent"
+    assert legacy == (2.0, "legacy_intent", "purchase")
 
 
 def test_gap_factor_floor_is_one() -> None:

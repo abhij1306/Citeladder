@@ -8,6 +8,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.analysis.opportunities.source_mix import empty_source_projection
 from app.core.config.analytics import ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH
 from app.core.config.audits import (
     AUDIT_STATUS_COMPLETED,
@@ -149,6 +150,9 @@ async def get_summary(
             "demand_source_revision": None,
             "coverage": {},
             "limitations": [],
+            "source_mix": empty_source_projection(),
+            "action_path_mix": empty_source_projection(),
+            "domain_rollups": [],
             "counts_by_type": {},
             "counts_by_severity": {},
             "counts_by_status": {},

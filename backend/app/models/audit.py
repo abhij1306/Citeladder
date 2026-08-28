@@ -222,6 +222,8 @@ class AuditPromptSnapshot(Base):
     text: Mapped[str] = mapped_column(Text)
     theme: Mapped[str] = mapped_column(String(255), default="")
     intent: Mapped[str] = mapped_column(String(32), default="")
+    buyer_stage: Mapped[str] = mapped_column(String(32), default="")
+    prompt_intent: Mapped[str] = mapped_column(String(32), default="")
     cohort: Mapped[str] = mapped_column(
         String(32), default="core", server_default="core", index=True
     )

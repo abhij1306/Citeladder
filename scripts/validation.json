@@ -174,6 +174,7 @@
         "backend/app/analysis/csv_cells.py",
         "backend/app/analysis/exports.py",
         "backend/app/analysis/normalization.py",
+        "backend/app/analysis/entity_assessment.py",
         "backend/app/analysis/observed_competitors.py",
         "backend/app/analysis/trend_metrics.py",
         "backend/app/analysis/__init__.py",
@@ -181,6 +182,7 @@
       ],
       "backendTests": [
         "tests/unit/test_analysis_*.py",
+        "tests/unit/test_entity_assessment.py",
         "tests/unit/test_csv_cells.py",
         "tests/unit/test_aeo_readiness.py",
         "tests/unit/test_visibility_projection_helpers.py",
@@ -532,8 +534,19 @@
       "frontendTests": ["components/products/*.test.tsx", "lib/products/*.test.ts", "lib/api/commerce.test.ts"]
     },
     {
-      "sources": ["frontend/app/(app)/opportunities/**", "frontend/components/opportunities/**", "frontend/lib/opportunities/**"],
-      "frontendTests": ["components/opportunities/*.test.tsx", "lib/opportunities/*.test.ts"]
+      "sources": [
+        "frontend/app/(app)/opportunities/**",
+        "frontend/components/opportunities/**",
+        "frontend/lib/opportunities/**",
+        "frontend/lib/api/opportunities.ts",
+        "frontend/lib/api/schemas/opportunities.ts"
+      ],
+      "frontendTests": [
+        "components/opportunities/*.test.tsx",
+        "lib/opportunities/*.test.ts",
+        "lib/api/opportunities.test.ts"
+      ],
+      "frontendE2E": ["e2e/opportunity-loop.spec.ts"]
     },
     {
       "sources": ["frontend/app/(app)/content/**", "frontend/components/content/**", "frontend/lib/content/**"],

@@ -36,6 +36,11 @@ runtime does not own validation state machines, user revisions, save decisions,
 publication claims, or later verification. Generated prose is never promoted
 to business truth automatically.
 
+An Opportunity can provide Content with one frozen, typed Owned or Earned
+handoff containing the persisted citations, coverage, limitations, suggested
+skill, and editable task seed. Successful generations link back to that
+Opportunity, but only the user can declare an external change implemented.
+
 Each generation freezes one bounded grounding envelope. Confirmed or edited
 BrandProfile fields are the only allowed business facts; exact crawl fragments
 remain untrusted observations for terminology, structure, tone, or explicit
@@ -101,7 +106,7 @@ repair.
 | Website discovery, acquisition, parsing, page kinds, rules, site snapshots | Site Health |
 | Grounded content generation, attempts, history, feedback | Content Intelligence |
 | GSC/Traffic demand signals, prompts, AI Visibility | Demand Intelligence |
-| Cross-system persisted action ranking | Opportunities |
+| Cross-system ranking, source routing, implementation, and verification | Opportunities |
 | Standalone explain/roadmap typed-tool tasks | Growth Agent |
 | Provider/OAuth configuration and secret storage | Integrations/providers |
 

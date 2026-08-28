@@ -4,7 +4,6 @@
   "scope": ["backend/app", "frontend/app", "frontend/components", "frontend/lib"],
   "production_percentage": 0.07,
   "clone_fingerprints": [
-    "python|backend/app/models/audit.py|backend/app/models/content.py|1c4bbaf3ede0b965|20|183",
-    "typescript|frontend/lib/api/schemas/opportunities.ts|frontend/lib/api/schemas/opportunities.ts|41c35f4ccf0172b3|16|194"
+    "python|backend/app/models/audit.py|backend/app/models/content.py|1c4bbaf3ede0b965|20|183"
   ]
 }

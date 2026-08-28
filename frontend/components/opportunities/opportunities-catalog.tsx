@@ -60,6 +60,7 @@ const PAGE_LIMIT = 25;
 type TypeFilter = 'all' | OpportunityType;
 type SeverityFilter = 'all' | OpportunitySeverity;
 type StatusFilter = 'active' | OpportunityStatus;
+type PathFilter = 'all' | 'owned' | 'earned';
 
 const TYPE_FILTERS: ReadonlyArray<{ key: TypeFilter; label: string }> = [
   { key: 'all', label: 'All types' },
@@ -89,6 +90,11 @@ const STATUS_CHOICES: ReadonlyArray<{ value: OpportunityStatus; label: string }>
 const STATUS_FILTERS: ReadonlyArray<{ key: StatusFilter; label: string }> = [
   { key: 'active', label: 'Active' },
   ...STATUS_CHOICES.map(({ value, label }) => ({ key: value, label })),
+];
+const PATH_FILTERS: ReadonlyArray<{ key: PathFilter; label: string }> = [
+  { key: 'all', label: 'All paths' },
+  { key: 'owned', label: 'Owned' },
+  { key: 'earned', label: 'Earned' },
 ];
 
 function FilterMenu<T extends string>({
@@ -222,16 +228,18 @@ function useCatalogFilters() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
+  const [pathFilter, setPathFilter] = useState<PathFilter>('all');
   const pager = useCursorStack();
   const params: OpportunitiesParams = useMemo(
     () => ({
       type: typeFilter === 'all' ? undefined : typeFilter,
       severity: severityFilter === 'all' ? undefined : severityFilter,
       status: statusFilter === 'active' ? undefined : statusFilter,
+      action_path: pathFilter === 'all' ? undefined : pathFilter,
       cursor: pager.cursor,
       limit: PAGE_LIMIT,
     }),
-    [typeFilter, severityFilter, statusFilter, pager.cursor],
+    [typeFilter, severityFilter, statusFilter, pathFilter, pager.cursor],
   );
   const reset =
     <T,>(setter: (value: T) => void) =>
@@ -246,6 +254,8 @@ function useCatalogFilters() {
     setSeverityFilter: reset(setSeverityFilter),
     statusFilter,
     setStatusFilter: reset(setStatusFilter),
+    pathFilter,
+    setPathFilter: reset(setPathFilter),
     pager,
     params,
   };
@@ -325,6 +335,12 @@ function RecommendationsHeader({
         role="group"
         aria-label="Recommendation filters"
       >
+        <FilterMenu
+          label="Path"
+          value={filters.pathFilter}
+          options={PATH_FILTERS}
+          onChange={filters.setPathFilter}
+        />
         <FilterMenu
           label="Area"
           value={filters.typeFilter}

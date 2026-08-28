@@ -1,5 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
+const e2ePort = 3100;
+
 export default defineConfig({
   testDir: './e2e',
   // The real-stack integration spec owns its own lifecycle + config; run it
@@ -12,12 +14,12 @@ export default defineConfig({
   workers: 1,
   retries: 1,
   use: {
-    baseURL: 'http://127.0.0.1:3000',
+    baseURL: `http://127.0.0.1:${e2ePort}`,
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'pnpm exec next dev -p 3000 -H 127.0.0.1',
-    url: 'http://127.0.0.1:3000',
+    command: `pnpm exec next dev -p ${e2ePort} -H 127.0.0.1`,
+    url: `http://127.0.0.1:${e2ePort}`,
     reuseExistingServer: !process.env.CI,
   },
 });

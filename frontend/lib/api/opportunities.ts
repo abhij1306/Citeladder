@@ -44,6 +44,7 @@ export type OpportunitiesParams = {
   status?: string;
   rule_id?: string;
   min_priority?: number;
+  action_path?: 'owned' | 'earned';
 };
 
 /** `PATCH /opportunities/{id}` body — status is the ONLY mutable field. */
@@ -209,6 +210,7 @@ export const opportunitiesQueries = {
         status: params?.status ?? null,
         rule_id: params?.rule_id ?? null,
         min_priority: params?.min_priority ?? null,
+        action_path: params?.action_path ?? null,
       }),
       queryFn: ({ signal }) => opportunitiesApi.list(projectId, params, { signal }),
       placeholderData: (previousData, previousQuery) =>

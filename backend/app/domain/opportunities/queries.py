@@ -8,16 +8,21 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.opportunities import (
+    ACTION_PATH_EARNED,
+    ACTION_PATH_OWNED,
+    ACTION_PATHS,
     OPPORTUNITY_ACTIVE_STATUSES,
     OPPORTUNITY_SEVERITIES,
     OPPORTUNITY_STATUSES,
     OPPORTUNITY_TYPES,
+    RULE_EARNED_SOURCE_RECURS,
     validate_rule_id,
 )
 from app.domain.opportunities.common import (
     _LIST_SCOPE,
     _OPPORTUNITY_NOT_FOUND,
     _clamp_limit,
+    _iso,
     _require_project,
 )
 from app.domain.opportunities.errors import (
@@ -33,6 +38,7 @@ from app.domain.site_health.normalization import (
     decode_keyset_cursor,
     encode_keyset_cursor,
 )
+from app.models.content import ContentGeneration
 from app.models.opportunity import Opportunity, OpportunityOrder
 
 
@@ -42,6 +48,7 @@ def _validate_filters(
     severity: str | None,
     status: str | None,
     rule_id: str | None,
+    action_path: str | None = None,
 ) -> None:
     if opportunity_type is not None and opportunity_type not in OPPORTUNITY_TYPES:
         raise OpportunityValidationError(
@@ -56,6 +63,8 @@ def _validate_filters(
             validate_rule_id(rule_id)
         except ValueError as exc:
             raise OpportunityValidationError(str(exc)) from exc
+    if action_path is not None and action_path not in ACTION_PATHS:
+        raise OpportunityValidationError(f"unknown action path: {action_path!r}")
 
 
 def _filter_clauses(
@@ -67,6 +76,7 @@ def _filter_clauses(
     status: str | None,
     rule_id: str | None,
     min_priority: float | None,
+    action_path: str | None = None,
 ) -> list:
     clauses = [
         Opportunity.workspace_id == workspace_id,
@@ -85,6 +95,10 @@ def _filter_clauses(
         clauses.append(Opportunity.rule_id == rule_id)
     if min_priority is not None:
         clauses.append(Opportunity.priority_score >= min_priority)
+    if action_path == ACTION_PATH_EARNED:
+        clauses.append(Opportunity.rule_id == RULE_EARNED_SOURCE_RECURS)
+    elif action_path == ACTION_PATH_OWNED:
+        clauses.append(Opportunity.rule_id != RULE_EARNED_SOURCE_RECURS)
     return clauses
 
 
@@ -96,6 +110,7 @@ def _cursor_filters(
     status: str | None,
     rule_id: str | None,
     min_priority: float | None,
+    action_path: str | None = None,
 ) -> dict:
     return {
         "project_id": str(project_id),
@@ -104,6 +119,7 @@ def _cursor_filters(
         "status": status or None,
         "rule_id": rule_id or None,
         "min_priority": min_priority,
+        "action_path": action_path,
     }
 
 
@@ -171,6 +187,7 @@ async def list_opportunities(
     min_priority: float | None = None,
     limit: int | None = None,
     cursor: str | None = None,
+    action_path: str | None = None,
 ) -> dict:
     """Live-row catalog page, ordered by priority then UUID."""
     await _require_project(session, workspace_id=workspace_id, project_id=project_id)
@@ -179,6 +196,7 @@ async def list_opportunities(
         severity=severity,
         status=status,
         rule_id=rule_id,
+        action_path=action_path,
     )
     limit = _clamp_limit(limit)
     filters = _cursor_filters(
@@ -188,6 +206,7 @@ async def list_opportunities(
         status=status,
         rule_id=rule_id,
         min_priority=min_priority,
+        action_path=action_path,
     )
     clauses = _filter_clauses(
         workspace_id=workspace_id,
@@ -197,6 +216,7 @@ async def list_opportunities(
         status=status,
         rule_id=rule_id,
         min_priority=min_priority,
+        action_path=action_path,
     )
     if cursor:
         try:
@@ -250,4 +270,30 @@ async def get_opportunity(
     )
     if row is None:
         raise OpportunityNotFoundError(_OPPORTUNITY_NOT_FOUND)
-    return project_detail(row)
+    detail = project_detail(row)
+    generations = list(
+        (
+            await session.scalars(
+                select(ContentGeneration)
+                .where(
+                    ContentGeneration.workspace_id == workspace_id,
+                    ContentGeneration.project_id == row.project_id,
+                    ContentGeneration.opportunity_id == row.id,
+                )
+                .order_by(
+                    ContentGeneration.created_at.desc(), ContentGeneration.id.desc()
+                )
+                .limit(20)
+            )
+        ).all()
+    )
+    detail["linked_generations"] = [
+        {
+            "id": str(item.id),
+            "status": item.status,
+            "skill_id": item.skill_id,
+            "created_at": _iso(item.created_at),
+        }
+        for item in generations
+    ]
+    return detail

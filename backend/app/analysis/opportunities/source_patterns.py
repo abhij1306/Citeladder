@@ -31,9 +31,11 @@ from app.core.config.source_patterns import (
     SOURCE_CLASS_COMPETITOR_OWNED,
     SOURCE_CLASS_DOMAIN_TABLES,
     SOURCE_CLASS_EDITORIAL_THIRD_PARTY,
+    SOURCE_CLASS_INSTITUTIONAL,
     SOURCE_CLASS_ORDER,
     SOURCE_CLASS_OTHER_THIRD_PARTY,
     SOURCE_CLASS_REVIEW_MARKETPLACE,
+    SOURCE_CLASS_SOCIAL,
     SOURCE_CLASS_VIDEO,
     SOURCE_TAXONOMY_VERSION,
 )
@@ -45,6 +47,8 @@ _INDEPENDENT_CLASSES = frozenset(
         SOURCE_CLASS_REVIEW_MARKETPLACE,
         SOURCE_CLASS_EDITORIAL_THIRD_PARTY,
         SOURCE_CLASS_COMMUNITY,
+        SOURCE_CLASS_SOCIAL,
+        SOURCE_CLASS_INSTITUTIONAL,
         SOURCE_CLASS_VIDEO,
         SOURCE_CLASS_OTHER_THIRD_PARTY,
     }
@@ -121,7 +125,7 @@ def _recommended_action(patterns: Iterable[str]) -> str:
     return ACTION_DEFAULT
 
 
-def _by_domain(
+def by_domain(
     citations: Iterable[CitationEvidence],
 ) -> dict[str, tuple[str, CitationEvidence]]:
     """Collapse citations to one representative per normalized domain.
@@ -156,12 +160,12 @@ def summarize_source_pattern(citations: Iterable[CitationEvidence]) -> dict[str,
     patterns, and the default action — NOT a missing block. "No sources were
     cited" is evidence too, and the drawer must be able to say so.
     """
-    by_domain = _by_domain(citations)
+    domains = by_domain(citations)
     class_counts: dict[str, int] = {}
     competitor_domains: dict[str, list[str]] = {}
     independent_domains: set[str] = set()
 
-    for domain, (source_class, citation) in by_domain.items():
+    for domain, (source_class, citation) in domains.items():
         class_counts[source_class] = class_counts.get(source_class, 0) + 1
         if source_class in _INDEPENDENT_CLASSES:
             independent_domains.add(domain)
@@ -172,12 +176,12 @@ def summarize_source_pattern(citations: Iterable[CitationEvidence]) -> dict[str,
 
     patterns = _observed_patterns(set(class_counts), len(independent_domains))
     ordered = sorted(
-        by_domain.items(),
+        domains.items(),
         key=lambda item: (SOURCE_CLASS_ORDER.index(item[1][0]), item[0]),
     )
     return {
         "taxonomy_version": SOURCE_TAXONOMY_VERSION,
-        "distinct_domain_count": len(by_domain),
+        "distinct_domain_count": len(domains),
         "independent_domain_count": len(independent_domains),
         # Only non-zero classes, in config render order — a zero is absence of
         # observation, and padding the map with zeros would read as a measured

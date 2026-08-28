@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.domain.opportunities.verification import verify_implementation_events
 from app.models.analytics import AnalyticsTask
+from app.models.content import ContentGeneration
 from app.models.opportunity import Opportunity, OpportunityImplementationEvent
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.urls import SiteUrl
@@ -157,6 +158,67 @@ async def test_cross_workspace_target_is_rejected(
     assert response.json()["error"]["code"] == "implementation_target_conflict"
 
 
+async def test_declaration_accepts_only_a_successful_generation_for_the_opportunity(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    scenario, opportunity, site_url = await _seed_and_recompute(client, session_factory)
+    async with session_factory() as session:
+        rows = [
+            ContentGeneration(
+                workspace_id=scenario.workspace_id,
+                project_id=scenario.project_id,
+                opportunity_id=opportunity.id if linked else None,
+                prompt="Prepare the evidence-backed asset.",
+                output_type="website_page",
+                skill_id="article",
+                skill_version="content-v1",
+                grounding_status="included",
+                grounding_envelope={},
+                request_fingerprint=character * 64,
+                idempotency_key=f"generation-{character}",
+                status=status,
+                provider="mistral",
+                requested_model="fixture-model",
+                generator_version="content-v1",
+            )
+            for linked, status, character in (
+                (True, "succeeded", "a"),
+                (False, "succeeded", "b"),
+                (True, "failed", "c"),
+            )
+        ]
+        session.add_all(rows)
+        await session.commit()
+        generation_ids = [row.id for row in rows]
+
+    url = f"/api/v1/projects/{scenario.project_id}/opportunities/implementation-events"
+    base_payload = {
+        "opportunity_id": str(opportunity.id),
+        "target_site_url_ids": [str(site_url.id)],
+        "declared_implemented_at": datetime.now(UTC).isoformat(),
+        "expected_checks": [],
+    }
+    headers = {"X-Workspace-Id": str(scenario.workspace_id)}
+    for index, generation_id in enumerate(generation_ids[1:], start=1):
+        rejected = await client.post(
+            url,
+            headers={**headers, "Idempotency-Key": f"bad-generation-{index}"},
+            json={**base_payload, "generation_id": str(generation_id)},
+        )
+        assert rejected.status_code == 409
+        assert rejected.json()["error"]["code"] == "implementation_target_conflict"
+
+    accepted = await client.post(
+        url,
+        headers={**headers, "Idempotency-Key": "linked-generation"},
+        json={**base_payload, "generation_id": str(generation_ids[0])},
+    )
+    assert accepted.status_code == 201
+    assert accepted.json()["generation_id"] == str(generation_ids[0])
+    assert accepted.json()["expected_checks"][0]["kind"] == "site_rule"
+
+
 async def test_terminal_crawl_appends_all_persisted_projection_states(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
@@ -253,7 +315,14 @@ async def test_terminal_crawl_appends_all_persisted_projection_states(
     assert observation["crawl_id"] == str(scenario.crawl_id)
     assert observation["source_analysis_ids"]
     assert observation["source_rule_evaluation_ids"]
-    assert observation["verifier_version"] == "implementation-verifier-1"
+    assert observation["verifier_version"] == "implementation-verifier-2"
+    assert observation["result"]["state"] == "available"
+    assert observation["result"]["legs"]["visibility"]["state"] == "not_run"
+    assert observation["result"]["legs"]["ai_referral_traffic"]["state"] == "not_run"
+    assert (
+        observation["result"]["legs"]["branded_search_demand"]["state"] == "unavailable"
+    )
+    assert "caused" in observation["result"]["causality_notice"]
     assert states[observed["id"]]["limitations"] == [
         "traffic_metric: unavailable from a site crawl"
     ]

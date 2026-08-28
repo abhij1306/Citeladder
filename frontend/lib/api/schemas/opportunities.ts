@@ -19,6 +19,43 @@ export const implementationStateSchema = z.enum([
   'verified',
   'contradicted',
 ]);
+const sourceProjectionStateSchema = z.enum(['available', 'unavailable', 'not_applicable']);
+const sourceMixSchema = responseObject({
+  state: sourceProjectionStateSchema,
+  projection_version: z.string(),
+  taxonomy_version: z.string(),
+  counts: z.record(z.string(), z.number().int()),
+  percentages: z.record(z.string(), z.number()),
+  observation_count: z.number().int(),
+  answers_with_sources: z.number().int(),
+  eligible_analyzed_answers: z.number().int(),
+  coverage_rate: z.number().nullable(),
+  limitations: z.array(z.string()),
+  audit_id: z.string().optional(),
+  prompt_snapshot_ids: z.array(z.string().nullable()).optional(),
+  gap_keys: z.array(z.string()).optional(),
+});
+const domainRollupSchema = z.record(z.string(), z.unknown());
+const contentHandoffSchema = responseObject({
+  opportunity_id: z.string(),
+  pathway: z.enum(['owned', 'earned']),
+  source_class: z.string().nullable(),
+  canonical_domain: z.string().nullable(),
+  suggested_role: z.string(),
+  suggested_skill_id: z.string(),
+  task_seed: z.string(),
+  target_url: z.string().nullable(),
+  target_theme: z.string().nullable(),
+  representative_citations: z.array(z.record(z.string(), z.unknown())),
+  affected_prompt_indices: z.array(z.number().int()),
+  affected_themes: z.array(z.string()),
+  observed_competitors: z.array(z.string()),
+  coverage: z.record(z.string(), z.unknown()),
+  limitations: z.array(z.string()),
+  truncated: z.boolean(),
+  source_analysis_ids: z.array(z.string()),
+  snapshot_versions: z.record(z.string(), z.unknown()),
+});
 
 // One live opportunity row in the priority-sorted catalog.
 export const opportunitySchema = responseObject({
@@ -146,24 +183,32 @@ export const opportunityDetailSchema = opportunitySchema.extend({
   analyzer_version: z.string(),
   rule_version: z.string(),
   formula_version: z.string(),
+  content_handoff: contentHandoffSchema,
+  linked_generations: z.array(
+    responseObject({
+      id: uuid(),
+      status: z.string(),
+      skill_id: z.string(),
+      created_at: z.string(),
+    }),
+  ),
   superseded_by_id: uuid().nullable(),
   superseded_at: z.string().nullable(),
 });
 
 export const opportunitiesPageSchema = cursorPageSchema(opportunitySchema);
 
-// Latest recompute snapshot projection. `computed=false` (with empty counts +
-// null ids) before the first recompute — a 200, never a 404.
-export const opportunitySummarySchema = responseObject({
-  activation_state: z.enum(['waiting_for_evidence', 'queued', 'refreshing', 'ready', 'delayed']),
-  computed: z.boolean(),
-  run_id: uuid().nullable(),
+const snapshotFields = {
+  run_id: uuid(),
   audit_id: uuid().nullable(),
   site_crawl_id: uuid().nullable(),
   demand_snapshot_id: uuid().nullable(),
   demand_source_revision: z.string().nullable(),
   coverage: z.record(z.string(), z.unknown()),
   limitations: z.array(z.string()),
+  source_mix: sourceMixSchema,
+  action_path_mix: sourceMixSchema,
+  domain_rollups: z.array(domainRollupSchema),
   counts_by_type: z.record(z.string(), z.number().int()),
   counts_by_severity: z.record(z.string(), z.number().int()),
   counts_by_status: z.record(z.string(), z.number().int()),
@@ -172,6 +217,15 @@ export const opportunitySummarySchema = responseObject({
   analyzer_version: z.string(),
   rule_version: z.string(),
   formula_version: z.string(),
+};
+
+// Latest recompute snapshot projection. `computed=false` (with empty counts +
+// null ids) before the first recompute — a 200, never a 404.
+export const opportunitySummarySchema = responseObject({
+  activation_state: z.enum(['waiting_for_evidence', 'queued', 'refreshing', 'ready', 'delayed']),
+  computed: z.boolean(),
+  ...snapshotFields,
+  run_id: uuid().nullable(),
   computed_at: z.string().nullable(),
   // Read-time freshness: newest usable audit/crawl evidence timestamp, and
   // whether it post-dates the latest snapshot (drives the stale badge).
@@ -182,21 +236,7 @@ export const opportunitySummarySchema = responseObject({
 // The immutable snapshot written by one recompute run (POST response).
 export const recomputeResponseSchema = responseObject({
   id: uuid(),
-  run_id: uuid(),
-  audit_id: uuid().nullable(),
-  site_crawl_id: uuid().nullable(),
-  demand_snapshot_id: uuid().nullable(),
-  demand_source_revision: z.string().nullable(),
-  coverage: z.record(z.string(), z.unknown()),
-  limitations: z.array(z.string()),
-  counts_by_type: z.record(z.string(), z.number().int()),
-  counts_by_severity: z.record(z.string(), z.number().int()),
-  counts_by_status: z.record(z.string(), z.number().int()),
-  total_count: z.number().int(),
-  median_priority: z.number().nullable(),
-  analyzer_version: z.string(),
-  rule_version: z.string(),
-  formula_version: z.string(),
+  ...snapshotFields,
   created_at: z.string(),
 });
 
@@ -246,6 +286,7 @@ export const implementationEventSchema = responseObject({
       source_analysis_ids: z.array(uuid()),
       source_rule_evaluation_ids: z.array(uuid()),
       source_metric_ids: z.array(uuid()),
+      result: z.record(z.string(), z.unknown()),
       verifier_version: z.string(),
       limitations: z.array(z.string()),
       created_at: z.string(),

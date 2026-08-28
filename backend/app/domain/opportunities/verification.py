@@ -24,6 +24,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_PASS,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
+from app.domain.opportunities.verification_result import build_verification_result
 from app.models.analysis import MetricSnapshot
 from app.models.analytics import AnalyticsTask
 from app.models.audit import Audit
@@ -449,6 +450,11 @@ async def _append_observation(
     observation_kind: str,
     source: _Source,
 ) -> None:
+    comparison = await build_verification_result(
+        session,
+        declaration=declaration,
+        post_audit_id=source.id if source.kind == "audit" else None,
+    )
     source_revision = int(source.observed_at.timestamp() * 1_000_000)
     event_key = (
         f"verification:{declaration.id}:{source.kind}:{source.id}:"
@@ -469,6 +475,7 @@ async def _append_observation(
                 str(item) for item in result.rule_evaluation_ids
             ],
             source_metric_ids=[str(item) for item in result.metric_ids],
+            result=comparison,
             verifier_version=IMPLEMENTATION_VERIFIER_VERSION,
             limitations=result.limitations,
             idempotency_key=event_key,

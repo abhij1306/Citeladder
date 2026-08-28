@@ -97,10 +97,11 @@ function ProjectContentScreen({
   // brief: a later refetch must never overwrite what the user has typed.
   const seededOpportunity = useRef<string | null>(null);
   useEffect(() => {
-    if (!opportunity?.remediation || seededOpportunity.current === opportunity.remediation) return;
-    seededOpportunity.current = opportunity.remediation;
-    setPrompt((current) => (current.trim() ? current : opportunity.remediation));
-  }, [opportunity?.remediation]);
+    if (!opportunity?.taskSeed || seededOpportunity.current === opportunity.id) return;
+    seededOpportunity.current = opportunity.id;
+    setPrompt((current) => (current.trim() ? current : opportunity.taskSeed));
+    setChosenSkillId((current) => current ?? opportunity.suggestedSkillId);
+  }, [opportunity]);
 
   const generating = Boolean(
     (detail && !isTerminalContentStatus(detail.status)) || generation.enqueueMutation.isPending,

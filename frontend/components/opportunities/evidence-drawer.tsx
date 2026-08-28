@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
 
 import { OpportunityEvidenceSection } from '@/components/opportunities/opportunity-evidence-section';
 import { OpportunityStatusBadge } from '@/components/opportunities/opportunity-status-badge';
@@ -9,10 +10,12 @@ import { OpportunitySummarySection } from '@/components/opportunities/opportunit
 import { OpportunityTypeBadge } from '@/components/opportunities/opportunity-type-badge';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Drawer } from '@/components/ui/drawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/typography';
 import { opportunitiesQueries } from '@/lib/api/opportunities';
+import type { OpportunityDetail } from '@/lib/api/types';
 import { severityBadgeValue, severityLabel } from '@/lib/site-health/issues';
 
 /** Recommendation detail drawer backed by the persisted detail projection. */
@@ -75,8 +78,42 @@ export function EvidenceDrawer({
             </section>
           ) : null}
           <OpportunitySummarySection detail={detail} />
+          <ActionHandoff detail={detail} />
         </div>
       )}
     </Drawer>
+  );
+}
+
+function ActionHandoff({ detail }: Readonly<{ detail: OpportunityDetail }>) {
+  const handoff = detail.content_handoff;
+  const earned = handoff.pathway === 'earned';
+  const generationLabel = detail.linked_generations.length === 1 ? 'generation' : 'generations';
+  return (
+    <section className="grid gap-2">
+      <Label>Action handoff</Label>
+      <div className="border-border-subtle bg-panel grid gap-2 rounded-md border p-3">
+        <p className="text-secondary text-sm">
+          {earned
+            ? `Prepare a human-led earned asset for ${handoff.canonical_domain ?? 'the cited source'}.`
+            : 'Create or improve content the brand controls.'}
+        </p>
+        {handoff.limitations.map((limitation) => (
+          <p key={limitation} className="text-muted text-xs">
+            {limitation}
+          </p>
+        ))}
+        <Button asChild size="sm" className="justify-self-start">
+          <Link href={`/content?opportunity_id=${detail.id}`}>
+            {earned ? 'Prepare earned content' : 'Create owned content'}
+          </Link>
+        </Button>
+        {detail.linked_generations.length > 0 ? (
+          <p className="text-muted text-xs">
+            {detail.linked_generations.length} linked {generationLabel}
+          </p>
+        ) : null}
+      </div>
+    </section>
   );
 }

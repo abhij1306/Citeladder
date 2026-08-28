@@ -166,6 +166,21 @@ function OpportunityContext({ opportunity }: Readonly<{ opportunity: ContentOppo
       {opportunity.target ? (
         <p className="text-muted text-xs">Target: {opportunity.target}</p>
       ) : null}
+      <p className="text-muted text-xs">
+        Path: {opportunity.pathway === 'earned' ? 'Earned' : 'Owned'}
+        {opportunity.canonicalDomain ? ` · ${opportunity.canonicalDomain}` : ''}
+      </p>
+      {opportunity.citations.length ? (
+        <p className="text-muted text-xs">
+          {opportunity.citations.length} representative cited page
+          {opportunity.citations.length === 1 ? '' : 's'} supplied
+        </p>
+      ) : null}
+      {opportunity.limitations.map((limitation) => (
+        <p key={limitation} className="text-warning text-xs">
+          {limitation}
+        </p>
+      ))}
     </div>
   );
 }

@@ -151,6 +151,8 @@ def _prompt_configuration_rows(prompts: list[Prompt]) -> list[dict[str, Any]]:
             "text": prompt.text or "",
             "theme": prompt.theme or "",
             "intent": prompt.intent or "",
+            "buyer_stage": prompt.buyer_stage or "",
+            "prompt_intent": prompt.prompt_intent or "",
             "cohort": prompt.cohort,
         }
         for prompt in prompts
@@ -172,6 +174,8 @@ def _snapshot_objects(
             text=prompt.text or "",
             theme=prompt.theme or "",
             intent=prompt.intent or "",
+            buyer_stage=prompt.buyer_stage or "",
+            prompt_intent=prompt.prompt_intent or "",
             cohort=prompt.cohort,
             generation_evidence=prompt.generation_evidence,
         )

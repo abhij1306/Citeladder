@@ -210,6 +210,8 @@ def _clone_prompt_snapshots(session, child_id, tasks, prompts_by_id):
             text=source.text,
             theme=source.theme,
             intent=source.intent,
+            buyer_stage=source.buyer_stage,
+            prompt_intent=source.prompt_intent,
             cohort=source.cohort,
             generation_evidence=source.generation_evidence,
         )

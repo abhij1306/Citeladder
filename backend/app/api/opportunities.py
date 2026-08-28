@@ -110,6 +110,7 @@ def _verification_view(row: OpportunityVerificationEvent) -> VerificationEventVi
         source_analysis_ids=list(row.source_analysis_ids or []),
         source_rule_evaluation_ids=list(row.source_rule_evaluation_ids or []),
         source_metric_ids=list(row.source_metric_ids or []),
+        result=row.result or {},
         verifier_version=row.verifier_version,
         limitations=list(row.limitations or []),
         created_at=row.created_at,
@@ -188,6 +189,7 @@ async def list_opportunities_endpoint(
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     rule_id: Annotated[str | None, Query()] = None,
     min_priority: Annotated[float | None, Query()] = None,
+    action_path: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=LIST_MAX_LIMIT)] = LIST_DEFAULT_LIMIT,
     cursor: Annotated[str | None, Query()] = None,
 ) -> OpportunitiesPage:
@@ -201,6 +203,7 @@ async def list_opportunities_endpoint(
             status=status_filter,
             rule_id=rule_id,
             min_priority=min_priority,
+            action_path=action_path,
             limit=limit,
             cursor=cursor,
         )

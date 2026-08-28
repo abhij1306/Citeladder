@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.analysis.entity_assessment import assess_entities
 from app.analysis.observed_competitors import (
     persist_observed_competitors as _persist_observed_competitors,
 )
@@ -89,7 +90,7 @@ def _classification(classified: dict) -> str:
 
 
 def _response_analysis(
-    *, task: AuditTask, score: dict, cohort: str
+    *, task: AuditTask, score: dict, cohort: str, entity_assessments: list[dict]
 ) -> ResponseAnalysis:
     return ResponseAnalysis(
         workspace_id=task.workspace_id,
@@ -116,6 +117,7 @@ def _response_analysis(
         sentiment=None,
         avg_position=None,
         score=score,
+        entity_assessments=entity_assessments,
     )
 
 
@@ -206,7 +208,12 @@ async def analyze_task(
     cohort = prompt_snapshot.cohort if prompt_snapshot is not None else "core"
     score["cohort"] = cohort
 
-    analysis = _response_analysis(task=task, score=score, cohort=cohort)
+    analysis = _response_analysis(
+        task=task,
+        score=score,
+        cohort=cohort,
+        entity_assessments=assess_entities(task.answer_text or "", config),
+    )
     session.add(analysis)
     await session.flush()  # assign analysis.id for child rows
     _persist_analysis_rows(

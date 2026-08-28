@@ -28,6 +28,9 @@ def build_snapshot(
     demand_snapshot: DemandSnapshot | None,
     new_rows: list[Opportunity],
     scored: list[tuple[DetectorHit, float]],
+    source_mix: dict,
+    action_path_mix: dict,
+    domain_rollups: list[dict],
 ) -> OpportunitySnapshot:
     """Aggregate one immutable recompute snapshot over the new live set."""
     counts_by_type = {name: 0 for name in sorted(OPPORTUNITY_TYPES)}
@@ -51,6 +54,9 @@ def build_snapshot(
         ),
         coverage=coverage or None,
         limitations=limitations,
+        source_mix=source_mix,
+        action_path_mix=action_path_mix,
+        domain_rollups=domain_rollups,
         counts_by_type=counts_by_type,
         counts_by_severity=counts_by_severity,
         counts_by_status=counts_by_status,

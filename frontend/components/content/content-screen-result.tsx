@@ -1,4 +1,5 @@
 import { Check, Copy, Download, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -148,6 +149,13 @@ function ResultActions({
         )}
         {copyLabel}
       </Button>
+      {detail.opportunity_id ? (
+        <Button asChild variant="secondary" size="md">
+          <Link href={`/opportunities?opportunity_id=${detail.opportunity_id}`}>
+            Return to opportunity
+          </Link>
+        </Button>
+      ) : null}
       <Button
         variant="secondary"
         size="md"

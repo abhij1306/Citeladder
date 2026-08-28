@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.analysis.opportunities.source_mix import empty_source_projection
 from app.models.opportunity import OpportunitySnapshot
 
 
@@ -16,6 +17,9 @@ def project_snapshot(snapshot: OpportunitySnapshot) -> dict:
         "demand_source_revision": snapshot.demand_source_revision,
         "coverage": snapshot.coverage or {},
         "limitations": list(snapshot.limitations or []),
+        "source_mix": snapshot.source_mix or empty_source_projection(),
+        "action_path_mix": snapshot.action_path_mix or empty_source_projection(),
+        "domain_rollups": list(snapshot.domain_rollups or []),
         "counts_by_type": snapshot.counts_by_type or {},
         "counts_by_severity": snapshot.counts_by_severity or {},
         "counts_by_status": snapshot.counts_by_status or {},

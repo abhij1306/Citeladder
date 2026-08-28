@@ -19,12 +19,16 @@ from __future__ import annotations
 
 from typing import Final
 
-SOURCE_TAXONOMY_VERSION: Final = "source-taxonomy-1"
+SOURCE_TAXONOMY_VERSION: Final = "source-taxonomy-2"
+SOURCE_MIX_PROJECTION_VERSION: Final = "opportunity-source-mix-1"
+CONTENT_HANDOFF_TEMPLATE_VERSION: Final = "opportunity-content-handoff-1"
 
 SOURCE_CLASS_BRAND_OWNED: Final = "brand_owned"
 SOURCE_CLASS_COMPETITOR_OWNED: Final = "competitor_owned"
 SOURCE_CLASS_COMMUNITY: Final = "community"
 SOURCE_CLASS_VIDEO: Final = "video"
+SOURCE_CLASS_SOCIAL: Final = "social"
+SOURCE_CLASS_INSTITUTIONAL: Final = "institutional"
 SOURCE_CLASS_REVIEW_MARKETPLACE: Final = "review_marketplace"
 SOURCE_CLASS_EDITORIAL_THIRD_PARTY: Final = "editorial_third_party"
 SOURCE_CLASS_OTHER_THIRD_PARTY: Final = "other_third_party"
@@ -37,6 +41,8 @@ SOURCE_CLASS_ORDER: Final[tuple[str, ...]] = (
     SOURCE_CLASS_REVIEW_MARKETPLACE,
     SOURCE_CLASS_EDITORIAL_THIRD_PARTY,
     SOURCE_CLASS_COMMUNITY,
+    SOURCE_CLASS_SOCIAL,
+    SOURCE_CLASS_INSTITUTIONAL,
     SOURCE_CLASS_VIDEO,
     SOURCE_CLASS_OTHER_THIRD_PARTY,
 )
@@ -59,10 +65,24 @@ VIDEO_DOMAINS: Final[frozenset[str]] = frozenset(
         "youtube.com",
         "youtu.be",
         "vimeo.com",
-        "tiktok.com",
         "twitch.tv",
         "dailymotion.com",
     }
+)
+
+SOCIAL_DOMAINS: Final[frozenset[str]] = frozenset(
+    {
+        "linkedin.com",
+        "x.com",
+        "twitter.com",
+        "facebook.com",
+        "instagram.com",
+        "tiktok.com",
+    }
+)
+
+INSTITUTIONAL_DOMAINS: Final[frozenset[str]] = frozenset(
+    {"who.int", "europa.eu", "gov.uk", "nih.gov", "cdc.gov", "wikipedia.org"}
 )
 
 REVIEW_MARKETPLACE_DOMAINS: Final[frozenset[str]] = frozenset(
@@ -105,6 +125,8 @@ EDITORIAL_DOMAINS: Final[frozenset[str]] = frozenset(
 # and a marketplace — it is reported as a marketplace).
 SOURCE_CLASS_DOMAIN_TABLES: Final[tuple[tuple[str, frozenset[str]], ...]] = (
     (SOURCE_CLASS_REVIEW_MARKETPLACE, REVIEW_MARKETPLACE_DOMAINS),
+    (SOURCE_CLASS_INSTITUTIONAL, INSTITUTIONAL_DOMAINS),
+    (SOURCE_CLASS_SOCIAL, SOCIAL_DOMAINS),
     (SOURCE_CLASS_VIDEO, VIDEO_DOMAINS),
     (SOURCE_CLASS_COMMUNITY, COMMUNITY_DOMAINS),
     (SOURCE_CLASS_EDITORIAL_THIRD_PARTY, EDITORIAL_DOMAINS),

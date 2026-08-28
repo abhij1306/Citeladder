@@ -15,7 +15,8 @@ from typing import Final
 # derived row can always be traced to the exact rules that produced it. Stamped
 # onto ``ResponseAnalysis`` / ``BrandMention`` / ``CompetitorMention`` /
 # ``Citation`` / ``MetricSnapshot`` and the parent ``Audit`` at finalize.
-ANALYZER_VERSION: Final = "grounded-analysis-v3"
+ANALYZER_VERSION: Final = "grounded-analysis-v4"
+ENTITY_ASSESSMENT_VERSION: Final = "entity-assessment-1"
 # The per-execution/aggregate formula version (separate from the analyzer so a
 # formula-only change can be tracked independently of an extraction change).
 SCORING_RULE_VERSION: Final = "prompt-composite-v1"
