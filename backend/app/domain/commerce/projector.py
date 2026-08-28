@@ -315,18 +315,16 @@ async def _project_category_source(
     )
 
 
-def _linked_product_urls(facts: dict[str, Any]) -> list[str]:
-    """The internal product links a shelf page points at, in document order."""
-    anchors = _list_value(_dict_value(facts.get("links")).get("anchors"))
-    urls: list[str] = []
-    for anchor in anchors:
-        row = _dict_value(anchor)
-        if not row.get("is_internal"):
-            continue
-        url = str(row.get("url") or "").strip()
-        if url and not url.startswith(("#", "mailto:", "tel:", "javascript:")):
-            urls.append(url)
-    return list(dict.fromkeys(urls))
+def _shelf_product_urls(facts: dict[str, Any]) -> list[str]:
+    """Product-card URLs from the extractor's bounded shelf region."""
+    cards = _list_value(_dict_value(facts.get("commerce")).get("product_cards"))
+    return list(
+        dict.fromkeys(
+            url
+            for card in cards
+            if (url := str(_dict_value(card).get("url") or "").strip())
+        )
+    )
 
 
 async def _link_shelf_products(
@@ -349,7 +347,7 @@ async def _link_shelf_products(
     Only products the catalog already knows are linked: this reads the crawl's
     own evidence, it does not invent products from hrefs.
     """
-    urls = _linked_product_urls(_dict_value(artifact.normalized_facts))
+    urls = _shelf_product_urls(_dict_value(artifact.normalized_facts))
     if not urls:
         return
     candidates = {_canonical_or_blank(url) for url in urls}
@@ -446,7 +444,7 @@ async def _link_product_to_projected_shelves(
     for category, artifact in shelves:
         linked_urls = {
             _canonical_or_blank(url)
-            for url in _linked_product_urls(_dict_value(artifact.normalized_facts))
+            for url in _shelf_product_urls(_dict_value(artifact.normalized_facts))
         }
         if product_url not in linked_urls:
             continue

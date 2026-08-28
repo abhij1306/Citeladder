@@ -977,15 +977,19 @@ async def test_a_shelf_page_links_its_products_into_the_category() -> None:
     )
     artifact = SimpleNamespace(
         normalized_facts={
+            "commerce": {
+                "product_cards": [
+                    {"url": "https://shop.test/products/a", "title": "Product A"},
+                    {"url": "https://shop.test/products/b", "title": "Product B"},
+                ]
+            },
+            # A navigation product is not a shelf card and must not become
+            # category membership.
             "links": {
                 "anchors": [
-                    {"url": "https://shop.test/products/a", "is_internal": True},
-                    {"url": "https://shop.test/products/b", "is_internal": True},
-                    # Off-site and non-navigational links are not shelf items.
-                    {"url": "https://instagram.com/shop", "is_internal": False},
-                    {"url": "#main", "is_internal": True},
+                    {"url": "https://shop.test/products/nav", "is_internal": True}
                 ]
-            }
+            },
         }
     )
 
@@ -1004,11 +1008,11 @@ async def test_a_product_landing_after_its_shelf_still_gets_membership() -> None
     category = SimpleNamespace(id=uuid.uuid4())
     artifact = SimpleNamespace(
         normalized_facts={
-            "links": {
-                "anchors": [
+            "commerce": {
+                "product_cards": [
                     {
                         "url": "https://shop.test/products/linen-dress",
-                        "is_internal": True,
+                        "title": "Linen Dress",
                     }
                 ]
             }
@@ -1051,6 +1055,6 @@ async def test_a_shelf_with_no_internal_links_writes_nothing() -> None:
         analysis=SimpleNamespace(
             id=uuid.uuid4(), workspace_id=uuid.uuid4(), project_id=uuid.uuid4()
         ),
-        artifact=SimpleNamespace(normalized_facts={"links": {"anchors": []}}),
+        artifact=SimpleNamespace(normalized_facts={"commerce": {"product_cards": []}}),
         category=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
     )
