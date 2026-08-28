@@ -121,7 +121,11 @@ def brand_terms(
     return list(dict.fromkeys([brand_name, *aliases, *tokens]))
 
 
-_CATEGORY_PHRASE_SPLIT = re.compile(r"[(),;/–—|]+")
+#: Separators between the several things a category phrase lists. The ASCII
+#: hyphen counts only when SPACED ("Dresses - accessories"): bare "-" is
+#: word-internal in "Direct-to-consumer", and splitting there would mint
+#: heads like "direct" that could un-ban a real brand token.
+_CATEGORY_PHRASE_SPLIT = re.compile(r"(?:\s+-\s+|[(),;/–—|]+)")
 
 
 def _category_heads(category_vocabulary: list[str] | None) -> set[str]:

@@ -21,10 +21,19 @@ async def project_sells_catalog(
     or unknown brand context therefore fails closed until onboarding confirms
     a catalog business model.
     """
-    business_model = await session.scalar(
-        select(BrandProfile.business_context["business_model"].astext).where(
+    context = await session.scalar(
+        select(BrandProfile.business_context).where(
             BrandProfile.workspace_id == workspace_id,
             BrandProfile.project_id == project_id,
         )
     )
-    return sells_a_catalog(str(business_model or ""))
+    context = context if isinstance(context, dict) else {}
+    # Secondary models count. Onboarding models composite businesses on purpose
+    # -- "Urban Company is a marketplace AND a local service" -- so a brand that
+    # sells a catalog alongside something else declares that in
+    # `secondary_business_models`, and reading only the primary would deny it a
+    # catalog it demonstrably has.
+    secondary = context.get("secondary_business_models")
+    models = [context.get("business_model")]
+    models += secondary if isinstance(secondary, list) else []
+    return any(sells_a_catalog(str(model or "")) for model in models)

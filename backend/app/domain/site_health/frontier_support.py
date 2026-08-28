@@ -318,6 +318,7 @@ async def resolve_duplicate_of_admitted_page(
     crawl: SiteCrawl,
     url_hash_value: str,
     declared_canonical: str,
+    base_url: str,
 ) -> str:
     """The url_hash this page says it really is, when that page is already ours.
 
@@ -337,8 +338,13 @@ async def resolve_duplicate_of_admitted_page(
     root = str((crawl.configuration or {}).get("root_registrable_domain") or "")
     if not root:
         root = registrable_domain(crawl.root_url)
+    # Resolved against the page that declared it. `rel=canonical` is stored
+    # exactly as written and is very commonly relative ("/products/x"), which
+    # canonicalizes to nothing on its own -- so without the base every such
+    # declaration raised, was swallowed here, and the alias was analyzed as a
+    # page of its own. The collapse simply never fired on those sites.
     try:
-        canonical, canonical_hash = canonical_identity(declared)
+        canonical, canonical_hash = canonical_identity(declared, base_url=base_url)
     except UrlPolicyError:
         return ""
     if canonical_hash == url_hash_value:

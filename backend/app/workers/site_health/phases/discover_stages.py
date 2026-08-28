@@ -522,6 +522,27 @@ class DiscoverPersistenceMixin(PhaseSupport):
             phase_run_id=task.phase_run_id,
             runtime=runtime,
         )
+        await self._dispose_fetched_page(
+            session, crawl=crawl, task=task, outcome=outcome, depth=depth
+        )
+        admitted_delta = int(crawl.admitted_url_count or 0) - admitted_before
+        return artifact_id, admission, admitted_delta
+
+    async def _dispose_fetched_page(
+        self,
+        session: AsyncSession,
+        *,
+        crawl: SiteCrawl,
+        task: SiteCrawlTask,
+        outcome: _DiscoverOutcome,
+        depth: int,
+    ) -> None:
+        """Decide what this page IS, now that its evidence is committed.
+
+        Three outcomes, and only one of them queues an analysis: a document
+        is inventory evidence, an alias of a page the crawl already owns is
+        an exclusion, and anything else is a page to analyze.
+        """
         # This page may be an alias of one the crawl already owns -- the same
         # product reached through six collection paths, all declaring one
         # `rel=canonical`. Analyzing each alias produced duplicate analyses,
@@ -539,6 +560,7 @@ class DiscoverPersistenceMixin(PhaseSupport):
             crawl=crawl,
             url_hash_value=task.url_hash,
             declared_canonical=str((outcome.facts or {}).get("canonical_url") or ""),
+            base_url=str(outcome.result.final_url or task.requested_url or ""),
         )
         if duplicate_of:
             await mark_duplicate_url(
@@ -569,8 +591,6 @@ class DiscoverPersistenceMixin(PhaseSupport):
                 value_priority=task.priority,
                 phase_run_id=task.phase_run_id,
             )
-        admitted_delta = int(crawl.admitted_url_count or 0) - admitted_before
-        return artifact_id, admission, admitted_delta
 
     async def _persist_sitemap_candidates(
         self,
