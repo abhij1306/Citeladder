@@ -25,9 +25,10 @@ def detect_earned_source_opportunities(rollups: list[dict]) -> list[DetectorHit]
 def _earned_hit(rule_id: str, row: dict) -> DetectorHit:
     source_class = str(row["source_class"])
     domain = str(row["canonical_domain"])
-    citations = list(row.get("representative_citations") or [])
-    representative = next(iter(citations), {})
-    themes = list(row.get("themes") or [])
+    citations: list[dict] = list(row.get("representative_citations") or [])
+    representative: dict = next(iter(citations), {})
+    themes: list[str] = list(row.get("themes") or [])
+    target_theme: str | None = next(iter(themes), None)
     content_handoff = {
         "pathway": ACTION_PATH_EARNED,
         "source_class": source_class,
@@ -36,7 +37,7 @@ def _earned_hit(rule_id: str, row: dict) -> DetectorHit:
         "suggested_skill_id": row.get("suggested_skill_id"),
         "task_seed": f"Prepare a transparent, human-led contribution for {domain}.",
         "target_url": representative.get("url"),
-        "target_theme": next(iter(themes), None),
+        "target_theme": target_theme,
         "representative_citations": citations,
         "affected_prompt_indices": row.get("prompt_indices") or [],
         "affected_themes": themes,
@@ -63,7 +64,7 @@ def _earned_hit(rule_id: str, row: dict) -> DetectorHit:
         target_key=f"earned-source:{source_class}:{domain}",
         target_prompt_id=None,
         target_url=None,
-        target_theme=content_handoff["target_theme"],
+        target_theme=target_theme,
         evidence={
             "content_handoff": content_handoff,
             "priority_factors": {
