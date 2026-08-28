@@ -476,7 +476,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     expect(screen.queryByLabelText(/Monitor https:\/\/acme\.com/)).not.toBeInTheDocument();
   });
 
-  it('offers one Stop crawl action in the header while a crawl is discovering', async () => {
+  it('offers one Stop crawl action beside the Website tabs while discovering', async () => {
     let hiddenPagesRequests = 0;
     mockRoutes(
       {
@@ -501,8 +501,9 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     const stop = screen.getByRole('button', { name: 'Stop crawl' });
     const analysisTabs = screen.getByRole('tablist', { name: 'Website analysis' });
     expect(screen.getByTestId('inventory-section')).not.toContainElement(stop);
+    expect(analysisTabs.parentElement).toContainElement(stop);
     expect(
-      stop.compareDocumentPosition(analysisTabs) & Node.DOCUMENT_POSITION_FOLLOWING,
+      analysisTabs.compareDocumentPosition(stop) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Run new crawl' })).not.toBeInTheDocument();
     expect(hiddenPagesRequests).toBe(0);

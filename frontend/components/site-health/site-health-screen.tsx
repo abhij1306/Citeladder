@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 import { Alert } from '@/components/ui/alert';
@@ -74,7 +74,6 @@ function LoadedSiteHealthScreen({
   ) : undefined;
   return (
     <div className="grid min-w-0 gap-[var(--workspace-gap)]">
-      <ScreenHeader actions={headerActions} />
       {exportError ? <Alert tone="danger">{exportError}</Alert> : null}
       {createMutation.isError ? (
         <MutationNotice
@@ -94,7 +93,7 @@ function LoadedSiteHealthScreen({
           persisted remain visible below.
         </Alert>
       ) : null}
-      <AnalysisTabs tab={tab} setTab={setTab} />
+      <AnalysisTabs tab={tab} setTab={setTab} actions={headerActions} />
       <AnalysisPanel
         tab={tab}
         crawlId={crawl?.id}
@@ -122,13 +121,22 @@ function analysisTabFrom(value: string | null): AnalysisTab {
 function AnalysisTabs({
   tab,
   setTab,
+  actions,
 }: Readonly<{
   tab: string;
   setTab: (tab: AnalysisTab) => void;
+  actions?: ReactNode;
 }>) {
+  // Page actions share the tablist row: the tablist's own block-end rule is
+  // suppressed so the row wrapper can carry it across the full width, keeping
+  // the selected tab's underline flush with the rule under the buttons.
   return (
-    <div className="min-h-10">
-      <div className={tabListClasses} role="tablist" aria-label="Website analysis">
+    <div className="border-border relative z-10 flex min-h-10 items-center gap-3 border-b">
+      <div
+        className={`${tabListClasses} before:hidden`}
+        role="tablist"
+        aria-label="Website analysis"
+      >
         {ANALYSIS_TABS.map(({ value, label }) => (
           <button
             key={value}
@@ -142,6 +150,7 @@ function AnalysisTabs({
           </button>
         ))}
       </div>
+      {actions ? <div className="ml-auto flex shrink-0 items-center">{actions}</div> : null}
     </div>
   );
 }

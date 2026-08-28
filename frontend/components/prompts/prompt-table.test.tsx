@@ -41,7 +41,7 @@ describe('PromptTable pagination', () => {
 
     expect(screen.queryByRole('columnheader', { name: 'Branded' })).not.toBeInTheDocument();
     expect(screen.queryByText('Branded')).not.toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Intent' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Stage' })).toBeInTheDocument();
   });
 
   it('pages through rows with the mono indicator and ghost buttons', async () => {

@@ -51,12 +51,15 @@ def test_normalization_remains_linear() -> None:
     assert time.perf_counter() - started < 1.0
 
 
-def test_parse_resolves_short_slots_to_code_owned_topic_and_intent() -> None:
+def test_parse_resolves_short_slots_to_code_owned_stage_and_intent() -> None:
     raw = json.dumps(
         {
             "prompts": [
-                {"slot_id": "q1", "text": "What is footwear?"},
-                {"slot_id": "q2", "text": "Best activewear for running"},
+                {"slot_id": "q1", "text": "Best footwear stores for wide feet"},
+                {
+                    "slot_id": "q2",
+                    "text": "Cheap activewear wears out after marathon training",
+                },
             ]
         }
     )
@@ -68,28 +71,39 @@ def test_parse_resolves_short_slots_to_code_owned_topic_and_intent() -> None:
         (TOPIC_ID, "Footwear"),
         (SECOND_TOPIC_ID, "Activewear"),
     ]
-    assert topics[0].prompts[0].intent == "discovery"
-    assert topics[0].prompts[0].pattern == "what_is"
-    assert topics[1].prompts[0].intent == "purchase"
+    # Stage and intent come from the plan, never from the returned text.
+    assert topics[0].prompts[0].buyer_stage == "consideration"
+    assert topics[0].prompts[0].prompt_intent == "recommend"
+    assert topics[0].prompts[0].intent == "purchase"
+    assert topics[1].prompts[0].buyer_stage == "awareness"
+    assert topics[1].prompts[0].prompt_intent == "solve"
 
 
-def test_slot_plan_rotates_patterns_while_covering_topics() -> None:
-    assert [(slot.topic_id, slot.pattern) for slot in SLOTS] == [
-        (str(TOPIC_ID), "what_is"),
-        (str(SECOND_TOPIC_ID), "best_for"),
-        (str(TOPIC_ID), "best_for"),
-        (str(SECOND_TOPIC_ID), "how_to"),
+def test_slot_plan_rotates_archetypes_and_forms_while_covering_topics() -> None:
+    # Topic-first: every topic is covered before any repeats. The two topics
+    # start at opposite ends of the recipe, so a small plan still spans stages
+    # instead of asking each topic the same kind of question.
+    assert [(slot.topic_id, slot.archetype) for slot in SLOTS] == [
+        (str(TOPIC_ID), "consideration_recommend"),
+        (str(SECOND_TOPIC_ID), "awareness_solve"),
+        (str(TOPIC_ID), "decision_buy"),
+        (str(SECOND_TOPIC_ID), "awareness_learn"),
     ]
+    # Adjacent slots never share a surface form, which is what stops a batch
+    # coming back as one sentence frame repeated across topics.
+    forms = [slot.form for slot in SLOTS]
+    assert all(first != second for first, second in zip(forms, forms[1:], strict=False))
 
 
-def test_parse_drops_unknown_duplicate_and_wrong_shape_slots() -> None:
+def test_parse_drops_unknown_duplicate_and_off_job_slots() -> None:
     raw = json.dumps(
         {
             "prompts": [
-                {"slot_id": "unknown", "text": "What is footwear?"},
-                {"slot_id": "q1", "text": "What is footwear?"},
-                {"slot_id": "q1", "text": "What is footwear exactly?"},
-                {"slot_id": "q2", "text": "comfortable gym clothes"},
+                {"slot_id": "unknown", "text": "Best footwear stores for wide feet"},
+                {"slot_id": "q1", "text": "Best footwear stores for wide feet"},
+                {"slot_id": "q1", "text": "Best footwear shops for wide feet"},
+                # Does not do its job: no constraint beyond the topic name.
+                {"slot_id": "q2", "text": "What is activewear?"},
             ]
         }
     )
@@ -205,7 +219,7 @@ def test_negative_existing_context_limit_is_rejected() -> None:
 def test_manual_generation_applies_the_same_buyer_style_gate() -> None:
     """The "Generate prompts" button must not reintroduce the survey register."""
     from app.domain.prompts.generation_contract import SuggestedPrompt, SuggestedTopic
-    from app.domain.prompts.generation_filtering import _drop_invalid_core_prompts
+    from app.domain.prompts.generation_filtering import filter_for_cohort
 
     topic_id = uuid.uuid4()
     brand_context = {
@@ -226,7 +240,7 @@ def test_manual_generation_applies_the_same_buyer_style_gate() -> None:
         "best running shoes for wide toes",
         "best running shoes for high arches",
     ]
-    result = _drop_invalid_core_prompts(
+    result = filter_for_cohort(
         [
             SuggestedTopic(
                 topic_id=topic_id,
@@ -237,6 +251,7 @@ def test_manual_generation_applies_the_same_buyer_style_gate() -> None:
                 ],
             )
         ],
+        "core",
         brand_context,
     )
     kept = [prompt.text for topic in result for prompt in topic.prompts]
@@ -299,3 +314,39 @@ def test_named_manual_generation_keeps_identity_and_style_rules() -> None:
         ],
     )
     assert diagnostics == ["Is Acme reliable for school shoes in India"]
+
+
+def test_one_topic_no_longer_caps_the_plan_at_one_slot_per_archetype() -> None:
+    """A request larger than topics x recipe is planned, not silently truncated.
+
+    ``min(count, topics * recipe)`` meant a single selected topic returned four
+    prompts however many were asked for, with no error to say so. Extra cycles
+    reuse a pairing only with a different surface form.
+    """
+    topics = [{"id": "t1", "name": "Running Shoes", "description": "Trainers"}]
+
+    assert len(build_prompt_slots(topics=topics, count=20, cohort="core")) == 20
+
+    slots = build_prompt_slots(topics=topics, count=12, cohort="core")
+    assert {slot.form for slot in slots} == {
+        "question",
+        "first_person",
+        "search_phrase",
+    }
+
+
+def test_narrowing_intents_stamps_the_archetype_intent_not_the_request() -> None:
+    """Asking for ``comparison`` selects the comparison job, it does not relabel.
+
+    The previous planner stamped the REQUESTED intent onto whatever slot it
+    produced, so a ``comparison`` request on the core cohort returned a
+    recommendation slot wearing a comparison label.
+    """
+    topics = [{"id": "t1", "name": "Running Shoes", "description": "Trainers"}]
+    slots = build_prompt_slots(
+        topics=topics, count=3, cohort="core", intents=("comparison",)
+    )
+
+    assert {slot.archetype for slot in slots} == {"consideration_compare"}
+    assert slots[0].intent == "comparison"
+    assert slots[0].prompt_intent == "compare"

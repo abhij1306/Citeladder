@@ -113,7 +113,7 @@ class PromptSet(Base):
         back_populates="prompt_set",
         cascade=CASCADE_ALL_DELETE_ORPHAN,
         passive_deletes=True,
-        order_by="Prompt.created_at",
+        order_by="(Prompt.created_at, Prompt.id)",
     )
 
 
@@ -156,8 +156,19 @@ class Prompt(Base):
     # the dedupe key backing the per-set uniqueness constraint.
     normalized_text_hash: Mapped[str] = mapped_column(String(64), default="")
     theme: Mapped[str] = mapped_column(String(255), default="")
-    # Empty string means "unspecified"; otherwise one of PROMPT_INTENTS.
+    # Empty string means "unspecified"; otherwise one of PROMPT_INTENTS. Kept
+    # as the five-value legacy vocabulary that opportunity scoring, audit task
+    # creation and the frontend already read; generation now DERIVES it from
+    # the archetype below rather than choosing it independently.
     intent: Mapped[str] = mapped_column(String(32), default="")
+    # Where in the buyer journey this prompt sits, and what the person wants
+    # from the answer (config/visibility_prompts.py BUYER_STAGES /
+    # PROMPT_INTENT_VOCABULARY). Empty for manually written and imported
+    # prompts, which never went through the slot planner.
+    buyer_stage: Mapped[str] = mapped_column(String(16), default="", server_default="")
+    prompt_intent: Mapped[str] = mapped_column(
+        String(16), default="", server_default=""
+    )
     cohort: Mapped[str] = mapped_column(
         String(32), default="core", server_default="core", index=True
     )

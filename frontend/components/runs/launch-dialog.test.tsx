@@ -1,8 +1,9 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { promptsApi } from '@/lib/api/prompts';
 import { providersApi } from '@/lib/api/providers';
+import { queryKeys } from '@/lib/api/query-keys';
 import { runsApi } from '@/lib/api/runs';
 import { renderWithProviders } from '@/test/render';
 
@@ -111,5 +112,97 @@ describe('LaunchDialog fixed prompt selection', () => {
         expect.objectContaining({ prompt_set_id: PROMPT_SET_ID, audit_scope: 'brand' }),
       ),
     );
+  });
+});
+
+describe('LaunchDialog prompt batching', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  /** A set of `count` audit-eligible prompts, in creation order. */
+  function setWithPrompts(count: number) {
+    return [
+      {
+        id: PROMPT_SET_ID,
+        name: 'Brand portfolio',
+        prompt_count: count,
+        prompts: Array.from({ length: count }, (_, index) => ({
+          id: `prompt-${String(index).padStart(2, '0')}`,
+          text: `Prompt ${index}`,
+          enabled: true,
+          status: 'active',
+          created_at: `2026-01-${String(index + 1).padStart(2, '0')}T00:00:00Z`,
+        })),
+      },
+    ];
+  }
+
+  it('runs a chosen batch of ten as an explicit prompt id list', async () => {
+    // The launch screen used to offer no choice: picking a set ran every
+    // prompt in it, however large and however expensive.
+    const launch = stubApis();
+    vi.spyOn(promptsApi, 'listPromptSets').mockResolvedValue(setWithPrompts(23) as never);
+
+    renderWithProviders(
+      <LaunchDialog open onOpenChange={() => undefined} projectId={PROJECT_ID} />,
+    );
+
+    const batchSelect = await screen.findByLabelText(/Prompts to run/);
+    expect(screen.getByRole('option', { name: 'All 23 prompts' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Prompts 21-23' })).toBeInTheDocument();
+
+    fireEvent.change(batchSelect, { target: { value: '1' } });
+    await selectEngineAndLaunch();
+
+    await waitFor(() =>
+      expect(launch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt_ids: Array.from({ length: 10 }, (_, index) => `prompt-${index + 10}`),
+        }),
+      ),
+    );
+    expect(launch.mock.calls[0][0]).not.toHaveProperty('prompt_set_id');
+  });
+
+  it('runs the whole set by default, and offers no batching below one batch', async () => {
+    const launch = stubApis();
+    vi.spyOn(promptsApi, 'listPromptSets').mockResolvedValue(setWithPrompts(7) as never);
+
+    renderWithProviders(
+      <LaunchDialog open onOpenChange={() => undefined} projectId={PROJECT_ID} />,
+    );
+
+    await screen.findByRole('checkbox', { name: 'ChatGPT' });
+    // Seven prompts is one batch: "All 7" and "Prompts 1-7" are the same run.
+    expect(screen.queryByLabelText(/Prompts to run/)).not.toBeInTheDocument();
+    await selectEngineAndLaunch();
+
+    await waitFor(() =>
+      expect(launch).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt_set_id: PROMPT_SET_ID }),
+      ),
+    );
+  });
+
+  it('does not turn a stale batch selection into a whole-set launch after refresh', async () => {
+    const launch = stubApis();
+    vi.spyOn(promptsApi, 'listPromptSets').mockResolvedValue(setWithPrompts(23) as never);
+
+    const { queryClient } = renderWithProviders(
+      <LaunchDialog open onOpenChange={() => undefined} projectId={PROJECT_ID} />,
+    );
+
+    fireEvent.change(await screen.findByLabelText(/Prompts to run/), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'ChatGPT' }));
+    expect(screen.getByRole('button', { name: 'Launch audit' })).toBeEnabled();
+
+    act(() => {
+      queryClient.setQueryData(queryKeys.prompts.sets(PROJECT_ID), setWithPrompts(12));
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Launch audit' })).toBeDisabled(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Launch audit' }));
+    expect(launch).not.toHaveBeenCalled();
   });
 });

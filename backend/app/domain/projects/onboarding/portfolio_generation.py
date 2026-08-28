@@ -13,7 +13,6 @@ single malformed row voided the whole run.
 from __future__ import annotations
 
 import asyncio
-import json
 from dataclasses import dataclass
 from functools import partial
 
@@ -40,16 +39,18 @@ from app.core.config.visibility_prompts import (
     prompt_system_prompt,
 )
 from app.domain.projects.discovery_schemas import DiscoveryTopic
-from app.domain.projects.onboarding.prompt_validation import (
+from app.domain.prompts.generation_contract import (
+    GenerationOutput,
+    GenerationOutputError,
+    build_generation_user_message,
+    parse_planned_output,
+)
+from app.domain.prompts.generation_filtering import supported_qualifiers
+from app.domain.prompts.portfolio_validation import (
     PortfolioValidator,
     market_terms,
     ordered_portfolio,
     positioning_shingles,
-)
-from app.domain.prompts.generation_contract import (
-    GenerationOutput,
-    GenerationOutputError,
-    parse_planned_output,
 )
 from app.domain.prompts.query_patterns import PromptSlot, build_prompt_slots
 
@@ -67,12 +68,48 @@ def _batches(topics: list[DiscoveryTopic]) -> list[list[DiscoveryTopic]]:
     return [topics[start : start + size] for start in range(0, len(topics), size)]
 
 
-def _topic_request(
+def onboarding_brand_context(
     *,
     brand_name: str,
-    market: str,
-    business_model: str,
-    buyer_register: str,
+    primary_market: str,
+    profile: dict,
+    competitors: list[str],
+) -> dict:
+    """Onboarding's confirmed facts, in the shape the shared builder reads.
+
+    There is no demand evidence yet at onboarding -- a demand snapshot needs
+    connected Search Console data -- so that key is simply absent and the
+    builder omits the block.
+    """
+    return {
+        "brand_name": brand_name,
+        "brand_aliases": [str(alias) for alias in profile.get("brand_aliases") or []],
+        "competitors": [{"name": name} for name in competitors],
+        "country_code": primary_market,
+        "language_code": str(profile.get("language_code") or ""),
+        "knowledge_base": {
+            field: str(profile.get(field) or "")
+            for field in ("description", "positioning", "target_audience")
+        },
+        "business_context": {
+            field: profile.get(field)
+            for field in (
+                "business_model",
+                "buyer_register",
+                "category",
+                "category_terms",
+                "jobs_to_be_done",
+                "service_areas",
+                "buyer_roles",
+            )
+            if profile.get(field)
+        },
+    }
+
+
+def _topic_request(
+    *,
+    brand_context: dict,
     topics: list[DiscoveryTopic],
     rejected: tuple[str, ...],
 ) -> tuple[str, list[PromptSlot]]:
@@ -80,25 +117,23 @@ def _topic_request(
         topics=topics,
         count=len(topics) * VISIBILITY_PROMPTS_PER_TOPIC,
         cohort=PROMPT_COHORT_CORE,
-        brand_name=brand_name,
+        brand_name=str(brand_context.get("brand_name") or ""),
+        qualifiers=supported_qualifiers(brand_context),
     )
-    payload: dict[str, object] = {
-        "brand_name": brand_name,
-        "market": market,
-        "business_model": business_model,
-        "buyer_register": buyer_register,
-        "buyer_query_slots": [slot.as_model_input() for slot in slots],
-    }
-    if rejected:
-        payload["previous_rejection_reasons"] = list(rejected)
-    return json.dumps(payload, ensure_ascii=False), slots
+    return (
+        build_generation_user_message(
+            brand_context=brand_context,
+            slots=slots,
+            existing_prompts=[],
+            rejected_reasons=rejected,
+        ),
+        slots,
+    )
 
 
 def _brand_request(
     *,
-    brand_name: str,
-    market: str,
-    business_model: str,
+    brand_context: dict,
     competitors: list[str],
     topics: list[DiscoveryTopic],
     count: int,
@@ -109,20 +144,23 @@ def _brand_request(
         topics=topics,
         count=count,
         cohort=cohort,
-        brand_name=brand_name,
+        brand_name=str(brand_context.get("brand_name") or ""),
         competitor_names=tuple(competitors),
+        qualifiers=supported_qualifiers(brand_context),
         unbound_brand_diagnostic=cohort == PROMPT_COHORT_BRAND_DIAGNOSTIC,
     )
-    payload: dict[str, object] = {
-        "brand_name": brand_name,
-        "market": market,
-        "business_model": business_model,
-        "competitors": competitors if cohort == PROMPT_COHORT_COMPARISON else [],
-        "buyer_query_slots": [slot.as_model_input() for slot in slots],
-    }
-    if rejected:
-        payload["previous_rejection_reasons"] = list(rejected)
-    return json.dumps(payload, ensure_ascii=False), slots
+    named_context = dict(brand_context)
+    if cohort != PROMPT_COHORT_COMPARISON:
+        named_context["competitors"] = []
+    return (
+        build_generation_user_message(
+            brand_context=named_context,
+            slots=slots,
+            existing_prompts=[],
+            rejected_reasons=rejected,
+        ),
+        slots,
+    )
 
 
 async def _call(
@@ -145,8 +183,10 @@ async def _call(
             "topic_id": str(prompt.topic_id or ""),
             "text": prompt.text,
             "intent": prompt.intent,
+            "buyer_stage": prompt.buyer_stage,
+            "prompt_intent": prompt.prompt_intent,
             "cohort": prompt.cohort,
-            "pattern": prompt.pattern,
+            "archetype": prompt.archetype,
         }
         for prompt in planned
     ]
@@ -157,10 +197,7 @@ async def _gather_batches(
     *,
     batches: list[list[DiscoveryTopic]],
     system: str,
-    brand_name: str,
-    market: str,
-    business_model: str,
-    buyer_register: str,
+    brand_context: dict,
     rejected: tuple[str, ...] = (),
 ) -> list[tuple[list[DiscoveryTopic], list[dict] | None]]:
     semaphore = asyncio.Semaphore(DISCOVERY_PROMPT_GENERATION_CONCURRENCY)
@@ -168,10 +205,7 @@ async def _gather_batches(
     async def run(topics: list[DiscoveryTopic]) -> list[dict] | None:
         async with semaphore:
             user, slots = _topic_request(
-                brand_name=brand_name,
-                market=market,
-                business_model=business_model,
-                buyer_register=buyer_register,
+                brand_context=brand_context,
                 topics=topics,
                 rejected=rejected,
             )
@@ -195,8 +229,8 @@ async def _gather_batches(
 class _Absorbed:
     """What ONE call admitted, separate from the shared validator's totals.
 
-    The cohorts run concurrently against one validator, so ``accepted`` and
-    ``topics_covered()`` answer for the whole portfolio, not for the caller.
+    The cohorts run concurrently against one validator, so its accepted rows
+    answer for the whole portfolio, not for the caller.
     Reading them to decide "did my cohort produce anything?" let a core
     admission satisfy the named cohort's retry gate, and let the single
     comparison prompt -- which is stamped with the leading topic's id -- mark
@@ -237,10 +271,8 @@ async def _generate_core(
     validator: PortfolioValidator,
     *,
     topics: list[DiscoveryTopic],
-    brand_name: str,
-    market: str,
+    brand_context: dict,
     business_model: str,
-    buyer_register: str,
 ) -> tuple[list[str], list[str]]:
     """Generate for every topic, then retry only the topics that came up empty.
 
@@ -253,10 +285,7 @@ async def _generate_core(
         client,
         batches=_batches(topics),
         system=system,
-        brand_name=brand_name,
-        market=market,
-        business_model=business_model,
-        buyer_register=buyer_register,
+        brand_context=brand_context,
     )
     reasons: list[str] = []
     covered: set[str] = set()
@@ -271,10 +300,7 @@ async def _generate_core(
             client,
             batches=_batches(missing),
             system=system,
-            brand_name=brand_name,
-            market=market,
-            business_model=business_model,
-            buyer_register=buyer_register,
+            brand_context=brand_context,
             rejected=tuple(dict.fromkeys(reasons))[:8],
         )
         for _batch, rows in retried:
@@ -299,8 +325,7 @@ async def _generate_named(
     validator: PortfolioValidator,
     *,
     topics: list[DiscoveryTopic],
-    brand_name: str,
-    market: str,
+    brand_context: dict,
     business_model: str,
     competitors: list[str],
 ) -> list[str]:
@@ -317,8 +342,7 @@ async def _generate_named(
             client,
             validator,
             topics=topics,
-            brand_name=brand_name,
-            market=market,
+            brand_context=brand_context,
             business_model=business_model,
             competitors=competitors,
             cohort=cohort,
@@ -348,8 +372,7 @@ async def _named_attempt(
     validator: PortfolioValidator,
     *,
     topics: list[DiscoveryTopic],
-    brand_name: str,
-    market: str,
+    brand_context: dict,
     business_model: str,
     competitors: list[str],
     cohort: str,
@@ -362,9 +385,7 @@ async def _named_attempt(
     from a well-formed response that simply admitted nothing.
     """
     user, slots = _brand_request(
-        brand_name=brand_name,
-        market=market,
-        business_model=business_model,
+        brand_context=brand_context,
         competitors=competitors,
         topics=topics[:VISIBILITY_TOPIC_NAME_LIMIT],
         count=count,
@@ -417,6 +438,12 @@ async def _generate_all(
     competitors: list[str],
 ) -> list[str]:
     business_model = str(profile.get("business_model") or "")
+    brand_context = onboarding_brand_context(
+        brand_name=brand_name,
+        primary_market=primary_market,
+        profile=profile,
+        competitors=competitors,
+    )
     # Concurrent because the cohorts are independent, and because running them
     # in sequence meant a slow organic cohort could burn the whole budget and
     # leave the brand and comparison cohorts ungenerated.
@@ -425,17 +452,14 @@ async def _generate_all(
             client,
             validator,
             topics=topics,
-            brand_name=brand_name,
-            market=primary_market,
+            brand_context=brand_context,
             business_model=business_model,
-            buyer_register=str(profile.get("buyer_register") or ""),
         ),
         _generate_named(
             client,
             validator,
             topics=topics,
-            brand_name=brand_name,
-            market=primary_market,
+            brand_context=brand_context,
             business_model=business_model,
             competitors=competitors,
         ),

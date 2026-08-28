@@ -25,7 +25,9 @@ class GenerationOutputError(RuntimeError):
 class SuggestedPrompt(BaseModel):
     text: str = Field(min_length=1)
     intent: str = ""
-    pattern: str = ""
+    buyer_stage: str = ""
+    prompt_intent: str = ""
+    archetype: str = ""
     slot_id: str = ""
 
 
@@ -83,7 +85,9 @@ def parse_generation_output(
             SuggestedPrompt(
                 text=prompt.text,
                 intent=prompt.intent,
-                pattern=prompt.pattern,
+                buyer_stage=prompt.buyer_stage,
+                prompt_intent=prompt.prompt_intent,
+                archetype=prompt.archetype,
                 slot_id=prompt.slot_id,
             )
         )
@@ -114,12 +118,43 @@ def parse_planned_output(
     return planned, dropped
 
 
+def _append_json_context(lines: list[str], label: str, payload: object) -> None:
+    if payload:
+        lines.append(
+            label + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        )
+
+
+def _append_retry_context(
+    lines: list[str], rejected_reasons: tuple[str, ...], existing_prompts: list[str]
+) -> None:
+    if rejected_reasons:
+        lines.append(
+            "A previous attempt was rejected for these reasons. Do not repeat "
+            "them: " + ", ".join(rejected_reasons)
+        )
+    if existing_prompts:
+        lines.append(
+            "Existing prompts (do NOT duplicate any of these):\n- "
+            + "\n- ".join(existing_prompts)
+        )
+
+
 def build_generation_user_message(
     *,
     brand_context: dict[str, Any],
     slots: list[PromptSlot],
     existing_prompts: list[str],
+    rejected_reasons: tuple[str, ...] = (),
 ) -> str:
+    """The one user message both generation paths send.
+
+    Onboarding built a much thinner payload of its own -- brand name, market,
+    business model, register -- so the initial portfolio was written without the
+    knowledge base, confirmed business context or competitor list that the
+    "Generate prompts" button had been sending all along. Same planner, same
+    instruction, same context.
+    """
     competitors = [item["name"] for item in brand_context.get("competitors", [])]
     lines = [
         serialize_brand_knowledge_context(dict(brand_context.get("knowledge_base", {})))
@@ -128,6 +163,17 @@ def build_generation_user_message(
         brand_context.get("website_evidence", ""),
         "Use the website evidence only to ground prompt wording. The canonical "
         "topics below are the complete allowed taxonomy.",
+    )
+    _append_json_context(
+        lines,
+        "Confirmed business context: ",
+        brand_context.get("business_context") or {},
+    )
+    _append_json_context(
+        lines,
+        "Demand evidence (what people already search for here - ground "
+        "constraints in this, never invent one): ",
+        list(brand_context.get("demand_signals") or []),
     )
     lines += [
         f"Brand: {brand_context.get('brand_name', '')}",
@@ -142,17 +188,12 @@ def build_generation_user_message(
             separators=(",", ":"),
         ),
     ]
-    commerce_products = list(brand_context.get("commerce_products") or [])
-    if commerce_products:
-        lines.append(
-            "Uploaded catalog products (use only products whose category matches the "
-            "target topic): "
-            + json.dumps(commerce_products, ensure_ascii=False, separators=(",", ":"))
-        )
+    _append_json_context(
+        lines,
+        "Uploaded catalog products (use only products whose category matches the "
+        "target topic): ",
+        list(brand_context.get("commerce_products") or []),
+    )
     lines.append(f"Return exactly {len(slots)} prompts in total.")
-    if existing_prompts:
-        lines.append(
-            "Existing prompts (do NOT duplicate any of these):\n- "
-            + "\n- ".join(existing_prompts)
-        )
+    _append_retry_context(lines, rejected_reasons, existing_prompts)
     return "\n".join(lines)

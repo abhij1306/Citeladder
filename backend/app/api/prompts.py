@@ -489,6 +489,7 @@ async def generate_prompts_endpoint(
         generated=[prompt_to_response(p) for p in generated],
         topics=[topic_to_response(t, counts) for t in topics],
         dropped_duplicates=dropped,
+        requested_count=payload.count,
     )
 
 

@@ -40,6 +40,11 @@ from app.models.prompt import Prompt
 from tests.component.audit_helpers import seed_audit_fixtures
 from tests.component.auth_helpers import register_and_login as _register
 from tests.component.occupancy_helpers import seed_occupancy_grants
+from tests.fixtures.archetype_text import (
+    satisfies_slot,
+    slot_text,
+    slots_from_user_message,
+)
 
 VALID_AGENT_RESPONSE = json.dumps(
     {
@@ -76,8 +81,14 @@ class FakeAgent:
     model = "fake-model"
     base_url_host = "agent.test"
 
-    def __init__(self, response: str = VALID_AGENT_RESPONSE) -> None:
+    def __init__(
+        self,
+        response: str = VALID_AGENT_RESPONSE,
+        *,
+        fallback_discriminator: str = "",
+    ) -> None:
         self.response = response
+        self.fallback_discriminator = fallback_discriminator
         self.calls: list[dict[str, str]] = []
         self.schemas: list[tuple[str, dict[str, object]]] = []
 
@@ -125,6 +136,7 @@ class FakeAgent:
                             if index < len(candidate_texts)
                             else "",
                             index,
+                            self.fallback_discriminator,
                         ),
                     }
                     for index, slot in enumerate(slots)
@@ -133,39 +145,24 @@ class FakeAgent:
         )
 
 
-def _slot_text(slot: dict[str, object], candidate: str, index: int) -> str:
-    """Render valid contract rows while retaining already-valid test text."""
-    topic = str(slot.get("topic") or "topic")
-    pattern = str(slot.get("pattern") or "")
-    normalized = candidate.casefold()
-    topic_word = topic.casefold().split()[0]
-    valid = {
-        "what_is": normalized.startswith("what is "),
-        "best_for": normalized.startswith("best ") and " for " in normalized,
-        "how_to": normalized.startswith("how to "),
-        "pricing": any(word in normalized for word in ("price", "pricing", "cost")),
-        "brand_overview": normalized.startswith("what is "),
-        "brand_fit": normalized.startswith("is ") and " good for " in normalized,
-        "brand_comparison": " vs " in normalized or " versus " in normalized,
-    }.get(pattern, False)
-    if valid and (pattern.startswith("brand_") or topic_word in normalized):
-        return candidate
-    brand = str(slot.get("brand") or "Brand")
-    competitors = list(slot.get("competitors") or [])
-    competitor = str(competitors[0]) if competitors else "Competitor"
-    candidate_words = candidate.split()
-    qualifier = candidate_words[1] if len(candidate_words) > 1 else "query"
-    suffix = f"{index + 1} {qualifier}"
-    rendered = {
-        "what_is": f"What is {topic} option {suffix}?",
-        "best_for": f"Best {topic} for buyer use case {suffix}",
-        "how_to": f"How to choose {topic} for need {suffix}",
-        "pricing": f"{topic} pricing option {suffix}",
-        "brand_overview": f"What is {brand}?",
-        "brand_fit": f"Is {brand} good for {topic}?",
-        "brand_comparison": f"{brand} vs {competitor}",
-    }
-    return rendered[pattern]
+def _slot_text(
+    slot: dict[str, object],
+    candidate: str,
+    index: int,
+    discriminator: str = "",
+) -> str:
+    """Keep test-supplied text when it does the slot's job; else render one.
+
+    Validity is decided by the production gate rather than a copy of it, so a
+    fake agent can never drift into producing text the real generator would
+    reject -- which is how the old sentence-frame renderer masked the fact that
+    every exemplar in the config would have been thrown away.
+    """
+    text = " ".join(candidate.split())
+    if satisfies_slot(slot, text):
+        return text
+    fallback_id = f"{discriminator}-{index}" if discriminator else index
+    return slot_text(slot, fallback_id)
 
 
 @pytest.fixture
@@ -250,14 +247,12 @@ async def test_generate_creates_prompts_under_existing_topic(
     assert body["dropped_duplicates"] == 0
     assert len(body["generated"]) == 3
     assert {p["status"] for p in body["generated"]} == {"active"}
-    patterns = {
-        p["generation_evidence"]["buyer_query_pattern"] for p in body["generated"]
+    archetypes = {
+        p["generation_evidence"]["buyer_query_archetype"] for p in body["generated"]
     }
-    assert patterns == {
-        "what_is",
-        "best_for",
-        "how_to",
-    }
+    # Three slots for one topic: the recommendation archetype is weighted
+    # heaviest, so it is planned twice before the recipe moves on.
+    assert archetypes == {"consideration_recommend", "decision_buy"}
     for prompt in body["generated"]:
         assert prompt["origin"] == "generated"
         assert prompt["topic_id"] is not None
@@ -342,12 +337,12 @@ async def test_generate_persists_provenance_evidence(
     for prompt in prompts:
         evidence = prompt.generation_evidence
         assert evidence is not None
-        assert evidence["generator_version"] == "prompt-gen-v18"
-        assert evidence["buyer_query_pattern_version"] == "buyer-query-patterns-v1"
-        assert evidence["buyer_query_pattern"] in {
-            "what_is",
-            "best_for",
-            "how_to",
+        assert evidence["generator_version"] == "prompt-gen-v19"
+        assert evidence["buyer_query_archetype_version"] == "buyer-query-archetypes-v2"
+        assert evidence["buyer_query_archetype"] in {
+            "consideration_recommend",
+            "decision_buy",
+            "consideration_compare",
         }
         assert evidence["generation_mode"] == "model"
         assert evidence["model_identity"] == {
@@ -581,6 +576,48 @@ async def test_generate_into_target_topic(
 
 
 @pytest.mark.asyncio
+async def test_topic_scoped_generation_plans_only_that_topic(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Generating into one topic still spans the funnel and stays on that topic.
+
+    The topic-scoped path is the one a user reaches from a topic in the rail,
+    and it is the case where a single-archetype plan would be least visible:
+    every prompt lands under one heading, so a portfolio of five
+    recommendation queries looks intentional rather than broken.
+    """
+    project, prompt_set_id = await _make_project_and_set(
+        client, "gen-scoped@example.com"
+    )
+    target = (
+        await client.post(
+            f"/api/v1/projects/{project['id']}/topics",
+            json={"name": "School Uniforms", "description": "Shirts, dresses, shoes."},
+        )
+    ).json()
+
+    agent = FakeAgent(response=json.dumps({"topics": []}))
+    monkeypatch.setattr(prompts_api, "create_model_gateway", lambda: agent)
+    resp = await client.post(
+        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
+        json={"count": 7, "confirm_send_evidence": True, "topic_id": target["id"]},
+    )
+
+    assert resp.status_code == 201
+    generated = resp.json()["generated"]
+    assert len(generated) == 7
+    # Every prompt belongs to the requested topic — the other project topic is
+    # never planned for.
+    assert {prompt["topic_id"] for prompt in generated} == {target["id"]}
+    # And the seven slots span the buyer journey rather than repeating one job.
+    assert len({prompt["buyer_stage"] for prompt in generated}) >= 3
+    assert len({prompt["prompt_intent"] for prompt in generated}) >= 4
+    # The slots the model was given name only the scoped topic.
+    planned = slots_from_user_message(agent.calls[0]["user"])
+    assert {slot["topic"] for slot in planned} == {"School Uniforms"}
+
+
+@pytest.mark.asyncio
 async def test_generation_reuses_existing_topic_with_description(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -682,10 +719,14 @@ async def test_generate_activates_validated_requested_count(
     )
     assert resp.status_code == 201
     body = resp.json()
-    # One topic has exactly four constrained buyer-query patterns.
-    assert len(body["generated"]) == 4
-    statuses = [p["status"] for p in body["generated"]]
-    assert statuses == ["active"] * 4
+    # A single topic used to cap the plan at one slot per sentence frame, so a
+    # request for twenty silently returned four. The planner now cycles
+    # archetypes and surface forms, so the request is genuinely planned; the
+    # exact plan size is asserted in the planner's own unit test, and a few of
+    # this stub's canned texts still lose to the style gates.
+    generated = body["generated"]
+    assert len(generated) > 4
+    assert [p["status"] for p in generated] == ["active"] * len(generated)
 
 
 @pytest.mark.asyncio
@@ -791,11 +832,20 @@ async def test_generate_counts_intra_response_duplicates(
         response=json.dumps(
             {
                 "prompts": [
-                    {"slot_id": "q1", "text": "What is running shoes?"},
-                    {"slot_id": "q1", "text": "What is running shoes?"},
-                    {"slot_id": "q2", "text": "Best running shoes for flat feet"},
-                    {"slot_id": "q3", "text": "How to choose running shoes"},
-                    {"slot_id": "q4", "text": "Running shoes pricing"},
+                    {"slot_id": "q1", "text": "Best running shoes for flat feet"},
+                    {"slot_id": "q1", "text": "Best running shoes for flat feet"},
+                    {
+                        "slot_id": "q2",
+                        "text": "Where to buy running shoes for marathon training",
+                    },
+                    {
+                        "slot_id": "q3",
+                        "text": "Are cheap running shoes worth buying for beginners",
+                    },
+                    {
+                        "slot_id": "q4",
+                        "text": "Best road running shoes compared with trail options",
+                    },
                 ]
             }
         )
@@ -872,6 +922,7 @@ async def test_concurrent_generation_keeps_all_validated_rows_active(
             self._response = _agent_response_with_n_prompts(
                 n, discriminator=discriminator
             )
+            self._discriminator = discriminator
 
         async def complete_structured_json(
             self,
@@ -883,9 +934,10 @@ async def test_concurrent_generation_keeps_all_validated_rows_active(
         ) -> str:
             # Yield so both coroutines interleave before either persists.
             await asyncio.sleep(0)
-            return await FakeAgent(response=self._response).complete_json(
-                system=system, user=user
-            )
+            return await FakeAgent(
+                response=self._response,
+                fallback_discriminator=self._discriminator,
+            ).complete_json(system=system, user=user)
 
     async def _run(topic: str, n: int) -> None:
         async with session_factory() as session:
@@ -912,7 +964,11 @@ async def test_concurrent_generation_keeps_all_validated_rows_active(
             .scalars()
             .all()
         )
-    assert len(active) == 8
+    texts = [prompt.text for prompt in active]
+    # Both portfolios survive, and neither run's rows collide with the other's.
+    assert len(texts) == len(set(texts))
+    assert any("Alpha" in text for text in texts)
+    assert any("Beta" in text for text in texts)
 
 
 @pytest.mark.asyncio

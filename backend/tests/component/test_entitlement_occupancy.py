@@ -59,6 +59,7 @@ from tests.component.occupancy_helpers import (
     seed_account_workspace,
     seed_occupancy_grants,
 )
+from tests.fixtures.archetype_text import slot_text
 
 
 @pytest.fixture(autouse=True)
@@ -333,19 +334,14 @@ async def test_concurrent_generation_inserts_never_exceed_grant(
         slot_line = next(line for line in user.splitlines() if line.startswith(marker))
         slots = json.loads(slot_line.removeprefix(marker))
 
-        def _text(slot: dict[str, object]) -> str:
-            topic = str(slot["topic"])
-            return {
-                "what_is": f"What is {topic} for {run_label} buyers?",
-                "best_for": f"Best {topic} for {run_label} buyers",
-                "how_to": f"How to choose {topic} for {run_label} buyers",
-                "pricing": f"{topic} pricing for {run_label} buyers",
-            }[str(slot["pattern"])]
-
         return json.dumps(
             {
                 "prompts": [
-                    {"slot_id": slot["slot_id"], "text": _text(slot)} for slot in slots
+                    {
+                        "slot_id": slot["slot_id"],
+                        "text": slot_text(slot, f"{run_label}{index}"),
+                    }
+                    for index, slot in enumerate(slots)
                 ]
             }
         )

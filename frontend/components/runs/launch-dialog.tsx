@@ -8,9 +8,15 @@ import { promptsApi } from '@/lib/api/prompts';
 import { providersApi } from '@/lib/api/providers';
 import { queryKeys } from '@/lib/api/query-keys';
 import { runsApi } from '@/lib/api/runs';
-import type { Audit, LogicalEngine } from '@/lib/api/types';
+import type { Audit, LogicalEngine, PromptSet } from '@/lib/api/types';
 import { ENGINE_ORDER, isConfigured, isVerified } from '@/lib/providers/catalog';
-import { buildLaunchPayload, canLaunch, DEFAULT_REPETITIONS } from '@/lib/runs/launch';
+import {
+  auditablePrompts,
+  buildLaunchPayload,
+  canLaunch,
+  DEFAULT_REPETITIONS,
+  promptBatches,
+} from '@/lib/runs/launch';
 
 import { LaunchDialogView } from './launch-dialog-view';
 
@@ -27,6 +33,42 @@ function availableEngines(
   return {
     configuredEngines: ENGINE_ORDER.filter((engine) => verified.has(engine)),
     unverifiedEngines: ENGINE_ORDER.filter((engine) => stored.has(engine) && !verified.has(engine)),
+  };
+}
+
+function fixedPromptSelection(
+  fixedPromptSetId: string | undefined,
+  fixedPromptIds: string[] | undefined,
+  promptSelectionLabel: string | undefined,
+) {
+  const count = fixedPromptIds?.length ?? 0;
+  return {
+    locked: count > 0 || Boolean(fixedPromptSetId),
+    label:
+      promptSelectionLabel ??
+      (count ? `${count} selected ${count === 1 ? 'prompt' : 'prompts'}` : undefined),
+  };
+}
+
+function batchSelection(
+  promptSets: PromptSet[] | undefined,
+  selectedPromptSetId: string | null,
+  fixedPromptSetId: string | undefined,
+  fixedPromptIds: string[] | undefined,
+  batchIndex: number | null,
+  locked: boolean,
+) {
+  const effectivePromptSetId =
+    fixedPromptSetId ?? selectedPromptSetId ?? promptSets?.[0]?.id ?? null;
+  const set = promptSets?.find((item) => item.id === effectivePromptSetId);
+  const batches = locked ? [] : promptBatches(auditablePrompts(set));
+  const selectedBatch = batchIndex === null ? undefined : batches[batchIndex];
+  const selectedBatchMissing = batchIndex !== null && selectedBatch === undefined;
+  return {
+    effectivePromptSetId,
+    batches,
+    payloadPromptSetId: selectedBatchMissing ? null : effectivePromptSetId,
+    promptIds: fixedPromptIds ?? selectedBatch?.map((prompt) => prompt.id),
   };
 }
 
@@ -70,23 +112,41 @@ export function LaunchDialog({
   // field and name the selection. Locking only on `fixedPromptSetId` left the
   // commerce caller showing an editable prompt-set select whose value the
   // payload ignored.
-  const fixedPromptCount = fixedPromptIds?.length ?? 0;
-  const promptSetLocked = fixedPromptCount > 0 || Boolean(fixedPromptSetId);
-  const selectionLabel =
-    promptSelectionLabel ??
-    (fixedPromptCount
-      ? `${fixedPromptCount} selected ${fixedPromptCount === 1 ? 'prompt' : 'prompts'}`
-      : undefined);
+  const fixedSelection = fixedPromptSelection(
+    fixedPromptSetId,
+    fixedPromptIds,
+    promptSelectionLabel,
+  );
   const [promptSetId, setPromptSetId] = useState<string | null>(null);
   const [engines, setEngines] = useState<LogicalEngine[]>([]);
   const [repetitions, setRepetitions] = useState(DEFAULT_REPETITIONS);
   const [connectOpen, setConnectOpen] = useState(false);
-  const effectivePromptSetId =
-    fixedPromptSetId ?? promptSetId ?? promptSetsQuery.data?.[0]?.id ?? null;
+  // `null` means the whole set. A caller that already fixed the prompts owns
+  // the selection outright, so batching is not offered there.
+  const [batchIndex, setBatchIndex] = useState<number | null>(null);
+  const promptSelection = useMemo(
+    () =>
+      batchSelection(
+        promptSetsQuery.data,
+        promptSetId,
+        fixedPromptSetId,
+        fixedPromptIds,
+        batchIndex,
+        fixedSelection.locked,
+      ),
+    [
+      promptSetsQuery.data,
+      promptSetId,
+      fixedPromptSetId,
+      fixedPromptIds,
+      batchIndex,
+      fixedSelection.locked,
+    ],
+  );
   const selection = {
     projectId,
-    promptSetId: effectivePromptSetId,
-    promptIds: fixedPromptIds,
+    promptSetId: promptSelection.payloadPromptSetId,
+    promptIds: promptSelection.promptIds,
     engines,
     repetitions,
     auditScope,
@@ -101,6 +161,7 @@ export function LaunchDialog({
     setEngines([]);
     setPromptSetId(null);
     setRepetitions(DEFAULT_REPETITIONS);
+    setBatchIndex(null);
   };
   const launchMutation = useMutation({
     mutationFn: () => runsApi.launchAudit(buildLaunchPayload(selection)),
@@ -124,8 +185,15 @@ export function LaunchDialog({
       promptSetsLoading={promptSetsQuery.isLoading}
       configuredEngines={configuredEngines}
       unverifiedEngines={unverifiedEngines}
-      promptSetId={effectivePromptSetId}
-      setPromptSetId={setPromptSetId}
+      promptSetId={promptSelection.effectivePromptSetId}
+      setPromptSetId={(id) => {
+        // A batch index means nothing against a different set's prompts.
+        setPromptSetId(id);
+        setBatchIndex(null);
+      }}
+      batches={promptSelection.batches}
+      batchIndex={batchIndex}
+      setBatchIndex={setBatchIndex}
       engines={engines}
       setEngines={setEngines}
       repetitions={repetitions}
@@ -136,8 +204,8 @@ export function LaunchDialog({
       onLaunch={() => launchMutation.mutate()}
       connectOpen={connectOpen}
       setConnectOpen={setConnectOpen}
-      promptSetLocked={promptSetLocked}
-      promptSelectionLabel={selectionLabel}
+      promptSetLocked={fixedSelection.locked}
+      promptSelectionLabel={fixedSelection.label}
       selectionReady={ready}
     />
   );

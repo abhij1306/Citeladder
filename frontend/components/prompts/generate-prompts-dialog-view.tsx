@@ -19,9 +19,16 @@ function GenerateResultAlert({ result }: Readonly<{ result: PromptGenerateRespon
   const duplicates = result.dropped_duplicates
     ? `; ${plural(result.dropped_duplicates, 'duplicate')} skipped`
     : '';
+  // Say so when the request could not be filled, rather than letting a short
+  // set read as the number that was asked for.
+  const shortfall =
+    result.requested_count > total
+      ? ` (${total} of ${result.requested_count} requested — add topics for more)`
+      : '';
   return (
     <Alert tone="success">
       Generated {plural(total, 'prompt')}
+      {shortfall}
       {topicCount ? ` across ${plural(topicCount, 'topic')}` : ''}
       {duplicates}.{placement}
     </Alert>

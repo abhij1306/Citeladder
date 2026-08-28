@@ -30,7 +30,7 @@ from app.core.config.prompts import (
     PROMPT_STATUS_ACTIVE,
     prompt_generation_settings,
 )
-from app.core.config.visibility_prompts import BUYER_QUERY_PATTERN_VERSION
+from app.core.config.visibility_prompts import BUYER_QUERY_ARCHETYPE_VERSION
 from app.domain.projects.knowledge_base import build_brand_knowledge_data
 from app.domain.projects.shim import project_scoring_identity
 from app.domain.prompts.generation_contract import (
@@ -47,8 +47,10 @@ from app.domain.prompts.generation_errors import (
     reraise_scoped_integrity_error,
 )
 from app.domain.prompts.generation_filtering import (
+    build_validator,
     filter_for_cohort,
     generation_system_prompt,
+    supported_qualifiers,
 )
 from app.domain.prompts.locks import acquire_project_lock, acquire_prompt_set_lock
 from app.domain.prompts.normalization import prompt_text_hash
@@ -333,6 +335,8 @@ async def _insert_prompts_returning(
             "normalized_text_hash": prompt_text_hash(prompt.text),
             "theme": topic.name,
             "intent": prompt.intent,
+            "buyer_stage": prompt.buyer_stage,
+            "prompt_intent": prompt.prompt_intent,
             "cohort": cohort,
             "branded": cohort in {"comparison", "brand_diagnostic"},
             "enabled": True,
@@ -340,7 +344,7 @@ async def _insert_prompts_returning(
             "origin": PROMPT_ORIGIN_GENERATED,
             "generation_evidence": {
                 **evidence_base,
-                "buyer_query_pattern": prompt.pattern,
+                "buyer_query_archetype": prompt.archetype,
                 "buyer_query_slot_id": prompt.slot_id,
             },
         }
@@ -447,7 +451,7 @@ def _generation_evidence(
         ),
         "generation_run_id": str(uuid.uuid4()),
         "generator_version": GENERATOR_VERSION,
-        "buyer_query_pattern_version": BUYER_QUERY_PATTERN_VERSION,
+        "buyer_query_archetype_version": BUYER_QUERY_ARCHETYPE_VERSION,
         "brand_context_hash": _brand_context_hash(brand_context),
         "requested_count": payload.count,
         "requested_intents": [intent for intent in payload.intents if intent],
@@ -501,6 +505,15 @@ async def _collect_model_suggestions(
 ) -> tuple[list[SuggestedTopic], int]:
     suggestions: list[SuggestedTopic] = []
     dropped = 0
+    # One validator for the whole generation. The portfolio-wide rules --
+    # opening diversity, near-duplicates, the per-topic market cap -- are
+    # meaningless per batch, because batches are one topic wide.
+    validator = build_validator(
+        frozenset(
+            str(slot.topic_id) for slot in planned_slots if slot.topic_id is not None
+        ),
+        brand_context,
+    )
     batch_size = min(prompt_generation_settings.model_batch_size, len(planned_slots))
     maximum_calls = generation_model_call_budget(len(planned_slots))
     last_error: GenerationOutputError | None = None
@@ -531,7 +544,9 @@ async def _collect_model_suggestions(
             last_error = exc
             continue
         dropped += batch_dropped
-        batch = filter_for_cohort(batch, payload.cohort, brand_context)
+        batch = filter_for_cohort(
+            batch, payload.cohort, brand_context, validator=validator
+        )
         batch, duplicate_count = _drop_cross_batch_duplicates(suggestions, batch)
         dropped += duplicate_count
         suggestions.extend(batch)
@@ -574,9 +589,10 @@ async def _generate_suggestions(
             for item in brand_context.get("competitors", [])
             if item.get("name")
         ),
+        qualifiers=supported_qualifiers(brand_context),
     )
     if not planned_slots:
-        raise GenerationOutputError("No buyer-query pattern supports this request")
+        raise GenerationOutputError("No buyer-query archetype supports this request")
     await session.commit()
     if agent is None:
         raise GenerationOutputError("Model gateway is required for this cohort")

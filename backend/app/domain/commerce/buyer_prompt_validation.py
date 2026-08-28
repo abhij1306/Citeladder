@@ -6,7 +6,7 @@ returned a market-research survey addressed to the shopper -- five prompts of
 "What do you prefer", "How important is", "What's your budget range". Every one
 passed, because nothing checked. Instructions are advisory; this is not.
 
-Same contract as `onboarding/prompt_validation.py`: a candidate that fails is
+Same contract as `prompts/portfolio_validation.py`: a candidate that fails is
 dropped with a reason, never rewritten.
 """
 

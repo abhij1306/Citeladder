@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
+import { makePrompt, makeSet } from '@/test/fixtures/prompts';
+
 import {
+  auditablePrompts,
+  batchLabel,
   buildLaunchPayload,
   canLaunch,
   clampRepetitions,
   MAX_REPETITIONS,
   MIN_REPETITIONS,
+  promptBatches,
+  PROMPT_BATCH_SIZE,
   toggleEngine,
   type LaunchSelection,
 } from './launch';
@@ -83,5 +89,56 @@ describe('toggleEngine', () => {
   it('adds and removes an engine immutably', () => {
     expect(toggleEngine(['gemini'], 'claude')).toEqual(['gemini', 'claude']);
     expect(toggleEngine(['gemini', 'claude'], 'gemini')).toEqual(['claude']);
+  });
+});
+
+describe('prompt batching', () => {
+  const prompts = Array.from({ length: 23 }, (_, index) =>
+    makePrompt({
+      id: `p${String(index).padStart(2, '0')}`,
+      text: `Prompt ${index}`,
+      created_at: `2026-01-${String(index + 1).padStart(2, '0')}T00:00:00Z`,
+    }),
+  );
+
+  it('runs only prompts the backend would resolve, in the backend order', () => {
+    const set = makeSet([
+      makePrompt({ id: 'later', created_at: '2026-02-01T00:00:00Z' }),
+      makePrompt({ id: 'archived', status: 'archived', created_at: '2026-01-01T00:00:00Z' }),
+      makePrompt({ id: 'disabled', enabled: false, created_at: '2026-01-02T00:00:00Z' }),
+      makePrompt({ id: 'earlier', created_at: '2026-01-03T00:00:00Z' }),
+    ]);
+    // Archived and disabled prompts are not audit-eligible, so a batch must
+    // never spend a slot on one — the backend would reject the whole request.
+    expect(auditablePrompts(set).map((prompt) => prompt.id)).toEqual(['earlier', 'later']);
+  });
+
+  it('splits into batches of ten, with a short final batch', () => {
+    const batches = promptBatches(prompts);
+    expect(batches.map((batch) => batch.length)).toEqual([10, 10, 3]);
+    expect(batches.flat()).toHaveLength(prompts.length);
+    expect(PROMPT_BATCH_SIZE).toBe(10);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects an invalid batch size of %s',
+    (size) => {
+      expect(() => promptBatches(prompts, size)).toThrow(
+        'Prompt batch size must be a positive integer.',
+      );
+    },
+  );
+
+  it('labels batches the way the list reads, one-indexed and inclusive', () => {
+    const batches = promptBatches(prompts);
+    expect(batchLabel(0, batches[0])).toBe('Prompts 1-10');
+    expect(batchLabel(2, batches[2])).toBe('Prompts 21-23');
+  });
+
+  it('launches a batch as an explicit prompt id list', () => {
+    const batch = promptBatches(prompts)[1];
+    const payload = buildLaunchPayload(selection({ promptIds: batch.map((prompt) => prompt.id) }));
+    expect(payload.prompt_ids).toEqual(batch.map((prompt) => prompt.id));
+    expect(payload.prompt_set_id).toBeUndefined();
   });
 });

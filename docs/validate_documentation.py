@@ -53,6 +53,7 @@ ACTIVE_EXACT = {
     "docs/plans/commerce-suite-retirement-manifest.md",
     "docs/plans/site-health-site-model.md",
     "docs/plans/CITELADDER_CONTENT_GENERATION_SIMPLIFIED_PLAN.md",
+    "docs/plans/aeo-opportunity-loop.md",
     # Written (and re-written) by `next dev`; see the notice inside them and
     # `node_modules/next/dist/server/lib/generate-agent-files.js`. Deleting
     # them only re-creates an uncommitted change, so they are committed and

@@ -300,7 +300,10 @@ async def test_generation_drops_off_domain_model_output(
             return json.dumps(
                 {
                     "prompts": [
-                        {"slot_id": "q1", "text": "What is running shoes?"},
+                        {
+                            "slot_id": "q1",
+                            "text": "Best running shoes for flat feet",
+                        },
                         {"slot_id": "q2", "text": "Best laptops for programming"},
                     ]
                 }
@@ -313,9 +316,11 @@ async def test_generation_drops_off_domain_model_output(
     )
     assert resp.status_code == 201
     generated = resp.json()["generated"]
-    assert [p["text"] for p in generated] == ["What is running shoes?"]
+    assert [p["text"] for p in generated] == ["Best running shoes for flat feet"]
     listed = (await client.get(f"/api/v1/prompt-sets/{prompt_set_id}")).json()
-    assert [p["text"] for p in listed["prompts"]] == ["What is running shoes?"]
+    assert [p["text"] for p in listed["prompts"]] == [
+        "Best running shoes for flat feet"
+    ]
 
 
 # ---------------------------------------------------------------------------

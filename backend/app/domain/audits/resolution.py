@@ -122,7 +122,7 @@ async def _resolve_prompts(
             # never audit-eligible — only human-accepted active prompts run.
             Prompt.status == PROMPT_STATUS_ACTIVE,
         )
-        .order_by(Prompt.created_at.asc())
+        .order_by(Prompt.created_at.asc(), Prompt.id.asc())
     )
     if prompt_ids:
         stmt = stmt.where(Prompt.id.in_(prompt_ids))

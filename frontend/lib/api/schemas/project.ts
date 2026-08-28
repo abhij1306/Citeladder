@@ -27,6 +27,27 @@ export const promptIntentSchema = z.enum([
   'local',
 ]);
 
+// Where in the buyer journey a generated prompt sits, and what the person
+// wants from the answer. Empty for manual and imported prompts, which never
+// went through the backend's buyer-query slot planner.
+export const buyerStageSchema = z.enum([
+  '',
+  'awareness',
+  'consideration',
+  'decision',
+  'implementation',
+]);
+export const promptIntentDetailSchema = z.enum([
+  '',
+  'learn',
+  'solve',
+  'compare',
+  'recommend',
+  'validate',
+  'buy',
+  'implement',
+]);
+
 // Prompt library lifecycle. Measurement still requires an explicit audit run
 // or schedule; generated prompts do not need a second approval state.
 export const promptStatusSchema = z.enum(['active', 'archived']);
@@ -41,6 +62,8 @@ export const promptSchema = responseObject({
   text: z.string(),
   theme: z.string(),
   intent: promptIntentSchema,
+  buyer_stage: buyerStageSchema.default(''),
+  prompt_intent: promptIntentDetailSchema.default(''),
   cohort: promptCohortSchema,
   branded: z.boolean(),
   enabled: z.boolean(),
@@ -74,6 +97,10 @@ export const promptGenerateResponseSchema = responseObject({
   generated: z.array(promptSchema),
   topics: z.array(topicSchema),
   dropped_duplicates: z.number().int(),
+  // What was asked for. The plan can be smaller than the request when the
+  // selected topics cannot support it, and saying so beats returning fewer
+  // prompts with no explanation.
+  requested_count: z.number().int().default(0),
 });
 
 export const brandProfileSourceSchema = z.enum(['manual', 'web_evidence', 'ai_suggested']);

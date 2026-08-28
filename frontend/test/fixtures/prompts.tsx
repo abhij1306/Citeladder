@@ -33,6 +33,8 @@ export function makePrompt(overrides: Partial<Prompt> = {}): Prompt {
     text: 'Best running shoes?',
     theme: 'Comfort',
     intent: 'discovery',
+    buyer_stage: '',
+    prompt_intent: '',
     cohort: 'core',
     branded: false,
     enabled: true,

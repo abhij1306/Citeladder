@@ -33,6 +33,15 @@ export const intentLabels: Record<PromptIntent, string> = {
   local: 'Local',
 };
 
+/** Buyer-journey stage, shown beside intent for generated prompts. */
+export const buyerStageLabels: Record<string, string> = {
+  '': 'Unspecified',
+  awareness: 'Awareness',
+  consideration: 'Consideration',
+  decision: 'Decision',
+  implementation: 'Implementation',
+};
+
 export const emptyPromptForm: PromptFormValues = {
   text: '',
   theme: '',

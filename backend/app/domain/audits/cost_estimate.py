@@ -160,7 +160,7 @@ async def _estimate_prompts(
         select(Prompt)
         .join(PromptSet, PromptSet.id == Prompt.prompt_set_id)
         .where(PromptSet.project_id == payload.project_id, Prompt.enabled.is_(True))
-        .order_by(Prompt.created_at)
+        .order_by(Prompt.created_at.asc(), Prompt.id.asc())
     )
     if payload.prompt_ids:
         stmt = stmt.where(Prompt.id.in_(payload.prompt_ids))

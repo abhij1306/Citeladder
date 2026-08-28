@@ -116,6 +116,10 @@ class PromptResponse(BaseModel):
     text: str
     theme: str
     intent: str
+    # Empty for manual and imported prompts, which never went through the
+    # buyer-query slot planner.
+    buyer_stage: str = ""
+    prompt_intent: str = ""
     cohort: PromptCohort
     branded: bool
     enabled: bool
@@ -201,6 +205,10 @@ class PromptGenerateRequest(BaseModel):
 class PromptGenerateResponse(BaseModel):
     generated: list[PromptResponse] = Field(default_factory=list)
     topics: list[TopicResponse] = Field(default_factory=list)
+    # What the caller asked for. A request can exceed what the selected topics
+    # and archetypes can support, and returning fewer prompts with no
+    # explanation is how a silent cap went unnoticed for a release.
+    requested_count: int = 0
     # Total prompts dropped as duplicates: intra-response collapses (an
     # equivalent text repeated within one model response) plus DB
     # ``ON CONFLICT`` skips against pre-existing prompts in the set.

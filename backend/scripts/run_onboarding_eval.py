@@ -61,11 +61,9 @@ from app.domain.projects.onboarding.normalization import (  # noqa: E402
 from app.domain.projects.onboarding.portfolio_generation import (  # noqa: E402
     generate_portfolio,
 )
-from app.domain.projects.onboarding.prompt_validation import (  # noqa: E402
-    brand_terms,
-)
 from app.domain.projects.onboarding.research import research_brand  # noqa: E402
 from app.domain.projects.onboarding.site_resolution import resolve_site  # noqa: E402
+from app.domain.prompts.portfolio_validation import brand_terms  # noqa: E402
 from evaluations.onboarding_cases import (  # noqa: E402
     COLLISION_PAIR,
     GOLDEN_ONBOARDING_CASES,

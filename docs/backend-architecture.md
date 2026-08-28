@@ -386,15 +386,15 @@ instead of blocking onboarding or padding with built-in categories.
 
 Prompt generation receives those persisted UUIDs and cannot create, rename,
 repair, or replace topics. One config-owned buyer-query planner freezes short
-slots across `what_is`, `best_for`, `how_to`, `pricing`, brand overview/fit,
-and brand-versus-competitor patterns. The model returns only slot ID and text;
-code owns topic, cohort, intent, pattern, and count, then deterministically
-validates shape, topical binding, template lead-ins, pasted positioning, and
-brand leakage. Onboarding and later library generation use this same contract,
-and every persisted prompt records the generator and buyer-query pattern
-versions. A topic that yields no usable prompt is reported as a warning, not a
-failure. Later library generation remains restricted to existing project topic
-IDs. See
+slots across buyer-stage archetypes for organic, brand-diagnostic, and
+brand-versus-competitor queries. The model returns only slot ID and text; code
+owns topic, cohort, buyer stage, intent, archetype, form, and count, then
+deterministically validates archetype fit, topical binding, template lead-ins,
+pasted positioning, and brand leakage. Onboarding and later library generation
+use this same contract, and every persisted prompt records the generator and
+buyer-query archetype versions. A topic that yields no usable prompt is reported
+as a warning, not a failure. Later library generation remains restricted to
+existing project topic IDs. See
 [`visibility-prompt.md`](visibility-prompt.md) for the complete runtime
 contract and model instructions.
 

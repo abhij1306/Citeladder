@@ -1545,6 +1545,12 @@ def upgrade() -> None:
         sa.Column("normalized_text_hash", sa.String(length=64), nullable=False),
         sa.Column("theme", sa.String(length=255), nullable=False),
         sa.Column("intent", sa.String(length=32), nullable=False),
+        sa.Column(
+            "buyer_stage", sa.String(length=16), server_default="", nullable=False
+        ),
+        sa.Column(
+            "prompt_intent", sa.String(length=16), server_default="", nullable=False
+        ),
         sa.Column("branded", sa.Boolean(), nullable=False),
         sa.Column("enabled", sa.Boolean(), nullable=False),
         sa.Column(

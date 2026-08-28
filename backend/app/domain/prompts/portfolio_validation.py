@@ -1,5 +1,14 @@
 """Deterministic admission for generated visibility prompts.
 
+The single owner of the cross-prompt rules, for BOTH generation paths:
+onboarding's initial portfolio and the "Generate prompts" action on an existing
+project. They ran different validators before, and the differences were not
+deliberate -- the manual path never expanded a brand's short forms (so "Best
+Apollo hospital for kidney stones" could enter the organic cohort of an Apollo
+Hospitals project) and never capped market mentions per topic (so every prompt
+in a portfolio could end "in Australia"). One planner, one instruction, one
+validator.
+
 Every rule here exists because a model ignored the same instruction in prose.
 The old system prompt asked for no padded lead-ins and got "What are my best
 options for online general merchandise in India?"; it asked for no pasted
@@ -26,8 +35,7 @@ from app.core.config.prompts import (
     TOPICAL_BINDING_STOPWORDS,
 )
 from app.core.config.visibility_prompts import (
-    BUYER_QUERY_CORE_PATTERNS,
-    BUYER_QUERY_PATTERN_MIN_WORDS,
+    CORE_ARCHETYPES,
     PROVIDER_DESCRIPTION_PHRASES,
     VISIBILITY_MAX_ORGANIC_PROMPTS,
     VISIBILITY_MAX_SHARED_OPENINGS,
@@ -139,6 +147,10 @@ def market_terms(market: str, service_areas: list[str]) -> tuple[str, ...]:
     return tuple(dict.fromkeys([*configured, *areas]))
 
 
+def _candidate_field(candidate: dict, key: str) -> str:
+    return str(candidate.get(key) or "")
+
+
 @dataclass(slots=True)
 class PortfolioValidator:
     """Accumulates an accepted portfolio, enforcing the cross-prompt rules.
@@ -163,12 +175,7 @@ class PortfolioValidator:
     def accepted(self) -> list[dict]:
         return list(self._accepted)
 
-    def topics_covered(self) -> set[str]:
-        return {prompt["topic_id"] for prompt in self._accepted}
-
-    def _shape_error(
-        self, text: str, topic_id: str, intent: str, cohort: str, pattern: str
-    ) -> str:
+    def _shape_error(self, text: str, topic_id: str, intent: str, cohort: str) -> str:
         if cohort == PROMPT_COHORT_BRAND_DIAGNOSTIC:
             # A diagnostic prompt need not name a topic, but an id it does
             # carry has to be one of ours. Blanking an unknown id threw the
@@ -180,10 +187,11 @@ class PortfolioValidator:
             return "topic_id"
         if intent not in PROMPT_INTENTS:
             return "intent"
-        minimum_words = BUYER_QUERY_PATTERN_MIN_WORDS.get(
-            pattern, VISIBILITY_PROMPT_MIN_WORDS
-        )
-        if not minimum_words <= len(words(text)) <= VISIBILITY_PROMPT_MAX_WORDS:
+        if (
+            not VISIBILITY_PROMPT_MIN_WORDS
+            <= len(words(text))
+            <= VISIBILITY_PROMPT_MAX_WORDS
+        ):
             return "length"
         return ""
 
@@ -230,12 +238,11 @@ class PortfolioValidator:
 
     def offer(self, candidate: dict, *, cohort: str) -> str:
         """Accept one candidate, or return the reason it was rejected."""
-        text = " ".join(str(candidate.get("text") or "").split())
-        topic_id = str(candidate.get("topic_id") or "")
-        intent = str(candidate.get("intent") or "").strip().casefold()
-        pattern = str(candidate.get("pattern") or "")
+        text = " ".join(_candidate_field(candidate, "text").split())
+        topic_id = _candidate_field(candidate, "topic_id")
+        intent = _candidate_field(candidate, "intent").strip().casefold()
         error = (
-            self._shape_error(text, topic_id, intent, cohort, pattern)
+            self._shape_error(text, topic_id, intent, cohort)
             or self._name_error(text, cohort, intent)
             or self._style_error(text, topic_id)
         )
@@ -248,12 +255,14 @@ class PortfolioValidator:
             self._market_by_topic[topic_id] = self._market_by_topic.get(topic_id, 0) + 1
         self._accepted.append(
             {
-                "slot_id": str(candidate.get("slot_id") or ""),
+                "slot_id": _candidate_field(candidate, "slot_id"),
                 "topic_id": topic_id,
                 "text": text,
                 "intent": intent,
+                "buyer_stage": _candidate_field(candidate, "buyer_stage"),
+                "prompt_intent": _candidate_field(candidate, "prompt_intent"),
                 "cohort": cohort,
-                "pattern": pattern,
+                "archetype": _candidate_field(candidate, "archetype"),
             }
         )
         return ""
@@ -273,13 +282,13 @@ def _partition_portfolio(
 
 
 def _available_index(
-    rows: list[dict], used: set[int], desired_pattern: str
+    rows: list[dict], used: set[int], desired_archetype: str
 ) -> int | None:
     preferred = next(
         (
             index
             for index, row in enumerate(rows)
-            if index not in used and row.get("pattern") == desired_pattern
+            if index not in used and row.get("archetype") == desired_archetype
         ),
         None,
     )
@@ -301,9 +310,9 @@ def _rotated_organic(
             rows = by_topic[topic_id]
             if len(ordered) >= VISIBILITY_MAX_ORGANIC_PROMPTS:
                 break
-            desired = BUYER_QUERY_CORE_PATTERNS[
-                (topic_index + round_index) % len(BUYER_QUERY_CORE_PATTERNS)
-            ]
+            desired = CORE_ARCHETYPES[
+                (topic_index + round_index) % len(CORE_ARCHETYPES)
+            ].key
             choice = _available_index(rows, used[topic_id], desired)
             if choice is not None:
                 used[topic_id].add(choice)
@@ -313,11 +322,11 @@ def _rotated_organic(
 
 
 def ordered_portfolio(prompts: list[dict], *, topic_ids: list[str]) -> list[dict]:
-    """Round-robin across topics and patterns, then append named cohorts.
+    """Round-robin across topics and archetypes, then append named cohorts.
 
-    Every topic gets a first prompt before any gets a second. The preferred
-    pattern rotates by topic and round so a ten-topic cap does not become ten
-    identical ``What is ...?`` questions.
+    Every topic gets a first prompt before any gets a second, and the preferred
+    archetype rotates by topic and round, so the organic cap lands a spread of
+    buyer stages rather than one stage repeated across every topic.
     """
     by_topic, trailing = _partition_portfolio(prompts, topic_ids)
     return [*_rotated_organic(by_topic, topic_ids), *trailing]

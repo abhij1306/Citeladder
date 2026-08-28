@@ -32,13 +32,6 @@ from app.domain.projects.onboarding.normalization import (
     normalize_primary_market,
     normalize_website_url,
 )
-from app.domain.projects.onboarding.prompt_validation import (
-    PortfolioValidator,
-    brand_terms,
-    market_terms,
-    ordered_portfolio,
-    positioning_shingles,
-)
 from app.domain.projects.onboarding.research import (
     _customer_warnings,
     _is_peer_company,
@@ -48,6 +41,13 @@ from app.domain.projects.onboarding.site_resolution import resolve_site
 from app.domain.projects.onboarding.topic_admission import (
     admit_topics,
     confirmed_offering_topics,
+)
+from app.domain.prompts.portfolio_validation import (
+    PortfolioValidator,
+    brand_terms,
+    market_terms,
+    ordered_portfolio,
+    positioning_shingles,
 )
 from app.domain.prompts.style import words as _words
 
@@ -694,26 +694,30 @@ def test_one_unreadable_row_no_longer_voids_its_whole_batch() -> None:
     raw = json.dumps(
         {
             "prompts": [
-                {"slot_id": "q1", "text": "What is linen dresses?"},
-                {"slot_id": "unknown", "text": "Best linen dresses for work"},
+                {
+                    "slot_id": "q1",
+                    "text": "Best linen dresses for a summer wedding",
+                },
+                {"slot_id": "unknown", "text": "Linen dresses under 200 online"},
             ]
         }
     )
     rows, dropped = parse_planned_output(raw, slots=slots)
 
-    assert [row.text for row in rows] == ["What is linen dresses?"]
+    assert [row.text for row in rows] == ["Best linen dresses for a summer wedding"]
     assert dropped == 1
 
 
 def test_onboarding_uses_the_shared_constrained_buyer_query_plan() -> None:
-    import json
     import uuid
 
     from app.domain.projects.discovery_schemas import DiscoveryTopic
     from app.domain.projects.onboarding.portfolio_generation import (
         _brand_request,
         _topic_request,
+        onboarding_brand_context,
     )
+    from tests.fixtures.archetype_text import slots_from_user_message
 
     topic = DiscoveryTopic(
         topic_id=uuid.uuid4(),
@@ -721,34 +725,65 @@ def test_onboarding_uses_the_shared_constrained_buyer_query_plan() -> None:
         description="Retail catalog distribution and diagnostics",
         source_refs=["confirmed-profile"],
     )
-    user, slots = _topic_request(
+    brand_context = onboarding_brand_context(
         brand_name="Feedonomics",
-        market="US",
-        business_model="b2b_saas",
-        buyer_register="technical_buyer",
-        topics=[topic],
-        rejected=(),
+        primary_market="US",
+        profile={
+            "business_model": "b2b_saas",
+            "buyer_register": "technical_buyer",
+            "description": "Feedonomics manages retail product feeds.",
+        },
+        competitors=["Productsup"],
+    )
+    user, slots = _topic_request(
+        brand_context=brand_context, topics=[topic], rejected=()
     )
 
-    assert [slot.pattern for slot in slots] == [
-        "what_is",
-        "best_for",
-        "how_to",
-        "pricing",
+    # Weighted toward the archetypes an assistant answers by naming a business,
+    # and still reaching every stage.
+    assert [slot.archetype for slot in slots] == [
+        "consideration_recommend",
+        "decision_buy",
+        "consideration_recommend",
+        "consideration_compare",
+        "decision_validate",
+        "awareness_solve",
+        "awareness_learn",
     ]
-    assert len(json.loads(user)["buyer_query_slots"]) == 4
+    # Every planned slot names a job and a surface form, and never a sentence
+    # frame the model would have to copy.
+    planned = slots_from_user_message(user)
+    assert len(planned) == 7
+    assert {slot["form"] for slot in planned} == {
+        "question",
+        "first_person",
+        "search_phrase",
+    }
+    assert all(slot["job"] and "exact form" not in slot["job"] for slot in planned)
 
     _, brand_slots = _brand_request(
-        brand_name="Feedonomics",
-        market="US",
-        business_model="b2b_saas",
+        brand_context=brand_context,
         competitors=["Productsup"],
         topics=[topic],
         count=2,
         cohort="brand_diagnostic",
     )
-    assert [slot.pattern for slot in brand_slots] == [
-        "brand_overview",
-        "brand_fit",
+    assert [slot.archetype for slot in brand_slots] == [
+        "brand_awareness_learn",
+        "brand_decision_validate",
     ]
     assert all(slot.topic_id is None for slot in brand_slots)
+
+
+def test_admission_rejects_an_unsplit_bundle_but_keeps_real_departments() -> None:
+    """ "Womenswear including plus size" is two departments wearing one name.
+
+    It reached a customer's portfolio and became "What is womenswear including
+    plus size?" -- a question nobody types. A bare "and" stays legal, because
+    "Footwear and Accessories" is a department people really do shop.
+    """
+    assert _admit(["Womenswear including plus size"]) == []
+    assert _admit(["Beauty, Toys and More"]) == []
+    assert _admit(["Beauty, Toys &amp; More"]) == []
+    assert _admit(["Footwear and Accessories"]) == ["Footwear and Accessories"]
+    assert _admit(["School Uniforms"]) == ["School Uniforms"]

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 
 import pytest
 
 from app.domain.projects.discovery_schemas import DiscoveryTopic
 from app.domain.projects.onboarding import portfolio_generation as pg
+from tests.fixtures.archetype_text import response_for
 
 
 class _EchoesShortSlots:
@@ -22,26 +22,7 @@ class _EchoesShortSlots:
 
     async def complete_structured_json(self, *, system, user, schema_name, schema):
         self.calls += 1
-        payload = json.loads(user)
-        brand = payload["brand_name"]
-        rows = []
-        for slot in payload["buyer_query_slots"]:
-            topic = slot["topic"]
-            competitors = slot.get("competitors") or []
-            pattern = slot["pattern"]
-            if pattern == "brand_comparison":
-                text = f"{brand} vs {competitors[0]}"
-            else:
-                text = {
-                    "what_is": f"What is {topic}?",
-                    "best_for": f"Best {topic} for a winter commute",
-                    "how_to": f"How to choose {topic} for winter",
-                    "pricing": f"{topic} pricing",
-                    "brand_overview": f"What is {brand}?",
-                    "brand_fit": f"Is {brand} good for {topic}?",
-                }[pattern]
-            rows.append({"slot_id": slot["slot_id"], "text": text})
-        return json.dumps({"prompts": rows})
+        return response_for(user)
 
 
 def _topics(*names: str) -> list[DiscoveryTopic]:

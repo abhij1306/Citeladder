@@ -23,6 +23,8 @@ describe('form mapping', () => {
       text: 'Best shoes?',
       theme: '',
       intent: 'purchase',
+      buyer_stage: '',
+      prompt_intent: '',
       cohort: 'comparison',
       branded: true,
       enabled: false,

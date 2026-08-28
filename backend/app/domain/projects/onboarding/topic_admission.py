@@ -15,6 +15,7 @@ from app.core.config.visibility_prompts import (
     CONFIRMED_OFFERING_SOURCE_REF,
     MODEL_PRIOR_SOURCE_REF,
     PROVIDER_DESCRIPTION_PHRASES,
+    TOPIC_BUNDLE_CONNECTORS,
     VISIBILITY_TOPIC_MAX,
     VISIBILITY_TOPIC_NAME_MAX_WORDS,
 )
@@ -24,7 +25,7 @@ _TOKEN = re.compile(r"[a-z0-9]+")
 
 
 def _normalize(value: str) -> str:
-    return " ".join(_TOKEN.findall(value.casefold()))
+    return " ".join(_TOKEN.findall(value.casefold().replace("&amp;", " and ")))
 
 
 def _key(value: str) -> frozenset[str]:
@@ -67,6 +68,18 @@ def _is_provider_description(name: str) -> bool:
     return bool(tokens) and tokens <= _PROVIDER_TOKENS
 
 
+def _is_unsplit_bundle(name: str) -> bool:
+    """Whether the name still joins two offerings the model was told to split.
+
+    Dropped rather than repaired, like every other failure here: splitting
+    "Womenswear including plus size" correctly means knowing that plus size
+    clothing is its own department, which is the model's judgement to make from
+    the evidence, not a string operation.
+    """
+    normalized = f" {_normalize(name)} "
+    return any(f" {connector} " in normalized for connector in TOPIC_BUNDLE_CONNECTORS)
+
+
 def _restates_business(name: str, *, business_terms: list[str]) -> bool:
     key = _key(name)
     return bool(key) and any(key == _key(term) for term in business_terms if term)
@@ -81,6 +94,8 @@ def _structural_failure(
     allow_model_prior: bool,
 ) -> bool:
     if not name or len(name.split()) > VISIBILITY_TOPIC_NAME_MAX_WORDS:
+        return True
+    if _is_unsplit_bundle(name):
         return True
     # A topic must cite pages we actually fetched -- unless the brand was
     # recognised, in which case an uncited topic is admitted and stamped as

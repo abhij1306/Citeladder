@@ -23,14 +23,14 @@ import { TablePagination, useTablePage } from '@/components/ui/table-pagination'
 import { Tooltip } from '@/components/ui/tooltip';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
 import type { Prompt, PromptStatus } from '@/lib/api/types';
-import { intentLabels } from '@/lib/prompts/forms';
+import { buyerStageLabels, intentLabels } from '@/lib/prompts/forms';
 
 /** Rows per page on the prompt table (client-side; the list arrives whole). */
 const PAGE_SIZE = 10;
 
 /**
- * Prompt table (F7). Dense analytics table with columns text / theme / intent /
- * enabled and per-row actions (edit, delete, enable/disable toggle,
+ * Prompt table (F7). Dense analytics table with columns text / theme / stage /
+ * intent / enabled and per-row actions (edit, delete, enable/disable toggle,
  * and — when `onSetStatus` is wired — archive or restore transitions).
  * Client-side pagination footer
  * (mono indicator + ghost buttons) per the prompts frame. Purely
@@ -61,6 +61,7 @@ export function PromptTable({
           <TableRow>
             <TableHead>Prompt</TableHead>
             <TableHead>Theme</TableHead>
+            <TableHead>Stage</TableHead>
             <TableHead>Intent</TableHead>
             <TableHead>Enabled</TableHead>
             <TableHead className="w-16 text-right">Actions</TableHead>
@@ -81,6 +82,13 @@ export function PromptTable({
                       <span className="min-w-0 truncate">{prompt.theme}</span>
                     </Badge>
                   </Tooltip>
+                ) : (
+                  <UnavailableValue state="not_set" />
+                )}
+              </TableCell>
+              <TableCell className="text-secondary">
+                {prompt.buyer_stage ? (
+                  buyerStageLabels[prompt.buyer_stage]
                 ) : (
                   <UnavailableValue state="not_set" />
                 )}
