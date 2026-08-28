@@ -198,8 +198,10 @@ export function ReviewStage({
     catalog,
     competitors,
     complete,
+    completionFailed,
     domains,
     hasSelectedDomain,
+    isCompleting,
     maximumCompetitors,
     profile,
     setCompetitors,
@@ -265,6 +267,11 @@ export function ReviewStage({
       {complete.isError ? (
         <Alert tone="warning">{onboardingErrorMessage(complete.error)}</Alert>
       ) : null}
+      {completionFailed ? (
+        <Alert tone="danger">
+          Project creation did not finish. Go back, confirm the website again, and retry.
+        </Alert>
+      ) : null}
       {!hasSelectedDomain ? (
         <Alert tone="warning">Keep at least one website address selected.</Alert>
       ) : null}
@@ -275,12 +282,14 @@ export function ReviewStage({
         <Button
           size="md"
           onClick={() => complete.mutate()}
-          disabled={complete.isPending || !hasSelectedDomain || !hasConfirmedIcp(profile)}
+          disabled={
+            completionFailed || isCompleting || !hasSelectedDomain || !hasConfirmedIcp(profile)
+          }
           className="text-sm font-semibold shadow-xs"
         >
-          {complete.isPending ? 'Creating…' : 'Create project'}
+          {isCompleting ? 'Creating…' : 'Create project'}
         </Button>
-        <Button variant="ghost" size="md" onClick={() => setStep(1)} disabled={complete.isPending}>
+        <Button variant="ghost" size="md" onClick={() => setStep(1)} disabled={isCompleting}>
           Back
         </Button>
       </div>

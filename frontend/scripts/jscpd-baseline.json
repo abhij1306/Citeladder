@@ -4,9 +4,6 @@
   "scope": ["backend/app", "frontend/app", "frontend/components", "frontend/lib"],
   "production_percentage": 0.07,
   "clone_fingerprints": [
-    "python|backend/app/models/analytics.py|backend/app/models/discovery.py|89c9c63769cea8f8|22|183",
-    "python|backend/app/models/analytics.py|backend/app/models/integrations.py|c782debab389e993|22|183",
-    "python|backend/app/models/analytics.py|backend/app/models/site_health/queue.py|894710ad3701c336|22|183",
     "python|backend/app/models/audit.py|backend/app/models/content.py|1c4bbaf3ede0b965|20|183",
     "typescript|frontend/lib/api/schemas/opportunities.ts|frontend/lib/api/schemas/opportunities.ts|41c35f4ccf0172b3|16|194"
   ]

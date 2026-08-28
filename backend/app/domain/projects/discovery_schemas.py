@@ -279,7 +279,21 @@ class BrandDiscoveryCatalogResponse(BaseModel):
 
 
 class BrandDiscoveryCompleteResponse(BaseModel):
-    project_id: uuid.UUID
+    """The accepted completion, which is a job -- not a finished project.
+
+    ``project_id`` is null while ``status`` is ``completing``: the portfolio is
+    generated on a worker because it takes far longer than a client is willing
+    to hold a request open. Clients poll the discovery until the status reaches
+    ``project_created`` and the id appears.
+
+    ``failed`` is the third terminal answer. A replay of a completion whose
+    generation already failed has no project and never will, so reporting it as
+    ``completing`` would tell the client to keep waiting for work that is over.
+    """
+
+    discovery_id: uuid.UUID
+    status: Literal["completing", "project_created", "failed"]
+    project_id: uuid.UUID | None = None
     crawl_id: uuid.UUID | None = None
     activation_state: Literal["queued"] = "queued"
     page_limit: int | None = None

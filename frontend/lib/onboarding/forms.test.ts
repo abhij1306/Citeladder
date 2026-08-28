@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { ApiError } from '@/lib/api/errors';
+
 import {
   brandStepSchema,
   deriveDomain,
@@ -82,5 +84,17 @@ describe('onboardingErrorMessage', () => {
 
   it('falls back for non-errors', () => {
     expect(onboardingErrorMessage(null)).toMatch(/finish this setup step/i);
+  });
+
+  it('treats a client timeout as still working, not as a failure', () => {
+    // Requests are bounded at 30s; the work behind them is not. Telling the
+    // user their setup failed while the server was still creating the project
+    // is what made them click Create a second time.
+    const timeout = new ApiError('Request timed out', 0, '', undefined, {
+      code: 'request_timeout',
+      retryable: true,
+    });
+    expect(onboardingErrorMessage(timeout)).toMatch(/still working/i);
+    expect(onboardingErrorMessage(timeout)).not.toMatch(/couldn’t finish/i);
   });
 });

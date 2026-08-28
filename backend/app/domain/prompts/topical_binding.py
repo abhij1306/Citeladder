@@ -127,6 +127,46 @@ def _binding_tokens(text: str) -> list[str]:
     ]
 
 
+def binding_tokens(text: str) -> frozenset[str]:
+    """Comparable topic tokens for ``text``, folded so plurals match.
+
+    Public because the Commerce buyer-prompt validator needs the same notion
+    of "is this prompt about that" the visibility path already uses, rather
+    than a second, subtly different tokenizer.
+    """
+    return frozenset(_stem(token) for token in _binding_tokens(text))
+
+
+def _stem(token: str) -> str:
+    """Fold a word to a form that matches its own plural.
+
+    "-es" is stripped only when what remains still ends in a sibilant, so
+    "dresses" folds to "dress" while "shoes" folds to "shoe". A bare trailing
+    "s" strip would give "dresse" and silently fail to match.
+
+    "-ies" folds to "y" BEFORE those rules, because neither reaches it:
+    "accessories" has no sibilant before the "es", so it fell through to the
+    bare-"s" strip and became "accessorie" -- which never matches "accessory".
+    That is the exact word the commerce failure turned on. The "-ie" rule that
+    follows is what keeps the fold consistent in the other direction, so
+    "movies" and "movie" still meet (at "movy") instead of being split apart by
+    the rule above them.
+    """
+    if len(token) > 4 and token.endswith("ies"):
+        return f"{token[:-3]}y"
+    if len(token) > 3 and token.endswith("ie"):
+        return f"{token[:-2]}y"
+    if (
+        len(token) > 4
+        and token.endswith("es")
+        and (token[-3] in "sxz" or token[-4:-2] in {"ch", "sh"})
+    ):
+        return token[:-2]
+    if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+        return token[:-1]
+    return token
+
+
 def _phrase_of(text: str) -> str:
     """The normalized exact phrase for a multi-word identity string (or "").
 

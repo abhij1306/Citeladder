@@ -8,8 +8,10 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from sqlalchemy import or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.connectors.web_evidence.url_policy import UrlPolicyError, canonicalize
 from app.core.config.commerce_catalog import (
     COMMERCE_PROJECTOR_VERSION,
     COMMERCE_VISIBLE_PRICE_AMBIGUOUS_TOKENS,
@@ -24,6 +26,7 @@ from app.models.analytics import AnalyticsTask
 from app.models.commerce import (
     CommerceCategory,
     CommerceProduct,
+    CommerceProductCategory,
     CommerceProductObservation,
 )
 from app.models.site_health.acquisition import SiteFetchArtifact
@@ -300,13 +303,160 @@ async def _project_category_source(
 ) -> None:
     facts = _dict_value(artifact.normalized_facts)
     commerce = _dict_value(facts.get("commerce"))
-    await _category_from_analysis(
+    category = await _category_from_analysis(
         session,
         analysis=analysis,
         canonical_url=site_url.normalized_url,
         title=_category_title(facts, str(site_url.latest_title or "Uncategorized")),
         role=str(commerce.get("category_role") or "unknown"),
     )
+    await _link_shelf_products(
+        session, analysis=analysis, artifact=artifact, category=category
+    )
+
+
+def _linked_product_urls(facts: dict[str, Any]) -> list[str]:
+    """The internal product links a shelf page points at, in document order."""
+    anchors = _list_value(_dict_value(facts.get("links")).get("anchors"))
+    urls: list[str] = []
+    for anchor in anchors:
+        row = _dict_value(anchor)
+        if not row.get("is_internal"):
+            continue
+        url = str(row.get("url") or "").strip()
+        if url and not url.startswith(("#", "mailto:", "tel:", "javascript:")):
+            urls.append(url)
+    return list(dict.fromkeys(urls))
+
+
+async def _link_shelf_products(
+    session: AsyncSession,
+    *,
+    analysis: SitePageAnalysis,
+    artifact: SiteFetchArtifact,
+    category: CommerceCategory,
+) -> None:
+    """Attach the products a category page actually lists to that category.
+
+    Membership used to come ONLY from each product page's own metadata -- its
+    JSON-LD ``category`` and its breadcrumb trail. A storefront that publishes
+    neither (most Shopify themes) produced no membership at all, so every
+    product fell into the "Uncategorized" bucket and every real collection
+    reported zero products. The shelf page is the authority on what is on the
+    shelf, and it is already crawled, parsed and stored -- it was simply never
+    read for this.
+
+    Only products the catalog already knows are linked: this reads the crawl's
+    own evidence, it does not invent products from hrefs.
+    """
+    urls = _linked_product_urls(_dict_value(artifact.normalized_facts))
+    if not urls:
+        return
+    candidates = {_canonical_or_blank(url) for url in urls}
+    candidates.discard("")
+    if not candidates:
+        return
+    product_ids = list(
+        (
+            await session.scalars(
+                select(CommerceProduct.id).where(
+                    CommerceProduct.project_id == analysis.project_id,
+                    CommerceProduct.workspace_id == analysis.workspace_id,
+                    CommerceProduct.canonical_url.in_(sorted(candidates)),
+                )
+            )
+        ).all()
+    )
+    await _add_shelf_memberships(
+        session,
+        workspace_id=analysis.workspace_id,
+        project_id=analysis.project_id,
+        category_id=category.id,
+        product_ids=product_ids,
+    )
+
+
+async def _add_shelf_memberships(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    category_id: uuid.UUID,
+    product_ids: list[uuid.UUID],
+) -> None:
+    if not product_ids:
+        return
+    await session.execute(
+        pg_insert(CommerceProductCategory)
+        .values(
+            [
+                {
+                    "id": uuid.uuid4(),
+                    "workspace_id": workspace_id,
+                    "project_id": project_id,
+                    "product_id": product_id,
+                    "category_id": category_id,
+                }
+                for product_id in product_ids
+            ]
+        )
+        .on_conflict_do_nothing(
+            index_elements=[
+                CommerceProductCategory.product_id,
+                CommerceProductCategory.category_id,
+            ]
+        )
+    )
+
+
+def _canonical_or_blank(url: str) -> str:
+    try:
+        return canonicalize(url)
+    except UrlPolicyError:
+        return ""
+
+
+async def _link_product_to_projected_shelves(
+    session: AsyncSession,
+    *,
+    analysis: SitePageAnalysis,
+    product: CommerceProduct,
+) -> None:
+    """Complete shelf membership when the product projection lands second."""
+    shelves = (
+        await session.execute(
+            select(CommerceCategory, SiteFetchArtifact)
+            .join(
+                SitePageAnalysis,
+                SitePageAnalysis.id == CommerceCategory.source_analysis_id,
+            )
+            .join(
+                SiteFetchArtifact,
+                SiteFetchArtifact.id == SitePageAnalysis.artifact_id,
+            )
+            .where(
+                CommerceCategory.workspace_id == analysis.workspace_id,
+                CommerceCategory.project_id == analysis.project_id,
+            )
+        )
+    ).all()
+    product_url = _canonical_or_blank(product.canonical_url)
+    if not product_url:
+        return
+    for category, artifact in shelves:
+        linked_urls = {
+            _canonical_or_blank(url)
+            for url in _linked_product_urls(_dict_value(artifact.normalized_facts))
+        }
+        if product_url not in linked_urls:
+            continue
+        await _add_shelf_memberships(
+            session,
+            workspace_id=analysis.workspace_id,
+            project_id=analysis.project_id,
+            category_id=category.id,
+            product_ids=[product.id],
+        )
 
 
 async def _project_product_source(
@@ -341,7 +491,7 @@ async def _project_product_source(
         # one -- the crawl's evidence reaches the catalog under the kind it
         # actually supports.
         facts = _dict_value(artifact.normalized_facts)
-        await _category_from_analysis(
+        category = await _category_from_analysis(
             session,
             analysis=analysis,
             canonical_url=site_url.normalized_url,
@@ -349,6 +499,14 @@ async def _project_product_source(
             role=str(
                 _dict_value(facts.get("commerce")).get("category_role") or "unknown"
             ),
+        )
+        # A listing page reaching here IS a shelf, whatever the classifier
+        # called it, so the products it lists get their memberships the same
+        # way a page classified as a category would. Skipping this left the
+        # most common Shopify misclassification projecting a category with
+        # nothing in it.
+        await _link_shelf_products(
+            session, analysis=analysis, artifact=artifact, category=category
         )
         return
     product = await session.scalar(
@@ -394,6 +552,11 @@ async def _project_product_source(
         artifact=artifact,
         product=product,
         observation=observation,
+    )
+    await _link_product_to_projected_shelves(
+        session,
+        analysis=analysis,
+        product=product,
     )
 
 
@@ -456,7 +619,7 @@ async def _category_from_analysis(
     canonical_url: str,
     title: str,
     role: str,
-) -> None:
+) -> CommerceCategory:
     stripped = title.strip()
     safe_title = stripped if _is_named(stripped) else "Uncategorized"
     normalized = " ".join(safe_title.casefold().split())
@@ -471,6 +634,9 @@ async def _category_from_analysis(
     )
     if category is None:
         category = CommerceCategory(
+            # Assigned here rather than at flush so the shelf's product
+            # memberships can reference it in this same transaction.
+            id=uuid.uuid4(),
             workspace_id=analysis.workspace_id,
             project_id=analysis.project_id,
             name=safe_title[:255],
@@ -494,3 +660,4 @@ async def _category_from_analysis(
     category.field_sources = sources
     category.source_analysis_id = analysis.id
     category.projector_version = COMMERCE_PROJECTOR_VERSION
+    return category

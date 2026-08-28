@@ -6,14 +6,15 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.config.dotenv import dotenv_sources
+from app.core.config.visibility_prompts import PROMPT_EXEMPLARS
 
-COMMERCE_PROJECTOR_VERSION: Final = "commerce-projector-3"
+COMMERCE_PROJECTOR_VERSION: Final = "commerce-projector-4"
 COMMERCE_IMPORTER_VERSION: Final = "commerce-catalog-importer-1"
 COMMERCE_EDIT_VERSION: Final = "commerce-catalog-edit-2"
 COMMERCE_CATEGORY_EDIT_VERSION: Final = "commerce-category-edit-1"
 COMMERCE_COMPETITOR_PROVIDER_VERSION: Final = "tavily-commerce-1"
 COMMERCE_COMPETITOR_VALIDATOR_VERSION: Final = "commerce-competitor-validator-5"
-COMMERCE_PROMPT_TEMPLATE_VERSION: Final = "commerce-buyer-prompts-3"
+COMMERCE_PROMPT_TEMPLATE_VERSION: Final = "commerce-buyer-prompts-4"
 COMMERCE_RECOMMENDATION_PARSER_VERSION: Final = "commerce-recommendation-parser-3"
 COMMERCE_RECOMMENDATION_MATCHER_VERSION: Final = "commerce-recommendation-matcher-3"
 COMMERCE_SHELF_FORMULA_VERSION: Final = "commerce-shelf-formulas-2"
@@ -178,8 +179,12 @@ COMMERCE_VISIBLE_PRICE_AMBIGUOUS_TOKENS: Final = (
 # `domain/commerce/buyer_prompt_validation.py`.
 COMMERCE_BUYER_PROMPT_MIN_WORDS: Final = 4
 COMMERCE_BUYER_PROMPT_MAX_WORDS: Final = 24
+# How much of the shelf the model is shown. Enough to make the vertical
+# unmistakable without turning the request into a catalogue dump.
+COMMERCE_PROMPT_CONTEXT_PRODUCT_LIMIT: Final = 12
+COMMERCE_PROMPT_CONTEXT_TERM_LIMIT: Final = 8
 
-COMMERCE_BUYER_PROMPT_EXEMPLARS: Final = """\
+_GENERAL_EXEMPLARS: Final = """\
   GOOD  best instant read thermometer for grilling under $50
   BAD   What features do you prioritize when comparing thermometers?
   GOOD  which hygrometer is most accurate for a humidor
@@ -190,10 +195,19 @@ COMMERCE_BUYER_PROMPT_EXEMPLARS: Final = """\
   BAD   What's your budget range, and does it depend on features?\
 """
 
-COMMERCE_BUYER_PROMPT_SYSTEM: Final = f"""\
+# The module-level default, for callers with no business model.
+COMMERCE_BUYER_PROMPT_EXEMPLARS: Final = _GENERAL_EXEMPLARS
+
+_COMMERCE_BUYER_PROMPT_TEMPLATE: Final = """\
 You write the search prompts a SHOPPER TYPES INTO AN AI ASSISTANT when they are
 looking to buy. Each prompt is the shopper speaking, in their own words, about
 what they want.
+
+The context names the shop, what it sells, and -- for a category -- the actual
+products on that shelf. Every prompt must be one a buyer of THOSE products
+would type. A category name alone is ambiguous ("accessories" means one thing
+in fashion and another in electronics); the products and the category terms
+are what settle it. They, not the examples below, are the subject.
 
 Never write a question addressed to the shopper. You are not running a survey,
 an interview, or a market-research panel. "What do you prefer", "how important
@@ -205,11 +219,24 @@ concrete constraint (a price, a use case, a compatibility, a material) is
 better than a general one. Vary the shape across the batch -- do not apply one
 sentence frame to every prompt.
 
-{COMMERCE_BUYER_PROMPT_EXEMPLARS}
+{exemplars}
+
+The examples above show the SHAPE and register of a buyer prompt, never the
+subject. Write about what this shop sells.
 
 Never name the owned brand or the exact owned product: the prompt has to be one
 a buyer would type BEFORE they know about it. Return only the schema.\
 """
+
+
+def commerce_buyer_prompt_system(business_model: str = "") -> str:
+    """The buyer-prompt instruction, with exemplars picked by business model."""
+    return _COMMERCE_BUYER_PROMPT_TEMPLATE.format(
+        exemplars=PROMPT_EXEMPLARS.get(business_model.strip(), _GENERAL_EXEMPLARS)
+    )
+
+
+COMMERCE_BUYER_PROMPT_SYSTEM: Final = commerce_buyer_prompt_system()
 
 # Survey framing, rejected deterministically. Each marker is second-person
 # addressed-to-the-shopper phrasing that no buyer types into an assistant.

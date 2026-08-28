@@ -10,11 +10,18 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.connectors.agent.gateway import ModelGateway
 from app.core.config.commerce_catalog import (
-    COMMERCE_BUYER_PROMPT_SYSTEM,
+    COMMERCE_PROMPT_CONTEXT_PRODUCT_LIMIT,
+    COMMERCE_PROMPT_CONTEXT_TERM_LIMIT,
     COMMERCE_PROMPT_TEMPLATE_VERSION,
+    commerce_buyer_prompt_system,
+)
+from app.core.config.visibility_prompts import (
+    BUYER_STAGE_CONSIDERATION,
+    PROMPT_INTENT_RECOMMEND,
 )
 from app.domain.commerce.buyer_prompt_validation import admitted_buyer_prompts
 from app.domain.commerce.schemas import (
@@ -22,11 +29,15 @@ from app.domain.commerce.schemas import (
     CommerceTarget,
 )
 from app.domain.commerce.service import CommerceNotFoundError, require_project
+from app.domain.prompts.topical_binding import binding_tokens
+from app.models.brand import Brand
 from app.models.commerce import (
     CommerceCategory,
     CommerceProduct,
+    CommerceProductCategory,
     CommercePromptTarget,
 )
+from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet, Topic
 
 
@@ -42,40 +53,140 @@ class _GeneratedBatch(BaseModel):
     prompts: list[_GeneratedPrompt]
 
 
+async def _project_with_brand(
+    session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
+) -> Project:
+    """Load the project with the brand profile the prompt context reads.
+
+    ``require_project`` returns a bare row, so reaching for
+    ``project.brand.profile`` on it lazy-loads inside an async session and
+    raises. The profile is where the confirmed business context lives, and
+    that context is the whole point of this path.
+    """
+    project = await session.scalar(
+        select(Project)
+        .where(Project.id == project_id, Project.workspace_id == workspace_id)
+        .options(selectinload(Project.brand).selectinload(Brand.profile))
+    )
+    if project is None:
+        raise CommerceNotFoundError("Project not found")
+    return project
+
+
+async def _category_products(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    category_id: uuid.UUID,
+) -> list[CommerceProduct]:
+    return list(
+        (
+            await session.scalars(
+                select(CommerceProduct)
+                .join(
+                    CommerceProductCategory,
+                    CommerceProductCategory.product_id == CommerceProduct.id,
+                )
+                .where(
+                    CommerceProductCategory.category_id == category_id,
+                    CommerceProduct.workspace_id == workspace_id,
+                    CommerceProduct.project_id == project_id,
+                )
+                .order_by(CommerceProduct.name)
+                .limit(COMMERCE_PROMPT_CONTEXT_PRODUCT_LIMIT)
+            )
+        ).all()
+    )
+
+
 async def _target_context(
     session: AsyncSession,
     *,
     workspace_id: uuid.UUID,
     project_id: uuid.UUID,
     target: CommerceTarget,
+    project: Project,
 ) -> dict:
-    model = CommerceCategory if target.kind == "category" else CommerceProduct
-    row = await session.scalar(
-        select(model).where(
-            model.id == target.id,
-            model.workspace_id == workspace_id,
-            model.project_id == project_id,
+    """Everything the model needs to know what this shelf actually sells.
+
+    A category target used to be sent as nothing but its own name -- no brand,
+    no vertical, no products, not even the collection URL. Handed the bare word
+    "ACCESORIES" and an exemplar bank of gadgets, the model wrote what generic
+    e-commerce training data says accessories are: phone cases, screen
+    protectors, laptop sleeves. For a linen-fashion label. It was not leaking
+    examples; it had no way to know what the shop sold.
+    """
+    profile = project.brand.profile if project.brand is not None else None
+    business_context = dict(getattr(profile, "business_context", None) or {})
+    row: CommerceProduct | CommerceCategory | None
+    if target.kind == "product":
+        row = await session.scalar(
+            select(CommerceProduct).where(
+                CommerceProduct.id == target.id,
+                CommerceProduct.workspace_id == workspace_id,
+                CommerceProduct.project_id == project_id,
+            )
         )
-    )
+    else:
+        row = await session.scalar(
+            select(CommerceCategory).where(
+                CommerceCategory.id == target.id,
+                CommerceCategory.workspace_id == workspace_id,
+                CommerceCategory.project_id == project_id,
+            )
+        )
     if row is None:
         raise CommerceNotFoundError(f"Commerce {target.kind} not found")
-    name = row.name if isinstance(row, (CommerceCategory, CommerceProduct)) else ""
-    context: dict[str, Any] = {
-        "target_kind": target.kind,
-        "name": name,
-        "locale": "",
-    }
+    context = _base_target_context(
+        target=target,
+        name=row.name,
+        project=project,
+        business_context=business_context,
+        audience=str(getattr(profile, "target_audience", "") or ""),
+    )
     if isinstance(row, CommerceProduct):
         context.update(
             {
-                "brand": row.brand,
                 "description": row.description,
                 "attributes": row.attributes,
                 "price": float(row.price) if row.price is not None else None,
                 "currency": row.currency,
             }
         )
+        return context
+    context["category_url"] = row.canonical_url or ""
+    context["category_role"] = row.role or ""
+    products = await _category_products(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        category_id=row.id,
+    )
+    context["products_on_this_shelf"] = [product.name for product in products]
     return context
+
+
+def _base_target_context(
+    *,
+    target: CommerceTarget,
+    name: str,
+    project: Project,
+    business_context: dict[str, Any],
+    audience: str,
+) -> dict[str, Any]:
+    return {
+        "target_kind": target.kind,
+        "name": name,
+        "locale": "",
+        "brand": project.brand_name or "",
+        "sells": str(business_context.get("category") or ""),
+        "category_terms": list(business_context.get("category_terms") or [])[
+            :COMMERCE_PROMPT_CONTEXT_TERM_LIMIT
+        ],
+        "business_model": str(business_context.get("business_model") or ""),
+        "audience": audience,
+    }
 
 
 async def _prompt_owner(
@@ -111,6 +222,30 @@ async def _prompt_owner(
     return prompt_set, topic
 
 
+def _target_vocabulary(context: dict) -> frozenset[str]:
+    """The words this target's own shelf uses.
+
+    Built from the products actually on the shelf plus the confirmed category
+    language -- never from the category NAME alone, which is the ambiguous
+    thing ("accessories", "clearance", "layers" say nothing about a vertical).
+    Returns empty when there is nothing to judge against, which disables the
+    topicality rule rather than rejecting every prompt.
+    """
+    sources = [
+        *[str(name) for name in context.get("products_on_this_shelf") or []],
+        *[str(term) for term in context.get("category_terms") or []],
+        str(context.get("sells") or ""),
+    ]
+    if context.get("target_kind") == "product":
+        sources.extend(
+            [str(context.get("name") or ""), str(context.get("description") or "")]
+        )
+    vocabulary: set[str] = set()
+    for value in sources:
+        vocabulary |= binding_tokens(value)
+    return frozenset(vocabulary)
+
+
 def _leaks_owned_identity(text: str, context: dict) -> bool:
     normalized = " ".join(text.casefold().split())
     protected = {str(context.get("brand") or "").casefold().strip()}
@@ -128,7 +263,7 @@ async def generate_buyer_prompts(
     count: int,
     gateway: ModelGateway,
 ) -> list[BuyerPromptResponse]:
-    project = await require_project(
+    project = await _project_with_brand(
         session, workspace_id=workspace_id, project_id=project_id
     )
     generated: list[BuyerPromptResponse] = []
@@ -138,13 +273,16 @@ async def generate_buyer_prompts(
             workspace_id=workspace_id,
             project_id=project_id,
             target=target,
+            project=project,
         )
         context["locale"] = "-".join(
             value for value in (project.language_code, project.country_code) if value
         )
         try:
             raw = await gateway.complete_structured_json(
-                system=COMMERCE_BUYER_PROMPT_SYSTEM,
+                system=commerce_buyer_prompt_system(
+                    str(context.get("business_model") or "")
+                ),
                 user=json.dumps({"count": count, "context": context}, default=str),
                 schema_name="commerce_buyer_prompts",
                 schema=_GeneratedBatch.model_json_schema(),
@@ -157,7 +295,10 @@ async def generate_buyer_prompts(
         # Style admission BEFORE the identity gate: a survey question that also
         # happens to avoid the brand name is still not a buyer prompt, and the
         # count check below must count only prompts that survived both.
-        texts, _rejected = admitted_buyer_prompts([item.text for item in batch.prompts])
+        texts, _rejected = admitted_buyer_prompts(
+            [item.text for item in batch.prompts],
+            vocabulary=_target_vocabulary(context),
+        )
         texts = [text for text in texts if not _leaks_owned_identity(text, context)][
             :count
         ]
@@ -176,6 +317,11 @@ async def generate_buyer_prompts(
                 text=text,
                 theme=str(context["name"])[:255],
                 intent="comparison",
+                # Commerce prompts are buyer prompts, so they belong in the
+                # same buyer-stage taxonomy as the visibility portfolio. Left
+                # blank they sat outside every downstream stage rollup.
+                buyer_stage=BUYER_STAGE_CONSIDERATION,
+                prompt_intent=PROMPT_INTENT_RECOMMEND,
                 cohort="commerce",
                 branded=False,
                 enabled=False,
@@ -211,12 +357,17 @@ async def add_manual_buyer_prompt(
     target: CommerceTarget,
     text: str,
 ) -> BuyerPromptResponse:
-    await require_project(session, workspace_id=workspace_id, project_id=project_id)
+    project = await _project_with_brand(
+        session, workspace_id=workspace_id, project_id=project_id
+    )
+    # Called for its side effect: it 404s an unknown target before anything is
+    # written. It needs the brand-loaded project like every other caller.
     await _target_context(
         session,
         workspace_id=workspace_id,
         project_id=project_id,
         target=target,
+        project=project,
     )
     prompt_set, topic = await _prompt_owner(
         session, project_id=project_id, target=target

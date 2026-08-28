@@ -1,7 +1,23 @@
 from __future__ import annotations
 
+import uuid
+
 import httpx
 import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from app.domain.commerce.prompts import (
+    _project_with_brand,
+    _target_context,
+    _target_vocabulary,
+    add_manual_buyer_prompt,
+)
+from app.domain.commerce.schemas import CommerceTarget
+from app.domain.commerce.service import CommerceNotFoundError
+from app.domain.prompts.topical_binding import binding_tokens
+from app.models.commerce import CommerceCategory
+from app.models.project import Project
 
 
 async def _register(client: httpx.AsyncClient, email: str) -> None:
@@ -241,3 +257,144 @@ async def test_ai_shelf_requires_an_explicit_target(
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "commerce_target_required"
+
+
+@pytest.mark.asyncio
+async def test_a_category_target_carries_the_shop_not_just_its_own_name(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A category used to be sent to the model as nothing but its name.
+
+    Handed the bare word "ACCESORIES" -- no brand, no vertical, no products,
+    not even the collection URL -- the model wrote what generic e-commerce
+    training data says accessories are: phone cases, screen protectors, laptop
+    sleeves. For a linen-fashion label. It was not leaking examples; it had no
+    way to know what the shop sold, and the topicality gate now has nothing to
+    judge against either unless this context is populated.
+    """
+    await _register(client, "commerce-context@example.com")
+    project = await _project(client)
+    project_id = uuid.UUID(project["id"])
+
+    imported = await client.post(
+        f"/api/v1/projects/{project_id}/commerce/catalog/import",
+        json={
+            "filename": "catalog.csv",
+            "content_type": "text/csv",
+            "content": (
+                "canonical_url,name,brand,price,currency,sku,category\n"
+                "https://shop.example/products/midi,"
+                "Bubble Linen Dress,Acme,240.00,USD,L-1,ACCESORIES\n"
+                "https://shop.example/products/scarf,"
+                "Silk Linen Scarf,Acme,90.00,USD,L-2,ACCESORIES\n"
+            ),
+        },
+    )
+    assert imported.status_code in {200, 201}, imported.text
+
+    async with session_factory() as session:
+        category = await session.scalar(
+            select(CommerceCategory).where(
+                CommerceCategory.project_id == project_id,
+                CommerceCategory.normalized_name == "accesories",
+            )
+        )
+        assert category is not None
+        loaded = await _project_with_brand(
+            session, workspace_id=category.workspace_id, project_id=project_id
+        )
+        context = await _target_context(
+            session,
+            workspace_id=category.workspace_id,
+            project_id=project_id,
+            target=CommerceTarget(kind="category", id=category.id),
+            project=loaded,
+        )
+
+    assert context["brand"] == "Acme"
+    assert set(context["products_on_this_shelf"]) == {
+        "Bubble Linen Dress",
+        "Silk Linen Scarf",
+    }
+    # And that context is what the topicality gate judges against, so an
+    # off-vertical prompt for this shelf is now rejectable.
+    vocabulary = _target_vocabulary(context)
+    assert "linen" in vocabulary
+    assert not (vocabulary & binding_tokens("phone case with magsafe for iphone"))
+
+
+@pytest.mark.asyncio
+async def test_a_manual_buyer_prompt_can_be_added_to_a_category(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The manual path shares the target lookup with generation.
+
+    It calls `_target_context` purely to 404 an unknown target before writing,
+    so when that helper grew a required `project` argument this raised
+    TypeError on every manual prompt -- a path with no test to catch it.
+    """
+    await _register(client, "commerce-manual@example.com")
+    project = await _project(client)
+    project_id = uuid.UUID(project["id"])
+
+    imported = await client.post(
+        f"/api/v1/projects/{project_id}/commerce/catalog/import",
+        json={
+            "filename": "catalog.csv",
+            "content_type": "text/csv",
+            "content": (
+                "canonical_url,name,brand,price,currency,sku,category\n"
+                "https://shop.example/products/midi,"
+                "Bubble Linen Dress,Acme,240.00,USD,L-1,DRESSES\n"
+            ),
+        },
+    )
+    assert imported.status_code in {200, 201}, imported.text
+
+    async with session_factory() as session:
+        category = await session.scalar(
+            select(CommerceCategory).where(
+                CommerceCategory.project_id == project_id,
+                CommerceCategory.normalized_name == "dresses",
+            )
+        )
+        assert category is not None
+        workspace_id, category_id = category.workspace_id, category.id
+
+        created = await add_manual_buyer_prompt(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            target=CommerceTarget(kind="category", id=category_id),
+            text="  linen midi dress for a beach wedding  ",
+        )
+
+    assert created.text == "linen midi dress for a beach wedding"
+    assert created.enabled is False
+    assert created.target.id == category_id
+
+
+@pytest.mark.asyncio
+async def test_a_manual_buyer_prompt_rejects_an_unknown_target(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _register(client, "commerce-manual-404@example.com")
+    project = await _project(client)
+    project_id = uuid.UUID(project["id"])
+
+    async with session_factory() as session:
+        workspace_id = await session.scalar(
+            select(Project.workspace_id).where(Project.id == project_id)
+        )
+        assert workspace_id is not None
+        with pytest.raises(CommerceNotFoundError):
+            await add_manual_buyer_prompt(
+                session,
+                workspace_id=workspace_id,
+                project_id=project_id,
+                target=CommerceTarget(kind="category", id=uuid.uuid4()),
+                text="linen midi dress for a beach wedding",
+            )

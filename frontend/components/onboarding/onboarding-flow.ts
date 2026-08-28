@@ -154,6 +154,19 @@ export function useOnboardingFlow() {
     );
   }, [discoveryState, maximumCompetitors]);
 
+  const openProject = useCallback(
+    async (projectId: string) => {
+      setActiveProjectId(projectId);
+      void projectsApi
+        .refreshProjectLogos(projectId)
+        .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.projects.list() }))
+        .catch(() => undefined);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.projects.list() });
+      router.replace('/projects');
+    },
+    [queryClient, router, setActiveProjectId],
+  );
+
   const complete = useMutation({
     mutationFn: async () => {
       if (!brand || !discoveryState || !hasConfirmedIcp(profile)) {
@@ -170,19 +183,28 @@ export function useOnboardingFlow() {
         `complete:${discoveryState.id}`,
       );
     },
+    // The request only ACCEPTS the completion; the portfolio is generated on a
+    // worker because it takes minutes and the client abandons a request after
+    // 30s. A replayed completion already carries its project id and skips
+    // straight through; otherwise the discovery poll below finishes the job.
     onSuccess: async (result) => {
-      setActiveProjectId(result.project_id);
-      void projectsApi
-        .refreshProjectLogos(result.project_id)
-        .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.projects.list() }))
-        .catch(() => undefined);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.projects.list() });
-      router.replace('/projects');
+      if (result.project_id) await openProject(result.project_id);
+      else await queryClient.invalidateQueries({ queryKey: ['brand-discovery'] });
     },
   });
 
+  const completedProjectId =
+    discoveryState?.status === 'project_created' ? discoveryState.project_id : null;
+  const completionFailed = discoveryState?.status === 'failed';
+  useEffect(() => {
+    if (!completedProjectId) return;
+    void openProject(completedProjectId);
+  }, [completedProjectId, openProject]);
+
   const submitBrand = form.handleSubmit((values) => {
-    const rediscovers = brand !== null && JSON.stringify(brand) !== JSON.stringify(values);
+    const rediscovers =
+      discoveryState?.status === 'failed' ||
+      (brand !== null && JSON.stringify(brand) !== JSON.stringify(values));
     if (rediscovers) {
       setDomains([]);
       setCompetitors([]);
@@ -209,6 +231,21 @@ export function useOnboardingFlow() {
     catalog,
     competitors,
     complete,
+    completionFailed,
+    // True from the click until the worker lands the project. The request
+    // itself resolves in milliseconds now, so `complete.isPending` alone would
+    // re-enable the button the moment the job was ACCEPTED -- inviting the
+    // very second click this whole change exists to remove. `isSuccess`
+    // without a project id is "accepted, still generating", and it bridges the
+    // gap before the discovery poll first reports `completing`; the polled
+    // status is what holds it across a RELOAD, where the mutation is fresh and
+    // knows nothing about the job already running.
+    //
+    isCompleting:
+      !completionFailed &&
+      (complete.isPending ||
+        (complete.isSuccess && !completedProjectId) ||
+        discoveryState?.status === 'completing'),
     discovery,
     domains,
     form,

@@ -25,8 +25,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.brand_discovery import (
     BRAND_DISCOVERY_QUEUE_SPEC,
+    DISCOVERY_STATUS_COMPLETING,
     DISCOVERY_STATUS_FAILED,
+    ERROR_BRAND_COMPLETION,
     ERROR_BRAND_DISCOVERY,
+    TASK_KIND_BRAND_COMPLETION,
+    WARNING_BRAND_COMPLETION_FAILED,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_FAILED,
@@ -74,11 +78,13 @@ async def _task(
     attempt_count: int = 0,
     max_attempts: int = 3,
     lease_owner: str | None = _OWNER,
+    task_kind: str = "brand_discovery",
 ) -> BrandDiscoveryTask:
     now = datetime.now(UTC)
     task = BrandDiscoveryTask(
         discovery_id=discovery.id,
         workspace_id=discovery.workspace_id,
+        task_kind=task_kind,
         idempotency_key=f"task-{uuid.uuid4()}",
         status=status,
         attempt_count=attempt_count,
@@ -374,6 +380,43 @@ async def test_a_failing_discovery_leaves_the_task_retryable(
     assert row is not None
     assert row.status == TASK_STATUS_RETRY_WAIT
     assert row.error_code == ERROR_BRAND_DISCOVERY
+
+
+@pytest.mark.asyncio
+async def test_an_exhausted_completion_failure_terminalizes_the_discovery(
+    db_session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace_id = await _workspace(db_session)
+    discovery = await _discovery(
+        db_session, workspace_id, status=DISCOVERY_STATUS_COMPLETING
+    )
+    task = await _task(
+        db_session,
+        discovery,
+        status=TASK_STATUS_QUEUED,
+        attempt_count=2,
+        max_attempts=3,
+        lease_owner=None,
+        task_kind=TASK_KIND_BRAND_COMPLETION,
+    )
+    await db_session.commit()
+
+    async def _fail_completion(*_: object, **__: object) -> None:
+        raise RuntimeError("provider unavailable")
+
+    monkeypatch.setattr(worker_module, "run_completion", _fail_completion)
+
+    assert await worker_module.run_once(_OWNER) is True
+
+    async with session_factory() as session:
+        task_row = await session.get(BrandDiscoveryTask, task.id)
+        parent = await session.get(BrandDiscovery, discovery.id)
+    assert task_row is not None and task_row.status == TASK_STATUS_FAILED
+    assert parent is not None and parent.status == DISCOVERY_STATUS_FAILED
+    assert parent.error_code == ERROR_BRAND_COMPLETION
+    assert WARNING_BRAND_COMPLETION_FAILED in parent.warnings
 
 
 # --- reaping expired leases -----------------------------------------------

@@ -100,7 +100,11 @@
       ]
     },
     {
-      "sources": ["backend/app/orchestration/**"],
+      "sources": [
+        "backend/app/orchestration/**",
+        "backend/app/models/queue_mixins.py",
+        "backend/app/workers/parent_reconcilers.py"
+      ],
       "backendTests": [
         "tests/unit/test_audit_state.py",
         "tests/unit/test_occupancy_enforcement.py",

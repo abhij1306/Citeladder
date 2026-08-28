@@ -28,6 +28,8 @@ from app.domain.commerce.projector import (
     _category_from_analysis,
     _category_title,
     _crawl_values,
+    _link_product_to_projected_shelves,
+    _link_shelf_products,
     _project_product_source,
 )
 from app.domain.commerce.prompts import _leaks_owned_identity
@@ -945,3 +947,110 @@ def test_editorial_phrases_still_exclude_a_listicle() -> None:
         )
         assert outcome == "excluded_editorial", title
         assert checked is None
+
+
+@pytest.mark.asyncio
+async def test_a_shelf_page_links_its_products_into_the_category() -> None:
+    """Membership must come from the shelf, not only from each product page.
+
+    It used to be derived ONLY from a product page's own JSON-LD `category`
+    and breadcrumb trail. A storefront that publishes neither -- most Shopify
+    themes -- produced no membership at all: 466 products all fell into one
+    "Uncategorized" bucket while every real collection reported zero. The
+    category page is the authority on what is on the shelf, is already
+    crawled and stored, and was simply never read for this.
+    """
+    category = SimpleNamespace(id=uuid.uuid4())
+    workspace_id, project_id = uuid.uuid4(), uuid.uuid4()
+    product_ids = [uuid.uuid4(), uuid.uuid4()]
+    statements: list[object] = []
+
+    class Session:
+        async def scalars(self, *_: object):
+            return SimpleNamespace(all=lambda: product_ids)
+
+        async def execute(self, statement: object):
+            statements.append(statement)
+
+    analysis = SimpleNamespace(
+        id=uuid.uuid4(), workspace_id=workspace_id, project_id=project_id
+    )
+    artifact = SimpleNamespace(
+        normalized_facts={
+            "links": {
+                "anchors": [
+                    {"url": "https://shop.test/products/a", "is_internal": True},
+                    {"url": "https://shop.test/products/b", "is_internal": True},
+                    # Off-site and non-navigational links are not shelf items.
+                    {"url": "https://instagram.com/shop", "is_internal": False},
+                    {"url": "#main", "is_internal": True},
+                ]
+            }
+        }
+    )
+
+    await _link_shelf_products(
+        Session(),  # type: ignore[arg-type]
+        analysis=analysis,
+        artifact=artifact,
+        category=category,  # type: ignore[arg-type]
+    )
+
+    assert len(statements) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_product_landing_after_its_shelf_still_gets_membership() -> None:
+    category = SimpleNamespace(id=uuid.uuid4())
+    artifact = SimpleNamespace(
+        normalized_facts={
+            "links": {
+                "anchors": [
+                    {
+                        "url": "https://shop.test/products/linen-dress",
+                        "is_internal": True,
+                    }
+                ]
+            }
+        }
+    )
+    statements: list[object] = []
+
+    class Session:
+        async def execute(self, statement: object):
+            statements.append(statement)
+            if len(statements) == 1:
+                return SimpleNamespace(all=lambda: [(category, artifact)])
+            return SimpleNamespace()
+
+    analysis = SimpleNamespace(workspace_id=uuid.uuid4(), project_id=uuid.uuid4())
+    product = SimpleNamespace(
+        id=uuid.uuid4(), canonical_url="https://shop.test/products/linen-dress"
+    )
+
+    await _link_product_to_projected_shelves(
+        Session(),  # type: ignore[arg-type]
+        analysis=analysis,
+        product=product,  # type: ignore[arg-type]
+    )
+
+    assert len(statements) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_shelf_with_no_internal_links_writes_nothing() -> None:
+    class Session:
+        async def scalars(self, *_: object):
+            raise AssertionError("no product lookup should run")
+
+        def add(self, _: object) -> None:
+            raise AssertionError("no membership should be written")
+
+    await _link_shelf_products(
+        Session(),  # type: ignore[arg-type]
+        analysis=SimpleNamespace(
+            id=uuid.uuid4(), workspace_id=uuid.uuid4(), project_id=uuid.uuid4()
+        ),
+        artifact=SimpleNamespace(normalized_facts={"links": {"anchors": []}}),
+        category=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+    )

@@ -92,12 +92,19 @@ export function deriveDomain(value: string): string {
 }
 
 export function onboardingErrorMessage(error: unknown): string {
-  const { status } = humanizeApiError(error);
+  const { status, code } = humanizeApiError(error);
   if (status === 403) {
     return 'Your workspace has reached its project limit. Free a slot or update your plan, then try again.';
   }
   if (status === 422) {
     return 'Check the website and required details, then try again.';
+  }
+  // A client-side timeout is not a failure: the request is bounded at 30s
+  // while the work behind it is not, and the server carries on regardless.
+  // Reporting it as "we couldn't finish" told people their project had failed
+  // when it was usually about to appear.
+  if (code === 'request_timeout') {
+    return 'This is taking longer than usual. We’re still working on it — checking again…';
   }
   return 'We couldn’t finish this setup step just now. Please try again.';
 }

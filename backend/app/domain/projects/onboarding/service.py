@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.connectors.web_evidence.url_policy import registrable_domain
 from app.core.config.brand_discovery import (
     BRAND_DISCOVERY_PROMPT_GENERATOR_VERSION,
     BRAND_DISCOVERY_PROMPT_VALIDATION_VERSION,
@@ -19,7 +20,6 @@ from app.core.config.brand_discovery import (
     CAPTURE_METHOD_USER,
     DISCOVERY_PROGRESS_TOTAL_STEPS,
     DISCOVERY_STATUS_FAILED,
-    DISCOVERY_STATUS_PROJECT_CREATED,
     DISCOVERY_STATUS_READY,
     PRICE_TIERS,
     brand_discovery_settings,
@@ -75,7 +75,6 @@ from app.models.discovery import (
 )
 from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet, Topic
-from app.models.site_health.crawl import SiteCrawl
 
 IDEMPOTENCY_KEY_REQUIRED = "Idempotency-Key is required"
 
@@ -530,120 +529,6 @@ async def _persist_project(
     return project.id
 
 
-async def _completion_replay(
-    session: AsyncSession,
-    *,
-    row: BrandDiscovery,
-    idempotency_key: str,
-) -> tuple[BrandDiscovery, SiteCrawl | None] | None:
-    existing_key = str(row.input_data.get("completion_idempotency_key") or "")
-    if not existing_key:
-        return None
-    if existing_key != idempotency_key:
-        raise BrandDiscoveryError(
-            "Discovery was completed with another Idempotency-Key"
-        )
-    existing_crawl = (
-        await session.get(SiteCrawl, row.initial_crawl_id)
-        if row.initial_crawl_id is not None
-        else None
-    )
-    return row, existing_crawl
-
-
-async def complete_discovery(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    discovery_id: uuid.UUID,
-    payload: BrandDiscoveryComplete,
-    idempotency_key: str,
-    reviewer_id: uuid.UUID,
-) -> tuple[BrandDiscovery, SiteCrawl | None]:
-    key = idempotency_key.strip()
-    if not key:
-        raise BrandDiscoveryError(IDEMPOTENCY_KEY_REQUIRED)
-    row = await get_discovery(
-        session,
-        workspace_id=workspace_id,
-        discovery_id=discovery_id,
-    )
-    replay = await _completion_replay(session, row=row, idempotency_key=key)
-    if replay is not None:
-        return replay
-    if row.status != DISCOVERY_STATUS_READY:
-        raise BrandDiscoveryError("Discovery is not ready for completion")
-    (
-        domains,
-        competitors,
-        discovery_topics,
-        brand_name,
-        primary_market,
-        profile_sources,
-    ) = _confirmed_portfolio_inputs(row, payload=payload)
-
-    # The provider call must not run inside a database transaction or while a
-    # discovery row is locked. Re-resolve and lock immediately before writes.
-    await session.commit()
-    (
-        prompts,
-        prompt_provider,
-        prompt_model,
-        prompt_warnings,
-    ) = await _generate_confirmed_portfolio(
-        payload=payload,
-        topics=discovery_topics,
-        brand_name=brand_name,
-        primary_market=primary_market,
-        competitors=competitors,
-    )
-    row = await get_discovery(
-        session,
-        workspace_id=workspace_id,
-        discovery_id=discovery_id,
-        for_update=True,
-    )
-    replay = await _completion_replay(session, row=row, idempotency_key=key)
-    if replay is not None:
-        return replay
-    if row.status != DISCOVERY_STATUS_READY:
-        raise BrandDiscoveryError("Discovery is not ready for completion")
-    row.domains = domains
-    row.competitors = competitors
-    confirmed_profile = payload.profile.model_dump()
-    row.profile = confirmed_profile
-    row.topics = [topic.model_dump(mode="json") for topic in discovery_topics]
-    row.prompt_suggestions = prompts
-    # A topic that produced no usable prompt is reported, not fatal. The topic
-    # still exists and the user can write a prompt for it by hand.
-    row.warnings = list(dict.fromkeys([*row.warnings, *prompt_warnings]))
-    row.input_data = {**row.input_data, "completion_idempotency_key": key}
-    project_id = await _persist_project(
-        session,
-        workspace_id=workspace_id,
-        row=row,
-        payload=payload,
-        prompts=prompts,
-        discovery_topics=discovery_topics,
-        prompt_provider=prompt_provider,
-        prompt_model=prompt_model,
-        profile_sources=profile_sources,
-    )
-    row.project_id = project_id
-    row.status = DISCOVERY_STATUS_PROJECT_CREATED
-    row.stage = "complete"
-    row.progress = _progress(
-        phase="complete",
-        completed_steps=DISCOVERY_PROGRESS_TOTAL_STEPS,
-        competitors_found=len(row.competitors),
-        prompts_prepared=len(prompts),
-        previous=row.progress,
-    )
-    await session.commit()
-
-    return row, None
-
-
 # The context fields that survive onboarding. `business_type` and `price_tier`
 # were previously dropped on the floor at project creation -- collected, shown,
 # confirmed, then silently discarded -- so every downstream consumer had to
@@ -731,9 +616,27 @@ def _category_vocabulary(
     ]
 
 
+def _domain_brand_aliases(domains: list[str]) -> list[str]:
+    """The brand's own domain label, which no name split would produce.
+
+    `brand_terms` bans distinctive tokens of the brand NAME, but a shopper (or
+    a model) writes the brand the way the site is spelled: "ilovedooney", one
+    word, is never a token of "I Love Dooney". It has to be banned from
+    organic prompts explicitly, and that matters more now that ordinary words
+    like "love" are no longer banned on their own.
+    """
+    aliases: list[str] = []
+    for domain in domains:
+        label = registrable_domain(domain).split(".")[0].strip()
+        if len(label) >= 4:
+            aliases.append(label)
+    return list(dict.fromkeys(aliases))
+
+
 async def _generate_confirmed_portfolio(
     *,
     payload: BrandDiscoveryComplete,
+    domains: list[str],
     topics: list[DiscoveryTopic],
     brand_name: str,
     primary_market: str,
@@ -743,7 +646,7 @@ async def _generate_confirmed_portfolio(
         brand_name=brand_name,
         brand_terms=brand_terms(
             brand_name,
-            [],
+            _domain_brand_aliases(domains),
             _category_vocabulary(payload.profile, topics),
         ),
         primary_market=primary_market,

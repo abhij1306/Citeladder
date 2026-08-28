@@ -25,6 +25,7 @@ from app.connectors.web_evidence.contracts import (
 )
 from app.connectors.web_evidence.curl_transport import CurlCffiTransport
 from app.connectors.web_evidence.url_policy import (
+    UrlAdmissionRejected,
     UrlPolicyError,
     classify_url_admission,
     resolve_target,
@@ -255,6 +256,11 @@ class SecureFetcher:
                 enforce_scope=enforce_scope,
                 infrastructure_purpose=purpose,
             )
+        except UrlAdmissionRejected as exc:
+            # Our own admission policy, not a network risk. Kept distinct from
+            # ERROR_SSRF_BLOCKED so the crawl can drop the URL from its
+            # applicable set instead of carrying it as a failed page forever.
+            raise FetchError(str(exc), error_code=ERROR_URL_ADMISSION_REJECTED) from exc
         except UrlPolicyError as exc:
             raise FetchError(str(exc), error_code=ERROR_SSRF_BLOCKED) from exc
 

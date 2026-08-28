@@ -16,6 +16,7 @@ from app.core.config.analytics import (
 )
 from app.core.config.site_health_acquisition import (
     ERROR_HTTP_4XX,
+    ERROR_URL_ADMISSION_REJECTED,
     FETCH_ATTEMPT_OUTCOME_ERROR,
 )
 from app.core.config.site_health_contracts import (
@@ -276,6 +277,66 @@ async def test_partial_failure_terminalizes_crawl_as_partially_completed(
         # Discovery still terminalizes as completed (some inventory exists).
         assert crawl.discovery_status == DISCOVERY_STATUS_COMPLETED
         assert crawl.inventory_complete is True
+
+
+@pytest.mark.asyncio
+async def test_discovery_policy_exclusion_does_not_make_the_crawl_partial(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=0)
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        crawl.discovery_status = DISCOVERY_STATUS_RUNNING
+        crawl.analysis_status = ANALYSIS_STATUS_RUNNING
+        crawl.discovered_url_count = 1
+        now = datetime.now(UTC)
+        session.add_all(
+            [
+                SiteCrawlTask(
+                    crawl_id=seed.crawl_id,
+                    workspace_id=seed.workspace_id,
+                    task_kind=TASK_KIND_DISCOVER,
+                    requested_url="https://example.com/",
+                    url_hash=canonical_identity("https://example.com/")[1],
+                    idempotency_key=f"{seed.crawl_id}:discover:root:0",
+                    status=TASK_STATUS_SUCCEEDED,
+                    completed_at=now,
+                ),
+                SiteCrawlTask(
+                    crawl_id=seed.crawl_id,
+                    workspace_id=seed.workspace_id,
+                    task_kind=TASK_KIND_DISCOVER,
+                    requested_url="https://example.com/account-redirect",
+                    url_hash=canonical_identity("https://example.com/account-redirect")[
+                        1
+                    ],
+                    idempotency_key=f"{seed.crawl_id}:discover:excluded:0",
+                    status=TASK_STATUS_FAILED,
+                    error_code=ERROR_URL_ADMISSION_REJECTED,
+                    completed_at=now,
+                ),
+                SiteCrawlTask(
+                    crawl_id=seed.crawl_id,
+                    workspace_id=seed.workspace_id,
+                    task_kind=TASK_KIND_ANALYZE,
+                    requested_url="https://example.com/",
+                    url_hash=canonical_identity("https://example.com/")[1],
+                    idempotency_key=f"{seed.crawl_id}:analyze:root:0",
+                    status=TASK_STATUS_SUCCEEDED,
+                    completed_at=now,
+                ),
+            ]
+        )
+        await session.commit()
+
+    await CrawlLifecycle(session_factory).reconcile(seed.crawl_id)
+
+    async with session_factory() as session:
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        assert crawl.status == CRAWL_STATUS_COMPLETED
+        assert crawl.partial_reason in (None, "")
 
 
 @pytest.mark.asyncio

@@ -135,6 +135,9 @@ async def _record_admission(
             value_priority=candidate.value_priority,
             rewrite_reason=candidate.rewrite_reason,
             rewrite_version=candidate.rewrite_version,
+            # This URL is about to be queued for discovery just below, so its
+            # analyze task is handed over by that fetch instead of racing it.
+            analyze_after_discovery=enqueue_children,
         )
         if newly_activated:
             progress.remaining -= 1

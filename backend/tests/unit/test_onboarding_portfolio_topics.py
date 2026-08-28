@@ -66,3 +66,50 @@ async def test_a_model_that_never_returns_a_uuid_still_yields_a_portfolio(
         prompt for prompt in result.prompts if "best&less" not in prompt["text"].lower()
     ]
     assert len(unbranded) >= 2
+
+
+def _row(cohort: str, index: int) -> dict:
+    return {"cohort": cohort, "text": f"{cohort}-{index}", "topic_id": "t"}
+
+
+def test_a_healthy_portfolio_keeps_every_named_prompt() -> None:
+    accepted = [_row("core", i) for i in range(20)] + [
+        _row("brand_diagnostic", 0),
+        _row("brand_diagnostic", 1),
+        _row("comparison", 0),
+    ]
+    capped, was_capped = pg._cap_branded_share(accepted)
+
+    assert was_capped is False
+    assert capped == accepted
+
+
+def test_a_thin_organic_cohort_cannot_be_dominated_by_brand_prompts() -> None:
+    """The named counts are fixed while the organic count is not.
+
+    When the organic cohort came back thin, the two brand-diagnostic prompts
+    plus the comparison prompt were most of the portfolio -- a visibility set
+    that mostly measures the brand answering about itself, which is the one
+    thing it must not do.
+    """
+    accepted = [_row("core", 0), _row("core", 1)] + [
+        _row("brand_diagnostic", 0),
+        _row("brand_diagnostic", 1),
+        _row("comparison", 0),
+    ]
+    capped, was_capped = pg._cap_branded_share(accepted)
+
+    named = [row for row in capped if row["cohort"] != "core"]
+    assert was_capped is True
+    # Trimmed to the diagnostic floor, never to zero: a portfolio with no
+    # branded prompt cannot answer "does the engine know this brand at all".
+    assert len(named) == 2
+    assert [row for row in capped if row["cohort"] == "core"] == accepted[:2]
+
+
+def test_an_empty_organic_cohort_still_keeps_the_diagnostic_floor() -> None:
+    accepted = [_row("brand_diagnostic", 0), _row("brand_diagnostic", 1)]
+    capped, was_capped = pg._cap_branded_share(accepted)
+
+    assert capped == accepted
+    assert was_capped is False

@@ -9,6 +9,11 @@ from fastapi import APIRouter, Depends, Header, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
+from app.core.config.brand_discovery import (
+    DISCOVERY_STATUS_COMPLETING,
+    DISCOVERY_STATUS_FAILED,
+    DISCOVERY_STATUS_PROJECT_CREATED,
+)
 from app.core.errors import ApiException
 from app.core.http_errors import raise_api_error
 from app.domain.entitlements.enforcement import OccupancyError
@@ -81,7 +86,7 @@ async def get_brand_discovery(
 
 @router.post(
     "/brand-discoveries/{discovery_id}/complete",
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def complete_brand_discovery(
     discovery_id: uuid.UUID,
@@ -114,9 +119,19 @@ async def complete_brand_discovery(
 
 
 def _completion_response(row, crawl) -> BrandDiscoveryCompleteResponse:
-    if row.project_id is None:
-        raise RuntimeError("Discovery completion is missing its project identity")
+    """Accepted, not finished: the project id appears once the worker lands it.
+
+    A replayed request on an already-completed discovery still returns the
+    project immediately, so the client's poll ends on its first read.
+
+    A replay of a completion whose generation FAILED reports that, rather than
+    every project-less row reading as ``completing``: the work is over and no
+    project is coming, so telling the client to keep polling would hang the
+    setup screen on a job that already ended.
+    """
     return BrandDiscoveryCompleteResponse(
+        discovery_id=row.id,
+        status=_completion_status(row),
         project_id=row.project_id,
         crawl_id=crawl.id if crawl is not None else None,
         page_limit=(
@@ -124,3 +139,11 @@ def _completion_response(row, crawl) -> BrandDiscoveryCompleteResponse:
         ),
         warnings=list(row.warnings),
     )
+
+
+def _completion_status(row) -> str:
+    if row.project_id is not None:
+        return DISCOVERY_STATUS_PROJECT_CREATED
+    if row.status == DISCOVERY_STATUS_FAILED:
+        return DISCOVERY_STATUS_FAILED
+    return DISCOVERY_STATUS_COMPLETING

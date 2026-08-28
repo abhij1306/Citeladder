@@ -12,10 +12,13 @@ from datetime import UTC, datetime, timedelta
 
 from app.core.config.brand_discovery import (
     BRAND_DISCOVERY_QUEUE_SPEC,
+    DISCOVERY_STATUS_COMPLETING,
     DISCOVERY_STATUS_PROJECT_CREATED,
     DISCOVERY_STATUS_READY,
     DISCOVERY_STATUS_RUNNING,
+    ERROR_BRAND_COMPLETION,
     ERROR_BRAND_DISCOVERY,
+    TASK_KIND_BRAND_COMPLETION,
     brand_discovery_settings,
 )
 from app.core.config.task_queue import (
@@ -27,6 +30,7 @@ from app.core.config.task_queue import (
 from app.core.database import SessionLocal, dispose_engine
 from app.core.telemetry import configure_logging, instrument_worker
 from app.domain.projects.discovery import process_discovery
+from app.domain.projects.onboarding.completion import run_completion
 from app.models.discovery import BrandDiscovery, BrandDiscoveryTask
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from app.workers.parent_reconcilers import reconcile_brand_discoveries
@@ -51,14 +55,28 @@ async def _stop_heartbeat(heartbeat: asyncio.Task[None]) -> None:
         logger.error("Brand discovery heartbeat cleanup failed", exc_info=cleanup_error)
 
 
-async def _finalize(task_id, *, worker_id: str, error: Exception | None) -> None:
+def _retry_error_code(task_kind: str) -> str:
+    """The failure this queue row is actually retrying.
+
+    One queue carries two jobs. Stamping every retry as a research failure made
+    a portfolio-generation error read as a discovery error in the task row --
+    the same code the reconciler and the operator both go by.
+    """
+    if task_kind == TASK_KIND_BRAND_COMPLETION:
+        return ERROR_BRAND_COMPLETION
+    return ERROR_BRAND_DISCOVERY
+
+
+async def _finalize(
+    task_id, *, worker_id: str, error: Exception | None
+) -> uuid.UUID | None:
     now = datetime.now(UTC)
     async with SessionLocal() as session:
         task = await session.get(BrandDiscoveryTask, task_id, with_for_update=True)
         if task is None or task.lease_owner != worker_id:
-            return
+            return None
         if task.status in TASK_TERMINAL_STATUSES:
-            return
+            return None
         task.attempt_count += 1
         if error is None:
             task.status = TASK_STATUS_SUCCEEDED
@@ -70,7 +88,7 @@ async def _finalize(task_id, *, worker_id: str, error: Exception | None) -> None
             task.available_at = now + timedelta(
                 seconds=brand_discovery_settings.failure_backoff_max_seconds
             )
-            task.error_code = ERROR_BRAND_DISCOVERY
+            task.error_code = _retry_error_code(task.task_kind)
             task.error_detail = str(error)[:2000]
         else:
             task.status = TASK_STATUS_FAILED
@@ -80,6 +98,7 @@ async def _finalize(task_id, *, worker_id: str, error: Exception | None) -> None
         task.lease_owner = None
         task.lease_expires_at = None
         await session.commit()
+        return task.discovery_id if task.status == TASK_STATUS_FAILED else None
 
 
 async def run_once(worker_id: str, *, reap: bool = False) -> bool:
@@ -105,6 +124,42 @@ async def _reap_expired() -> None:
     await reconcile_brand_discoveries(SessionLocal, list(sweep.failed_parent_ids))
 
 
+async def _run_research(session, discovery, *, task_id) -> None:
+    if discovery.status in {
+        DISCOVERY_STATUS_READY,
+        DISCOVERY_STATUS_COMPLETING,
+        DISCOVERY_STATUS_PROJECT_CREATED,
+    }:
+        logger.info(
+            "brand discovery task skipped because processing is complete",
+            extra={"discovery_id": str(discovery.id), "task_id": str(task_id)},
+        )
+        return
+    discovery.status = DISCOVERY_STATUS_RUNNING
+    await session.commit()
+    await process_discovery(session, discovery)
+
+
+async def _run_completion(session, discovery, *, task_id) -> None:
+    """Generate the confirmed portfolio and create the project.
+
+    Only a row the request already moved to ``completing`` has work to do: a
+    replayed task whose project already exists must not build a second one.
+    """
+    if discovery.status == DISCOVERY_STATUS_PROJECT_CREATED:
+        logger.info(
+            "brand completion task skipped because the project already exists",
+            extra={"discovery_id": str(discovery.id), "task_id": str(task_id)},
+        )
+        return
+    if discovery.status != DISCOVERY_STATUS_COMPLETING:
+        raise RuntimeError(
+            f"Brand completion task found status {discovery.status!r}, "
+            "which cannot be completed"
+        )
+    await run_completion(session, discovery)
+
+
 async def _process_claimed_task(task, worker_id: str) -> None:
     heartbeat = asyncio.create_task(_heartbeat(task.id, worker_id))
     error: Exception | None = None
@@ -113,28 +168,21 @@ async def _process_claimed_task(task, worker_id: str) -> None:
             discovery = await session.get(BrandDiscovery, task.discovery_id)
             if discovery is None:
                 raise RuntimeError("Brand discovery task has no discovery")
-            if discovery.status not in {
-                DISCOVERY_STATUS_READY,
-                DISCOVERY_STATUS_PROJECT_CREATED,
-            }:
-                discovery.status = DISCOVERY_STATUS_RUNNING
-                await session.commit()
-                await process_discovery(session, discovery)
+            if task.task_kind == TASK_KIND_BRAND_COMPLETION:
+                await _run_completion(session, discovery, task_id=task.id)
             else:
-                logger.info(
-                    "brand discovery task skipped because processing is complete",
-                    extra={
-                        "discovery_id": str(discovery.id),
-                        "task_id": str(task.id),
-                    },
-                )
+                await _run_research(session, discovery, task_id=task.id)
     except Exception as exc:
         error = exc
     finally:
         try:
             await _stop_heartbeat(heartbeat)
         finally:
-            await _finalize(task.id, worker_id=worker_id, error=error)
+            failed_discovery_id = await _finalize(
+                task.id, worker_id=worker_id, error=error
+            )
+            if failed_discovery_id is not None:
+                await reconcile_brand_discoveries(SessionLocal, [failed_discovery_id])
 
 
 def _set_fallback_signal(

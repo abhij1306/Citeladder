@@ -19,6 +19,7 @@ from app.core.config.commerce_catalog import (
     COMMERCE_BUYER_PROMPT_MIN_WORDS,
     COMMERCE_BUYER_PROMPT_SURVEY_MARKERS,
 )
+from app.domain.prompts.topical_binding import binding_tokens
 
 _WORD = re.compile(r"[a-z0-9']+", re.IGNORECASE)
 
@@ -27,12 +28,22 @@ def _words(text: str) -> list[str]:
     return _WORD.findall(text)
 
 
-def buyer_prompt_error(text: str, *, prior: list[str]) -> str:
+def buyer_prompt_error(
+    text: str, *, prior: list[str], vocabulary: frozenset[str] = frozenset()
+) -> str:
     """Why this prompt is not admissible, or an empty string if it is.
 
     `prior` is the batch admitted so far, so the two portfolio-wide rules --
     no duplicates and no single sentence frame applied to every row -- can be
     enforced across a batch generated in one call.
+
+    `vocabulary` is what the target actually sells. The rules here all judge
+    REGISTER, and a prompt can be a flawless buyer prompt about the wrong
+    industry entirely: "phone case with magsafe for iphone 15 pro" passed every
+    check above for a linen-fashion shelf. Register without topicality is the
+    exact inverse of what that failure needed. Empty vocabulary disables the
+    rule rather than rejecting everything, so a target we know nothing about
+    degrades to the previous behaviour instead of generating nothing.
     """
     cleaned = " ".join(text.split())
     if not cleaned:
@@ -52,6 +63,8 @@ def buyer_prompt_error(text: str, *, prior: list[str]) -> str:
         # Three rows opening the same way is the one-sentence-frame batch the
         # exemplars exist to prevent.
         return "repeated_opening"
+    if vocabulary and not (vocabulary & binding_tokens(cleaned)):
+        return "off_topic"
     return ""
 
 
@@ -63,12 +76,14 @@ def _opening(text: str) -> str:
     return " ".join(_words(text)[:3])
 
 
-def admitted_buyer_prompts(texts: list[str]) -> tuple[list[str], list[str]]:
+def admitted_buyer_prompts(
+    texts: list[str], *, vocabulary: frozenset[str] = frozenset()
+) -> tuple[list[str], list[str]]:
     """Split a generated batch into admitted prompts and rejection reasons."""
     admitted: list[str] = []
     reasons: list[str] = []
     for text in texts:
-        error = buyer_prompt_error(text, prior=admitted)
+        error = buyer_prompt_error(text, prior=admitted, vocabulary=vocabulary)
         if error:
             reasons.append(error)
         else:

@@ -157,14 +157,6 @@ async def test_automatic_analysis_stops_at_frozen_limit_across_batches(
             await session.commit()
 
     async with session_factory() as session:
-        analyze_tasks = await session.scalar(
-            select(func.count())
-            .select_from(SiteCrawlTask)
-            .where(
-                SiteCrawlTask.crawl_id == seed.crawl_id,
-                SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
-            )
-        )
         memberships = await session.scalar(
             select(func.count())
             .select_from(MonitoredSiteUrl)
@@ -174,4 +166,19 @@ async def test_automatic_analysis_stops_at_frozen_limit_across_batches(
                 MonitoredSiteUrl.selection_source == SELECTION_SOURCE_BOOTSTRAP,
             )
         )
-    assert analyze_tasks == memberships == 10
+        analyze_tasks = await session.scalar(
+            select(func.count())
+            .select_from(SiteCrawlTask)
+            .where(
+                SiteCrawlTask.crawl_id == seed.crawl_id,
+                SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
+            )
+        )
+    # The membership is what the frozen limit caps, and it is what admission
+    # writes. A discovered URL's analyze task is queued later, by the fetch
+    # that hands its artifact over, so counting analyze tasks to spend the
+    # budget read it as untouched -- which let the second batch admit straight
+    # past the limit. Analysis can therefore lag the selection, but never
+    # exceed it.
+    assert memberships == 10
+    assert analyze_tasks <= 10

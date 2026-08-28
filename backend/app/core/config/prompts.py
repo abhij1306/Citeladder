@@ -275,6 +275,93 @@ TOPICAL_BINDING_STOPWORDS: Final[frozenset[str]] = frozenset(
     }
 )
 
+# Ordinary shopping/marketing English that a brand may happen to be NAMED
+# with. `brand_terms` bans each distinctive token of the tracked brand's name
+# from organic prompts, so that a portfolio never measures the brand answering
+# about itself. That is right for a token that identifies the brand and badly
+# wrong for one that is simply a common word: "I Love Dooney" banned "love",
+# which appears in a large share of ordinary apparel queries, so nearly every
+# organic prompt was rejected as `tracked_name`. The core cohort collapsed and
+# the fixed brand-diagnostic and comparison prompts became the whole portfolio
+# -- which is exactly the "almost all brand prompts" report, and why it hit
+# one brand and not its neighbours.
+#
+# The full brand name and every alias stay banned unconditionally, so
+# "I Love Dooney" itself still cannot appear in an organic prompt; only the
+# bare word "love" becomes usable again. Deliberately the safe direction to
+# fail in: admitting a slightly brand-adjacent organic prompt costs one noisy
+# row, while banning a category's own vocabulary costs the entire cohort.
+BRAND_TOKEN_COMMON_WORDS: Final[frozenset[str]] = frozenset(
+    {
+        "love",
+        "best",
+        "good",
+        "great",
+        "better",
+        "shop",
+        "shops",
+        "store",
+        "stores",
+        "home",
+        "house",
+        "life",
+        "live",
+        "care",
+        "style",
+        "styles",
+        "beauty",
+        "world",
+        "plus",
+        "prime",
+        "pure",
+        "true",
+        "real",
+        "fresh",
+        "smart",
+        "easy",
+        "simple",
+        "daily",
+        "direct",
+        "express",
+        "value",
+        "deal",
+        "deals",
+        "sale",
+        "gift",
+        "gifts",
+        "club",
+        "hub",
+        "spot",
+        "place",
+        "zone",
+        "point",
+        "made",
+        "make",
+        "well",
+        "kids",
+        "baby",
+        "women",
+        "womens",
+        "mens",
+        "family",
+        "modern",
+        "classic",
+        "natural",
+        "organic",
+        "premium",
+        "luxury",
+        "quality",
+        "custom",
+        "choice",
+        "first",
+        "next",
+        "more",
+        "your",
+        "everyday",
+        "online",
+    }
+)
+
 # --- System prompt ---------------------------------------------------------
 # There is no separate instruction set for this surface any more. Manual
 # generation on an existing project asks for the same thing onboarding does --

@@ -195,6 +195,19 @@ def test_is_admissible_combines_scope_and_narrowing():
         ("https://account.example.com/", "hard_excluded_host"),
         ("https://account.example.com/?buyer_flags=abc.def.ghi", "hard_excluded_host"),
         ("https://checkout.example.com/step/1", "hard_excluded_host"),
+        # Platform auth REDIRECTORS. Same host, no excluded query key, and not
+        # named `login`/`account`, so these passed admission at discovery and
+        # spent a page of budget -- then 302'd onto `account.<domain>` at fetch
+        # time, where the host rule rejected them. One permanently failed page
+        # on every Shopify storefront, which is why such a crawl always
+        # finished exactly one short of its own limit.
+        (
+            "https://example.com/customer_authentication/redirect"
+            "?locale=en&region_country=IN",
+            "hard_excluded_path",
+        ),
+        ("https://example.com/customer_identity/login", "hard_excluded_path"),
+        ("https://example.com/account_login", "hard_excluded_path"),
     ],
 )
 def test_value_aware_admission_hard_exclusions_are_not_overridable(url, reason):

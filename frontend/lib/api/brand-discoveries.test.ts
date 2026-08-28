@@ -6,7 +6,6 @@ import { mswServer } from '@/test/msw-server';
 import { brandDiscoveriesApi, type BrandDiscoveryCompletion } from './brand-discoveries';
 
 const DISCOVERY_ID = '11111111-1111-4111-8111-111111111111';
-const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
 const CRAWL_ID = '33333333-3333-4333-8333-333333333333';
 
 const completion: BrandDiscoveryCompletion = {
@@ -52,21 +51,27 @@ describe('brand discovery completion contract', () => {
         idempotencyKey = request.headers.get('Idempotency-Key');
         return HttpResponse.json(
           {
-            project_id: PROJECT_ID,
+            discovery_id: DISCOVERY_ID,
+            status: 'completing',
+            project_id: null,
             crawl_id: CRAWL_ID,
             activation_state: 'queued',
             page_limit: 10,
             warnings: [],
           },
-          { status: 201 },
+          { status: 202 },
         );
       }),
     );
 
+    // Completion is accepted as a job: the project id arrives via the
+    // discovery poll, not in this response.
     await expect(
       brandDiscoveriesApi.complete(DISCOVERY_ID, completion, 'complete-once'),
     ).resolves.toEqual({
-      project_id: PROJECT_ID,
+      discovery_id: DISCOVERY_ID,
+      status: 'completing',
+      project_id: null,
       crawl_id: CRAWL_ID,
       activation_state: 'queued',
       page_limit: 10,

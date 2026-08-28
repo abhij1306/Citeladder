@@ -108,6 +108,25 @@ class UrlPolicyError(ValueError):
     """A URL was rejected by canonicalization/scope/narrowing (not SSRF)."""
 
 
+class UrlAdmissionRejected(UrlPolicyError):
+    """A URL is a non-content endpoint under OUR policy, not a network risk.
+
+    Split out of the base so a redirect that lands on a customer-account host
+    is not reported as ``ssrf_blocked``. The two are different facts: an SSRF
+    block means the address itself is unsafe to touch, while this means the
+    page is one we deliberately do not analyze. A crawl must be able to drop
+    the second from its applicable set -- counting it as a failed page is what
+    finished every Shopify crawl one page short of its own limit.
+
+    Carries ``reason_code`` (a ``URL_EXCLUSION_*`` value) so the exclusion is
+    recorded in the vocabulary the rest of the crawl already speaks.
+    """
+
+    def __init__(self, message: str, *, reason_code: str) -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
+
+
 @dataclass(frozen=True, slots=True)
 class UrlAdmission:
     """Pure, safe URL-admission result used before queueing or fetching.
@@ -620,8 +639,9 @@ async def resolve_target(
         infrastructure_purpose=infrastructure_purpose,
     )
     if not admission.accepted or admission.canonical_url is None:
-        raise UrlPolicyError(
-            f"URL rejected by admission policy: {admission.reason_code}"
+        raise UrlAdmissionRejected(
+            f"URL rejected by admission policy: {admission.reason_code}",
+            reason_code=admission.reason_code or URL_EXCLUSION_INVALID,
         )
     canonical = admission.canonical_url
     if enforce_scope and root_registrable_domain:
@@ -634,7 +654,10 @@ async def resolve_target(
             include_globs=include_globs,
             exclude_globs=exclude_globs,
         ):
-            raise UrlPolicyError(f"URL out of scope/narrowing: {canonical}")
+            raise UrlAdmissionRejected(
+                f"URL out of scope/narrowing: {canonical}",
+                reason_code=URL_EXCLUSION_OUT_OF_SCOPE,
+            )
 
     host, port = split_host_port(canonical)
     try:

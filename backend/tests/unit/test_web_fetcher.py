@@ -156,7 +156,10 @@ async def test_redirect_scope_is_revalidated() -> None:
             enforce_scope=True,
         )
 
-    assert excinfo.value.error_code == "ssrf_blocked"
+    # An off-domain redirect is OUR policy declining the page, not an unsafe
+    # address, and the crawl drops an admission rejection from its applicable
+    # set rather than carrying it as a failed page.
+    assert excinfo.value.error_code == "url_admission_rejected"
     assert len(transport.targets) == 1
 
 

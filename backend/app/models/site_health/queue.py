@@ -5,16 +5,13 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
-    DateTime,
     ForeignKey,
     Index,
     Integer,
     String,
-    Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -25,8 +22,8 @@ from app.core.config.site_health_contracts import (
     TASK_KIND_DISCOVER,
 )
 from app.core.config.site_health_runtime import site_health_settings
-from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.core.database import Base
+from app.models.queue_mixins import QueueLeaseStateMixin
 
 from .common import (
     _FK_SITE_CRAWL,
@@ -37,14 +34,13 @@ from .common import (
     _FK_WORKSPACE,
     _ON_DELETE_CASCADE,
     _ON_DELETE_SET_NULL,
-    _utcnow,
 )
 
 if TYPE_CHECKING:
     from .crawl import SiteCrawl
 
 
-class SiteCrawlTask(Base):
+class SiteCrawlTask(QueueLeaseStateMixin, Base):
     """One queue+lease row for a Site Health work unit.
 
     Reuses the exact queue-row column contract of ``AuditTask`` (status /
@@ -131,23 +127,6 @@ class SiteCrawlTask(Base):
     generation: Mapped[int] = mapped_column(Integer, default=INITIAL_TASK_GENERATION)
     idempotency_key: Mapped[str] = mapped_column(String(160))
 
-    # --- Queue + lease state (identical contract to AuditTask) -----------
-    status: Mapped[str] = mapped_column(
-        String(24), default=TASK_STATUS_QUEUED, index=True
-    )
-    priority: Mapped[int] = mapped_column(Integer, default=0)
-    randomized_position: Mapped[int] = mapped_column(Integer, default=0)
-    available_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, index=True
-    )
-    lease_owner: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    lease_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    heartbeat_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
     max_attempts: Mapped[int] = mapped_column(
         Integer, default=site_health_settings.max_attempts
     )
@@ -158,16 +137,4 @@ class SiteCrawlTask(Base):
         ForeignKey(_FK_SITE_FETCH_ARTIFACT, ondelete=_ON_DELETE_SET_NULL),
         nullable=True,
     )
-    error_code: Mapped[str] = mapped_column(String(32), default="")
-    error_detail: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
     crawl: Mapped[SiteCrawl] = relationship("SiteCrawl", back_populates="tasks")

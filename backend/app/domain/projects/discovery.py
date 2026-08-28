@@ -1,8 +1,8 @@
 """Compatibility import surface for the reliability-first onboarding package."""
 
+from app.domain.projects.onboarding.completion import complete_discovery
 from app.domain.projects.onboarding.service import (
     BrandDiscoveryError,
-    complete_discovery,
     create_discovery,
     discovery_catalog,
     get_discovery,

@@ -248,4 +248,9 @@ async def add_automatic_root(
         depth=0,
         source_kind=OBSERVATION_SOURCE_ROOT,
         selection_source=SELECTION_SOURCE_BOOTSTRAP,
+        # The root keeps its own analyze task rather than waiting on the root
+        # discover to hand one over. It is a single page, so it cannot starve
+        # anything, and an independent task means a root whose DISCOVER fails
+        # can still be analyzed -- the homepage is the one page a crawl must
+        # not silently drop.
     )

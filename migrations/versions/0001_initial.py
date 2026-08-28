@@ -4740,7 +4740,9 @@ def upgrade() -> None:
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("discovery_id", name="uq_brand_discovery_task_discovery"),
+        sa.UniqueConstraint(
+            "discovery_id", "task_kind", name="uq_brand_discovery_task_discovery"
+        ),
         sa.UniqueConstraint("idempotency_key", name="uq_brand_discovery_task_key"),
     )
     op.create_index(

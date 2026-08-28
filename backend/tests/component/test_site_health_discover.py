@@ -109,8 +109,9 @@ async def test_progressive_analysis_keeps_discovered_page_priority(
 
     _canonical, child_hash = canonical_identity(child)
     async with session_factory() as session:
-        child_tasks = list(
-            (
+        tasks_by_kind = {
+            task.task_kind: task
+            for task in (
                 await session.scalars(
                     select(SiteCrawlTask).where(
                         SiteCrawlTask.crawl_id == seed.crawl_id,
@@ -118,16 +119,36 @@ async def test_progressive_analysis_keeps_discovered_page_priority(
                     )
                 )
             ).all()
-        )
-        tasks_by_kind = {task.task_kind: task for task in child_tasks}
+        }
+        # A discovered child carries ONLY a discover task at this point. Its
+        # analysis is handed over by that fetch, so it can never wake to find
+        # its own page unfetched and defer behind the rest of discovery.
         discover = tasks_by_kind[TASK_KIND_DISCOVER]
-        analyze = tasks_by_kind[TASK_KIND_ANALYZE]
         assert discover.priority > 1
-        assert analyze.priority == discover.priority
+        assert TASK_KIND_ANALYZE not in tasks_by_kind
 
+    # Once the child's own discover lands, its analysis is queued against the
+    # artifact that fetch just wrote, so it never waits on its own page.
+    # (The batch also carries the root's own analyze task, handed over by the
+    # root discover that ran first.)
+    assert await worker.run_once() >= 1
+    async with session_factory() as session:
+        child_analyze = await session.scalar(
+            select(SiteCrawlTask).where(
+                SiteCrawlTask.crawl_id == seed.crawl_id,
+                SiteCrawlTask.url_hash == child_hash,
+                SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
+            )
+        )
+        assert child_analyze is not None
+
+    # Analysis of a page already in hand outranks fetching another one, so the
+    # analyzed counter moves as discovery proceeds rather than only after the
+    # whole discovery tree has drained.
     claimed = await worker._claim_one()
     assert claimed is not None
     assert claimed.task_kind == TASK_KIND_ANALYZE
+    assert claimed.priority > discover.priority
 
 
 @pytest.mark.asyncio
@@ -1378,3 +1399,104 @@ async def test_bot_block_presents_blocked_via_bot_blocked_token(
         assert presentation_status_for(
             analysis=None, monitored=True, latest_analyze_task=task
         ) == ("blocked", ERROR_BOT_BLOCKED)
+
+
+@pytest.mark.asyncio
+async def test_a_cold_crawl_analyzes_as_it_discovers(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The analyzed count must rise while discovery is still running.
+
+    Discovery and analysis share one queue, and analyze tasks used to be
+    created at admission -- long before their page had been fetched. Each one
+    woke, found its own discover task still in flight, and deferred, which
+    pushed its `available_at` further back and sent it behind every task
+    queued since. A cold crawl therefore drained its whole discovery tree
+    first: 405 pages fetched against 3 analyzed in seven minutes, with the
+    analyzed counter sitting at zero long enough that the crawl read as hung
+    and got cancelled. Analysis is now handed over by the fetch itself, so it
+    interleaves.
+
+    Also pins the other half: one fetch per URL, not one per phase.
+    """
+    # One task at a time, which is where the starvation was visible: with a
+    # wide batch the queue drains in two passes and hides the ordering.
+    monkeypatch.setattr(site_health_settings, "worker_concurrency", 1)
+    root = "https://example.com/"
+    children = [f"https://example.com/products/p-{index}" for index in range(6)]
+    seed = await _seed_root_discover(session_factory, root=root)
+    async with session_factory() as session:
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        crawl.configuration = {
+            **(crawl.configuration or {}),
+            AUTOMATIC_MONITOR_LIMIT_KEY: len(children) + 1,
+        }
+        await session.commit()
+    requests: list[tuple[str, str]] = []
+    worker = _worker(
+        session_factory,
+        {
+            "/": _html(children),
+            **{f"/products/p-{index}": _html([]) for index in range(6)},
+        },
+        owner="cold-crawl",
+        requests=requests,
+    )
+
+    analyzed_after_each_run: list[int] = []
+    for _ in range(40):
+        if await worker.run_once() == 0:
+            break
+        async with session_factory() as session:
+            analyzed_after_each_run.append(
+                int(
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(SiteCrawlTask)
+                        .where(
+                            SiteCrawlTask.crawl_id == seed.crawl_id,
+                            SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
+                            SiteCrawlTask.status == TASK_STATUS_SUCCEEDED,
+                        )
+                    )
+                    or 0
+                )
+            )
+
+    # Analysis begins while discovery is still running. Before the handover,
+    # every analyze task deferred behind the whole discovery tree, so this
+    # list stayed at zero until the very last runs.
+    assert analyzed_after_each_run, "the crawl did no work at all"
+    total_runs = len(analyzed_after_each_run)
+    assert analyzed_after_each_run[total_runs // 2] > 0, (
+        f"analysis had not started by the halfway point: {analyzed_after_each_run}"
+    )
+    # And every discovered page is analyzed by the end -- the root included,
+    # whose discover task carries no site_url_id of its own.
+    assert analyzed_after_each_run[-1] == len(children) + 1
+
+    # Every task is claimed exactly once. An analyze task that exists before
+    # its page has been fetched burns a claim discovering it must wait, then
+    # re-queues itself further back -- the loop that starved analysis on a
+    # real site. Handed over by the fetch, it is never claimed early, so the
+    # number of working runs equals the number of tasks with nothing to spare.
+    async with session_factory() as session:
+        task_count = int(
+            await session.scalar(
+                select(func.count())
+                .select_from(SiteCrawlTask)
+                .where(SiteCrawlTask.crawl_id == seed.crawl_id)
+            )
+            or 0
+        )
+    assert total_runs == task_count
+
+    # No page is fetched twice: the analyze phase reuses the artifact the
+    # discover phase already wrote for the same URL.
+    fetched_paths = [path for method, path in requests if method == "GET"]
+    duplicated = {path for path in fetched_paths if fetched_paths.count(path) > 1} - {
+        "/robots.txt"
+    }
+    assert not duplicated, f"pages fetched more than once: {sorted(duplicated)}"

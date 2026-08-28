@@ -32,7 +32,6 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
-    Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -53,8 +52,8 @@ from app.core.config.analytics import (
     REFERRAL_SANITIZE_VERSION,
     analytics_settings,
 )
-from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.core.database import Base
+from app.models.queue_mixins import QueueLeaseStateMixin
 
 # FK target references + ondelete actions as named constants (site_health /
 # integrations pattern): a typo in a ``table.column`` reference would
@@ -72,7 +71,7 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-class AnalyticsTask(Base):
+class AnalyticsTask(QueueLeaseStateMixin, Base):
     """One queue+lease row for one analytics projection job.
 
     Carries the exact queue-row column contract of ``SiteCrawlTask`` so the
@@ -118,36 +117,8 @@ class AnalyticsTask(Base):
     payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     idempotency_key: Mapped[str] = mapped_column(String(160))
 
-    # --- Queue + lease state (identical contract to SiteCrawlTask) --------
-    status: Mapped[str] = mapped_column(
-        String(24), default=TASK_STATUS_QUEUED, index=True
-    )
-    priority: Mapped[int] = mapped_column(Integer, default=0)
-    randomized_position: Mapped[int] = mapped_column(Integer, default=0)
-    available_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, index=True
-    )
-    lease_owner: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    lease_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    heartbeat_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
     max_attempts: Mapped[int] = mapped_column(
         Integer, default=analytics_settings.task_max_attempts
-    )
-    error_code: Mapped[str] = mapped_column(String(32), default="")
-    error_detail: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
     )
 
 

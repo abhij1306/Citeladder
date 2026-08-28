@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from functools import partial
+from math import floor
 
 from app.connectors.agent.client import AgentNotConfiguredError
 from app.connectors.agent.factory import create_model_gateway
@@ -31,7 +32,10 @@ from app.core.config.prompts import (
 )
 from app.core.config.visibility_prompts import (
     VISIBILITY_BRAND_PROMPT_COUNT,
+    VISIBILITY_BRANDED_SHARE_WARNING,
     VISIBILITY_COMPARISON_PROMPT_COUNT,
+    VISIBILITY_MAX_BRANDED_SHARE,
+    VISIBILITY_MIN_BRANDED_PROMPTS,
     VISIBILITY_PROMPTS_PER_TOPIC,
     VISIBILITY_TOPIC_BATCH_SIZE,
     VISIBILITY_TOPIC_NAME_LIMIT,
@@ -53,6 +57,11 @@ from app.domain.prompts.portfolio_validation import (
     positioning_shingles,
 )
 from app.domain.prompts.query_patterns import PromptSlot, build_prompt_slots
+
+# The cohorts that name the tracked brand. Capped as a share of the final
+# portfolio so a thin organic cohort cannot leave a set that only measures
+# the brand answering about itself.
+_NAMED_COHORTS = frozenset({PROMPT_COHORT_BRAND_DIAGNOSTIC, PROMPT_COHORT_COMPARISON})
 
 
 @dataclass(frozen=True, slots=True)
@@ -473,6 +482,50 @@ def _reason_codes(reasons: list[str]) -> list[str]:
     return [f"prompt_rejected:{reason}" for reason in dict.fromkeys(reasons)][:5]
 
 
+def _cap_branded_share(accepted: list[dict]) -> tuple[list[dict], bool]:
+    """Trim the named cohorts so they never dominate a thin organic portfolio.
+
+    The named counts are fixed and the organic count is not, so a portfolio
+    that lost most of its organic cohort shipped as mostly brand prompts --
+    a set that measures the brand answering about itself. Capping the SHARE
+    (rather than raising or lowering the fixed counts) keeps a healthy
+    portfolio exactly as it is today and only bites when the organic side came
+    back thin.
+
+    The share is of the FINAL portfolio -- organic plus branded -- which is
+    what "a third of the set is brand prompts" means to anyone reading it.
+    Taking it as a fraction of the organic count alone made the cap markedly
+    tighter than documented: six organic prompts allowed only two branded when
+    three of nine is 33%, comfortably inside the limit, so a healthy portfolio
+    was trimmed and flagged for no reason.
+
+    Trims from the end so the deterministic generation order decides which
+    named prompts survive, and never drops below the diagnostic floor.
+    """
+    named = [row for row in accepted if row.get("cohort") in _NAMED_COHORTS]
+    organic = [row for row in accepted if row.get("cohort") not in _NAMED_COHORTS]
+    if not named:
+        return accepted, False
+    # Largest n with n / (organic + n) <= share, rearranged so the division is
+    # by the constant rather than by a total that depends on n.
+    allowed = max(
+        VISIBILITY_MIN_BRANDED_PROMPTS,
+        floor(
+            len(organic)
+            * VISIBILITY_MAX_BRANDED_SHARE
+            / (1 - VISIBILITY_MAX_BRANDED_SHARE)
+        ),
+    )
+    if len(named) <= allowed:
+        return accepted, False
+    keep = {id(row) for row in named[:allowed]}
+    return [
+        row
+        for row in accepted
+        if row.get("cohort") not in _NAMED_COHORTS or id(row) in keep
+    ], True
+
+
 async def generate_portfolio(
     *,
     brand_name: str,
@@ -514,7 +567,9 @@ async def generate_portfolio(
     except TimeoutError:
         warnings.append("generation_timeout")
 
-    accepted = validator.accepted
+    accepted, capped = _cap_branded_share(validator.accepted)
+    if capped:
+        warnings.append(VISIBILITY_BRANDED_SHARE_WARNING)
     if not accepted:
         return PortfolioResult(
             errors=tuple(warnings) or ("generation_failed",),

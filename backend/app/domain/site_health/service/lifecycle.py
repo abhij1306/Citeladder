@@ -22,6 +22,7 @@ from app.core.config.site_health_acquisition import (
     ERROR_HTTP_5XX,
     ERROR_ROBOTS_DENIED,
     ERROR_TIMEOUT,
+    ERROR_URL_ADMISSION_REJECTED,
     POLICY_BLOCKING_ERROR_CODES,
 )
 from app.core.config.site_health_contracts import (
@@ -32,6 +33,7 @@ from app.core.config.site_health_contracts import (
     EVENT_CRAWL_CANCELLED,
     PAGE_ANALYSIS_STATUS_COMPLETED,
     TASK_KIND_ANALYZE,
+    TASK_KIND_DISCOVER,
 )
 from app.core.config.site_health_crawl_policy import (
     PHASE_ANALYSIS,
@@ -165,6 +167,12 @@ async def _crawl_counters(session: AsyncSession, crawl: SiteCrawl) -> dict:
                 func.count()
                 .filter(
                     latest_tasks.c.status == TASK_STATUS_FAILED,
+                    latest_tasks.c.error_code == ERROR_URL_ADMISSION_REJECTED,
+                )
+                .label("excluded"),
+                func.count()
+                .filter(
+                    latest_tasks.c.status == TASK_STATUS_FAILED,
                     latest_tasks.c.error_code == ERROR_ROBOTS_DENIED,
                 )
                 .label("robots_denied"),
@@ -260,14 +268,34 @@ async def _crawl_counters(session: AsyncSession, crawl: SiteCrawl) -> dict:
         ).all()
     }
     blocked = int(task_counts.blocked)
+    # URLs admitted at discovery that our own policy rejected once the fetch
+    # resolved -- a same-host auth redirector landing on `account.<domain>`,
+    # say. They reserved a page of budget but were never analyzable, so they
+    # leave BOTH sides of the ratio: reporting 499/500 for a crawl that
+    # analyzed every page it could is simply false, and it read as a permanent
+    # off-by-one. ``admitted_url_count`` itself stays monotonic (the frontier
+    # budget depends on that); only this projection nets them out.
+    #
+    # Counted across BOTH task kinds, because such a URL can be rejected while
+    # DISCOVERING it just as easily as while analyzing it, and the analyze-only
+    # projection above would leave that page silently short. Distinct by URL so
+    # one page rejected in both kinds is netted out once.
+    excluded_urls = await _policy_excluded_url_count(session, crawl.id)
     disclose = crawl_count_disclosure(crawl)
     return {
-        "discovered": int(crawl.admitted_url_count or 0) if disclose else None,
+        "discovered": (
+            max(int(crawl.admitted_url_count or 0) - excluded_urls, 0)
+            if disclose
+            else None
+        ),
         "selected": selected,
         "queued": int(task_counts.queued),
         "running": int(task_counts.running),
         "analyzed": int(task_counts.analyzed),
-        "errors": int(task_counts.failed) - blocked,
+        # ``failed`` here counts analyze tasks only, so it is the ANALYZE-scoped
+        # exclusion that nets out of it; subtracting the cross-kind count could
+        # take this below zero.
+        "errors": max(int(task_counts.failed) - blocked - int(task_counts.excluded), 0),
         "blocked": blocked,
         "failure_breakdown": {
             "robots_denied": int(task_counts.robots_denied),
@@ -280,6 +308,22 @@ async def _crawl_counters(session: AsyncSession, crawl: SiteCrawl) -> dict:
         ),
         "by_page_kind": page_kinds,
     }
+
+
+async def _policy_excluded_url_count(session: AsyncSession, crawl_id: uuid.UUID) -> int:
+    """Distinct URLs this crawl admitted and then declined by its own policy."""
+    return int(
+        await session.scalar(
+            select(func.count(func.distinct(SiteCrawlTask.site_url_id))).where(
+                SiteCrawlTask.crawl_id == crawl_id,
+                SiteCrawlTask.task_kind.in_([TASK_KIND_DISCOVER, TASK_KIND_ANALYZE]),
+                SiteCrawlTask.status == TASK_STATUS_FAILED,
+                SiteCrawlTask.error_code == ERROR_URL_ADMISSION_REJECTED,
+                SiteCrawlTask.site_url_id.is_not(None),
+            )
+        )
+        or 0
+    )
 
 
 def _empty_phase_runs() -> dict[str, dict | None]:

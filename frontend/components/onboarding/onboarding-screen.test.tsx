@@ -19,10 +19,14 @@ const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
 const CRAWL_ID = '33333333-3333-4333-8333-333333333333';
 
 let discoveryState: BrandDiscovery;
+// The URL the screen loads with. A reload mid-generation resumes straight to
+// the review step, which is the only way to reach that screen without a
+// `ready` discovery to click through.
+let searchParams = '';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(searchParams),
 }));
 
 vi.mock('@/lib/project/project-context', () => ({
@@ -30,13 +34,18 @@ vi.mock('@/lib/project/project-context', () => ({
 }));
 
 vi.mock('@/lib/onboarding/use-brand-discovery', () => ({
-  useBrandDiscovery: (input: unknown) => ({
-    discovery: input ? discoveryState : null,
-    isRunning:
-      Boolean(input) && (discoveryState.status === 'queued' || discoveryState.status === 'running'),
-    error: null,
-    retry: vi.fn(),
-  }),
+  // Mirrors the real hook: a persisted `resumeId` alone is enough to resolve
+  // the discovery. On reload the brand draft is hydrated FROM that row, so
+  // gating on `input` only would leave the screen with no discovery at all.
+  useBrandDiscovery: (input: unknown, resumeId: string | null = null) => {
+    const resolved = input || resumeId ? discoveryState : null;
+    return {
+      discovery: resolved,
+      isRunning: Boolean(resolved) && ['queued', 'running'].includes(discoveryState.status),
+      error: null,
+      retry: vi.fn(),
+    };
+  },
 }));
 
 function discovery(status: BrandDiscovery['status'], phase: BrandDiscovery['progress']['phase']) {
@@ -154,6 +163,7 @@ beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => {
   mswServer.resetHandlers();
   vi.clearAllMocks();
+  searchParams = '';
 });
 afterAll(() => mswServer.close());
 
@@ -196,15 +206,19 @@ describe('OnboardingScreen', () => {
       catalogHandler(),
       http.post(`/api/v1/brand-discoveries/${DISCOVERY_ID}/complete`, async ({ request }) => {
         completionBody = await request.json();
+        // A completion whose project already exists (the replay path) carries
+        // its id straight back, so the redirect needs no poll.
         return HttpResponse.json(
           {
+            discovery_id: DISCOVERY_ID,
+            status: 'project_created',
             project_id: PROJECT_ID,
             crawl_id: CRAWL_ID,
             activation_state: 'queued',
             page_limit: 10,
             warnings: [],
           },
-          { status: 201 },
+          { status: 202 },
         );
       }),
       http.post(`/api/v1/projects/${PROJECT_ID}/logos/refresh`, () => HttpResponse.json({})),
@@ -234,6 +248,78 @@ describe('OnboardingScreen', () => {
     expect(JSON.stringify(completionBody)).not.toContain('prompt_groups');
     expect(setActiveProjectId).toHaveBeenCalledWith(PROJECT_ID);
     expect(replace).toHaveBeenCalledWith('/projects');
+  });
+
+  it('waits for the queued portfolio instead of reporting a failure', async () => {
+    // Generation runs on a worker because it outlives a client request. The
+    // accepted response carries no project id, so the screen must keep saying
+    // "Creating…" and redirect only once the polled discovery lands the
+    // project -- not fall through to "we couldn't finish this setup step".
+    discoveryState = discovery('ready', 'preparing_review');
+    mswServer.use(
+      catalogHandler(),
+      http.post(`/api/v1/brand-discoveries/${DISCOVERY_ID}/complete`, () =>
+        HttpResponse.json(
+          {
+            discovery_id: DISCOVERY_ID,
+            status: 'completing',
+            project_id: null,
+            crawl_id: null,
+            activation_state: 'queued',
+            page_limit: null,
+            warnings: [],
+          },
+          { status: 202 },
+        ),
+      ),
+      http.post(`/api/v1/projects/${PROJECT_ID}/logos/refresh`, () => HttpResponse.json({})),
+    );
+    const view = renderWithProviders(<OnboardingScreen />);
+
+    const user = await enterBrand();
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+    const createProject = await screen.findByRole('button', { name: 'Create project' });
+    await waitFor(() => expect(createProject).toBeEnabled());
+    await user.click(createProject);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Creating…' })).toBeDisabled());
+    expect(screen.queryByText(/couldn’t finish this setup step/i)).not.toBeInTheDocument();
+    // `replace` also carries the step into the URL, so assert the destination.
+    expect(replace).not.toHaveBeenCalledWith('/projects');
+
+    // The worker lands the project; the discovery poll is what tells the UI.
+    discoveryState = {
+      ...discovery('project_created', 'complete'),
+      project_id: PROJECT_ID,
+    };
+    view.rerender(<OnboardingScreen />);
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/projects'));
+    expect(setActiveProjectId).toHaveBeenCalledWith(PROJECT_ID);
+  });
+
+  it('keeps creation disabled after a reload while the worker is still going', async () => {
+    // On reload the mutation is fresh -- not pending, not successful -- so the
+    // polled status is the only thing that knows a job is already running.
+    // Without it the button re-enabled and invited the second click this whole
+    // change exists to remove.
+    searchParams = `discovery=${DISCOVERY_ID}&step=review`;
+    discoveryState = discovery('completing', 'preparing_review');
+    mswServer.use(catalogHandler());
+    renderWithProviders(<OnboardingScreen />);
+
+    const creating = await screen.findByRole('button', { name: 'Creating…' });
+    expect(creating).toBeDisabled();
+  });
+
+  it('reports a queued generation failure without replaying the failed job', async () => {
+    searchParams = `discovery=${DISCOVERY_ID}&step=review`;
+    discoveryState = discovery('failed', 'preparing_review');
+    mswServer.use(catalogHandler());
+    renderWithProviders(<OnboardingScreen />);
+
+    expect(await screen.findByText(/project creation did not finish/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create project' })).toBeDisabled();
   });
 
   it('gates creation on the one thing the confirm screen asks for', async () => {

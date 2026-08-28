@@ -25,6 +25,7 @@ from app.core.config.site_health_crawl_policy import (
     SELECTION_SOURCE_FREE_SAMPLE,
 )
 from app.core.config.site_health_runtime import (
+    ANALYZE_PRIORITY_BOOST,
     site_health_settings,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
@@ -209,6 +210,7 @@ async def _add_free_sample(
     depth: int,
     source_kind: str = OBSERVATION_SOURCE_LINK,
     analyze: bool = True,
+    analyze_after_discovery: bool = False,
     selection_source: str = SELECTION_SOURCE_FREE_SAMPLE,
     phase_run_id: uuid.UUID | None = None,
     value_kind: str = "other",
@@ -249,7 +251,19 @@ async def _add_free_sample(
         .on_conflict_do_nothing(index_elements=["crawl_id", "site_url_id"])
         .returning(SiteUrlObservation.id)
     )
-    if analyze:
+    # A URL that is about to be DISCOVERED gets its analyze task later, from
+    # the transaction that writes its discover artifact (see
+    # ``enqueue_analysis_for_discovered_url``). Enqueuing it here instead meant
+    # the analyze task existed long before the page had been fetched, so it
+    # woke, found the discover task still in flight, and deferred -- pushing
+    # its own ``available_at`` further back every time and sending it behind
+    # everything queued since. A cold crawl therefore drained its whole
+    # discovery tree before analyzing anything.
+    #
+    # Handed over after the fetch, the artifact is already committed, so the
+    # task is claimed once and reuses it rather than burning a claim to learn
+    # it must wait.
+    if analyze and not analyze_after_discovery:
         await _enqueue_task(
             session,
             crawl=crawl,
@@ -258,10 +272,60 @@ async def _add_free_sample(
             url_hash_value=url_hash_value,
             task_kind=TASK_KIND_ANALYZE,
             depth=depth,
-            priority=value_priority,
+            priority=value_priority + ANALYZE_PRIORITY_BOOST,
             phase_run_id=phase_run_id,
         )
     return activated_id is not None, observation_id is not None
+
+
+async def enqueue_analysis_for_discovered_url(
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    site_url_id: uuid.UUID | None,
+    url: str,
+    url_hash_value: str,
+    depth: int,
+    value_priority: int,
+    phase_run_id: uuid.UUID | None = None,
+) -> uuid.UUID | None:
+    """Queue the analyze task for a URL whose discover artifact now exists.
+
+    Called from the discover task's own persistence transaction, so the
+    artifact this analysis will reuse is committed alongside it. Only a URL
+    that is an active member of the monitored set is analyzed; admission
+    decided that already, and re-checking here keeps a deselected URL from
+    being analyzed on the strength of having been fetched.
+    """
+    if site_url_id is None:
+        site_url_id = await session.scalar(
+            select(SiteUrl.id).where(
+                SiteUrl.project_id == crawl.project_id,
+                SiteUrl.url_hash == url_hash_value,
+            )
+        )
+    if site_url_id is None:
+        return None
+    member = await session.scalar(
+        select(MonitoredSiteUrl.id).where(
+            MonitoredSiteUrl.project_id == crawl.project_id,
+            MonitoredSiteUrl.site_url_id == site_url_id,
+            MonitoredSiteUrl.active.is_(True),
+        )
+    )
+    if member is None:
+        return None
+    return await _enqueue_task(
+        session,
+        crawl=crawl,
+        site_url_id=site_url_id,
+        url=url,
+        url_hash_value=url_hash_value,
+        task_kind=TASK_KIND_ANALYZE,
+        depth=depth,
+        priority=value_priority + ANALYZE_PRIORITY_BOOST,
+        phase_run_id=phase_run_id,
+    )
 
 
 @dataclass
@@ -330,10 +394,22 @@ async def _automatic_remaining(
             MonitoredSiteUrl.active.is_(True),
         )
     )
+    # What this crawl has SELECTED for analysis, counted from the membership
+    # admission writes -- not from the analyze tasks that follow it. A URL that
+    # is also being discovered gets its analyze task later, from the fetch that
+    # hands the artifact over, so counting tasks here read the budget as
+    # untouched and admitted straight past the frozen limit.
     used_by_crawl = await session.scalar(
-        select(func.count(func.distinct(SiteCrawlTask.url_hash))).where(
-            SiteCrawlTask.crawl_id == crawl.id,
-            SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
+        select(func.count(func.distinct(SiteUrlObservation.site_url_id)))
+        .select_from(SiteUrlObservation)
+        .join(
+            MonitoredSiteUrl,
+            MonitoredSiteUrl.site_url_id == SiteUrlObservation.site_url_id,
+        )
+        .where(
+            SiteUrlObservation.crawl_id == crawl.id,
+            MonitoredSiteUrl.project_id == crawl.project_id,
+            MonitoredSiteUrl.active.is_(True),
         )
     )
     return max(

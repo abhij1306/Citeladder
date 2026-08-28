@@ -212,6 +212,25 @@ VISIBILITY_TOPIC_BATCH_SIZE: Final = 1
 VISIBILITY_TOPIC_NAME_LIMIT: Final = 4
 VISIBILITY_BRAND_PROMPT_COUNT: Final = 2
 VISIBILITY_COMPARISON_PROMPT_COUNT: Final = 1
+# The named cohorts are a CEILING, not a quota. Their counts above are fixed
+# while the organic cohort's size is not, so when the organic side came back
+# thin the two brand-diagnostic prompts plus the comparison prompt became most
+# of the portfolio -- a visibility set that mostly measures the brand
+# answering about itself, which is precisely what it must not do. Whatever
+# empties the organic cohort (a brand token that is ordinary category
+# language, a provider blip, topics that produced nothing) the outcome was the
+# same, and it looked like a per-brand bug because it depended on the brand's
+# own name.
+#
+# So the named cohorts are capped at this share of the FINAL portfolio, and a
+# small organic cohort simply carries fewer of them. Never zero: two named
+# prompts is the diagnostic floor, and a portfolio with none cannot answer
+# "does the engine know this brand at all".
+VISIBILITY_MAX_BRANDED_SHARE: Final = 0.34
+VISIBILITY_MIN_BRANDED_PROMPTS: Final = 2
+# Reported when the cap actually bites, so the review screen can say the
+# organic side came back thin rather than leaving the user to notice.
+VISIBILITY_BRANDED_SHARE_WARNING: Final = "branded_share_capped"
 # The whole portfolio, organic side. Seven archetypes across ten topics would
 # be seventy; this cap keeps the initial set reviewable, with archetype/topic
 # rotation ensuring broad coverage before any pair can repeat. Twelve was too

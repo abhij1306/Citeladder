@@ -56,9 +56,9 @@ from app.core.config.integrations_settings import (
 from app.core.config.task_queue import (
     TASK_CLAIMABLE_STATUSES,
     TASK_LEASED_STATUSES,
-    TASK_STATUS_QUEUED,
 )
 from app.core.database import Base
+from app.models.queue_mixins import QueueLeaseStateMixin
 
 # FK target references + ondelete actions as named constants (site_health
 # pattern): a typo in a ``table.column`` reference would otherwise silently
@@ -199,7 +199,7 @@ class IntegrationConnection(Base):
     )
 
 
-class IntegrationSyncRun(Base):
+class IntegrationSyncRun(QueueLeaseStateMixin, Base):
     """One sync execution — a queue+lease row for the integrations worker.
 
     Reuses the exact queue-row column contract of ``SiteCrawlTask`` (status /
@@ -276,36 +276,8 @@ class IntegrationSyncRun(Base):
     resync_seq: Mapped[int] = mapped_column(Integer, default=0)
     idempotency_key: Mapped[str] = mapped_column(String(160))
 
-    # --- Queue + lease state (identical contract to SiteCrawlTask) --------
-    status: Mapped[str] = mapped_column(
-        String(24), default=TASK_STATUS_QUEUED, index=True
-    )
-    priority: Mapped[int] = mapped_column(Integer, default=0)
-    randomized_position: Mapped[int] = mapped_column(Integer, default=0)
-    available_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, index=True
-    )
-    lease_owner: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    lease_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    heartbeat_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
     max_attempts: Mapped[int] = mapped_column(
         Integer, default=integration_settings.sync_max_attempts
-    )
-    error_code: Mapped[str] = mapped_column(String(32), default="")
-    error_detail: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
     )
 
 

@@ -74,6 +74,15 @@ URL_HARD_EXCLUSION_PATH_PATTERNS: Final[tuple[str, ...]] = (
     r"(?:^|/)(?:viewcart|searchsuggestion)(?:/|$)",
     r"(?:^|/)item/(?:payments?[-_][^/]*|product[-_](?:delivery|warranty))(?:/|$)",
     r"(?:^|/)(?:preview|print|share)(?:/|$)",
+    # Platform auth REDIRECTORS, which is a different shape from the customer
+    # area itself. `/customer_authentication/redirect` is same-host, is not
+    # named `login` or `account`, and carries no excluded query key, so it
+    # passed admission at discovery and consumed a page of the budget. Only at
+    # analyze time does it 302 onto `account.<domain>`, where the host-label
+    # rule above rejects it -- one permanently failed page per crawl, on every
+    # Shopify storefront, which is what finished every such crawl one page
+    # short of its own limit.
+    r"(?:^|/)(?:customer_authentication|customer_identity|account_login)(?:/|$)",
 )
 # The same non-content endpoints as the path patterns above, but named by
 # SUBDOMAIN instead of by path. Scope is the registrable domain plus every

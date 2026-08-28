@@ -20,10 +20,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.config.brand_discovery import (
     DISCOVERY_STATUS_QUEUED,
+    TASK_KIND_BRAND_DISCOVERY,
     brand_discovery_settings,
 )
-from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.core.database import Base
+from app.models.queue_mixins import QueueLeaseStateMixin
 
 
 def _utcnow() -> datetime:
@@ -80,12 +81,17 @@ class BrandDiscovery(Base):
     )
 
 
-class BrandDiscoveryTask(Base):
+class BrandDiscoveryTask(QueueLeaseStateMixin, Base):
     """One generic queue row for exactly one discovery business record."""
 
     __tablename__ = "brand_discovery_tasks"
     __table_args__ = (
-        UniqueConstraint("discovery_id", name="uq_brand_discovery_task_discovery"),
+        # Scoped by kind: one discovery carries a research task AND, once its
+        # review is confirmed, a completion task. Keyed on discovery_id alone
+        # the second could never be inserted.
+        UniqueConstraint(
+            "discovery_id", "task_kind", name="uq_brand_discovery_task_discovery"
+        ),
         UniqueConstraint("idempotency_key", name="uq_brand_discovery_task_key"),
         Index("ix_brand_discovery_tasks_claim", "status", "available_at"),
         Index("ix_brand_discovery_tasks_lease", "status", "lease_expires_at"),
@@ -101,37 +107,12 @@ class BrandDiscoveryTask(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE")
     )
-    task_kind: Mapped[str] = mapped_column(String(32), default="brand_discovery")
+    task_kind: Mapped[str] = mapped_column(
+        String(32), default=TASK_KIND_BRAND_DISCOVERY
+    )
     idempotency_key: Mapped[str] = mapped_column(String(160))
-    status: Mapped[str] = mapped_column(
-        String(24), default=TASK_STATUS_QUEUED, index=True
-    )
-    priority: Mapped[int] = mapped_column(Integer, default=0)
-    randomized_position: Mapped[int] = mapped_column(Integer, default=0)
-    available_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, index=True
-    )
-    lease_owner: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    lease_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    heartbeat_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
     max_attempts: Mapped[int] = mapped_column(
         Integer, default=brand_discovery_settings.maximum_attempts
-    )
-    error_code: Mapped[str] = mapped_column(String(32), default="")
-    error_detail: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
     )
 
 

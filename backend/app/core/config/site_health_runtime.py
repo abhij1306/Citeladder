@@ -359,6 +359,21 @@ def _site_crawl_task_model() -> type[SiteCrawlTask]:
     return SiteCrawlTask
 
 
+# An analyze task is only ever created once its page has ALREADY been fetched
+# (discovery hands over its artifact), so analysis is pure local work against
+# evidence that is in hand while a discover task is another round trip to the
+# site. Sharing one priority scale with discover meant analysis lost every tie
+# -- both kinds inherit the URL's value priority, and the discover row is
+# always inserted first, so it always won on `available_at`. A cold crawl
+# therefore drained its entire discovery tree before analyzing anything: 405
+# pages fetched and 3 analyzed in seven minutes, with the analyzed counter
+# sitting at zero for long enough that the crawl read as hung.
+#
+# The boost is larger than any value priority so the ordering is categorical,
+# not a tuning knob: finish the pages we already hold before fetching more.
+ANALYZE_PRIORITY_BOOST: Final = 1_000
+
+
 def _site_task_claim_order(model: type[SiteCrawlTask]) -> tuple:
     # Deterministic claim order: priority, then FIFO by availability, then the
     # frozen randomized frontier position, then a stable id tiebreak.

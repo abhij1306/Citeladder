@@ -19,16 +19,36 @@ DISCOVERY_STATUS_QUEUED: Final = "queued"
 DISCOVERY_STATUS_RUNNING: Final = "running"
 DISCOVERY_STATUS_FAILED: Final = "failed"
 DISCOVERY_STATUS_READY: Final = "ready"
+# Review is confirmed and the portfolio is being generated on a worker. The
+# completion request used to run that generation INLINE -- one model call per
+# topic, plus retries, plus the two named cohorts -- inside an HTTP request the
+# client abandons after 30s. Every first click reported "We couldn't finish
+# this setup step just now" while the server carried on and often created the
+# project anyway. A visible in-between state is what lets the client wait
+# honestly instead of guessing.
+DISCOVERY_STATUS_COMPLETING: Final = "completing"
 DISCOVERY_STATUS_PROJECT_CREATED: Final = "project_created"
 ERROR_BRAND_DISCOVERY: Final = "brand_discovery_failed"
+ERROR_BRAND_COMPLETION: Final = "brand_completion_failed"
+WARNING_BRAND_COMPLETION_FAILED: Final = "completion_failed"
 DISCOVERY_STATUSES: Final = frozenset(
     {
         DISCOVERY_STATUS_QUEUED,
         DISCOVERY_STATUS_RUNNING,
         DISCOVERY_STATUS_FAILED,
         DISCOVERY_STATUS_READY,
+        DISCOVERY_STATUS_COMPLETING,
         DISCOVERY_STATUS_PROJECT_CREATED,
     }
+)
+# One queue, two jobs against the same discovery row: the research pass that
+# produces the review screen, then the portfolio generation that creates the
+# project. They are separate task rows so each gets its own attempts and its
+# own lease.
+TASK_KIND_BRAND_DISCOVERY: Final = "brand_discovery"
+TASK_KIND_BRAND_COMPLETION: Final = "brand_completion"
+BRAND_DISCOVERY_TASK_KINDS: Final = frozenset(
+    {TASK_KIND_BRAND_DISCOVERY, TASK_KIND_BRAND_COMPLETION}
 )
 
 BUSINESS_TYPES: Final = ("b2b", "b2c", "both")
@@ -312,16 +332,9 @@ class BrandDiscoverySettings(BaseSettings):
     # back into the same exhausted window and burned the whole attempt budget.
     synthesis_retry_base_delay_seconds: float = Field(default=4.0, gt=0)
     synthesis_retry_max_delay_seconds: float = Field(default=60.0, gt=0)
-    # `complete_discovery` holds a FOR UPDATE row lock while the portfolio is
-    # generated, so this call must be bounded far tighter than the agent's own
-    # 180s ceiling. On timeout the deterministic templates take over. The cap is
-    # the ceiling `db_lock_timeout_ms` itself allows (60_000ms): past it a
-    # deployment could configure a hold longer than any contending statement is
-    # willing to wait, so every concurrent write on the row fails instead.
-    # Raised from 30s: the cohorts now run concurrently, but 30s could not
-    # cover even one slow provider attempt, so generation timed out with the
-    # organic cohort half-absorbed and reported `generation_timeout` instead of
-    # a portfolio. This stays under the lock ceiling above.
+    # The completion worker bounds one portfolio attempt before deterministic
+    # templates take over. Cohorts run concurrently, but 30s could not cover a
+    # slow provider attempt and often left the organic cohort half-absorbed.
     portfolio_generation_timeout_seconds: float = Field(
         default=50.0, gt=0, le=PORTFOLIO_GENERATION_TIMEOUT_MAX_SECONDS
     )

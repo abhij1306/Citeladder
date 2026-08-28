@@ -29,6 +29,7 @@ from app.analysis.normalization import normalize_alias
 from app.core.config.brand_discovery import MARKET_CONTEXT_TERMS
 from app.core.config.projects import PROMPT_INTENTS
 from app.core.config.prompts import (
+    BRAND_TOKEN_COMMON_WORDS,
     PROMPT_COHORT_BRAND_DIAGNOSTIC,
     PROMPT_COHORT_COMPARISON,
     PROMPT_COHORT_CORE,
@@ -89,12 +90,21 @@ def brand_terms(
     category uses is category language first and brand language second: it is
     dropped from the token bans. The full name and the aliases are always
     banned, so "Red Dress" itself still cannot appear in an organic prompt.
+
+    `BRAND_TOKEN_COMMON_WORDS` closes the same hole from the other side, for a
+    token that is ordinary English rather than category language and so never
+    appears in a confirmed category either. "I Love Dooney" banned "love" and
+    lost nearly every organic apparel query with it.
     """
-    generic = {
-        _singular(word)
-        for phrase in PROVIDER_DESCRIPTION_PHRASES
-        for word in phrase.split()
-    } | TOPICAL_BINDING_STOPWORDS
+    generic = (
+        {
+            _singular(word)
+            for phrase in PROVIDER_DESCRIPTION_PHRASES
+            for word in phrase.split()
+        }
+        | TOPICAL_BINDING_STOPWORDS
+        | BRAND_TOKEN_COMMON_WORDS
+    )
     category = {
         _stem(token) for phrase in category_vocabulary or [] for token in words(phrase)
     }

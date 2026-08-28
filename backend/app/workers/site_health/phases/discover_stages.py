@@ -40,6 +40,9 @@ from app.core.config.site_health_crawl_policy import INPUT_MODE_EXACT_URLS
 from app.core.config.site_health_rules import SITEMAP_CONTENT_TYPES
 from app.core.config.site_health_runtime import site_health_settings
 from app.domain.site_health.discovery import admit_candidates, build_frontier_candidates
+from app.domain.site_health.frontier_support import (
+    enqueue_analysis_for_discovered_url,
+)
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.schemas import (
     AdmissionResult,
@@ -452,6 +455,27 @@ class DiscoverPersistenceMixin(PhaseSupport):
             outcome=outcome,
             depth=depth,
             input_mode=input_mode,
+            phase_run_id=task.phase_run_id,
+        )
+        # Hand this page's analysis over now that its artifact is committed.
+        # Admission deliberately does NOT queue the analyze task for a URL it
+        # is also queuing for discovery: created up front, that task woke while
+        # the fetch was still in flight and deferred, pushing its own
+        # availability back every time until analysis was starved behind the
+        # entire discovery tree. Queued here it always finds the artifact, so
+        # the task is claimed once and reuses that artifact, rather than
+        # burning a claim to discover it must wait.
+        await enqueue_analysis_for_discovered_url(
+            session,
+            crawl=crawl,
+            # The seeded root discover carries no site_url_id -- its identity
+            # is created lazily by the admission just above -- so resolve by
+            # hash rather than skipping the page the crawl most needs.
+            site_url_id=task.site_url_id,
+            url=task.requested_url,
+            url_hash_value=task.url_hash,
+            depth=depth,
+            value_priority=task.priority,
             phase_run_id=task.phase_run_id,
         )
         crawl.discovered_url_count += 1

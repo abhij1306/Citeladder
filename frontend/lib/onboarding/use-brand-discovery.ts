@@ -48,8 +48,13 @@ export function useBrandDiscovery(
     queryFn: ({ signal }) => brandDiscoveriesApi.get(discoveryId!, { signal }),
     enabled: Boolean(discoveryId),
     initialData: !createdDiscoveryId ? undefined : create.data,
+    // `completing` is the portfolio generation the completion request queued.
+    // It runs on a worker precisely because it outlives a client request, so
+    // this poll is how the review screen learns the project exists.
     refetchInterval: (result) =>
-      result.state.data?.status === 'queued' || result.state.data?.status === 'running'
+      result.state.data?.status === 'queued' ||
+      result.state.data?.status === 'running' ||
+      result.state.data?.status === 'completing'
         ? 1000
         : false,
   });

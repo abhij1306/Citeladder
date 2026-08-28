@@ -42,6 +42,10 @@ The standalone Facts route is deleted; the reusable BrandProfile editor remains
 the only editor owner. Onboarding's confirmation step edits the discovered ICP
 fields and requires positioning, target audience, and products/services before
 completion can create prompts.
+The completion request returns an accepted job rather than waiting for prompt
+generation. The review stage keeps polling the persisted discovery through
+`completing`, redirects only after `project_created`, and reports a terminal
+completion failure without replaying the exhausted job.
 
 ## Core rules
 

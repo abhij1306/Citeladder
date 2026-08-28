@@ -157,7 +157,7 @@ export const brandDiscoverySchema = responseObject({
   id: uuid(),
   workspace_id: uuid(),
   project_id: uuid().nullable(),
-  status: z.enum(['queued', 'running', 'failed', 'ready', 'project_created']),
+  status: z.enum(['queued', 'running', 'failed', 'ready', 'completing', 'project_created']),
   progress: responseObject({
     phase: z.enum([
       'opening_website',
@@ -213,8 +213,14 @@ export const brandDiscoveryCatalogSchema = responseObject({
   prompt_cohorts: z.array(z.string()),
 });
 
+// Completion is accepted as a job, not returned as a finished project: the
+// portfolio takes minutes to generate and the client gives up on a request
+// after 30s. `project_id` is null until the worker lands it, so callers poll
+// the discovery and read the id from `project_created`.
 export const brandDiscoveryCompleteSchema = responseObject({
-  project_id: uuid(),
+  discovery_id: uuid(),
+  status: z.enum(['completing', 'project_created', 'failed']),
+  project_id: uuid().nullable(),
   crawl_id: uuid().nullable(),
   activation_state: z.enum(['queued']),
   page_limit: z.number().int().positive().nullable(),
