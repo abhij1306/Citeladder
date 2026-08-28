@@ -314,12 +314,12 @@ async def _policy_excluded_url_count(session: AsyncSession, crawl_id: uuid.UUID)
     """Distinct URLs this crawl admitted and then declined by its own policy."""
     return int(
         await session.scalar(
-            select(func.count(func.distinct(SiteCrawlTask.site_url_id))).where(
+            select(func.count(func.distinct(SiteCrawlTask.url_hash))).where(
                 SiteCrawlTask.crawl_id == crawl_id,
                 SiteCrawlTask.task_kind.in_([TASK_KIND_DISCOVER, TASK_KIND_ANALYZE]),
                 SiteCrawlTask.status == TASK_STATUS_FAILED,
                 SiteCrawlTask.error_code == ERROR_URL_ADMISSION_REJECTED,
-                SiteCrawlTask.site_url_id.is_not(None),
+                SiteCrawlTask.url_hash != "",
             )
         )
         or 0

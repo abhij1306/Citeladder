@@ -322,6 +322,41 @@ describe('OnboardingScreen', () => {
     expect(screen.getByRole('button', { name: 'Create project' })).toBeDisabled();
   });
 
+  it('allows a capacity-raced completion to be retried', async () => {
+    searchParams = `discovery=${DISCOVERY_ID}&step=review`;
+    discoveryState = {
+      ...discovery('failed', 'preparing_review'),
+      error_code: 'occupancy_limit_exceeded',
+    };
+    let retries = 0;
+    mswServer.use(
+      catalogHandler(),
+      http.post(`/api/v1/brand-discoveries/${DISCOVERY_ID}/complete`, () => {
+        retries += 1;
+        return HttpResponse.json(
+          {
+            discovery_id: DISCOVERY_ID,
+            status: 'completing',
+            project_id: null,
+            crawl_id: null,
+            activation_state: 'queued',
+            page_limit: null,
+            warnings: [],
+          },
+          { status: 202 },
+        );
+      }),
+    );
+    renderWithProviders(<OnboardingScreen />);
+
+    expect(await screen.findByText(/project capacity changed/i)).toBeInTheDocument();
+    const retry = screen.getByRole('button', { name: 'Retry project creation' });
+    expect(retry).toBeEnabled();
+    await userEvent.click(retry);
+
+    await waitFor(() => expect(retries).toBe(1));
+  });
+
   it('gates creation on the one thing the confirm screen asks for', async () => {
     // Brand knowledge moved to the app, so a blank category -- not a blank
     // positioning statement -- is what should block project creation.

@@ -5,17 +5,25 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.billing_catalog import KEY_PROJECT_SLOTS
 from app.core.config.brand_discovery import (
     DISCOVERY_PROGRESS_TOTAL_STEPS,
     DISCOVERY_STATUS_COMPLETING,
+    DISCOVERY_STATUS_FAILED,
     DISCOVERY_STATUS_PROJECT_CREATED,
     DISCOVERY_STATUS_READY,
     TASK_KIND_BRAND_COMPLETION,
 )
+from app.core.config.entitlements import (
+    CODE_OCCUPANCY_LIMIT_EXCEEDED,
+    CODE_OCCUPANCY_UNRESOLVED,
+)
+from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.domain.entitlements.enforcement import (
+    OccupancyError,
     enforce_occupancy,
     lock_workspace_capacity,
 )
@@ -32,6 +40,17 @@ from app.domain.projects.onboarding.service import (
 from app.models.discovery import BrandDiscovery, BrandDiscoveryTask
 from app.models.site_health.crawl import SiteCrawl
 
+_RETRYABLE_COMPLETION_ERRORS = frozenset(
+    {CODE_OCCUPANCY_LIMIT_EXCEEDED, CODE_OCCUPANCY_UNRESOLVED}
+)
+
+
+def _completion_can_retry(row: BrandDiscovery) -> bool:
+    return (
+        row.status == DISCOVERY_STATUS_FAILED
+        and row.error_code in _RETRYABLE_COMPLETION_ERRORS
+    )
+
 
 async def _completion_replay(
     session: AsyncSession,
@@ -46,6 +65,8 @@ async def _completion_replay(
         raise BrandDiscoveryError(
             "Discovery was completed with another Idempotency-Key"
         )
+    if _completion_can_retry(row):
+        return None
     existing_crawl = (
         await session.get(SiteCrawl, row.initial_crawl_id)
         if row.initial_crawl_id is not None
@@ -66,6 +87,38 @@ async def _precheck_project_occupancy(
         requested_delta=1,
         at=datetime.now(UTC),
     )
+
+
+async def _enqueue_completion(
+    session: AsyncSession, *, row: BrandDiscovery, workspace_id: uuid.UUID
+) -> None:
+    task = await session.scalar(
+        select(BrandDiscoveryTask)
+        .where(
+            BrandDiscoveryTask.discovery_id == row.id,
+            BrandDiscoveryTask.task_kind == TASK_KIND_BRAND_COMPLETION,
+        )
+        .with_for_update()
+    )
+    if task is None:
+        session.add(
+            BrandDiscoveryTask(
+                discovery_id=row.id,
+                workspace_id=workspace_id,
+                task_kind=TASK_KIND_BRAND_COMPLETION,
+                idempotency_key=f"brand-completion:{row.id}",
+            )
+        )
+        return
+    task.status = TASK_STATUS_QUEUED
+    task.available_at = datetime.now(UTC)
+    task.lease_owner = None
+    task.lease_expires_at = None
+    task.heartbeat_at = None
+    task.attempt_count = 0
+    task.error_code = ""
+    task.error_detail = ""
+    task.completed_at = None
 
 
 async def complete_discovery(
@@ -90,7 +143,7 @@ async def complete_discovery(
     replay = await _completion_replay(session, row=row, idempotency_key=key)
     if replay is not None:
         return replay
-    if row.status != DISCOVERY_STATUS_READY:
+    if row.status != DISCOVERY_STATUS_READY and not _completion_can_retry(row):
         raise BrandDiscoveryError("Discovery is not ready for completion")
 
     domains, competitors, topics, _, _, _ = _confirmed_portfolio_inputs(
@@ -110,14 +163,9 @@ async def complete_discovery(
     }
     row.status = DISCOVERY_STATUS_COMPLETING
     row.stage = "generating_prompts"
-    session.add(
-        BrandDiscoveryTask(
-            discovery_id=row.id,
-            workspace_id=workspace_id,
-            task_kind=TASK_KIND_BRAND_COMPLETION,
-            idempotency_key=f"brand-completion:{row.id}",
-        )
-    )
+    row.error_code = ""
+    row.error_detail = ""
+    await _enqueue_completion(session, row=row, workspace_id=workspace_id)
     await session.commit()
     return row, None
 
@@ -161,17 +209,28 @@ async def run_completion(session: AsyncSession, row: BrandDiscovery) -> None:
     row.topics = [topic.model_dump(mode="json") for topic in topics]
     row.prompt_suggestions = prompts
     row.warnings = list(dict.fromkeys([*row.warnings, *warnings]))
-    row.project_id = await _persist_project(
-        session,
-        workspace_id=workspace_id,
-        row=row,
-        payload=payload,
-        prompts=prompts,
-        discovery_topics=topics,
-        prompt_provider=provider,
-        prompt_model=model,
-        profile_sources=profile_sources,
-    )
+    try:
+        row.project_id = await _persist_project(
+            session,
+            workspace_id=workspace_id,
+            row=row,
+            payload=payload,
+            prompts=prompts,
+            discovery_topics=topics,
+            prompt_provider=provider,
+            prompt_model=model,
+            profile_sources=profile_sources,
+        )
+    except OccupancyError as exc:
+        # Capacity can change after the request's fast precheck while the model
+        # runs. Preserve a retryable review instead of exhausting the worker's
+        # attempt budget and permanently stranding the discovery.
+        row.status = DISCOVERY_STATUS_FAILED
+        row.stage = "capacity"
+        row.error_code = exc.code
+        row.error_detail = exc.message
+        await session.commit()
+        return
     row.status = DISCOVERY_STATUS_PROJECT_CREATED
     row.stage = "complete"
     row.progress = _progress(

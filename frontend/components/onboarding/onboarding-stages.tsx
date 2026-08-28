@@ -199,6 +199,7 @@ export function ReviewStage({
     competitors,
     complete,
     completionFailed,
+    completionRetryable,
     domains,
     hasSelectedDomain,
     isCompleting,
@@ -267,11 +268,7 @@ export function ReviewStage({
       {complete.isError ? (
         <Alert tone="warning">{onboardingErrorMessage(complete.error)}</Alert>
       ) : null}
-      {completionFailed ? (
-        <Alert tone="danger">
-          Project creation did not finish. Go back, confirm the website again, and retry.
-        </Alert>
-      ) : null}
+      <CompletionStateAlert failed={completionFailed} retryable={completionRetryable} />
       {!hasSelectedDomain ? (
         <Alert tone="warning">Keep at least one website address selected.</Alert>
       ) : null}
@@ -287,7 +284,7 @@ export function ReviewStage({
           }
           className="text-sm font-semibold shadow-xs"
         >
-          {isCompleting ? 'Creating…' : 'Create project'}
+          {completionButtonLabel(isCompleting, completionRetryable)}
         </Button>
         <Button variant="ghost" size="md" onClick={() => setStep(1)} disabled={isCompleting}>
           Back
@@ -295,6 +292,33 @@ export function ReviewStage({
       </div>
     </div>
   );
+}
+
+function CompletionStateAlert({
+  failed,
+  retryable,
+}: Readonly<{ failed: boolean; retryable: boolean }>) {
+  if (failed) {
+    return (
+      <Alert tone="danger">
+        Project creation did not finish. Go back, confirm the website again, and retry.
+      </Alert>
+    );
+  }
+  if (retryable) {
+    return (
+      <Alert tone="warning">
+        Project capacity changed while setup was finishing. Free a project slot or restore billing
+        access, then retry.
+      </Alert>
+    );
+  }
+  return null;
+}
+
+function completionButtonLabel(isCompleting: boolean, isRetryable: boolean): string {
+  if (isCompleting) return 'Creating…';
+  return isRetryable ? 'Retry project creation' : 'Create project';
 }
 
 function warningMessage(code: string): string {

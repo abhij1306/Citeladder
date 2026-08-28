@@ -45,7 +45,9 @@ completion can create prompts.
 The completion request returns an accepted job rather than waiting for prompt
 generation. The review stage keeps polling the persisted discovery through
 `completing`, redirects only after `project_created`, and reports a terminal
-completion failure without replaying the exhausted job.
+completion failure without replaying the exhausted job. Occupancy failures are
+the exception: the confirmed review is restored and offers an explicit retry
+after the user frees a project slot or restores billing access.
 
 ## Core rules
 

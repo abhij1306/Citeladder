@@ -24,6 +24,8 @@ import { hasConfirmedIcp } from './icp-confirmation';
 
 export type OnboardingStep = 0 | 1 | 2;
 
+const RETRYABLE_COMPLETION_ERRORS = new Set(['occupancy_limit_exceeded', 'occupancy_unresolved']);
+
 function withBrandKnowledgeDefaults(profile: DiscoveryProfile): DiscoveryProfile {
   const category = profile.category.trim();
   const products = profile.products_services.filter((item) => item.trim());
@@ -103,6 +105,9 @@ export function useOnboardingFlow() {
   });
   const maximumCompetitors = catalog.data?.maximum_competitors;
   const discoveryState = discovery.discovery;
+  const completionRetryable =
+    discoveryState?.status === 'failed' &&
+    RETRYABLE_COMPLETION_ERRORS.has(discoveryState.error_code);
 
   useEffect(() => {
     if (!brand && discoveryState) {
@@ -126,7 +131,7 @@ export function useOnboardingFlow() {
   }, [discoveryState?.id, resumeDiscoveryId, router, searchParams, step]);
 
   useEffect(() => {
-    if (discoveryState?.status !== 'ready') return;
+    if (discoveryState?.status !== 'ready' && !completionRetryable) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- seed an editable persisted draft.
     setDomains((current) =>
       current.length
@@ -138,10 +143,14 @@ export function useOnboardingFlow() {
           })),
     );
     setProfile((current) => current ?? discoveryState.profile);
-  }, [discoveryState]);
+  }, [completionRetryable, discoveryState]);
 
   useEffect(() => {
-    if (maximumCompetitors === undefined || discoveryState?.status !== 'ready') return;
+    if (
+      maximumCompetitors === undefined ||
+      (discoveryState?.status !== 'ready' && !completionRetryable)
+    )
+      return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- seed an editable persisted draft.
     setCompetitors((current) =>
       current.length
@@ -152,7 +161,7 @@ export function useOnboardingFlow() {
             selected: index < maximumCompetitors,
           })),
     );
-  }, [discoveryState, maximumCompetitors]);
+  }, [completionRetryable, discoveryState, maximumCompetitors]);
 
   const openProject = useCallback(
     async (projectId: string) => {
@@ -195,7 +204,7 @@ export function useOnboardingFlow() {
 
   const completedProjectId =
     discoveryState?.status === 'project_created' ? discoveryState.project_id : null;
-  const completionFailed = discoveryState?.status === 'failed';
+  const completionFailed = discoveryState?.status === 'failed' && !completionRetryable;
   useEffect(() => {
     if (!completedProjectId) return;
     void openProject(completedProjectId);
@@ -232,6 +241,7 @@ export function useOnboardingFlow() {
     competitors,
     complete,
     completionFailed,
+    completionRetryable,
     // True from the click until the worker lands the project. The request
     // itself resolves in milliseconds now, so `complete.isPending` alone would
     // re-enable the button the moment the job was ACCEPTED -- inviting the
@@ -244,7 +254,7 @@ export function useOnboardingFlow() {
     isCompleting:
       !completionFailed &&
       (complete.isPending ||
-        (complete.isSuccess && !completedProjectId) ||
+        (complete.isSuccess && discoveryState?.status !== 'failed' && !completedProjectId) ||
         discoveryState?.status === 'completing'),
     discovery,
     domains,

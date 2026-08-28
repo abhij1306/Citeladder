@@ -15,8 +15,14 @@ from app.core.config.brand_discovery import (
     ERROR_BRAND_DISCOVERY,
 )
 from app.core.config.entitlements import KEY_PROJECT_SLOTS, KEY_PROMPT_SLOTS
+from app.core.config.task_queue import TASK_STATUS_QUEUED, TASK_STATUS_SUCCEEDED
 from app.core.config.visibility_prompts import CONFIRMED_OFFERING_SOURCE_REF
+from app.domain.entitlements.enforcement import (
+    OccupancyLimitExceededError,
+    OccupancySnapshot,
+)
 from app.domain.entitlements.types import GrantSpec
+from app.domain.projects.onboarding import completion as onboarding_completion
 from app.domain.projects.onboarding import service as onboarding_service
 from app.domain.projects.onboarding.portfolio_generation import PortfolioResult
 from app.domain.projects.onboarding.site_resolution import SiteNotFoundError
@@ -388,6 +394,107 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
     await _register(client, "complete-foreign@example.com")
     foreign = await client.get(f"/api/v1/brand-discoveries/{discovery_id}")
     assert foreign.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_completion_capacity_race_remains_retryable(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fixture_portfolio(**kwargs) -> PortfolioResult:
+        topic_id = str(kwargs["topics"][0].topic_id)
+        return PortfolioResult(
+            prompts=(
+                {
+                    "topic_id": topic_id,
+                    "text": "which tools help teams understand workflow bottlenecks",
+                    "intent": "discovery",
+                    "cohort": "core",
+                },
+            ),
+            provider="agent.test",
+            model="fake-model",
+        )
+
+    await _register(client, "completion-capacity-race@example.com")
+    async with session_factory() as session:
+        workspace_id = await session.scalar(select(Workspace.id).limit(1))
+        assert workspace_id is not None
+        await seed_occupancy_grants(
+            session,
+            workspace_id=workspace_id,
+            grants=(
+                GrantSpec(key=KEY_PROJECT_SLOTS, value=10),
+                GrantSpec(key=KEY_PROMPT_SLOTS, value=100),
+            ),
+        )
+        discovery = await _seed_ready_discovery(session, workspace_id)
+        await session.commit()
+        discovery_id = discovery.id
+
+    monkeypatch.setattr(onboarding_service, "generate_portfolio", fixture_portfolio)
+    original_persist = onboarding_completion._persist_project
+
+    async def capacity_race(*_args, **_kwargs):
+        raise OccupancyLimitExceededError(
+            "The final project slot was consumed",
+            snapshot=OccupancySnapshot(
+                key=KEY_PROJECT_SLOTS,
+                allowance=1,
+                current=1,
+                requested=1,
+                remaining=-1,
+            ),
+        )
+
+    monkeypatch.setattr(onboarding_completion, "_persist_project", capacity_race)
+    response = await client.post(
+        f"/api/v1/brand-discoveries/{discovery_id}/complete",
+        headers={"Idempotency-Key": "completion-capacity-race"},
+        json=_completion_payload(),
+    )
+    assert response.status_code == 202
+    monkeypatch.setattr(brand_discovery_worker, "SessionLocal", session_factory)
+    monkeypatch.setattr(
+        brand_discovery_worker,
+        "_queue",
+        PostgresTaskQueue(session_factory, BRAND_DISCOVERY_QUEUE_SPEC),
+    )
+    assert await brand_discovery_worker.run_once("completion-capacity-race") is True
+
+    async with session_factory() as session:
+        persisted = await session.get(BrandDiscovery, discovery_id)
+        assert persisted is not None
+        assert persisted.status == "failed"
+        assert persisted.error_code == "occupancy_limit_exceeded"
+        task = await session.scalar(
+            select(BrandDiscoveryTask).where(
+                BrandDiscoveryTask.discovery_id == discovery_id,
+                BrandDiscoveryTask.task_kind == "brand_completion",
+            )
+        )
+        assert task is not None
+        assert task.status == TASK_STATUS_SUCCEEDED
+
+    monkeypatch.setattr(onboarding_completion, "_persist_project", original_persist)
+    retry = await client.post(
+        f"/api/v1/brand-discoveries/{discovery_id}/complete",
+        headers={"Idempotency-Key": "completion-capacity-race"},
+        json=_completion_payload(),
+    )
+    assert retry.status_code == 202
+    assert retry.json()["status"] == "completing"
+    async with session_factory() as session:
+        task = await session.scalar(
+            select(BrandDiscoveryTask).where(
+                BrandDiscoveryTask.discovery_id == discovery_id,
+                BrandDiscoveryTask.task_kind == "brand_completion",
+            )
+        )
+        assert task is not None
+        assert task.status == TASK_STATUS_QUEUED
+        assert task.attempt_count == 0
 
 
 @pytest.mark.asyncio

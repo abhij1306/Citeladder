@@ -357,8 +357,8 @@ build departed from the plan, it is noted below.
 
 | Slice | Status | Departure from plan |
 |---|---|---|
-| 1 — 499/500 | Done | Also split `UrlAdmissionRejected` out of `UrlPolicyError`, so a policy rejection stops being reported as `ssrf_blocked`. `admitted_url_count` stays monotonic (the frontier budget depends on it); the dashboard projection nets exclusions out of both sides instead. |
-| 4 — setup step | Done | As planned: completion is queued and the worker generates. Added an advisory occupancy precheck so a full workspace still fails fast with a 403. |
+| 1 — 499/500 | Done | Also split `UrlAdmissionRejected` out of `UrlPolicyError`, so a policy rejection stops being reported as `ssrf_blocked`. `admitted_url_count` stays monotonic (the frontier budget depends on it); the dashboard projection nets exclusions out of both sides by URL hash, including discover tasks rejected before a `SiteUrl` identity exists. |
+| 4 — setup step | Done | As planned: completion is queued and the worker generates. Added an advisory occupancy precheck so a full workspace still fails fast with a 403; a capacity race after acceptance returns the confirmed review to a retryable occupancy state instead of permanently failing it. |
 | 5 — brand prompts | Done | As planned, plus the domain label as a brand alias, since freeing "love" would otherwise let "ilovedooney" through. |
 | 2 — crawl starvation | Done, **narrower than planned** | See below. |
 | 3 — commerce prompts | Done | As planned. |

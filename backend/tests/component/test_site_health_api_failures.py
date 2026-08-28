@@ -20,6 +20,7 @@ from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_RUNNING,
     CRAWL_STATUS_RUNNING,
     TASK_KIND_ANALYZE,
+    TASK_KIND_DISCOVER,
 )
 from app.core.config.site_health_crawl_policy import (
     SELECTION_SOURCE_USER,
@@ -342,7 +343,9 @@ async def test_policy_excluded_url_leaves_both_sides_of_the_analyzed_ratio(
         # Absolute counts are disclosed only when the crawl froze that in.
         crawl.sample_mode = False
         crawl.configuration = {**(crawl.configuration or {}), "count_disclosure": True}
-        # Three admitted URLs; the third turns out to be an auth redirector.
+        # Four admitted URLs; two turn out to be auth redirectors. The second
+        # is rejected before a durable SiteUrl identity can be attached.
+        crawl.admitted_url_count = 4
         excluded_url = "https://acme.test/customer_authentication/redirect"
         site_url = SiteUrl(
             workspace_id=scn.workspace_id,
@@ -378,6 +381,20 @@ async def test_policy_excluded_url_leaves_both_sides_of_the_analyzed_ratio(
                 error_code=ERROR_URL_ADMISSION_REJECTED,
             )
         )
+        identityless_url = "https://acme.test/account/redirect"
+        session.add(
+            SiteCrawlTask(
+                crawl_id=crawl.id,
+                workspace_id=scn.workspace_id,
+                site_url_id=None,
+                task_kind=TASK_KIND_DISCOVER,
+                requested_url=identityless_url,
+                url_hash=_hash(identityless_url),
+                idempotency_key=f"{crawl.id}:discover:identityless-redirect",
+                status=TASK_STATUS_FAILED,
+                error_code=ERROR_URL_ADMISSION_REJECTED,
+            )
+        )
         await session.commit()
 
     headers = {"X-Workspace-Id": str(scn.workspace_id)}
@@ -387,8 +404,8 @@ async def test_policy_excluded_url_leaves_both_sides_of_the_analyzed_ratio(
     assert dashboard.status_code == 200
     counters = dashboard.json()["crawl"]["counters"]
 
-    # The seeded crawl admitted 3 URLs; one was excluded, so the denominator
-    # is 2 -- not 3 with an unexplained shortfall.
+    # Four URLs were admitted and two were excluded, including the one without
+    # a SiteUrl identity, so the denominator is 2 rather than 3 or 4.
     assert counters["discovered"] == 2
     # And it is neither an error nor a "blocked" page: nothing went wrong.
     assert counters["errors"] == 0
