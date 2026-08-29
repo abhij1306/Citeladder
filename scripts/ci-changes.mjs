@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 const TRUE = 'true';
 const FALSE = 'false';
 const GIT_EXECUTABLE =
-  process.platform === 'win32' ? 'C:\\Program Files\\Git\\cmd\\git.exe' : '/usr/bin/git';
+  process.platform === 'win32' ? String.raw`C:\Program Files\Git\cmd\git.exe` : '/usr/bin/git';
 const DOC_FILES = new Set([
   'CHANGELOG.md',
   'CONTRIBUTING.md',
