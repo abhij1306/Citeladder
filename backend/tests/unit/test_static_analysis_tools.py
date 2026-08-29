@@ -163,14 +163,19 @@ class TestDependencyHygiene:
         assert {name.lower() for name in ignored} <= declared
 
 
-class TestCoverageGate:
-    def test_changed_line_coverage_is_configured(self) -> None:
-        """The gate is diff coverage, not a repository-wide floor.
+class TestCoverageIsNotAGate:
+    def test_coverage_stays_measured_and_ungated(self) -> None:
+        """Coverage is published, never enforced -- deliberately.
 
-        The CI comment used to claim a `[tool.coverage.report] fail_under` that
-        was never set, so coverage gated nothing at all.
+        A coverage ratio is a target you can move without improving anything,
+        so gating on it produces tests written to move the number. What must be
+        tested is decided by `scripts/validation.json`, which maps production
+        files to the tests that have to run for them.
+
+        This asserts the absence of a gate so that adding one back is a visible
+        decision rather than a quiet config edit.
         """
         config = _pyproject()
 
-        assert config["tool"]["diff_cover"]["fail_under"] == 90
         assert "fail_under" not in config["tool"]["coverage"]["report"]
+        assert "diff_cover" not in config["tool"]

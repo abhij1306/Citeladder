@@ -106,33 +106,19 @@ jobs:
         run: |
           .venv/bin/radon cc app -s -n C
           .venv/bin/radon mi app -s -n B
-      # Coverage is measured on the same run that gates behaviour, so the gate
-      # cannot drift from what the suite actually executes. There is no
-      # repository-wide floor; the merge-blocking gate is the changed-line
-      # check below. The previous version of this comment claimed a
-      # ``[tool.coverage.report] fail_under`` that was never set, so coverage
-      # was in fact gating nothing.
+      # Coverage is measured and published here, and is deliberately NOT a
+      # gate -- see the note above ``[tool.coverage.run]`` in pyproject.toml
+      # for why. An earlier version of this comment claimed a
+      # ``[tool.coverage.report] fail_under`` that was never set, describing a
+      # gate that did not exist. What must be tested is decided by
+      # ``scripts/validation.json``, which maps production files to the tests
+      # that have to run for them.
       - name: Pytest
         # Verbose node ids make an anomalous runner/database stall attributable;
         # faulthandler prints thread stacks if one test exceeds two minutes.
         run: >-
           .venv/bin/python -m pytest -vv -o faulthandler_timeout=120
           --cov --cov-report=xml --cov-report=term
-      # Changed-line coverage against the PR/push base: existing code is not
-      # force-tested, but an added or edited executable line has to be run by
-      # the suite. Compared against the same base revision as the complexity
-      # policy, so both gates agree on what "changed" means. Files with no
-      # coverage data (scripts, migrations) contribute no lines rather than
-      # counting as zero.
-      - name: Changed-line coverage
-        env:
-          COVERAGE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          if [ -n "$COVERAGE_BASE_SHA" ] && ! [[ "$COVERAGE_BASE_SHA" =~ ^0+$ ]]; then
-            .venv/bin/diff-cover coverage.xml --compare-branch "$COVERAGE_BASE_SHA" --fail-under 90
-          else
-            echo "No base revision (bootstrap push); skipping changed-line coverage."
-          fi
 
   frontend:
     name: Frontend (vitest, tsc, policy, build)

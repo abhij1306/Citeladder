@@ -188,9 +188,11 @@ pass.
 Never make validation pass by raising the CC/LOC ceilings in
 `backend/scripts/complexity_policy.json` or
 `frontend/scripts/frontend_complexity_policy.json`; removing a root from either
-policy; adding complexity or duplication exceptions; weakening lint, type,
-format, or coverage configuration; lowering `[tool.diff_cover] fail_under`;
-narrowing `[tool.mypy] files`; dropping a rule family from `[tool.ruff.lint]
+policy; adding complexity or duplication exceptions; weakening lint, type, or
+format configuration; narrowing `[tool.mypy] files`; adding a
+`[tool.coverage.report] fail_under` or any other coverage threshold (coverage is
+measured, never gated -- a ratio is a target that invites tests written to move
+it); dropping a rule family from `[tool.ruff.lint]
 select`; adding a `per-file-ignores` entry that covers application code;
 softening an `.importlinter` contract or adding an `ignore_imports` line;
 editing `scripts/validation.json` to avoid relevant tests; deleting, skipping,

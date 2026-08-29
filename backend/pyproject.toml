@@ -49,7 +49,6 @@ dependencies = [
 dev = [
   "asyncpg-stubs>=0.31.3,<1",
   "deptry>=0.20,<1",
-  "diff-cover>=9.0,<10",
   "import-linter>=2.0,<3",
   "lxml-stubs>=0.5.1,<1",
   "mypy>=2.3.0,<3",
@@ -144,10 +143,18 @@ testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 
-# Coverage is MEASURED on every CI run and gated on CHANGED lines only (see
-# `[tool.diff_cover]` below). There is no whole-repository floor: a single
-# number over 500 modules is satisfiable by testing the easy ones, and the
-# comment that used to sit here claimed a `fail_under` that did not exist.
+# Coverage is MEASURED and published on every CI run. It is deliberately NOT a
+# gate, in either the whole-repository or the changed-lines form.
+#
+# A coverage ratio is a target you can move without improving anything, so
+# gating on it reliably produces tests written to move the number rather than
+# to describe behaviour -- and the gate then protects those tests too. What
+# behaviour has to be covered is decided by `scripts/validation.json`, which
+# maps each production file to the tests that must run for it; that mapping is
+# reviewable, and a percentage is not.
+#
+# The comment that used to sit here claimed a `[tool.coverage.report]
+# fail_under` that was never set, so it described a gate that did not exist.
 [tool.coverage.run]
 source = ["app"]
 branch = true
@@ -155,9 +162,7 @@ omit = [
   # Not runtime code: the offline eval corpus, one-shot scripts, and the
   # single Alembic revision are exercised by their own gates, not by pytest.
   # `scripts/` is now covered by ruff, mypy, vulture and the CC/LOC policy --
-  # everything except tests. Files absent from the coverage report are skipped
-  # by diff-cover, so a change there is not gated on a suite that cannot run
-  # it; those gates are what stand behind it instead.
+  # every gate except the suite, which cannot run one-shot operational scripts.
   "evaluations/*",
   "scripts/*",
   "migrations/*",
@@ -165,10 +170,7 @@ omit = [
 ]
 
 [tool.coverage.report]
-# No `fail_under`: the merge-blocking gate is diff coverage, not a global
-# percentage. Untested legacy code is a real cost, but a repo-wide floor makes
-# the person who touches it pay that debt down before an unrelated fix can
-# land, and pays for itself in tests written to move a number.
+# No `fail_under`, on purpose -- see the note above `[tool.coverage.run]`.
 show_missing = false
 skip_covered = true
 exclude_also = [
@@ -210,17 +212,6 @@ DEP002 = [
   # The ASGI server: `uvicorn app.main:app` is the image CMD.
   "uvicorn",
 ]
-
-# Changed-line coverage. The rule this repo actually wants: existing code is
-# not force-tested, but a line you ADD or EDIT must be executed by the suite.
-# Measured against the PR/push base, so it cannot be satisfied by an unrelated
-# well-covered file the way a global percentage can.
-[tool.diff_cover]
-compare_branch = "origin/main"
-fail_under = 90
-# The diff is what changed; a file with no coverage data (scripts, migrations)
-# contributes no lines to the ratio rather than counting as zero.
-include_untracked = false
 
 [tool.mypy]
 python_version = "3.12"

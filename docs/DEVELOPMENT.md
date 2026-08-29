@@ -192,14 +192,16 @@ higher ceilings, higher exceptions, and newly added exceptions. Roots may be
 
 ### Coverage
 
-There is no repository-wide coverage floor. A single number over 500 modules is
-satisfiable by testing the easy ones, and it makes whoever touches untested
-legacy code pay that debt down before an unrelated fix can land. The gate is
-**changed-line coverage**: `diff-cover` compares `coverage.xml` with the PR base
-and requires 90% of added or edited executable lines to be run by the suite.
-Files with no coverage data (`scripts/`, `migrations/`) contribute no lines
-rather than counting as zero; they are held by ruff, mypy, vulture and the
-complexity policy instead.
+Coverage is measured and published on every CI run and is **not a gate**, in
+either the repository-wide or the changed-lines form. A coverage ratio is a
+target you can move without improving anything, so enforcing one reliably
+produces tests written to move the number rather than to describe behaviour.
+
+What must be tested is decided by `scripts/validation.json`, which maps every
+production file to the tests that have to run for it, and `test.ps1` fails when
+a changed file under `backend/app` has no mapping. That mapping is reviewable in
+a way a percentage is not. `scripts/` and `migrations/` have no suite; they are
+held by ruff, mypy, vulture, import-linter and the complexity policy instead.
 
 ### Architecture policy
 
