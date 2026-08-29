@@ -249,6 +249,13 @@ async def run_site_health_crawls(
     """
     async with SessionLocal() as session:
         await seed_monitored_urls_grant(session, demo_user_id, workspace_id)
+        # `ensure_user_billing` and `issue_override_bundle` leave the
+        # transaction to the caller. While this ran in the same session as
+        # `create_crawl` it was committed by that call as a side effect;
+        # each stage owns its own session now, so it commits its own writes.
+        # Without this the allowance rolls back and the planner falls through
+        # to a sample crawl, so no monitored analysis flow is seeded at all.
+        await session.commit()
 
     worker = SiteHealthWorker(
         session_factory=SessionLocal,
@@ -331,6 +338,11 @@ async def run_actions_and_comparison(
             audit_id=audit_id,
             site_crawl_id=site_crawl_id,
         )
+        # Same caller-owns-the-transaction contract as the grant above: this
+        # used to share a session with `update_status`, which commits. Without
+        # its own commit the action set is rolled back and the resolve step
+        # below finds nothing to resolve.
+        await session.commit()
     await _resolve_first_opportunity(
         workspace_id=workspace_id, project_id=project_id, demo_user_id=demo_user_id
     )
@@ -360,6 +372,9 @@ async def run_actions_and_comparison(
             audit_id=comparison_audit_id,
             site_crawl_id=site_crawl_id,
         )
+        # This one never committed, even before the stages were split: the
+        # comparable recompute was discarded on every seed run.
+        await session.commit()
     logger.info(
         "Completed comparable audit %s with action history for project %s",
         comparison_audit_id,

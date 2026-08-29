@@ -8,6 +8,10 @@ diagnose. ``lock_literal`` raises instead, and these tests hold that line.
 
 from __future__ import annotations
 
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
 from typing import Literal
 
 import pytest
@@ -45,16 +49,40 @@ def test_a_value_absent_from_the_vocabulary_is_named() -> None:
     assert "unexpected ['blue']" in str(excinfo.value)
 
 
-def test_the_guard_survives_assertions_being_stripped() -> None:
+def test_the_guard_still_fires_under_python_O() -> None:
     """``python -O`` removes ``assert``; it does not remove ``raise``.
 
-    Guarding this explicitly because the whole point of the change was that the
-    previous form was a no-op under optimization.
+    This is the whole point of the change, so it is checked in a real
+    optimized interpreter rather than asserted in this one -- the suite runs
+    unoptimized, where the old ``assert`` form would have passed too.
     """
-    Colour = Literal["red"]
+    program = textwrap.dedent(
+        """
+        from typing import Literal
 
-    with pytest.raises(LiteralVocabularyError):
-        lock_literal(Colour, {"red", "green"}, name="Colour")
+        from app.core.literals import LiteralVocabularyError, lock_literal
+
+        assert False, "this suite is not running under -O"  # noqa: S101, B011
+
+        try:
+            lock_literal(Literal["red"], {"red", "green"}, name="Colour")
+        except LiteralVocabularyError:
+            print("raised")
+        """
+    )
+
+    result = subprocess.run(  # noqa: S603 - fixed argv, this interpreter
+        [sys.executable, "-O", "-c", program],
+        capture_output=True,
+        text=True,
+        cwd=Path(__file__).resolve().parents[2],
+        check=False,
+    )
+
+    # The bare `assert False` above proves -O really is in effect: unoptimized,
+    # it would abort the program before reaching the guard.
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "raised"
 
 
 @pytest.mark.parametrize(
