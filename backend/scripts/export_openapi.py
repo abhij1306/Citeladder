@@ -11,8 +11,14 @@ from app.main import app
 
 def export_openapi(output: Path) -> None:
     """Write a deterministic JSON representation of the shipped API contract."""
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
+    workspace = Path.cwd().resolve()
+    resolved_output = output.resolve()
+    if not resolved_output.is_relative_to(workspace):
+        msg = f"OpenAPI output must stay within {workspace}"
+        raise ValueError(msg)
+
+    resolved_output.parent.mkdir(parents=True, exist_ok=True)
+    resolved_output.write_text(
         json.dumps(app.openapi(), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )

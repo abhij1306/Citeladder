@@ -5,12 +5,11 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: read
-
 jobs:
   backend:
     name: Backend (quality, pytest)
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -66,6 +65,8 @@ jobs:
 
   frontend:
     name: Frontend (quality, coverage, build)
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -108,6 +109,8 @@ jobs:
 
   contract:
     name: API contract (backend to frontend)
+    permissions:
+      contents: read
     needs: backend
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -138,6 +141,8 @@ jobs:
 
   e2e:
     name: E2E (playwright)
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -168,6 +173,8 @@ jobs:
 
   security:
     name: Security (pip-audit, detect-secrets)
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -188,6 +195,7 @@ jobs:
 
   required-quality:
     name: Required quality
+    permissions: {}
     if: always()
     needs: [backend, frontend, contract, e2e, security]
     runs-on: ubuntu-latest
