@@ -546,6 +546,35 @@ produces, and the suite asserts the list is exact in both directions — it
 cannot grow to cover new breakage, and a stale entry fails once its fix lands.
 Any new page-kind check belongs here before it ships.
 
+## Known analyzer gaps
+
+Deliberately not fixed here, each because the honest fix is wider than the
+false-positive work it surfaced during:
+
+- **Interaction-gated content is not detected.** `expand_gated_ratio` counts
+  words inside collapsed `<details>` and `aria-expanded="false"` nodes — text
+  that IS in the DOM and extractable. `aeo.no_expand_gating` is therefore an
+  advisory: it cannot detect content that is genuinely unreachable without
+  interaction (empty `<template>` shells, `hidden` containers, client-fetched
+  panels), which needs a new extractor signal before it can be a defect again.
+- **Minified HTML defeats the visible byline and date.** `_body_text` joins
+  block elements without inserting whitespace, so `<h1>Title</h1><p>By A B</p>`
+  reads as `TitleBy A B` and the byline pattern finds no word boundary. This
+  predates the visible-byline fallback and equally affects the classifier's
+  article heuristic. Fixing it means changing `node_text`, which moves every
+  word count.
+- **`aeo.outbound_citations` applies to guides.** A practical how-to that cites
+  nothing is not defective. The rule wants an "is this a researched claim?"
+  trigger rather than a page-kind scope.
+- **Canonical target problems needing crawl-wide state are not checked.** A
+  canonical pointing at a 404 or at a noindex page is a real defect, but the
+  per-page pass cannot see the target. It belongs in a `crawl_finalize`-scoped
+  sibling alongside `technical.sitemap_orphan`.
+- **Two dead indexing inputs.** `facts["indexing_policy"]` and
+  `facts["robots_indexing_policy"]` are read by the intent precedence chain and
+  written by nothing in production, so its first and last branches are
+  unreachable. Either wire them to a real user policy surface or delete them.
+
 ## Known boundary
 
 The simplification removed the former knowledge assertion source used to ground
