@@ -176,7 +176,7 @@ describe('EngineComparison — share of answers', () => {
     expect(shareFigure()).toHaveAttribute('aria-label', 'Share of voice: Acme 60%, Globex 40%');
   });
 
-  it('omits a row with no share data from the announcement', () => {
+  it('announces a row with no share data without inventing a percentage', () => {
     render(
       <EngineComparison
         visibility={visibility(
@@ -190,12 +190,13 @@ describe('EngineComparison — share of answers', () => {
       />,
     );
 
-    // Its bar is zero-width, so announcing a share for it would tell a
-    // screen-reader user something the screen does not show.
-    expect(shareFigure()).toHaveAttribute('aria-label', 'Share of voice: Acme 50%');
+    expect(shareFigure()).toHaveAttribute(
+      'aria-label',
+      'Share of voice: Acme 50%, Unknown share unavailable',
+    );
   });
 
-  it('announces "No data" when every mentioned row lacks a share', () => {
+  it('names every mentioned row when all share data is unavailable', () => {
     render(
       <EngineComparison
         visibility={visibility(
@@ -206,7 +207,10 @@ describe('EngineComparison — share of answers', () => {
       />,
     );
 
-    expect(shareFigure()).toHaveAttribute('aria-label', 'Share of voice: No data');
+    expect(shareFigure()).toHaveAttribute(
+      'aria-label',
+      'Share of voice: Unknown share unavailable',
+    );
   });
 
   it('clamps an out-of-range share into the announced percentage', () => {
