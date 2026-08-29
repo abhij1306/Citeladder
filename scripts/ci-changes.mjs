@@ -6,6 +6,8 @@ import { pathToFileURL } from 'node:url';
 
 const TRUE = 'true';
 const FALSE = 'false';
+const GIT_EXECUTABLE =
+  process.platform === 'win32' ? 'C:\\Program Files\\Git\\cmd\\git.exe' : '/usr/bin/git';
 const DOC_FILES = new Set([
   'CHANGELOG.md',
   'CONTRIBUTING.md',
@@ -108,7 +110,7 @@ export function selectDiff({ eventName, action, beforeSha, baseSha, headSha }) {
 function changedPaths(range) {
   if (!range) return [];
   const output = execFileSync(
-    'git',
+    GIT_EXECUTABLE,
     ['diff', '--no-renames', '--name-only', '--diff-filter=ACMDT', range],
     { encoding: 'utf8' },
   );
