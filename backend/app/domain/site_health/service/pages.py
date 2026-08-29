@@ -314,6 +314,9 @@ def _detail_response(
         "page_kind_evidence": (
             analysis.page_kind_evidence if analysis is not None else None
         ),
+        "page_traits": (
+            list(analysis.page_traits or []) if analysis is not None else None
+        ),
         "technical_score": analysis.technical_score if analysis is not None else None,
         "aeo_score": analysis.aeo_score if analysis is not None else None,
         "overall_score": analysis.overall_score if analysis is not None else None,

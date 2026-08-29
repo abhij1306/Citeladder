@@ -9,6 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.site_health.page_kinds import PageKindAssessment, classify
+from app.analysis.site_health.page_traits import derive_traits
 from app.analysis.site_health.rules import RuleEvaluation, evaluate_all
 from app.analysis.site_health.scoring import AnalysisScores, score_analysis
 from app.core.config.site_health_contracts import (
@@ -20,6 +21,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     SCORING_VERSION,
 )
+from app.core.config.site_health_taxonomy import TRAITS_VERSION
 from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
@@ -66,7 +68,7 @@ async def _write_page_analysis(
             .limit(1)
         )
     )
-    assessment, evaluations, scores = _prepare_page_evaluation(
+    assessment, traits, evaluations, scores = _prepare_page_evaluation(
         crawl=crawl, task=task, facts=facts, sitemap_member=sitemap_member
     )
     await _refresh_analyzed_url_state(
@@ -81,6 +83,7 @@ async def _write_page_analysis(
         site_url_id=site_url_id,
         artifact_id=artifact_id,
         assessment=assessment,
+        traits=traits,
         scores=scores,
     )
     await _supersede_and_store_analysis(session, analysis=analysis)
@@ -101,7 +104,7 @@ def _prepare_page_evaluation(
     task: SiteCrawlTask,
     facts: dict[str, Any],
     sitemap_member: bool = False,
-) -> tuple[PageKindAssessment, list[RuleEvaluation], AnalysisScores]:
+) -> tuple[PageKindAssessment, tuple[str, ...], list[RuleEvaluation], AnalysisScores]:
     """Classify and score a shallow evaluation-only copy of fetched facts."""
     # Evaluation-time enrichment goes onto a SHALLOW COPY, never the facts
     # dict the caller handed ``_write_artifact``: that dict IS the artifact's
@@ -122,6 +125,13 @@ def _prepare_page_evaluation(
     )
     eval_facts["page_kind"] = assessment.page_kind
     eval_facts["page_kind_evidence"] = assessment.to_evidence()
+    # Traits are derived from the SAME facts but never from the page kind, so
+    # they stay independent observations rather than consequences of the
+    # classification. A product page with an FAQ block carries both.
+    traits = derive_traits(
+        str((facts.get("delivery") or {}).get("final_url") or ""), facts
+    )
+    eval_facts["page_traits"] = list(traits)
     eval_facts["sitemap_member"] = sitemap_member
     # v2 P2 (spec §5.3): inside the crawl ROOT's own analysis only, inject
     # the crawl's site_facts so site_root-scoped rules (AI-crawler access,
@@ -142,7 +152,7 @@ def _prepare_page_evaluation(
         if not _is_crawl_finalize_rule(ev.rule_id)
     ]
     scores = score_analysis(evaluations, page_kind=assessment.page_kind)
-    return assessment, evaluations, scores
+    return assessment, traits, evaluations, scores
 
 
 async def _refresh_analyzed_url_state(
@@ -195,6 +205,7 @@ def _new_page_analysis(
     site_url_id: uuid.UUID,
     artifact_id: uuid.UUID,
     assessment: PageKindAssessment,
+    traits: tuple[str, ...],
     scores: AnalysisScores,
 ) -> SitePageAnalysis:
     """Build the immutable analysis row before it becomes current."""
@@ -216,6 +227,8 @@ def _new_page_analysis(
         # Persist the bounded classifier evidence with the row (the
         # evaluation-time copy above is never persisted, by design).
         page_kind_evidence=assessment.to_evidence(),
+        page_traits=list(traits),
+        traits_version=TRAITS_VERSION,
         source_artifact_ids=[artifact_id],
         finalized_at=_utcnow(),
     )

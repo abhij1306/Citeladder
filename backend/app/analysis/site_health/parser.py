@@ -30,6 +30,10 @@ from app.analysis.site_health.fact_entity import (
     safe_entity_signals,
 )
 from app.analysis.site_health.fact_links import links_and_assets
+from app.analysis.site_health.fact_regions import (
+    card_list_containers,
+    primary_region,
+)
 from app.analysis.site_health.fact_signals import (
     cta_texts,
     first_answer_text,
@@ -504,6 +508,28 @@ def _author_and_dates(
     )
 
 
+def _ordered_list_steps(root: Any) -> int:
+    """Items in the LONGEST ordered list inside the page primary region.
+
+    Evidence for the ``procedural`` trait: a page that lays out numbered steps
+    is doing something a page of prose is not. Scoped to the primary region and
+    outside repeated card lists for the same reason every entity signal is --
+    a paginated "1 2 3 next" strip in the chrome is not a procedure.
+    """
+    try:
+        node, _source = primary_region(root)
+        excluded = {id(item) for item in card_list_containers(node)}
+        longest = 0
+        for ordered in node.xpath(".//ol"):
+            if any(id(ancestor) in excluded for ancestor in ordered.iterancestors()):
+                continue
+            longest = max(longest, len(ordered.xpath("./li")))
+        return longest
+    except DOM_ERRORS as exc:
+        dom_failure("_ordered_list_steps", exc)
+        return 0
+
+
 def _landmarks(root: Any) -> dict[str, bool]:
     """Presence of the main/article/nav landmark elements."""
     out = {"main": False, "article": False, "nav": False}
@@ -655,6 +681,7 @@ def _empty_facts() -> dict[str, Any]:
         "dates": {"published": "", "modified": ""},
         "outbound_domains": [],
         "landmarks": {"main": False, "article": False, "nav": False},
+        "ordered_list_steps": 0,
         "question_heading_ratio": 0.0,
         "expand_gated_ratio": 0.0,
         "hreflang_alternates": [],
@@ -735,6 +762,7 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
         facts["links"]["anchors"], base_host=base_host
     )
     facts["landmarks"] = _landmarks(root)
+    facts["ordered_list_steps"] = _ordered_list_steps(root)
     facts["question_heading_ratio"] = _question_heading_ratio(facts["headings"])
     facts["hreflang_alternates"] = _hreflang_alternates(root, final_url=final_url)
     facts["first_answer_text"] = first_answer_text(root)

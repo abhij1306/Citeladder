@@ -240,6 +240,7 @@ AEO_READINESS_RULE_DIMENSIONS: Final[dict[str, str]] = {
     "aeo.open_graph_present": "machine-readability",
     "aeo.llms_txt_present": "machine-readability",
     "aeo.author_present": "authority",
+    "aeo.reviewer_identified": "authority",
     "aeo.organization_identity": "authority",
     "aeo.date_present": "freshness",
     "aeo.server_rendered_content": "crawlability",

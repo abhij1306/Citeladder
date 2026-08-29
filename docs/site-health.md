@@ -236,7 +236,7 @@ analyzer and extractor versions and returns the exact source-analysis IDs.
 Optional `crawl_id` selects one usable terminal crawl; omission selects the
 latest. Reads never analyze, enqueue, repair, or call a provider.
 
-Taxonomy `aeo-readiness-v1` maps exactly 20 declared rule IDs into seven ordered
+Taxonomy `aeo-readiness-v1` maps exactly 21 declared rule IDs into seven ordered
 dimensions: **Answerability**, **Structure**, **Evidence**,
 **Machine readability**, **Authority**, **Freshness**, and **Crawlability**.
 
@@ -347,6 +347,45 @@ The gate keys on the evidence tier rather than the confidence label:
 `_confidence` demotes structural evidence to `medium` whenever any other signal
 disagreed, so reading the label alone would suppress checks on pages whose own
 structure proved what they were.
+
+## Page traits
+
+`page_kind` is exclusive and answers "what is this page for". A **trait** is
+additive and answers "what else is on it":
+
+```text
+has_faq, has_reviews, has_variants, listing, local_intent,
+contact_intent, about_intent, case_study_intent, review_intent,
+comparison_content, procedural
+```
+
+A product page carrying an FAQ block is a `product` with `has_faq`, and answers
+both checklists, rather than being filed as one or the other or requiring a
+`product_with_faq` kind that would never cover the combinations.
+
+Traits also separate the two kinds that bundle unlike pages. `about_contact`
+mixes pages with different success criteria — demanding contact details of
+`/about/our-story` invents a fault, while not checking them on `/contact-us`
+misses an improvement — and `case_study_review` mixes "problem, intervention,
+result" with "item, evaluator, verdict". `aeo.author_present` therefore no
+longer applies to `case_study_review`, and `aeo.reviewer_identified` asks for
+an evaluator on any page observed to carry `review_intent`, whatever its kind.
+
+Derivation is pure, deterministic, bounded, and versioned (`TRAITS_VERSION`).
+It reads the same page facts as the classifier but never reads `page_kind`, so
+a trait is an observation rather than a consequence of the classification. That
+is also why a trait-scoped rule (`page_trait:` / `page_trait_content:`) is not
+gated by classification confidence: there is no classification behind it.
+
+A trait is deliberately stricter than the classifier signal it resembles.
+`has_faq` requires FAQPage markup or subheadings that literally end in a
+question mark, where the classifier's FAQ signal accepts a heading opening with
+what/why/how — right for a signal resolved by tier precedence against
+competitors, wrong for a standalone assertion that whatever keys on it fires
+with no second opinion.
+
+Observed traits persist on `SitePageAnalysis.page_traits` as a queryable array
+and appear on the per-URL detail beside the page kind.
 
 ## Structured-data extraction and schema contracts
 

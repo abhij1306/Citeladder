@@ -42,6 +42,9 @@ function detail(overrides: Partial<PageDetail> = {}): PageDetail {
     issue_count: 2,
     last_audited: '2026-07-16T00:00:00Z',
     page_kind: 'product',
+    // A product page that also carries an FAQ: exactly the hybrid a single
+    // exclusive page_kind could not express.
+    page_traits: ['has_faq', 'has_variants'],
     // Persisted classifier evidence (v2 P1) — a schema-conflict scenario:
     // the path pattern chose Product while the markup declares Article.
     page_kind_evidence: {
@@ -197,6 +200,25 @@ describe('UrlDetail', () => {
     const high = screen.getByText('WebSite schema is missing');
     const low = screen.getByText('FAQ schema not present');
     expect(high.compareDocumentPosition(low) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows observed traits beside the page kind, so a hybrid page reads as both', async () => {
+    // page_kind is exclusive and answers "what is this page for". A trait is
+    // additive and answers "what else is on it", so a product page carrying an
+    // FAQ shows both rather than being filed as one or the other.
+    mswServer.use(...handlers(detail()));
+    renderWithProviders(<UrlDetail crawlId={CRAWL} siteUrlId={URL_ID} />);
+    expect(await screen.findByText('Also on this page')).toBeInTheDocument();
+    expect(screen.getByText('Has an FAQ')).toBeInTheDocument();
+    expect(screen.getByText('Has variants')).toBeInTheDocument();
+  });
+
+  it('renders no traits row when nothing was observed', async () => {
+    // An empty list is a real answer, not a gap that wants a placeholder.
+    mswServer.use(...handlers(detail({ page_traits: [] })));
+    renderWithProviders(<UrlDetail crawlId={CRAWL} siteUrlId={URL_ID} />);
+    expect(await screen.findByText('Page Kind')).toBeInTheDocument();
+    expect(screen.queryByText('Also on this page')).not.toBeInTheDocument();
   });
 
   it('discloses the persisted classifier evidence via the "why this type?" toggle', async () => {

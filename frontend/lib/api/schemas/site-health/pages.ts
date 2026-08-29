@@ -144,6 +144,9 @@ export const pageDetailSchema = responseObject({
   // Bounded classifier evidence behind page_kind ("why this kind?"
   // disclosure); null until the URL has an analysis.
   page_kind_evidence: z.record(z.string(), z.unknown()).nullable(),
+  // Observed traits, independent of page_kind: a product page carrying an FAQ
+  // has both. Empty once analyzed and nothing was observed; null before that.
+  page_traits: z.array(z.string()).nullable(),
   // Pack-governed industry role. `null` = the pack classifier never ran.
   // A present object with `role_id: null` plus an `abstention_reason` is an
   // EXECUTED abstention — a different fact, rendered differently.

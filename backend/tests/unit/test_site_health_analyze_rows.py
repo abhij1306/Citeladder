@@ -113,7 +113,7 @@ def test_prepare_page_evaluation_injects_classifier_evidence() -> None:
         "structured_data": {"count": 0, "blocks": [], "types": []},
     }
 
-    assessment, evaluations, _scores = _prepare_page_evaluation(
+    assessment, traits, evaluations, _scores = _prepare_page_evaluation(
         crawl=cast(Any, crawl), task=cast(Any, task), facts=facts
     )
 
@@ -122,4 +122,6 @@ def test_prepare_page_evaluation_injects_classifier_evidence() -> None:
     # The artifact's own facts are never mutated by the evaluation copy.
     assert "page_kind" not in facts
     assert "page_kind_evidence" not in facts
+    assert "page_traits" not in facts
+    assert isinstance(traits, tuple)
     assert evaluations

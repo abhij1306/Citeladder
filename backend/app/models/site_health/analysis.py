@@ -117,6 +117,14 @@ class SitePageAnalysis(Base):
     # ``PageKindAssessment.to_evidence()`` produces, persisted for the per-URL
     # detail "why this type?" disclosure.
     page_kind_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Observed page traits, independent of the primary kind: a product page
+    # with an FAQ block carries both, and answers both checklists, without the
+    # taxonomy growing a product_with_faq. Stored as a queryable array rather
+    # than nested in the evidence blob so the pages and issues surfaces can
+    # slice by trait. Traits carry their own version: they are derived from
+    # the same facts but never from the classification.
+    page_traits: Mapped[list | None] = mapped_column(ARRAY(String(32)), nullable=True)
+    traits_version: Mapped[str] = mapped_column(String(32), default="")
 
     # Exactly one live row per page within a crawl (see the partial index).
     is_current: Mapped[bool] = mapped_column(Boolean, default=True)

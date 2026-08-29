@@ -14,6 +14,7 @@ import { ICONS } from '@/lib/icons';
 import {
   pageKindConfidenceLabel,
   pageKindLabel,
+  pageTraitLabel,
   readPageKindEvidence,
   type PageKindEvidenceView,
 } from '@/lib/site-health/page-kinds';
@@ -114,6 +115,7 @@ function HeaderCard({
               {detail.display_url}
             </a>
           </span>
+          <PageTraits traits={detail.page_traits} />
           <span className="flex items-center gap-1.5">
             <Label>Page Kind</Label>
             <PageKindBadge pageKind={detail.page_kind} />
@@ -161,6 +163,27 @@ function HeaderCard({
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Observed traits, shown beside the page kind.
+ *
+ * A kind is exclusive and answers "what is this page for". A trait is
+ * additive and answers "what else is on it", so a product page carrying an
+ * FAQ shows both rather than being filed as one or the other. Rendered only
+ * when something was actually observed: an empty list is a real answer, not a
+ * gap worth a placeholder row.
+ */
+function PageTraits({ traits }: Readonly<{ traits: readonly string[] | null }>) {
+  if (traits === null || traits.length === 0) return null;
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <Label>Also on this page</Label>
+      {traits.map((trait) => (
+        <Badge key={trait}>{pageTraitLabel(trait)}</Badge>
+      ))}
+    </span>
   );
 }
 

@@ -184,16 +184,26 @@ _EDITORIAL_RULE_IDS = {
     "aeo.question_headings",
 }
 
+# Trait-scoped rules: N/A unless the page CARRIES the trait, whatever its kind.
+# The healthy homepage fixture observes none of them.
+_TRAIT_SCOPED_RULE_IDS = {
+    "aeo.reviewer_identified",
+}
+
 
 def test_all_rules_pass_on_healthy_page():
     facts = _html_facts()
     evals = evaluate_all(facts)
     assert {e.rule_id for e in evals} == {r.rule_id for r in SITE_HEALTH_RULES}
     for e in evals:
-        if e.rule_id in _CRAWL_FINALIZE_RULE_IDS | _EDITORIAL_RULE_IDS:
+        if (
+            e.rule_id
+            in _CRAWL_FINALIZE_RULE_IDS | _EDITORIAL_RULE_IDS | _TRAIT_SCOPED_RULE_IDS
+        ):
             # crawl_finalize rules are owned by the finalize-writer; the
             # editorial rules are scoped to article/guide/docs page kinds and
-            # this fixture is a homepage.
+            # this fixture is a homepage; the trait rules need an observation
+            # this fixture does not carry.
             assert e.outcome == RULE_OUTCOME_NOT_APPLICABLE, e.rule_id
         else:
             assert e.outcome == RULE_OUTCOME_PASS, e.rule_id
@@ -1534,3 +1544,62 @@ def test_every_kind_scoped_rule_declares_its_evidence_class():
     # explicitly declares that an artifact triggers it.
     for rule in (*SITE_HEALTH_RULES, *PRODUCT_ANALYSIS_RULES):
         assert rule.kind_evidence in KIND_EVIDENCE_CLASSES, rule.rule_id
+
+
+# --- traits scope rules by what a page CARRIES, not what it IS --------------
+
+
+def test_a_trait_scoped_rule_applies_wherever_the_trait_is_observed():
+    """A review is a thing a page DOES, not only a thing a page is.
+
+    ``case_study_review`` bundled two page types with different success
+    criteria: a case study is usually published by the organisation and owes
+    no byline, while a review owes an identifiable evaluator. Splitting the
+    kind would have doubled the taxonomy and still missed a product page that
+    carries an editorial verdict.
+    """
+    for page_kind in ("product", "article", "case_study_review", "other"):
+        ev = _outcome(
+            _html_facts(
+                page_kind=page_kind,
+                page_traits=["review_intent"],
+                author="",
+            ),
+            "aeo.reviewer_identified",
+        )
+        assert ev.outcome == RULE_OUTCOME_FAIL, page_kind
+
+
+def test_a_trait_scoped_rule_is_not_applicable_without_the_observation():
+    ev = _outcome(
+        _html_facts(page_kind="case_study_review", page_traits=[], author=""),
+        "aeo.reviewer_identified",
+    )
+    assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert ev.evidence["reason"] == "trait_not_observed"
+
+
+def test_a_case_study_is_no_longer_asked_for_a_byline():
+    # The half of the split that removes a false positive: a case study
+    # published by the organisation is not defective for having no named
+    # writer.
+    ev = _outcome(
+        _html_facts(page_kind="case_study_review", author=""), "aeo.author_present"
+    )
+    assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
+
+
+def test_trait_rules_are_not_gated_by_classification_confidence():
+    # A trait is an observation, so there is no classification behind it to be
+    # unsure of. It fires at every tier.
+    for tier in ("structural", "route", "semantic"):
+        ev = _outcome(
+            _html_facts(
+                page_kind="other",
+                page_kind_evidence={"tier": tier, "confidence": "x"},
+                page_traits=["review_intent"],
+                author="",
+            ),
+            "aeo.reviewer_identified",
+        )
+        assert ev.outcome == RULE_OUTCOME_FAIL, tier

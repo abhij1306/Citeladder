@@ -525,6 +525,10 @@ class PageDetail(_Model):
     # confidence, schema suggestion) for the "why this kind?" disclosure;
     # None until the URL has an analysis.
     page_kind_evidence: dict | None = None
+    # Observed page traits, independent of ``page_kind``: a product page with
+    # an FAQ block carries both. Empty list once analyzed and nothing was
+    # observed; None until the URL has an analysis.
+    page_traits: list[str] | None = None
     # Pack-governed industry role. None when the pack classifier never ran
     # (unpacked project, or an analysis written before the pack was frozen).
     technical_score: float | None

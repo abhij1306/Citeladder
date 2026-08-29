@@ -489,6 +489,7 @@ describe('pageDetailSchema (field_cwv_available literal false)', () => {
     // T5 contract: the backend page-detail serializer always carries this key
     // (null until the URL has an analysis) — the fixture must include it.
     page_kind_evidence: null,
+    page_traits: [],
     facts: {
       title: 'Home',
       meta_description: null,

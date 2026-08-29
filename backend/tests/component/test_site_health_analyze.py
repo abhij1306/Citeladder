@@ -496,9 +496,11 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
             .select_from(SiteRuleEvaluation)
             .where(SiteRuleEvaluation.analysis_id == analysis.id)
         )
-        # 30 per-page evaluations + 2 terminalization evaluations + 6
-        # post-link-metric observed-architecture evaluations.
-        assert eval_count == 38
+        # 31 per-page evaluations + 2 terminalization evaluations + 6
+        # post-link-metric observed-architecture evaluations. The extra
+        # per-page row is aeo.reviewer_identified, which resolves
+        # not_applicable here: the page carries no review_intent trait.
+        assert eval_count == 39
 
         # A rich page passes every rule, so no issues are snapshotted.
         issue_count = await session.scalar(

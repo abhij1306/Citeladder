@@ -3687,6 +3687,12 @@ def upgrade() -> None:
         sa.Column(
             "page_kind_evidence", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
+        sa.Column(
+            "page_traits",
+            postgresql.ARRAY(sa.String(length=32)),
+            nullable=True,
+        ),
+        sa.Column("traits_version", sa.String(length=32), nullable=False),
         sa.Column("is_current", sa.Boolean(), nullable=False),
         sa.Column("source_evaluation_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
         sa.Column("source_artifact_ids", postgresql.ARRAY(sa.UUID()), nullable=True),

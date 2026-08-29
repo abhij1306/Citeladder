@@ -82,6 +82,8 @@ from app.core.config.site_health_taxonomy import (
     PAGE_KIND_OTHER,
     PAGE_KIND_PROFILES,
     PAGE_KIND_TIER_STRUCTURAL,
+    PAGE_TRAIT_APPLICABILITY_PREFIX,
+    PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX,
     PageKindProfile,
 )
 
@@ -566,6 +568,9 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "aeo.schema_recommended_present": check_schema_recommended_present,
     "aeo.schema_matches_content": check_schema_matches_content,
     "aeo.author_present": _check_author_present,
+    # Same evidence, different question: a review needs an identifiable
+    # evaluator, and the page's author IS that evaluator.
+    "aeo.reviewer_identified": _check_author_present,
     "aeo.date_present": _check_date_present,
     "aeo.outbound_citations": _check_outbound_citations,
     "aeo.organization_identity": _check_organization_identity,
@@ -652,6 +657,22 @@ def _kind_expectation_allowed(rule: SiteHealthRule, facts: dict) -> tuple[bool, 
     return False, SKIP_REASON_LOW_CONFIDENCE_KIND
 
 
+def _page_trait_scope(key: str, prefix: str, facts: dict) -> tuple[bool, str]:
+    """``<prefix><trait>[|<trait>]`` resolved against ``facts["page_traits"]``.
+
+    A trait is an OBSERVATION the page carries, so this is not gated by
+    classification confidence the way a kind expectation is: there is no
+    classification involved. It is also why a product page with an FAQ block
+    can answer FAQ integrity checks without being reclassified.
+    """
+    observed = facts.get("page_traits")
+    traits: set[str] = set()
+    if isinstance(observed, list | tuple):
+        traits = {str(trait) for trait in observed}
+    wanted = {token for token in key[len(prefix) :].split("|") if token}
+    return bool(traits & wanted), "trait_not_observed"
+
+
 def _applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
     """``(applicable, skip_reason)`` for one rule against ``facts``.
 
@@ -667,6 +688,15 @@ def _applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
         return bool(facts.get("has_html")), "no_html"
     if key == APPLICABILITY_OBSERVED_CONTENT:
         return _observed_content(facts)
+    if key.startswith(PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX):
+        applies, reason = _page_trait_scope(
+            key, PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX, facts
+        )
+        if not applies:
+            return False, reason
+        return _observed_content(facts)
+    if key.startswith(PAGE_TRAIT_APPLICABILITY_PREFIX):
+        return _page_trait_scope(key, PAGE_TRAIT_APPLICABILITY_PREFIX, facts)
     if key.startswith(PAGE_KIND_CONTENT_APPLICABILITY_PREFIX):
         # Page-kind scope AND the shell guard. Order matters only for the skip
         # reason: an article we could not render should say "we could not see

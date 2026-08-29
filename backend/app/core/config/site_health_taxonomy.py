@@ -429,6 +429,121 @@ PAGE_KIND_HTML_APPLICABILITY_PREFIX: Final = "page_kind_html:"
 
 PAGE_KIND_CONTENT_APPLICABILITY_PREFIX: Final = "page_kind_content:"
 
+# --- page traits -------------------------------------------------------------
+#
+# A trait is an OBSERVATION about a page that is independent of its primary
+# kind. page_kind answers "what is this page for"; a trait answers "what else
+# is on it".
+#
+# This exists because page_kind was carrying two jobs at once. A product page
+# with an FAQ block had to be either a product or an FAQ, and whichever it
+# became, the other checklist was lost. Traits are additive and
+# non-exclusive, so that page is a product WITH has_faq and answers both.
+#
+# It is also how two conflated kinds are separated without growing the
+# taxonomy. about_contact bundles pages with genuinely different success
+# criteria -- demanding contact details of /about/our-story invents a fault,
+# while not checking them on /contact-us misses an obvious improvement -- and
+# case_study_review bundles "problem, intervention, result" with "item,
+# evaluator, verdict". Traits split the checks without splitting the kind.
+PAGE_TRAIT_HAS_FAQ: Final = "has_faq"
+
+PAGE_TRAIT_HAS_REVIEWS: Final = "has_reviews"
+
+PAGE_TRAIT_HAS_VARIANTS: Final = "has_variants"
+
+PAGE_TRAIT_LISTING: Final = "listing"
+
+PAGE_TRAIT_LOCAL_INTENT: Final = "local_intent"
+
+PAGE_TRAIT_CONTACT_INTENT: Final = "contact_intent"
+
+PAGE_TRAIT_ABOUT_INTENT: Final = "about_intent"
+
+PAGE_TRAIT_CASE_STUDY_INTENT: Final = "case_study_intent"
+
+PAGE_TRAIT_REVIEW_INTENT: Final = "review_intent"
+
+PAGE_TRAIT_COMPARISON_CONTENT: Final = "comparison_content"
+
+PAGE_TRAIT_PROCEDURAL: Final = "procedural"
+
+PAGE_TRAITS: Final[tuple[str, ...]] = (
+    PAGE_TRAIT_HAS_FAQ,
+    PAGE_TRAIT_HAS_REVIEWS,
+    PAGE_TRAIT_HAS_VARIANTS,
+    PAGE_TRAIT_LISTING,
+    PAGE_TRAIT_LOCAL_INTENT,
+    PAGE_TRAIT_CONTACT_INTENT,
+    PAGE_TRAIT_ABOUT_INTENT,
+    PAGE_TRAIT_CASE_STUDY_INTENT,
+    PAGE_TRAIT_REVIEW_INTENT,
+    PAGE_TRAIT_COMPARISON_CONTENT,
+    PAGE_TRAIT_PROCEDURAL,
+)
+
+# Longest-match-wins path segments per intent trait, mirroring the page-kind
+# route patterns: exact segments only, so /about-us matches and /aboutery does
+# not.
+PAGE_TRAIT_ROUTE_SEGMENTS: Final[dict[str, tuple[str, ...]]] = {
+    PAGE_TRAIT_CONTACT_INTENT: ("contact", "contact-us", "get-in-touch", "enquiries"),
+    PAGE_TRAIT_ABOUT_INTENT: ("about", "about-us", "our-story", "who-we-are", "team"),
+    PAGE_TRAIT_CASE_STUDY_INTENT: ("case-study", "case-studies", "customers"),
+    PAGE_TRAIT_REVIEW_INTENT: ("review", "reviews", "testimonials"),
+    PAGE_TRAIT_COMPARISON_CONTENT: ("compare", "comparison", "comparisons", "vs"),
+}
+
+# Title/heading phrases that corroborate an intent when the route is silent.
+PAGE_TRAIT_TITLE_PHRASES: Final[dict[str, tuple[str, ...]]] = {
+    PAGE_TRAIT_CONTACT_INTENT: ("contact us", "get in touch", "contact"),
+    PAGE_TRAIT_ABOUT_INTENT: ("about us", "our story", "who we are"),
+    PAGE_TRAIT_CASE_STUDY_INTENT: ("case study", "customer story", "success story"),
+    PAGE_TRAIT_REVIEW_INTENT: ("review", "hands on", "tested"),
+    PAGE_TRAIT_COMPARISON_CONTENT: ("vs", "versus", "compared", "comparison"),
+}
+
+# Schema types that observe a trait outright.
+PAGE_TRAIT_SCHEMA_TYPES: Final[dict[str, tuple[str, ...]]] = {
+    PAGE_TRAIT_HAS_FAQ: ("FAQPage",),
+    PAGE_TRAIT_HAS_REVIEWS: ("Review", "AggregateRating"),
+    PAGE_TRAIT_PROCEDURAL: ("HowTo",),
+}
+
+# A contact page proves itself with an authored mailto:/tel: or a form whose
+# fields ask for a way to reply.
+PAGE_TRAIT_CONTACT_FORM_FIELDS: Final[frozenset[str]] = frozenset(
+    {"email", "e-mail", "phone", "telephone", "message", "enquiry", "inquiry"}
+)
+
+# Ordered-list steps needed before a page counts as procedural. Two is not a
+# procedure; it is a pair of sentences that happen to be in a list.
+PAGE_TRAIT_PROCEDURAL_MIN_STEPS: Final = 3
+
+PAGE_TRAIT_APPLICABILITY_PREFIX: Final = "page_trait:"
+
+PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX: Final = "page_trait_content:"
+
+TRAITS_VERSION: Final = "sh-traits-1"
+
+
+def _page_traits(*traits: str, reads_content: bool = False) -> str:
+    """Build a ``page_trait:a|b`` applicability key.
+
+    A trait-scoped rule is evaluated on any page CARRYING that trait, whatever
+    its primary kind, and is inapplicable everywhere else. That is what lets a
+    product page with an FAQ answer the FAQ integrity checks without being
+    reclassified as an FAQ.
+
+    Traits are observations, so a trait-scoped rule is not gated by
+    classification confidence -- there is no classification involved.
+    """
+    prefix = (
+        PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX
+        if reads_content
+        else PAGE_TRAIT_APPLICABILITY_PREFIX
+    )
+    return f"{prefix}{'|'.join(traits)}"
+
 
 def _page_kinds(
     *kinds: str,
