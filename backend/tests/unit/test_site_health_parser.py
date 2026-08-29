@@ -446,9 +446,8 @@ _V2_PAGE = b"""
 
 
 def test_extractor_version_is_sh_extractor_13():
-    # sh-extractor-13 adds the visible byline/date fallback to the author and
-    # date facts, while retaining the explicit breadcrumb relationship URLs of
-    # v12 and the DOM traversal failure boundary.
+    # sh-extractor-13 adds targeted visible byline/date facts while retaining
+    # the explicit breadcrumb relationship URLs of v12.
     assert EXTRACTOR_VERSION == "sh-extractor-13"
     assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-13"
 
@@ -605,13 +604,21 @@ def test_visible_byline_and_date_are_read_when_no_markup_declares_them():
     facts = _facts(body)
     assert facts["author"] == "By Ruth Ellery"
     assert facts["dates"]["published"] == "14 March 2026"
+    assert facts["authorship"] == {
+        "visible_byline": "By Ruth Ellery",
+        "visible_date": "14 March 2026",
+    }
 
 
 def test_day_first_dates_are_recognised():
     # "14 March 2026" is the ordinary written form across Britain and Europe.
     # Only ISO and month-first were matched, so those articles read as undated.
     for written in (b"2 February 2026", b"11 Mar 2026", b"March 14, 2026"):
-        body = b"<html><body><p>Published " + written + b"</p></body></html>"
+        body = (
+            b'<html><body><p class="publication-date">Published '
+            + written
+            + b"</p></body></html>"
+        )
         assert _facts(body)["dates"]["published"] != "", written
 
 
@@ -642,6 +649,38 @@ def test_a_date_inside_json_ld_is_not_a_visible_date():
         b"</body></html>"
     )
     assert _facts(body)["dates"]["published"] == ""
+
+
+def test_an_unlabelled_content_date_is_not_a_publication_date():
+    body = (
+        b"<html><body><article><h1>History</h1>"
+        b"<p>The organization was founded on 2 February 2026.</p>"
+        b"</article></body></html>"
+    )
+    facts = _facts(body)
+    assert facts["dates"]["published"] == ""
+    assert facts["authorship"]["visible_date"] == ""
+
+
+def test_visible_authorship_is_not_limited_to_the_body_text_prefix():
+    filler = b"<p>Background material without a date. </p>" * 100
+    body = (
+        b"<html><body><article><h1>A long article</h1>"
+        + filler
+        + b'<p class="byline">By Ruth Ellery, published 2 February 2026</p>'
+        + b"</article></body></html>"
+    )
+    facts = _facts(body)
+    assert facts["author"] == "By Ruth Ellery"
+    assert facts["dates"]["published"] == "2 February 2026"
+
+
+def test_ordered_navigation_is_not_procedural_content():
+    body = (
+        b"<html><body><nav><ol><li>One</li><li>Two</li><li>Three</li></ol></nav>"
+        b"<p>Short primary content.</p></body></html>"
+    )
+    assert _facts(body)["ordered_list_steps"] == 0
 
 
 def test_outbound_domains_sorted_deduped_external_only():

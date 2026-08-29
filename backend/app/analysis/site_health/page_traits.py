@@ -17,9 +17,8 @@ checking them on ``/contact-us`` misses an obvious improvement. Likewise
 ``case_study_review`` bundles "problem, intervention, result" with "item,
 evaluator, verdict".
 
-A trait is an OBSERVATION, never an inference about purpose. Each is read from
-evidence the page actually carries, so a trait-scoped rule needs no
-classification-confidence gate: there is no classification involved.
+A trait is an observation, never an inference about purpose. Each is read from
+evidence the page actually carries.
 
 Pure, deterministic, bounded, versioned. No I/O, no ORM, no model call.
 """
@@ -192,9 +191,6 @@ def derive_traits(final_url: str, facts: dict[str, Any]) -> tuple[str, ...]:
         ),
         _config.PAGE_TRAIT_CASE_STUDY_INTENT: _intent(
             _config.PAGE_TRAIT_CASE_STUDY_INTENT, final_url, facts
-        ),
-        _config.PAGE_TRAIT_REVIEW_INTENT: _intent(
-            _config.PAGE_TRAIT_REVIEW_INTENT, final_url, facts
         ),
         _config.PAGE_TRAIT_COMPARISON_CONTENT: _intent(
             _config.PAGE_TRAIT_COMPARISON_CONTENT, final_url, facts

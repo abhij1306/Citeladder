@@ -236,7 +236,7 @@ analyzer and extractor versions and returns the exact source-analysis IDs.
 Optional `crawl_id` selects one usable terminal crawl; omission selects the
 latest. Reads never analyze, enqueue, repair, or call a provider.
 
-Taxonomy `aeo-readiness-v1` maps exactly 21 declared rule IDs into seven ordered
+Taxonomy `aeo-readiness-v1` maps exactly 20 declared rule IDs into seven ordered
 dimensions: **Answerability**, **Structure**, **Evidence**,
 **Machine readability**, **Authority**, **Freshness**, and **Crawlability**.
 
@@ -355,29 +355,24 @@ additive and answers "what else is on it":
 
 ```text
 has_faq, has_reviews, has_variants, listing, local_intent,
-contact_intent, about_intent, case_study_intent, review_intent,
-comparison_content, procedural
+contact_intent, about_intent, case_study_intent, comparison_content, procedural
 ```
 
 A product page carrying an FAQ block is a `product` with a separate `has_faq`
 observation, rather than being filed as one or the other or requiring a
-`product_with_faq` kind that would never cover every combination. Traits can
-drive focused checks without changing the primary kind;
-`aeo.reviewer_identified` is the first trait-scoped rule.
+`product_with_faq` kind that would never cover every combination.
 
 Traits also separate the two kinds that bundle unlike pages. `about_contact`
 mixes pages with different success criteria — demanding contact details of
 `/about/our-story` invents a fault, while not checking them on `/contact-us`
 misses an improvement — and `case_study_review` mixes "problem, intervention,
 result" with "item, evaluator, verdict". `aeo.author_present` therefore no
-longer applies to `case_study_review`, and `aeo.reviewer_identified` asks for
-an evaluator on any page observed to carry `review_intent`, whatever its kind.
+longer applies to `case_study_review`; the analyzer does not guess whether the
+page is the case-study half or the review half from a route or title token.
 
 Derivation is pure, deterministic, bounded, and versioned (`TRAITS_VERSION`).
 It reads the same page facts as the classifier but never reads `page_kind`, so
-a trait is an observation rather than a consequence of the classification. That
-is also why a trait-scoped rule (`page_trait:` / `page_trait_content:`) is not
-gated by classification confidence: there is no classification behind it.
+a trait is an observation rather than a consequence of the classification.
 
 A trait is deliberately stricter than the classifier signal it resembles.
 `has_faq` requires FAQPage markup or subheadings that literally end in a
@@ -455,13 +450,6 @@ Not-applicable is different from pass and is excluded from scoring.
 - Author and citation rules apply only to authored editorial types.
   `aeo.author_present` is `not_applicable` on `case_study_review`: a case study
   is usually published by the organization and owes no named writer.
-- Trait-scoped rules apply wherever the trait is OBSERVED, across every page
-  kind and every confidence tier, because a trait is an observation and there
-  is no classification behind it to be unsure of. Where the trait is absent
-  they are `not_applicable` with reason `trait_not_observed`.
-  `aeo.reviewer_identified` is the first of these: any page carrying
-  `review_intent` owes the reader an identifiable evaluator, whether it is
-  filed under `/reviews/` or is a product page with a verdict on it.
 - Date rules also include documentation.
 - Question-heading rules apply to FAQ pages only, and are not applicable to a
   page with no h2/h3 subheadings at all: no sections is a different fact from
@@ -568,12 +556,6 @@ false-positive work it surfaced during:
   advisory: it cannot detect content that is genuinely unreachable without
   interaction (empty `<template>` shells, `hidden` containers, client-fetched
   panels), which needs a new extractor signal before it can be a defect again.
-- **Minified HTML defeats the visible byline and date.** `_body_text` joins
-  block elements without inserting whitespace, so `<h1>Title</h1><p>By A B</p>`
-  reads as `TitleBy A B` and the byline pattern finds no word boundary. This
-  predates the visible-byline fallback and equally affects the classifier's
-  article heuristic. Fixing it means changing `node_text`, which moves every
-  word count.
 - **`aeo.outbound_citations` applies to guides.** A practical how-to that cites
   nothing is not defective. The rule wants an "is this a researched claim?"
   trigger rather than a page-kind scope.

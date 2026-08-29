@@ -96,7 +96,6 @@ const PAGE_TRAIT_LABELS: Readonly<Record<string, string>> = {
   contact_intent: 'Contact details',
   about_intent: 'About the organization',
   case_study_intent: 'Case study',
-  review_intent: 'Review',
   comparison_content: 'Comparison',
   procedural: 'Step by step',
 };

@@ -37,8 +37,7 @@ def _row(
 def test_taxonomy_is_exact_known_and_one_to_one() -> None:
     assert set(AEO_READINESS_RULE_DIMENSIONS) <= set(SITE_HEALTH_RULES_BY_ID)
     assert set(AEO_READINESS_RULE_DIMENSIONS.values()) == set(AEO_READINESS_DIMENSIONS)
-    # 21 with aeo.reviewer_identified, the trait-scoped reviewer check.
-    assert len(AEO_READINESS_RULE_DIMENSIONS) == 21
+    assert len(AEO_READINESS_RULE_DIMENSIONS) == 20
 
 
 def test_projection_reconciles_states_and_never_guesses_unmapped_rules() -> None:
@@ -68,7 +67,7 @@ def test_projection_reconciles_states_and_never_guesses_unmapped_rules() -> None
     )
     assert errored.error_count == 1
     assert result.observed_evaluation_count == 4
-    assert result.expected_evaluation_count == 21
+    assert result.expected_evaluation_count == 20
     assert all(
         check.rule_id != "technical.title_present" for check in answerability.checks
     )

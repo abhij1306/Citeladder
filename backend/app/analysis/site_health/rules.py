@@ -574,9 +574,6 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "aeo.schema_recommended_present": check_schema_recommended_present,
     "aeo.schema_matches_content": check_schema_matches_content,
     "aeo.author_present": _check_author_present,
-    # Same evidence, different question: a review needs an identifiable
-    # evaluator, and the page's author IS that evaluator.
-    "aeo.reviewer_identified": _check_author_present,
     "aeo.date_present": _check_date_present,
     "aeo.outbound_citations": _check_outbound_citations,
     "aeo.organization_identity": _check_organization_identity,

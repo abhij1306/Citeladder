@@ -240,7 +240,6 @@ AEO_READINESS_RULE_DIMENSIONS: Final[dict[str, str]] = {
     "aeo.open_graph_present": "machine-readability",
     "aeo.llms_txt_present": "machine-readability",
     "aeo.author_present": "authority",
-    "aeo.reviewer_identified": "authority",
     "aeo.organization_identity": "authority",
     "aeo.date_present": "freshness",
     "aeo.server_rendered_content": "crawlability",
@@ -382,10 +381,9 @@ EVENT_CRAWL_FAILED: Final = "crawl.failed"
 
 EVENT_CRAWL_CANCELLED: Final = "crawl.cancelled"
 
-# v13: the author/date facts gained a VISIBLE byline and date fallback, so a
-# page that prints "By Ruth Ellery, 2 February 2026" where a reader looks for
-# it is no longer recorded as having neither. Facts extracted under v12 stay
-# replayable at v12 (invariant 5).
+# v13: the author/date facts gained targeted visible byline/date evidence from
+# labelled primary-content nodes. Facts extracted under v12 stay replayable at
+# v12 (invariant 5).
 EXTRACTOR_VERSION: Final = "sh-extractor-13"
 
 LINK_REWRITE_VERSION: Final = "sh-link-rewrite-1"

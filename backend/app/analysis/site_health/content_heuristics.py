@@ -10,10 +10,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.core.config import site_health_authorship as _authorship_config
 from app.core.config import site_health_taxonomy as _config
 
-_BYLINE_RE = re.compile(_config.PAGE_KIND_BYLINE_PATTERN)
-_DATE_RE = re.compile(_config.PAGE_KIND_DATE_PATTERN, re.IGNORECASE)
+_BYLINE_RE = re.compile(_authorship_config.BYLINE_PATTERN)
+_DATE_RE = re.compile(_authorship_config.DATE_PATTERN, re.IGNORECASE)
 
 
 def visible_byline(text: str) -> str:
@@ -68,11 +69,9 @@ def _faq_signal(facts: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def _article_signal(body_text: str) -> dict[str, Any] | None:
-    if not body_text:
-        return None
-    prefix = body_text[: _config.PAGE_KIND_ARTICLE_SCAN_CHARS]
-    if not (_BYLINE_RE.search(prefix) and _DATE_RE.search(prefix)):
+def _article_signal(facts: dict[str, Any]) -> dict[str, Any] | None:
+    authorship = _mapping(facts.get("authorship"))
+    if not (authorship.get("visible_byline") and authorship.get("visible_date")):
         return None
     return {
         "signal": _config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC,
@@ -91,7 +90,4 @@ def content_heuristic(facts: dict[str, Any]) -> dict[str, Any] | None:
     outside every repeated card list, so this leaf keeps only the two signals
     that were never region-sensitive: question headings and a byline + date.
     """
-    body = _mapping(facts.get("body"))
-    raw_body_text = body.get("text")
-    body_text = raw_body_text if isinstance(raw_body_text, str) else ""
-    return _faq_signal(facts) or _article_signal(body_text)
+    return _faq_signal(facts) or _article_signal(facts)

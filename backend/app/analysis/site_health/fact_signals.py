@@ -8,7 +8,11 @@ from urllib.parse import urlsplit
 
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
 from app.analysis.site_health.dom import node_text as _text
-from app.analysis.site_health.fact_regions import card_list_containers, primary_region
+from app.analysis.site_health.fact_regions import (
+    card_list_containers,
+    primary_region,
+    region_node_is_visible,
+)
 from app.connectors.web_evidence.url_policy import registrable_domain
 from app.core.config import site_health_acquisition as config
 from app.core.config.site_health_rules import ANSWER_FIRST_MAX_HOPS
@@ -203,7 +207,8 @@ def ordered_list_steps(root: Any) -> int:
             (
                 len(ordered.xpath("./li"))
                 for ordered in region.xpath(".//ol")
-                if not any(
+                if region_node_is_visible(ordered)
+                and not any(
                     id(ancestor) in excluded for ancestor in ordered.iterancestors()
                 )
             ),

@@ -573,6 +573,7 @@ def _empty_facts() -> dict[str, Any]:
         # v2 P2 (sh-extractor-2) fields.
         "author": "",
         "dates": {"published": "", "modified": ""},
+        "authorship": {"visible_byline": "", "visible_date": ""},
         "outbound_domains": [],
         "landmarks": {"main": False, "article": False, "nav": False},
         "ordered_list_steps": 0,
@@ -669,16 +670,11 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
         "total": blocking_scripts + blocking_styles,
     }
     facts["body"] = _body_text(root, max_chars=settings.max_text_chars)
-    # AFTER the body text exists: the visible byline/date fallback reads it.
-    # ``_body_text`` strips script/style/noscript/template, which this needs
-    # anyway -- a date inside a JSON-LD block is declared markup, already
-    # covered by the structured-data branch, and is not a VISIBLE date.
-    facts["author"], facts["dates"] = author_and_dates(
+    facts["author"], facts["dates"], facts["authorship"] = author_and_dates(
         root,
         facts["structured_data"],
         article_meta,
         meta_author=_meta_content(root, name="author"),
-        body_text=facts["body"]["text"],
     )
     try:
         facts["commerce"] = extract_commerce_facts(

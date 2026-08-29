@@ -284,22 +284,6 @@ CART_FORM_ACTION_TOKENS: Final[frozenset[str]] = frozenset(
     {"/cart", "cart/add", "basket"}
 )
 
-PAGE_KIND_ARTICLE_SCAN_CHARS: Final = 2000
-
-PAGE_KIND_BYLINE_PATTERN: Final = r"\b[Bb]y\s+[A-Z][\w'’-]+(?:\s+[A-Z][\w'’-]+){1,2}\b"
-
-# ISO, month-first ("March 14, 2026") and day-first ("14 March 2026"). The
-# day-first alternative was missing, so every British and European article --
-# where day-first is the ordinary written form -- read as carrying no date at
-# all, both to the classifier's article heuristic and to the visible-date fact.
-PAGE_KIND_DATE_PATTERN: Final = (
-    r"(?:\b\d{4}-\d{2}-\d{2}\b"
-    r"|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)"
-    r"[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b"
-    r"|\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)"
-    r"[a-z]*\.?,?\s+\d{4}\b)"
-)
-
 PAGE_KIND_SCHEMA_TYPE_MAP: Final[dict[str, str]] = {
     "FAQPage": PAGE_KIND_FAQ,
     "Product": PAGE_KIND_PRODUCT,

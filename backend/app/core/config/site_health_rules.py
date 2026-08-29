@@ -40,10 +40,6 @@ from app.core.config.site_health_taxonomy import (
     PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
     _page_kinds,
 )
-from app.core.config.site_health_traits import (
-    PAGE_TRAIT_REVIEW_INTENT,
-    page_traits_key,
-)
 
 DIMENSION_WEIGHT_TECHNICAL: Final = 0.5
 
@@ -438,9 +434,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         # case_study_review is dropped here because it is two page types in a
         # trenchcoat. A case study demonstrates problem, intervention, result,
         # and is usually published by the organisation rather than by a named
-        # writer -- an absent byline is not a defect. A review needs an
-        # identifiable evaluator, which ``aeo.reviewer_identified`` asks of
-        # exactly the pages that read as reviews.
+        # writer -- an absent byline is not a defect.
         applicability_key=_page_kinds(
             PAGE_KIND_ARTICLE,
             PAGE_KIND_GUIDE,
@@ -450,32 +444,6 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description=("Page exposes an author byline (visible, schema, or metadata)."),
         remediation="Add an author byline (visible, JSON-LD author, or meta).",
         display_label="Missing author byline",
-    ),
-    SiteHealthRule(
-        rule_id="aeo.reviewer_identified",
-        rule_version=RULE_CATALOG_VERSION,
-        dimension=DIMENSION_AEO,
-        category=CATEGORY_CITABILITY,
-        severity=SEVERITY_MEDIUM,
-        weight=1.5,
-        # Scoped by TRAIT, not by page kind. A review is a thing a page does,
-        # not only a thing a page is: a product page carrying an editorial
-        # verdict owes the reader an evaluator exactly as much as a page filed
-        # under /reviews/ does, and neither has to be reclassified for the
-        # question to be asked.
-        #
-        # Traits are observations, so this is not gated by classification
-        # confidence -- there is no classification behind it to be unsure of.
-        applicability_key=page_traits_key(
-            PAGE_TRAIT_REVIEW_INTENT,
-            reads_content=True,
-        ),
-        description="A page presenting a review identifies who evaluated it.",
-        remediation=(
-            "Name the reviewer or the reviewing organization, so the verdict "
-            "can be attributed."
-        ),
-        display_label="Review has no identified reviewer",
     ),
     SiteHealthRule(
         rule_id="aeo.date_present",

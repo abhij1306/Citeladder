@@ -91,8 +91,7 @@ def test_an_article_with_descriptive_headings_is_not_an_faq() -> None:
 def test_traits_never_read_the_page_kind() -> None:
     """A trait is derived from facts, never from the classification.
 
-    This is what lets a product page retain an FAQ observation, and what makes
-    trait-scoped rules safe to run at any classification confidence.
+    This lets a product page retain an FAQ observation without changing kind.
     """
     url = "https://northgate.example/faq"
     facts = _facts("faq_accordion.html", url)

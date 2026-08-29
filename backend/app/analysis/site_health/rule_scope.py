@@ -24,10 +24,6 @@ from app.core.config.site_health_taxonomy import (
     PAGE_KIND_TIER_STRUCTURAL,
     PageKindProfile,
 )
-from app.core.config.site_health_traits import (
-    PAGE_TRAIT_APPLICABILITY_PREFIX,
-    PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX,
-)
 
 
 def profile_for(facts: dict) -> PageKindProfile | None:
@@ -110,25 +106,9 @@ def _kind_scoped(
     return True, ""
 
 
-def _trait_scoped(
-    key: str, prefix: str, facts: dict, *, reads_content: bool
-) -> tuple[bool, str]:
-    if not (observed_traits(facts) & _tokens(key, prefix)):
-        return False, "trait_not_observed"
-    return _observed_content(facts) if reads_content else (True, "")
-
-
 def _prefixed_scope(
     rule: SiteHealthRule, key: str, facts: dict
 ) -> tuple[bool, str] | None:
-    if key.startswith(PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX):
-        return _trait_scoped(
-            key, PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX, facts, reads_content=True
-        )
-    if key.startswith(PAGE_TRAIT_APPLICABILITY_PREFIX):
-        return _trait_scoped(
-            key, PAGE_TRAIT_APPLICABILITY_PREFIX, facts, reads_content=False
-        )
     kind_scopes = (
         (PAGE_KIND_CONTENT_APPLICABILITY_PREFIX, "content"),
         (PAGE_KIND_HTML_APPLICABILITY_PREFIX, "html"),

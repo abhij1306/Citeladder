@@ -43,6 +43,7 @@ def _facts(
     schema_types: list[str] | None = None,
     title: str = "",
     entity: dict | None = None,
+    authorship: dict[str, str] | None = None,
 ) -> dict:
     """A bounded parser-facts-shaped dict with only what classify() reads."""
     return {
@@ -51,6 +52,7 @@ def _facts(
         "body": {"text": body_text, "word_count": len(body_text.split())},
         "structured_data": {"types": schema_types or [], "blocks": []},
         "entity": entity or {},
+        "authorship": authorship or {},
     }
 
 
@@ -99,7 +101,10 @@ def _question_h2s(count: int, *, total: int | None = None) -> list[str]:
 
 
 _PRODUCT_TEXT = "This durable water bottle costs $19.99. Add to cart today."
-_ARTICLE_TEXT = "By Jane Doe\nMarch 3, 2026\nAn in-depth look at the topic."
+_ARTICLE_AUTHORSHIP = {
+    "visible_byline": "By Jane Doe",
+    "visible_date": "March 3, 2026",
+}
 
 
 # --- Signal 1: root path -> homepage ---------------------------------------
@@ -355,13 +360,15 @@ def test_cart_marker_without_price_does_not_classify_product() -> None:
 
 
 def test_byline_and_date_classify_article() -> None:
-    assessment = classify("https://example.com/post", _facts(body_text=_ARTICLE_TEXT))
+    assessment = classify(
+        "https://example.com/post", _facts(authorship=_ARTICLE_AUTHORSHIP)
+    )
     assert assessment.page_kind == "article"
     assert assessment.classified_by == PAGE_KIND_SIGNAL_CONTENT_HEURISTIC
 
 
 def test_byline_without_date_does_not_classify_article() -> None:
-    facts = _facts(body_text="By Jane Doe\nAn undated musing on the topic.")
+    facts = _facts(authorship={"visible_byline": "By Jane Doe"})
     assert classify("https://example.com/post", facts).page_kind == "other"
 
 
@@ -521,7 +528,8 @@ def test_evidence_is_bounded_and_explainable() -> None:
 def test_classification_is_deterministic() -> None:
     facts = _facts(
         h2_texts=_question_h2s(3),
-        body_text=_PRODUCT_TEXT + " " + _ARTICLE_TEXT,
+        body_text=_PRODUCT_TEXT,
+        authorship=_ARTICLE_AUTHORSHIP,
         schema_types=["Product"],
     )
     first = classify("https://example.com/page", facts)
