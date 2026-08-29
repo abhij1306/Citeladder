@@ -36,8 +36,8 @@ from app.core.config.site_health_rule_types import (
 )
 
 
-def _s(outcome, weight, dimension=DIMENSION_TECHNICAL):
-    return _Scored(dimension=dimension, outcome=outcome, weight=weight)
+def _s(outcome, weight, dimension=DIMENSION_TECHNICAL, rule_id=""):
+    return _Scored(dimension=dimension, outcome=outcome, weight=weight, rule_id=rule_id)
 
 
 def _advisory(outcome, weight, dimension=DIMENSION_TECHNICAL):
@@ -133,15 +133,16 @@ def test_score_analysis_end_to_end():
         # Technical: passed=3, failed=1 -> 75.0
         _s(RULE_OUTCOME_PASS, 3.0, DIMENSION_TECHNICAL),
         _s(RULE_OUTCOME_FAIL, 1.0, DIMENSION_TECHNICAL),
-        # AEO: passed=2, error=2 -> 100*2/4 = 50.0
-        _s(RULE_OUTCOME_PASS, 2.0, DIMENSION_AEO),
-        _s(RULE_OUTCOME_ERROR, 2.0, DIMENSION_AEO),
+        # AEO: four determinate checkpoints across four readiness dimensions.
+        _s(RULE_OUTCOME_PASS, 2.0, DIMENSION_AEO, "aeo.answer_first"),
+        _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.schema_required_valid"),
+        _s(RULE_OUTCOME_FAIL, 1.0, DIMENSION_AEO, "aeo.outbound_citations"),
+        _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.author_present"),
     ]
     scores = score_analysis(evals)
     assert scores.technical_score == pytest.approx(75.0)
-    assert scores.aeo_score == pytest.approx(50.0)
-    # overall = mean(75, 50) = 62.5
-    assert scores.overall_score == pytest.approx(62.5)
+    assert scores.aeo_score == pytest.approx(80.0)
+    assert scores.overall_score == pytest.approx(77.5)
     assert scores.scoring_version == SCORING_VERSION
 
 
@@ -168,6 +169,44 @@ def test_unclassified_page_has_no_aeo_score() -> None:
     assert scores.technical_score == pytest.approx(100.0)
     assert scores.aeo_score is None
     assert scores.overall_score == pytest.approx(100.0)
+
+
+def test_sparse_aeo_score_is_suppressed_even_when_its_only_check_passes() -> None:
+    scores = score_analysis(
+        [
+            _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_TECHNICAL),
+            _s(
+                RULE_OUTCOME_PASS,
+                2.0,
+                DIMENSION_AEO,
+                "aeo.question_headings",
+            ),
+        ],
+        page_kind="faq",
+    )
+
+    assert scores.technical_score == pytest.approx(100.0)
+    assert scores.aeo_score is None
+    assert scores.overall_score == pytest.approx(100.0)
+
+
+def test_pr1_aeo_guard_opens_at_four_checkpoints_across_three_dimensions() -> None:
+    scores = score_analysis(
+        [
+            _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.answer_first"),
+            _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.question_headings"),
+            _s(
+                RULE_OUTCOME_PASS,
+                1.0,
+                DIMENSION_AEO,
+                "aeo.schema_required_valid",
+            ),
+            _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.author_present"),
+        ],
+        page_kind="faq",
+    )
+
+    assert scores.aeo_score == pytest.approx(100.0)
 
 
 # --- aggregation ----------------------------------------------------------

@@ -331,6 +331,7 @@ test('earned opportunity handoff links generation and comparable verification', 
   await expect(page).toHaveURL(/\/content/);
   expect(new URL(page.url()).searchParams.get('opportunity_id')).toBe(OPPORTUNITY);
   await expect(page.getByText('Path: Earned')).toBeVisible();
+  await expect(page.getByText(detail(false).remediation)).toHaveCount(0);
   const prompt = page.getByRole('textbox', { name: /describe the website content/i });
   await expect(prompt).toHaveValue(handoff.task_seed);
   await page.getByRole('button', { name: 'Generate' }).click();

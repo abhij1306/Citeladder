@@ -171,15 +171,13 @@ async function stubWebsite(page: Page) {
         crawl_id: CRAWL,
         coverage_state: 'complete',
         page_count: 2,
-        page_kind_counts: { article: 2 },
-        families: [
+        page_kinds: [
           {
-            family: '/pages/*',
-            url_count: 2,
-            page_kind_distribution: { article: 2 },
+            page_kind: 'article',
+            page_count: 2,
             median_depth: 1,
             indexable_count: 2,
-            metadata_duplication_rate: 0,
+            duplicate_metadata_count: 0,
             orphan_count: 0,
           },
         ],
@@ -189,7 +187,6 @@ async function stubWebsite(page: Page) {
             url: 'https://acme.example/case-study',
             title: 'Case study',
             page_kind: 'article',
-            family: '/pages/*',
             parent_site_url_id: null,
             parent_source: 'unknown',
             depth_from_home: 1,
@@ -199,12 +196,27 @@ async function stubWebsite(page: Page) {
             url: 'https://acme.example/guide',
             title: 'Guide',
             page_kind: 'article',
-            family: '/pages/*',
             parent_site_url_id: null,
             parent_source: 'unknown',
             depth_from_home: 1,
           },
         ],
+        internal_linking: {
+          internal_link_count: 4,
+          pages_with_incoming_count: 2,
+          pages_with_incoming_percentage: 1,
+          orphan_page_count: 0,
+        },
+        structure_depth: {
+          measured_page_count: 2,
+          unmeasured_page_count: 0,
+          buckets: [
+            { key: 'depth_0', page_count: 0, percentage: 0 },
+            { key: 'depth_1', page_count: 2, percentage: 1 },
+            { key: 'depth_2', page_count: 0, percentage: 0 },
+            { key: 'depth_3_plus', page_count: 0, percentage: 0 },
+          ],
+        },
         architecture_formula_version: 'sh-architecture-1',
         limitations: [],
       },
@@ -284,30 +296,36 @@ test('AEO Readiness browser proof: seven named dimensions and page-grouped evide
   const panel = page.getByTestId('aeo-readiness');
   await expect(panel).toBeVisible();
   for (const [, label] of dimensions) await expect(panel).toContainText(label);
-  // Pages needing work, not a bare evaluation count.
-  await expect(panel).toContainText('1 of 2 checked pages need work');
-  // Checks are named the way the catalog names them, never by rule id.
-  await expect(panel).toContainText('Answer is not stated first');
+  for (const heading of ['Determinate', 'Expected', 'N/A', 'Errors', 'Coverage', 'State']) {
+    await expect(panel.getByRole('columnheader', { name: heading })).toBeVisible();
+  }
+  await expect(panel).not.toContainText('Answer is not stated first');
   await expect(panel).not.toContainText('aeo.answer_first');
 
-  await page.getByRole('button', { name: 'View 1 page to fix' }).click();
+  await page.getByRole('button', { name: 'View details for Answerability' }).click();
   const evidence = page.getByRole('dialog');
+  await expect(evidence).toContainText('1 page failed at least one check');
   await expect(evidence).toContainText('acme.example/case-study');
+  // Checks are named the way the catalog names them, never by rule id.
   await expect(evidence).toContainText('Answer is not stated first');
+  await expect(evidence).not.toContainText('aeo.answer_first');
 });
 
-test('Architecture browser proof: page families expand to their URLs', async ({ page }) => {
+test('Architecture browser proof: page kinds expand to their URLs', async ({ page }) => {
   await stubWebsite(page);
   await page.goto('/site');
   await page.getByRole('tab', { name: 'Architecture' }).click();
 
   const panel = page.getByTestId('site-architecture');
   await expect(panel).toBeVisible();
-  await expect(panel).toContainText('/pages/*');
-  // Pages stay behind the family dropdown until it is opened.
-  await expect(panel).not.toContainText('https://acme.example/case-study');
-  await page.getByRole('button', { name: /\/pages\/\*/ }).click();
-  await expect(panel).toContainText('https://acme.example/case-study');
+  await expect(panel).toContainText('Article');
+  const pageKindLedger = panel.getByRole('table');
+  // The hierarchy is always visible; the separate page-kind URL list stays
+  // behind its disclosure until the row is opened.
+  await expect(pageKindLedger).not.toContainText('https://acme.example/case-study');
+  await page.getByRole('button', { name: 'Article' }).click();
+  await expect(pageKindLedger).toContainText('https://acme.example/case-study');
+  await expect(panel.getByRole('heading', { name: 'Observed hierarchy' })).toBeVisible();
 });
 
 test('Website Changes browser proof: summary and exact before-after evidence', async ({ page }) => {

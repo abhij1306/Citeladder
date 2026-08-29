@@ -17,69 +17,69 @@ beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
-const NODES = [
-  {
-    site_url_id: HOME,
-    url: 'https://acme.test/',
-    title: 'Home',
-    page_kind: 'homepage',
-    family: '/',
-    parent_site_url_id: null,
-    parent_source: 'unknown',
-    depth_from_home: 0,
-  },
-  {
-    site_url_id: BAGS,
-    url: 'https://acme.test/shop/bags',
-    title: 'Bags',
-    page_kind: 'category',
-    family: '/shop/*',
-    parent_site_url_id: HOME,
-    parent_source: 'breadcrumb',
-    depth_from_home: 1,
-  },
-  {
-    site_url_id: BOOTS,
-    url: 'https://acme.test/shop/boots',
-    title: 'Boots',
-    page_kind: 'product',
-    family: '/shop/*',
-    parent_site_url_id: HOME,
-    parent_source: 'breadcrumb',
-    depth_from_home: 1,
-  },
-];
-
-const FAMILIES = [
-  {
-    family: '/',
-    url_count: 1,
-    page_kind_distribution: { homepage: 1 },
-    median_depth: 0,
-    indexable_count: 1,
-    metadata_duplication_rate: 0,
-    orphan_count: 0,
-  },
-  {
-    family: '/shop/*',
-    url_count: 2,
-    page_kind_distribution: { category: 1, product: 1 },
-    median_depth: 1,
-    indexable_count: 2,
-    metadata_duplication_rate: 0.5,
-    orphan_count: 1,
-  },
-];
-
 function architecture(overrides: Record<string, unknown> = {}) {
   return {
     state: 'available',
     crawl_id: CRAWL,
     coverage_state: 'complete',
     page_count: 3,
-    page_kind_counts: { homepage: 1, category: 1, product: 1 },
-    families: FAMILIES,
-    nodes: NODES,
+    page_kinds: [
+      {
+        page_kind: 'product',
+        page_count: 2,
+        median_depth: 1,
+        indexable_count: 2,
+        duplicate_metadata_count: 1,
+        orphan_count: 1,
+      },
+      {
+        page_kind: 'homepage',
+        page_count: 1,
+        median_depth: 0,
+        indexable_count: 1,
+        duplicate_metadata_count: 0,
+        orphan_count: 0,
+      },
+    ],
+    nodes: [
+      {
+        site_url_id: HOME,
+        url: 'https://acme.test/',
+        title: 'Home',
+        page_kind: 'homepage',
+        parent_site_url_id: null,
+        parent_source: 'unknown',
+        depth_from_home: 0,
+      },
+      ...[
+        [BAGS, 'https://acme.test/shop/bags'],
+        [BOOTS, 'https://acme.test/shop/boots'],
+      ].map(([siteUrlId, url]) => ({
+        site_url_id: siteUrlId,
+        url,
+        title: 'Product',
+        page_kind: 'product',
+        parent_site_url_id: HOME,
+        parent_source: 'breadcrumb',
+        depth_from_home: 1,
+      })),
+    ],
+    internal_linking: {
+      internal_link_count: 8,
+      pages_with_incoming_count: 2,
+      pages_with_incoming_percentage: 0.6667,
+      orphan_page_count: 1,
+    },
+    structure_depth: {
+      measured_page_count: 3,
+      unmeasured_page_count: 0,
+      buckets: [
+        { key: 'depth_0', page_count: 1, percentage: 0.3333 },
+        { key: 'depth_1', page_count: 2, percentage: 0.6667 },
+        { key: 'depth_2', page_count: 0, percentage: 0 },
+        { key: 'depth_3_plus', page_count: 0, percentage: 0 },
+      ],
+    },
     architecture_formula_version: 'sh-architecture-1',
     limitations: [],
     ...overrides,
@@ -95,68 +95,68 @@ function stubArchitecture(overrides: Record<string, unknown> = {}) {
 }
 
 describe('Architecture panel', () => {
-  it('lists page families largest first and keeps their pages collapsed', async () => {
+  it('groups URLs by one page-kind term and shows persisted summaries', async () => {
     stubArchitecture();
     renderWithProviders(<ArchitecturePanel projectId={PROJECT} crawlId={CRAWL} />);
 
-    expect(await screen.findByText('Page families')).toBeInTheDocument();
-    const rows = screen.getAllByRole('button', { expanded: false });
-    expect(rows[0]).toHaveTextContent('/shop/*');
-    expect(rows[0]).toHaveTextContent('2 URLs');
-    // Pages stay behind the dropdown until asked for.
-    expect(screen.queryByRole('link', { name: 'https://acme.test/shop/bags' })).toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Page kinds' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Page kind' })).toBeInTheDocument();
+    expect(screen.queryByText('Type mix')).toBeNull();
+    expect(screen.queryByText('URL pattern')).toBeNull();
+    expect(screen.getByText('Internal linking')).toBeInTheDocument();
+    expect(screen.getByText('Structure depth')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Observed hierarchy' })).toBeInTheDocument();
+    expect(screen.getByText('67%')).toBeInTheDocument();
+    expect(screen.getByText('8')).toBeInTheDocument();
   });
 
-  it('reveals a family’s pages as links into the existing page detail', async () => {
+  it('renders the persisted parent hierarchy and relationship source', async () => {
     stubArchitecture();
     renderWithProviders(<ArchitecturePanel projectId={PROJECT} crawlId={CRAWL} />);
 
-    await userEvent.click(await screen.findByRole('button', { name: /\/shop\/\*/ }));
-    expect(screen.getByRole('link', { name: 'https://acme.test/shop/bags' })).toHaveAttribute(
-      'href',
-      `/site/crawls/${CRAWL}/pages/${BAGS}`,
-    );
-    expect(screen.getByRole('link', { name: 'https://acme.test/shop/boots' })).toBeInTheDocument();
-    // The family's own facts sit with its pages, not in a separate table.
-    expect(screen.getByText('Duplicate metadata')).toBeInTheDocument();
-    expect(screen.getByText('50%')).toBeInTheDocument();
+    const home = await screen.findByRole('link', { name: 'https://acme.test/' });
+    const homeBranch = home.closest('li');
+    expect(homeBranch).not.toBeNull();
+    expect(
+      within(homeBranch!).getByRole('link', { name: 'https://acme.test/shop/bags' }),
+    ).toBeInTheDocument();
+    expect(within(homeBranch!).getAllByText('Breadcrumb')).toHaveLength(2);
   });
 
-  it('renders neither an observed tree nor a site-profile block', async () => {
+  it('reveals all URLs assigned to a page kind', async () => {
     stubArchitecture();
     renderWithProviders(<ArchitecturePanel projectId={PROJECT} crawlId={CRAWL} />);
 
-    await screen.findByText('Page families');
-    expect(screen.queryByText('Observed architecture')).toBeNull();
-    expect(screen.queryByText('Site profile')).toBeNull();
-    expect(screen.queryByLabelText('Site type')).toBeNull();
-    expect(screen.queryByText('Common structures')).toBeNull();
+    const productButton = await screen.findByRole('button', { name: 'Product' });
+    await userEvent.click(productButton);
+    const bags = screen.getAllByRole('link', { name: 'https://acme.test/shop/bags' });
+    expect(bags).toHaveLength(2);
+    expect(bags[0]).toHaveAttribute('href', `/site/crawls/${CRAWL}/pages/${BAGS}`);
+    expect(screen.getAllByRole('link', { name: 'https://acme.test/shop/boots' })).toHaveLength(2);
   });
 
-  it('states a partial coverage limit once and withholds the orphan claim', async () => {
+  it('withholds orphan counts when coverage is partial', async () => {
     stubArchitecture({
       coverage_state: 'partial',
-      families: [{ ...FAMILIES[1], orphan_count: null }],
-      limitations: ['This crawl hit its page budget, so these are the pages CiteLadder observed.'],
+      page_kinds: [{ ...architecture().page_kinds[0], orphan_count: null }],
+      internal_linking: { ...architecture().internal_linking, orphan_page_count: null },
+      limitations: ['This crawl hit its page budget, so these are the pages observed.'],
     });
     renderWithProviders(<ArchitecturePanel projectId={PROJECT} crawlId={CRAWL} />);
 
     expect(await screen.findByText('Partial coverage')).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('page budget');
-
-    await userEvent.click(screen.getByRole('button', { name: /\/shop\/\*/ }));
-    const orphans = screen.getByText('Orphans').closest('div');
+    const orphans = screen.getAllByText('Orphaned pages')[0]!.closest('div');
     expect(within(orphans!).getByText('Not measured')).toBeInTheDocument();
   });
 
-  it('explains that families are derived after a crawl rather than showing an empty list', async () => {
+  it('explains when the persisted projection is unavailable', async () => {
     stubArchitecture({
       state: 'unavailable',
       crawl_id: null,
       coverage_state: 'unknown',
       page_count: 0,
-      page_kind_counts: {},
-      families: [],
+      page_kinds: [],
       nodes: [],
       limitations: ['This crawl has no observed architecture yet.'],
     });

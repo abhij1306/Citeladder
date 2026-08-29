@@ -18,7 +18,7 @@ describe('confidence labels', () => {
 
   it('describes structural medium confidence without claiming URL evidence', () => {
     expect(pageKindConfidenceLabel('medium', 'structural')).toBe('Medium — mixed evidence');
-    expect(pageKindConfidenceLabel('medium', 'route')).toBe('Medium — URL family');
+    expect(pageKindConfidenceLabel('medium', 'route')).toBe('Medium — URL pattern');
   });
 });
 

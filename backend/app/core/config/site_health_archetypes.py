@@ -86,13 +86,11 @@ ARCHITECTURE_DETAIL_PAGE_KINDS: Final[frozenset[str]] = frozenset(
 ARCHITECTURE_EXCESSIVE_DEPTH_MIN: Final = 5
 ARCHITECTURE_DUPLICATE_METADATA_MIN_URLS: Final = 3
 ARCHITECTURE_DUPLICATE_METADATA_RATE: Final = 0.5
-ARCHITECTURE_UNHUBBED_FAMILY_MIN_URLS: Final = 3
-ARCHITECTURE_MAX_FAMILIES: Final = 500
+ARCHITECTURE_UNHUBBED_PAGE_KIND_MIN_URLS: Final = 3
 ARCHITECTURE_MAX_PAGES: Final = 500
 ARCHITECTURE_MAX_EVIDENCE_ITEMS: Final = 25
-# Beyond this, an exported tree renders a family as one `[N Kind]` count line
-# rather than listing every member URL.
-ARCHITECTURE_FAMILY_COLLAPSE_MIN: Final = 8
+# Beyond this, an exported sibling set of one page kind renders as one count line.
+ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN: Final = 8
 ARCHITECTURE_MAX_BREADCRUMB_ITEMS: Final = 16
 
 

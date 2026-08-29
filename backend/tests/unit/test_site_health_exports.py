@@ -21,7 +21,7 @@ from app.analysis.site_health.exports import (
     rows_to_csv,
     rows_to_markdown,
 )
-from app.core.config.site_health_archetypes import ARCHITECTURE_FAMILY_COLLAPSE_MIN
+from app.core.config.site_health_archetypes import ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN
 
 
 def _parse_csv(text: str) -> list[list[str]]:
@@ -288,39 +288,42 @@ def test_architecture_markdown_nests_resolved_parents() -> None:
     assert "Coverage: complete" in body
 
 
-def test_architecture_markdown_collapses_a_large_family_to_a_count() -> None:
-    """A 142-product family is a count, not 142 lines of URLs."""
+def test_architecture_markdown_collapses_a_large_page_kind_group_to_a_count() -> None:
+    """A large product sibling group is a count, not a flat URL dump."""
     nodes = [_node("root", "https://x.test/", parent=None, kind="homepage")]
     nodes += [
         _node(
             str(index),
             f"https://x.test/p/{index}",
             parent="root",
-            family="/p/*",
         )
-        for index in range(ARCHITECTURE_FAMILY_COLLAPSE_MIN)
+        for index in range(ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN)
     ]
     tree = architecture_to_markdown(_architecture_model(nodes)).splitlines()
-    assert f"    `-- [{ARCHITECTURE_FAMILY_COLLAPSE_MIN} product]" in tree
+    assert f"    `-- [{ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN} product]" in tree
     assert not any("https://x.test/p/" in line for line in tree)
 
 
-def test_architecture_markdown_does_not_collapse_unrelated_large_sibling_set() -> None:
-    """A busy root is not one family and must keep its individual URLs."""
+def test_architecture_markdown_does_not_collapse_mixed_page_kinds() -> None:
     nodes = [
+        _node("root", "https://x.test/", parent=None, kind="homepage"),
+        _node("section", "https://x.test/section", parent="root", kind="category"),
+    ]
+    nodes += [
         _node(
             str(index),
-            f"https://x.test/section-{index}",
-            parent=None,
-            kind="article",
-            family=f"/section-{index}/*",
+            f"https://x.test/section/item-{index}",
+            parent="section",
+            kind="article" if index % 2 else "service",
         )
-        for index in range(ARCHITECTURE_FAMILY_COLLAPSE_MIN)
+        for index in range(ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN)
     ]
     body = architecture_to_markdown(_architecture_model(nodes))
-    assert "https://x.test/section-0" in body
-    assert f"https://x.test/section-{ARCHITECTURE_FAMILY_COLLAPSE_MIN - 1}" in body
-    assert f"[{ARCHITECTURE_FAMILY_COLLAPSE_MIN} article]" not in body
+    assert "https://x.test/section/item-0" in body
+    last_item = f"https://x.test/section/item-{ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN - 1}"
+    assert last_item in body
+    assert f"[{ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN} article]" not in body
+    assert f"[{ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN} service]" not in body
 
 
 def test_architecture_markdown_never_collapses_root_group() -> None:
@@ -331,11 +334,11 @@ def test_architecture_markdown_never_collapses_root_group() -> None:
             parent=None,
             family="/root/*",
         )
-        for index in range(ARCHITECTURE_FAMILY_COLLAPSE_MIN)
+        for index in range(ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN)
     ]
     body = architecture_to_markdown(_architecture_model(nodes))
     assert "https://x.test/root-0" in body
-    assert f"[{ARCHITECTURE_FAMILY_COLLAPSE_MIN} product]" not in body
+    assert f"[{ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN} product]" not in body
 
 
 def test_architecture_markdown_reparents_nodes_whose_parent_is_absent() -> None:

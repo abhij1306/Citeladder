@@ -35,7 +35,7 @@ PageAnalysisStatus = Literal[
 ]
 AccessMode = Literal["sample", "full", "unresolved"]
 IssueSeverity = Literal["critical", "high", "medium", "low", "info"]
-FindingClass = Literal["defect", "advisory"]
+FindingClass = Literal["defect", "advisory", "diagnostic"]
 IssueDimension = Literal["technical", "aeo"]
 SiteUrlSource = Literal["root", "link", "sitemap", "redirect"]
 SelectionSource = Literal["user", "free_sample", "bootstrap"]
@@ -738,6 +738,8 @@ class ReadinessDimensionResponse(_Model):
     fail_count: int
     not_applicable_count: int
     error_count: int
+    # Compatibility field name: PR1 defines this count as determinate
+    # pass/fail evaluations. Renaming waits for the PR2 contract cutover.
     observed_evaluation_count: int
     expected_evaluation_count: int
     coverage: float | None
@@ -759,6 +761,7 @@ class AeoReadinessResponse(_Model):
     analyzer_version: str
     source_analysis_ids: list[uuid.UUID]
     analysis_count: int
+    # Compatibility field name; the value is the determinate check count.
     observed_evaluation_count: int
     expected_evaluation_count: int
     coverage: float | None

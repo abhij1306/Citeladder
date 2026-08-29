@@ -87,6 +87,35 @@ async def test_evaluations_and_issues_flush_as_two_ordered_batches() -> None:
     assert persisted_issues[0].evaluation_id == persisted_evaluations[1].id
 
 
+@pytest.mark.asyncio
+async def test_failed_diagnostic_persists_without_creating_an_issue() -> None:
+    session = _RecordingSession()
+    crawl = SimpleNamespace(
+        id=uuid.uuid4(),
+        workspace_id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        extractor_version="extractor-v1",
+        analyzer_version="analyzer-v1",
+    )
+    analysis = SitePageAnalysis(id=uuid.uuid4())
+    diagnostic = _evaluation("aeo.server_rendered_content", "fail")
+    diagnostic.finding_class = "diagnostic"
+
+    await _persist_evaluations_and_issues(
+        cast(Any, session),
+        crawl=cast(Any, crawl),
+        analysis=analysis,
+        artifact_id=uuid.uuid4(),
+        site_url_id=uuid.uuid4(),
+        evaluations=cast(Any, [diagnostic]),
+    )
+
+    assert (
+        len([row for row in session.added if isinstance(row, SiteRuleEvaluation)]) == 1
+    )
+    assert not [row for row in session.added if isinstance(row, SiteIssue)]
+
+
 def test_prepare_page_evaluation_injects_classifier_evidence() -> None:
     """The evaluation copy must carry the tier the confidence gate reads.
 

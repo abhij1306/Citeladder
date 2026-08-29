@@ -318,7 +318,7 @@ as a completeness claim.
 Link-metric completion admits a versioned `architecture` task. It reads only
 persisted page analyses, immutable normalized facts, link metrics, the crawl
 snapshot, and the workspace-authorized onboarding profile. One immutable
-`SiteObservedArchitecture` stores page families, evidence-ordered parents,
+`SiteObservedArchitecture` stores page-kind groups, evidence-ordered parents,
 coverage-gated archetype advisories, exact source IDs, and all relevant
 versions. Its aggregated structural evaluations reuse the existing
 `crawl_finalize` rule scope at weight zero; absence claims abstain unless crawl
@@ -327,7 +327,8 @@ terminalization.
 
 Those projections have one read surface each and no second writer. The
 architecture route returns the newest persisted model for a crawl with its
-architecture formula version, observed families, and hierarchy. It exposes no
+architecture formula version, observed page kinds, internal-link/depth summaries,
+and hierarchy. It exposes no
 archetype advisory block or correction mutation. The pages list
 keyset-pages over `(link_metric_value, site_url_id)` when a link sort is
 requested, with the sort inside the cursor fingerprint so a cursor cannot be
@@ -338,8 +339,16 @@ The AEO Readiness endpoint is a separate read-only projection over those same
 persisted current page analyses and rule evaluations. It requires the crawl's
 exact analyzer/extractor versions, maps only the 20 config-declared rule IDs
 into seven presentation dimensions, and returns pass/fail/not-applicable/error
-counts, expected/observed coverage, and source-analysis IDs. It persists no row,
-computes no score, repairs no state, and performs no network/model work.
+counts, expected/determinate coverage, and source-analysis IDs. Structural N/A
+leaves the expected set; uncertainty-coded N/A and errors remain expected but
+non-determinate. It persists no row, repairs no state, and performs no
+network/model work.
+
+The temporary PR1 scorer suppresses the existing nullable AEO score unless at
+least four unique mapped checkpoints are determinate across three readiness
+dimensions. The same config-owned sufficiency decision makes the read projection
+`incomplete` with a limitation. Crawl and page-kind rollups consume the nullable
+persisted page scores, so no finalizer path can recreate a sparse AEO 100.
 
 Its presentation contract is page-shaped rather than evaluation-shaped, because
 the evaluation shape was unreadable. Each dimension carries a plain-language

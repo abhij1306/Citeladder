@@ -85,6 +85,14 @@ def test_an_article_with_descriptive_headings_is_not_an_faq() -> None:
     assert "has_faq" not in derive_traits(url, facts)
 
 
+def test_about_page_ignores_footer_contact_chrome() -> None:
+    url = "https://www.tentree.com/pages/about"
+    facts = _facts("tentree_about.html", url)
+
+    assert classify(url, facts).page_kind == "about_contact"
+    assert set(derive_traits(url, facts)) == {"about_intent"}
+
+
 # --- traits are independent of the page kind ---------------------------------
 
 

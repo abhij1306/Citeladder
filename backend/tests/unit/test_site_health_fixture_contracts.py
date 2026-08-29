@@ -248,11 +248,14 @@ def test_every_fixture_has_a_contract() -> None:
     on_disk = {path.name for path in _FIXTURES.glob("*.html")}
     # The region/entity fixtures are exercised by test_site_health_fact_regions.
     region_suite_only = {
+        "allbirds_news_archive.html",
+        "asian_school_education_archive.html",
         "hydrated_collection_shell.html",
         "pdp_with_recommendations.html",
         "policy_with_recommendations.html",
         "single_store_page.html",
         "store_locator_index.html",
+        "tentree_about.html",
     }
     assert on_disk - region_suite_only == set(_CONTRACTS_BY_FIXTURE)
 

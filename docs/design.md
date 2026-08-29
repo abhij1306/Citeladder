@@ -230,13 +230,20 @@ series retain visual gaps for unavailable points and explain those gaps accessib
   **affected URLs** so visually adjacent quantities never masquerade as one
   number. Advisory rows use an Advisory label, not a severity chip.
 - AEO Readiness is a dimension ledger, never a gauge or mystery number. Its
-  table names pass, fail, not applicable, and coverage independently for all
-  seven dimensions; not-applicable rows remain visible and are not styled as
-  failures. Because one count is one rule evaluated on one page, the surface
-  says so rather than letting the totals read as page counts. Evidence opens in
-  the shared right-side sheet, failures first — a dimension can carry dozens of
-  persisted evaluations, and an in-cell disclosure inflated one table row past
-  the height of the viewport.
+  table names determinate, expected, not applicable, errors, coverage, and state
+  independently for all seven dimensions; not-applicable rows remain visible
+  and are not styled as failures. Because one count is one rule evaluated on one
+  page, the surface says so rather than letting the totals read as page counts.
+  Evidence opens in the shared right-side sheet, failures first — a dimension
+  can carry dozens of persisted evaluations, and an in-cell disclosure inflated
+  one table row past the height of the viewport.
+- Site Health Architecture leads with five site-level facts and an always-visible
+  page-kind ledger. Page kind, pages, median depth, indexable count, duplicate
+  metadata, and orphaned count never require disclosure; only a kind's assigned
+  URL list expands. A read-only observed hierarchy then renders the persisted
+  parent relationships and their evidence sources without client-side inference.
+  Persisted Internal linking and Structure depth summaries remain visible below
+  without detailed-report actions before PR3.
 - Website Changes is an evidence ledger with four named classes and expandable
   before/after provenance. `Expected` is a secondary exact-link label, not a
   fifth severity. Unavailable and non-comparable states use distinct empty

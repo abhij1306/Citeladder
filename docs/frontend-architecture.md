@@ -78,13 +78,17 @@ comparison surface inside these routes.
 The persisted observed-architecture projection is presented as the
 **Architecture** tab of the existing Website tablist in
 `components/site-health/architecture-panel.tsx` — never a second site workspace
-and never its own route. The tab shows exactly one thing: the crawl's page
-families, each expanding to the URLs the backend assigned it. It renders no
-hierarchy tree and no site-profile/archetype block; both described the analysis
-rather than the site and did not answer what the tab is opened for. The browser
-still renders the persisted coverage state and its limitation once, and leaves
-an orphan count unmeasured whenever coverage is not `complete` — absence is what
-a partial crawl cannot prove. It infers no family, parent, or archetype.
+and never its own route. The tab leads with Page kinds, Pages, Median depth,
+Duplicate metadata, and Orphaned pages, then an always-visible page-kind ledger
+whose columns are page kind, pages, median depth, indexable, duplicate metadata,
+and orphaned. Only the URLs assigned to a page kind are disclosed on demand.
+A read-only Observed hierarchy follows the ledger and nests URLs only by the
+API's persisted `parent_site_url_id`, naming each returned `parent_source`;
+unresolved nodes remain roots and the browser never invents parentage. Persisted
+Internal linking and Structure depth summaries stay visible below. The tab
+renders no site-profile/archetype block. The browser renders the persisted
+coverage state and limitation once and leaves orphan absence unmeasured whenever
+coverage is not `complete`.
 
 The backend owns the current Site Health phase. The client renders the provided
 phase and action availability instead of reconstructing a cross-product of
@@ -108,14 +112,13 @@ secondary action. The client exposes no separate discovery or analysis buttons.
 
 Website uses one tablist on `/site`. **Pages** retains the crawl lifecycle and
 inventory surface. **AEO Readiness** is an adjacent Website tab. It renders the
-server's seven ordered presentation dimensions as cards: the dimension's
-plain-language description, how many checked pages need work, its per-rule
-checks named by catalog title with their remediation, and a sheet listing each
-failing page once with the checks that page failed. It shows no raw rule ID and
-no bare outcome token, and it never presents a bounded evidence list as a total
-— the true failing-page count travels beside it. The client does not remap
-rules, recompute coverage, guess a missing bucket, or display a composite
-readiness score.
+server's seven ordered dimensions as one ledger with determinate, expected,
+N/A, error, coverage, and state columns. A dimension's bounded drawer names
+catalog checks, remediation, and each failing page once. It shows no raw rule
+ID or bare outcome token and never presents a bounded evidence list as a total.
+The client does not remap rules, recompute coverage, guess a missing bucket, or
+display a composite readiness score. A nullable AEO score renders **Not
+measured** on Pages, page detail, and page-kind/crawl summaries.
 
 **Changes** reads only persisted Change Intelligence summary and cursor pages.
 It shows the four classes, exact before/after values, analysis provenance, and
@@ -176,7 +179,7 @@ screen from its internal presentation files.
 | Projects dashboard | `components/projects/dashboard-screen.tsx` owns query gates and project context | dashboard controls, primitives, sections, and command-center action hook own reusable UI and mutations |
 | Traffic | `components/traffic/traffic-screen.tsx` owns query gates and selected analytical controls | toolbar, unified-performance card, and synchronization hook own their scoped behavior |
 | Site Health URL detail | `components/site-health/url-detail.tsx` owns query/rerun control and polling | `url-detail-view.tsx` owns the persisted-detail presentation; `internal-links-card.tsx` owns the link-metric section |
-| Site Health architecture | `components/site-health/architecture-panel.tsx` owns the projection query, the family rows, and the Markdown structure export | — |
+| Site Health architecture | `components/site-health/architecture-panel.tsx` owns the projection query, page-kind rows, and persisted link/depth summaries | — |
 | Commerce, prompts, providers, and marketing previews | Existing public panels and dialogs remain their caller-facing owners | small view, cell, topic, preview, and message-bus modules own discrete presentation or local interaction regions |
 
 ### Site Health API schemas

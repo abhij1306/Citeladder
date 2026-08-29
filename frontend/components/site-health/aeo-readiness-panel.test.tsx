@@ -37,9 +37,9 @@ function dimension(key: string, label: string, failing: boolean) {
     fail_count: failing ? 2 : 0,
     not_applicable_count: 1,
     error_count: 0,
-    observed_evaluation_count: failing ? 6 : 5,
+    observed_evaluation_count: 5,
     expected_evaluation_count: 6,
-    coverage: 1,
+    coverage: 0.8333,
     checked_page_count: 5,
     failing_page_count: failing ? 2 : 0,
     checks: [
@@ -104,17 +104,25 @@ describe('AEO Readiness', () => {
     await screen.findByText('AEO Readiness');
     for (const [, label] of DIMENSIONS) expect(screen.getByText(label)).toBeInTheDocument();
     expect(screen.getByText(/what answerability means in one sentence/i)).toBeInTheDocument();
-    // The header names what needs work instead of leaving the reader to scan.
-    expect(screen.getByText(/1 of 7 need work: Answerability/)).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Determinate' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Expected' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'N/A' })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Seven readiness dimensions with determinate coverage over expected checks.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Taxonomy aeo-readiness-v1/)).toBeNull();
+    expect(screen.queryByText(/Analyzer page-v1/)).toBeNull();
   });
 
   it('counts pages that need work, never a bare evaluation total', async () => {
     stubReadiness();
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
 
-    expect(await screen.findByText('2 of 5 checked pages need work')).toBeInTheDocument();
-    expect(screen.getAllByText('All 5 checked pages pass')).toHaveLength(6);
-    // The old surface claimed "25 evidence links" on every dimension.
+    const answerability = (await screen.findByText('Answerability')).closest('tr');
+    expect(within(answerability!).getByText('Needs work')).toBeInTheDocument();
+    expect(within(answerability!).getByText('83%')).toBeInTheDocument();
     expect(screen.queryByText(/evidence link/i)).toBeNull();
   });
 
@@ -127,14 +135,20 @@ describe('AEO Readiness', () => {
     });
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
 
-    expect(await screen.findByText('1 of 1 checked page needs work')).toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'View details for Answerability' }),
+    );
+    expect(screen.getByText('1 page failed at least one check, worst first.')).toBeInTheDocument();
   });
 
   it('names checks by their catalog title and never by a rule id', async () => {
     stubReadiness();
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
 
-    expect(await screen.findByText('Answer is not stated first')).toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'View details for Answerability' }),
+    );
+    expect(screen.getAllByText('Answer is not stated first')).toHaveLength(3);
     expect(screen.queryByText(/rule\.answerability\.0/)).toBeNull();
     expect(screen.queryByText(/^aeo\./)).toBeNull();
   });
@@ -153,10 +167,10 @@ describe('AEO Readiness', () => {
     stubReadiness({ dimensions });
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
 
-    expect(await screen.findByText(/1 check could not be evaluated/)).toBeInTheDocument();
-    expect(screen.getByText(/1 has incomplete checks: Answerability/)).toBeInTheDocument();
-    expect(screen.getByText('1 error')).toBeInTheDocument();
-    expect(screen.queryByText(/Every dimension is passing/)).toBeNull();
+    const row = (await screen.findByText('Answerability')).closest('tr');
+    expect(within(row!).getByText('Limited evidence')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'View details for Answerability' }));
+    expect(screen.getByText('Incomplete')).toBeInTheDocument();
   });
 
   it('reveals the remediation for a check on demand', async () => {
@@ -164,7 +178,7 @@ describe('AEO Readiness', () => {
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
 
     await userEvent.click(
-      await screen.findByRole('button', { name: /Answer is not stated first/ }),
+      await screen.findByRole('button', { name: 'View details for Answerability' }),
     );
     expect(
       screen.getByText('Move the direct answer into the first paragraph.'),
@@ -175,7 +189,9 @@ describe('AEO Readiness', () => {
     stubReadiness();
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'View 2 pages to fix' }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'View details for Answerability' }),
+    );
     const link = screen.getByRole('link', { name: 'acme.test/blogs/american-summer' });
     expect(link).toHaveAttribute('href', `/site/crawls/${CRAWL}/pages/${PAGE_A}`);
     // One row per page — the old drawer repeated the URL once per rule.
@@ -197,7 +213,9 @@ describe('AEO Readiness', () => {
     });
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'View 140 pages to fix' }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'View details for Answerability' }),
+    );
     expect(screen.getByText(/Showing the 2 most affected of 140 pages/)).toBeInTheDocument();
   });
 

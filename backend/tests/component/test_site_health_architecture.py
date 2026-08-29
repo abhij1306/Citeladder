@@ -104,7 +104,7 @@ async def test_architecture_runs_after_link_metrics_with_exact_provenance(
                             {
                                 "architecture.orphan_pages",
                                 "architecture.parentless_detail_pages",
-                                "architecture.unhubbed_family",
+                                "architecture.unhubbed_page_kind",
                             }
                         ),
                     )

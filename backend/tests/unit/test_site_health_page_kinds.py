@@ -8,9 +8,13 @@ path equivalents, bounded evidence contents, and determinism. Pure, offline.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from app.analysis.site_health.page_kinds import classify
+from app.analysis.site_health.page_traits import derive_traits
+from app.analysis.site_health.parser import extract_page_facts
 from app.core.config import site_health_contracts
 from app.core.config import site_health_taxonomy as config
 from app.core.config.site_health_contracts import (
@@ -34,6 +38,14 @@ from app.core.config.site_health_taxonomy import (
     PAGE_KIND_SIGNAL_TIERS,
     PAGE_KINDS,
 )
+
+_FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "site_health"
+
+
+def _fixture_facts(name: str, url: str) -> dict:
+    return extract_page_facts(
+        (_FIXTURES / name).read_bytes(), final_url=url, content_type="text/html"
+    )
 
 
 def _facts(
@@ -162,7 +174,7 @@ def test_homepage_outranks_conflicting_schema_and_records_suggestion() -> None:
         ("https://example.com/product/123", "product"),
         ("https://example.com/products/123", "product"),
         ("https://example.com/p/abc", "product"),
-        ("https://example.com/shop/item", "product"),
+        ("https://example.com/shop/item", "category"),
         ("https://example.com/category/shoes", "category"),
         ("https://example.com/collections/summer", "category"),
         ("https://example.com/pricing", "pricing"),
@@ -417,6 +429,35 @@ def test_article_with_related_item_list_stays_article() -> None:
     assert assessment.classified_by == PAGE_KIND_SIGNAL_PATH_PATTERN
 
 
+@pytest.mark.parametrize(
+    ("fixture", "url"),
+    [
+        ("allbirds_news_archive.html", "https://www.allbirds.com/blogs/news"),
+        ("allbirds_news_archive.html", "https://www.allbirds.com/news"),
+        (
+            "asian_school_education_archive.html",
+            "https://www.theasianschool.net/blog/category/education/",
+        ),
+    ],
+)
+def test_blog_archives_with_page_owned_card_lists_are_categories(
+    fixture: str, url: str
+) -> None:
+    facts = _fixture_facts(fixture, url)
+    assessment = classify(url, facts)
+
+    assert assessment.page_kind == "category"
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_PRIMARY_LISTING
+    assert "listing" in derive_traits(url, facts)
+
+
+def test_individual_blog_post_with_related_cards_stays_article() -> None:
+    url = "https://www.allbirds.com/blogs/news/story-1"
+    facts = _fixture_facts("allbirds_news_archive.html", url)
+
+    assert classify(url, facts).page_kind == "article"
+
+
 # --- Signal 4: structured-data types -----------------------------------------
 
 
@@ -554,6 +595,25 @@ def test_malformed_inputs_never_raise() -> None:
 def test_classifier_version_stamped_from_config() -> None:
     assessment = classify("https://example.com/", {})
     assert assessment.classifier_version == CLASSIFIER_VERSION
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("/offers-list/summer", config.PAGE_KIND_CATEGORY),
+        ("/q/running-shoes", config.PAGE_KIND_CATEGORY),
+        ("/search", config.PAGE_KIND_CATEGORY),
+        ("/shop", config.PAGE_KIND_CATEGORY),
+        ("/company", config.PAGE_KIND_ABOUT_CONTACT),
+        ("/request-demo", config.PAGE_KIND_ABOUT_CONTACT),
+        ("/customers/acme", config.PAGE_KIND_CASE_STUDY_REVIEW),
+        ("/cookies", config.PAGE_KIND_TRUST_POLICY),
+    ],
+)
+def test_clear_route_aliases_map_to_stable_page_kinds(path: str, expected: str) -> None:
+    assessment = classify(f"https://example.com{path}", {})
+    assert assessment.page_kind == expected
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_PATH_PATTERN
 
 
 # --- Config table integrity (static frozen tables — a plain test, not an

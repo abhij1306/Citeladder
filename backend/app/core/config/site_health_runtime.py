@@ -131,7 +131,7 @@ class SiteHealthSettings(BaseSettings):
     # Each crawl freezes these values in its configuration. They are kept here
     # (not in a connector) because acquisition behavior is an operational
     # policy, not application logic.
-    acquisition_policy_version: str = "sh-acquisition-2"
+    acquisition_policy_version: str = "sh-acquisition-1"
     curl_cffi_impersonation_profile: str = "chrome"
 
     # --- Sitemap limits ---

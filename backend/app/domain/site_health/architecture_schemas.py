@@ -1,13 +1,4 @@
-"""Observed-architecture API DTOs.
-
-Split out of ``api_schemas`` for the same reason as the change DTOs: the
-architecture read/correction surface is its own contract, and keeping it here
-lets the shapes carry the conservatism rules they encode without burying them
-in the general Site Health response module.
-
-Every response model mirrors the checked-in strict frontend zod schema
-(``frontend/lib/api/schemas/site-health/architecture.ts``) field-for-field.
-"""
+"""Strict read DTOs for the persisted observed-architecture projection."""
 
 from __future__ import annotations
 
@@ -21,18 +12,12 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-ArchitectureState = Literal["available", "unavailable"]
-CoverageState = Literal["complete", "partial", "unknown"]
-
-
-class ArchitectureFamilyResponse(_Model):
-    family: str
-    url_count: int
-    page_kind_distribution: dict[str, int]
+class ArchitecturePageKindResponse(_Model):
+    page_kind: str
+    page_count: int
     median_depth: float | None
     indexable_count: int
-    metadata_duplication_rate: float
-    # None unless coverage is complete — orphan status is an absence claim.
+    duplicate_metadata_count: int
     orphan_count: int | None
 
 
@@ -41,21 +26,38 @@ class ArchitectureNodeResponse(_Model):
     url: str
     title: str
     page_kind: str
-    family: str
-    # None = no evidence resolved a parent. The node renders under its family
-    # rather than being attached somewhere plausible.
     parent_site_url_id: uuid.UUID | None
-    parent_source: Literal["breadcrumb", "explicit_structure", "url_family", "unknown"]
+    parent_source: Literal["breadcrumb", "explicit_structure", "url_parent", "unknown"]
     depth_from_home: int | None
 
 
-class ArchitectureResponse(_Model):
-    state: ArchitectureState
-    crawl_id: uuid.UUID | None = None
-    coverage_state: CoverageState
+class ArchitectureInternalLinkingResponse(_Model):
+    internal_link_count: int
+    pages_with_incoming_count: int
+    pages_with_incoming_percentage: float | None
+    orphan_page_count: int | None
+
+
+class ArchitectureDepthBucketResponse(_Model):
+    key: Literal["depth_0", "depth_1", "depth_2", "depth_3_plus"]
     page_count: int
-    page_kind_counts: dict[str, int]
-    families: list[ArchitectureFamilyResponse]
+    percentage: float | None
+
+
+class ArchitectureStructureDepthResponse(_Model):
+    measured_page_count: int
+    unmeasured_page_count: int
+    buckets: list[ArchitectureDepthBucketResponse]
+
+
+class ArchitectureResponse(_Model):
+    state: Literal["available", "unavailable"]
+    crawl_id: uuid.UUID | None = None
+    coverage_state: Literal["complete", "partial", "unknown"]
+    page_count: int
+    page_kinds: list[ArchitecturePageKindResponse]
     nodes: list[ArchitectureNodeResponse]
+    internal_linking: ArchitectureInternalLinkingResponse
+    structure_depth: ArchitectureStructureDepthResponse
     architecture_formula_version: str
     limitations: list[str]

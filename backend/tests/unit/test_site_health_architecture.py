@@ -9,7 +9,6 @@ from app.analysis.site_health.architecture import (
     build_observed_architecture,
     common_structure_observations,
     evaluate_architecture_rules,
-    path_template,
     resolve_archetype,
 )
 from app.core.config.site_health_link_metrics import (
@@ -30,6 +29,7 @@ def _page(
     *,
     depth: int | None = 1,
     inbound: int = 1,
+    outbound: int = 1,
     title: str = "",
     description: str = "",
     facts: dict | None = None,
@@ -45,6 +45,7 @@ def _page(
         page_kind=page_kind,
         depth_from_home=depth,
         inbound_count=inbound,
+        outbound_count=outbound,
         indexable=True,
         facts=facts or {},
     )
@@ -61,7 +62,7 @@ def _context(**overrides) -> dict:
     return context
 
 
-def test_page_families_freeze_metrics_and_guard_orphan_absence() -> None:
+def test_page_kinds_and_link_summaries_freeze_metrics_and_guard_absence() -> None:
     pages = [_page("/", PAGE_KIND_HOMEPAGE, depth=0, title="Home")]
     pages.extend(
         _page(
@@ -79,20 +80,35 @@ def test_page_families_freeze_metrics_and_guard_orphan_absence() -> None:
         coverage_state=COVERAGE_STATE_COMPLETE,
         business_context=_context(),
     )
-    family = next(row for row in complete.families if row["family"] == "/products/*")
-    assert family["url_count"] == 3
-    assert family["median_depth"] == 2.0
-    assert family["metadata_duplication_rate"] == 1.0
-    assert family["orphan_count"] == 1
-    assert path_template("https://example.com/products/widget?ref=1") == "/products/*"
+    page_kind = next(
+        row for row in complete.page_kinds if row["page_kind"] == "product"
+    )
+    assert page_kind["page_count"] == 3
+    assert page_kind["median_depth"] == 2.0
+    assert page_kind["duplicate_metadata_count"] == 3
+    assert page_kind["orphan_count"] == 1
+    assert complete.internal_linking == {
+        "internal_link_count": 4,
+        "pages_with_incoming_count": 3,
+        "pages_with_incoming_percentage": 0.75,
+        "orphan_page_count": 1,
+    }
+    assert complete.structure_depth["measured_page_count"] == 4
+    assert [row["page_count"] for row in complete.structure_depth["buckets"]] == [
+        1,
+        1,
+        1,
+        1,
+    ]
 
     partial = build_observed_architecture(
         pages=pages,
         coverage_state=COVERAGE_STATE_PARTIAL,
         business_context=_context(),
     )
-    family = next(row for row in partial.families if row["family"] == "/products/*")
-    assert family["orphan_count"] is None
+    page_kind = next(row for row in partial.page_kinds if row["page_kind"] == "product")
+    assert page_kind["orphan_count"] is None
+    assert partial.internal_linking["orphan_page_count"] is None
 
 
 def test_hierarchy_uses_breadcrumb_then_explicit_then_safe_path_or_unknown() -> None:
@@ -128,7 +144,7 @@ def test_hierarchy_uses_breadcrumb_then_explicit_then_safe_path_or_unknown() -> 
     assert by_url[breadcrumb.url]["parent_site_url_id"] == str(category.site_url_id)
     assert by_url[explicit.url]["parent_source"] == "explicit_structure"
     assert by_url[explicit.url]["parent_site_url_id"] == str(category.site_url_id)
-    assert by_url[path_parent.url]["parent_source"] == "url_family"
+    assert by_url[path_parent.url]["parent_source"] == "url_parent"
     assert by_url[path_parent.url]["parent_site_url_id"] == str(category.site_url_id)
     assert by_url[unknown.url]["parent_source"] == "unknown"
     assert by_url[unknown.url]["parent_site_url_id"] is None
@@ -269,10 +285,10 @@ def test_structural_rules_fire_positive_observations_and_abstain_on_absence() ->
         )
     }
     assert outcomes["architecture.excessive_depth"] == "fail"
-    assert outcomes["architecture.duplicate_metadata_in_family"] == "fail"
+    assert outcomes["architecture.duplicate_metadata_in_page_kind"] == "fail"
     assert outcomes["architecture.orphan_pages"] == "not_applicable"
     assert outcomes["architecture.parentless_detail_pages"] == "not_applicable"
-    assert outcomes["architecture.unhubbed_family"] == "not_applicable"
+    assert outcomes["architecture.unhubbed_page_kind"] == "not_applicable"
 
     complete = build_observed_architecture(
         pages=pages,
@@ -289,7 +305,7 @@ def test_structural_rules_fire_positive_observations_and_abstain_on_absence() ->
     }
     assert outcomes["architecture.orphan_pages"] == "fail"
     assert outcomes["architecture.parentless_detail_pages"] == "fail"
-    assert outcomes["architecture.unhubbed_family"] == "fail"
+    assert outcomes["architecture.unhubbed_page_kind"] == "fail"
 
 
 def _structure_keys(result: tuple[list[dict], list[dict]]) -> set[str]:

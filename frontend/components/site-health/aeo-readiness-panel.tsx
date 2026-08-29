@@ -3,38 +3,23 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Drawer } from '@/components/ui/drawer';
-import { Label } from '@/components/ui/typography';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { siteHealthQueries } from '@/lib/api/site-health';
 import type { AeoReadiness, ReadinessCheck, ReadinessDimension } from '@/lib/api/types';
-import { cn } from '@/lib/utils';
-
-/**
- * AEO Readiness — seven dimensions of how ready the site is to be quoted.
- *
- * The previous version of this screen was a table of raw counts whose evidence
- * drawer listed one row per rule evaluation. That produced the same URL five
- * times under five ids like `aeo.answer_first`, each labelled `fail`, capped at
- * 25 so every dimension coincidentally claimed "25 evidence links". It was
- * accurate and unreadable.
- *
- * What replaced it, and why:
- *
- *  - **Pages, not evaluations.** A dimension reports how many pages it checked
- *    and how many failed at least one check. Evidence lists each failing page
- *    ONCE with the checks it failed, so nothing looks duplicated.
- *  - **Catalog titles, never rule ids.** Every check names itself the way the
- *    issue catalog does, and carries its remediation.
- *  - **Honest counts.** The bounded evidence list always renders against the
- *    true failing-page total, so a capped list never reads as the whole set.
- *  - **No composite score.** Readiness is still persisted outcomes; the client
- *    computes nothing, ranks nothing, and invents no grade.
- */
+import { PLACEHOLDER } from '@/lib/site-health/status';
 
 function pageLabel(url: string) {
   try {
@@ -45,135 +30,262 @@ function pageLabel(url: string) {
   }
 }
 
-/** Share of applicable checks that passed. Presentation only — never persisted. */
-function passShare(dimension: ReadinessDimension): number | null {
-  if (dimension.error_count > 0) return null;
-  const applicable = dimension.pass_count + dimension.fail_count;
-  return applicable === 0 ? null : dimension.pass_count / applicable;
+function formatCoverage(coverage: number | null): string {
+  return coverage === null ? PLACEHOLDER : `${Math.round(coverage * 100)}%`;
 }
 
-function meterSentence(dimension: ReadinessDimension): string {
-  if (dimension.error_count > 0) {
-    return `${dimension.error_count} check${dimension.error_count === 1 ? '' : 's'} could not be evaluated — results are incomplete.`;
+type DimensionState =
+  | 'Needs work'
+  | 'Limited evidence'
+  | 'Passing'
+  | 'Not measured'
+  | 'Not applicable';
+
+function dimensionState(dimension: ReadinessDimension): DimensionState {
+  if (dimension.expected_evaluation_count === 0) return 'Not applicable';
+  if (dimension.observed_evaluation_count === 0) return 'Not measured';
+  if (dimension.fail_count > 0) return 'Needs work';
+  if (
+    dimension.error_count > 0 ||
+    dimension.observed_evaluation_count < dimension.expected_evaluation_count
+  ) {
+    return 'Limited evidence';
   }
-  const pages = `${dimension.checked_page_count} checked page${dimension.checked_page_count === 1 ? '' : 's'}`;
-  if (dimension.pass_count + dimension.fail_count === 0) {
-    return 'Not measured on any analyzed page — these checks did not apply.';
-  }
-  return dimension.fail_count === 0
-    ? `All ${pages} pass`
-    : `${dimension.failing_page_count} of ${pages} ${dimension.checked_page_count === 1 ? 'needs' : 'need'} work`;
+  return 'Passing';
 }
 
-function DimensionMeter({ dimension }: Readonly<{ dimension: ReadinessDimension }>) {
-  const share = passShare(dimension);
-  if (share === null) {
+function stateBadgeValue(state: DimensionState) {
+  if (state === 'Needs work') return 'danger' as const;
+  if (state === 'Limited evidence') return 'warning' as const;
+  if (state === 'Passing') return 'success' as const;
+  return 'info' as const;
+}
+
+export function AeoReadinessPanel({
+  projectId,
+  crawlId,
+}: Readonly<{ projectId: string; crawlId: string }>) {
+  const readiness = useQuery(siteHealthQueries.aeoReadiness(projectId, crawlId));
+  const [detailKey, setDetailKey] = useState<string | null>(null);
+
+  if (readiness.isLoading) {
     return (
-      <span
-        className={cn('text-xs', dimension.error_count > 0 ? 'text-warning-text' : 'text-muted')}
-      >
-        {meterSentence(dimension)}
-      </span>
+      <output className="text-secondary block text-sm">Loading persisted AEO evaluations…</output>
     );
   }
+  if (readiness.isError) return <Alert tone="danger">Could not load AEO Readiness.</Alert>;
+  if (!readiness.data || readiness.data.state === 'unavailable') {
+    return (
+      <Alert tone="info">
+        {readiness.data?.limitations[0] ??
+          'AEO Readiness appears once a crawl has finished analyzing pages.'}
+      </Alert>
+    );
+  }
+
+  const data = readiness.data;
+  const selected = data.dimensions.find((dimension) => dimension.key === detailKey) ?? null;
   return (
-    <div className="grid gap-1.5">
-      <div className="bg-background-alt h-1.5 w-full overflow-hidden rounded-full">
-        <div
-          className={cn(
-            'h-full rounded-full',
-            share === 1 ? 'bg-success' : share >= 0.5 ? 'bg-warning' : 'bg-danger',
-          )}
-          style={{ width: `${Math.round(share * 100)}%` }}
-        />
-      </div>
-      {/* One text node, not a span sandwich: the sentence has to read as a
-          sentence to a screen reader as much as to an eye. */}
-      <span
-        className={cn('text-xs', dimension.fail_count === 0 ? 'text-secondary' : 'text-foreground')}
-      >
-        {meterSentence(dimension)}
-      </span>
+    <div className="grid min-w-0 gap-4" data-testid="aeo-readiness">
+      <ReadinessHeader data={data} />
+      {data.limitations.length > 0 ? <Alert tone="info">{data.limitations.join(' ')}</Alert> : null}
+      <ReadinessLedger dimensions={data.dimensions} onOpen={setDetailKey} />
+      <DimensionDrawer dimension={selected} crawlId={crawlId} onClose={() => setDetailKey(null)} />
     </div>
   );
 }
 
-function CheckRow({ check }: Readonly<{ check: ReadinessCheck }>) {
-  const [open, setOpen] = useState(false);
-  const failing = check.fail_count > 0;
-  const errored = check.error_count > 0;
-  const applicable = check.pass_count + check.fail_count;
-  const Chevron = open ? ChevronDown : ChevronRight;
+function ReadinessHeader({ data }: Readonly<{ data: AeoReadiness }>) {
+  const incomplete = data.state === 'incomplete';
+  const items = [
+    ['Analyzed pages', String(data.analysis_count)],
+    ['Determinate checks', String(data.observed_evaluation_count)],
+    ['Expected checks', String(data.expected_evaluation_count)],
+    ['Coverage', formatCoverage(data.coverage)],
+  ];
   return (
-    <li className="border-border-subtle border-b last:border-b-0">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="hover:bg-background-alt flex w-full items-center gap-2.5 rounded-sm py-2 pr-2 text-left transition-colors"
-      >
-        <Chevron className="text-muted size-3.5 shrink-0" aria-hidden />
-        <span
-          className={cn('min-w-0 flex-1 truncate text-sm', (failing || errored) && 'font-medium')}
-        >
-          {check.title}
-        </span>
-        {errored ? (
-          <span className="text-warning-text shrink-0 text-xs font-medium">
-            {check.error_count} error{check.error_count === 1 ? '' : 's'}
-          </span>
-        ) : applicable === 0 ? (
-          <span className="text-muted shrink-0 text-xs">Did not apply</span>
-        ) : failing ? (
-          <span className="text-danger-text shrink-0 text-xs font-medium">
-            {check.failing_page_count} page{check.failing_page_count === 1 ? '' : 's'}
-          </span>
-        ) : (
-          <span className="text-success-text shrink-0 text-xs">Passing</span>
-        )}
-      </button>
-      {open ? (
-        <div className="text-secondary pb-3 pl-6 text-sm">
-          {check.remediation || 'No remediation guidance is recorded for this check.'}
-          <span className="text-subtle mt-1 block text-xs">
-            {check.pass_count} passed · {check.fail_count} failed · {check.not_applicable_count} did
-            not apply · {check.error_count} errors
-          </span>
+    <Card>
+      <CardHeader className="gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <CardTitle>AEO Readiness</CardTitle>
+          <Badge variant="status" value={incomplete ? 'warning' : 'success'}>
+            {incomplete ? 'Limited evidence' : 'Available'}
+          </Badge>
         </div>
-      ) : null}
-    </li>
+        <CardDescription>
+          Seven readiness dimensions with determinate coverage over expected checks.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-2">
+        <dl className="border-border-subtle grid grid-cols-2 border-y md:grid-cols-4">
+          {items.map(([label, value]) => (
+            <div
+              key={label}
+              className="border-border-subtle grid gap-1 border-b px-3 py-3 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+            >
+              <dt className="text-muted text-xs">{label}</dt>
+              <dd className="text-foreground text-lg font-semibold tabular-nums">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </CardContent>
+    </Card>
   );
 }
 
-/**
- * Evidence sheet: one row per failing PAGE, listing that page's failed checks.
- * A right-side sheet rather than an in-card disclosure, because a dimension can
- * carry dozens of pages and expanding them inline pushed a card past the
- * viewport.
- */
-function EvidenceDrawer({
+function ReadinessLedger({
+  dimensions,
+  onOpen,
+}: Readonly<{ dimensions: ReadinessDimension[]; onOpen: (key: string) => void }>) {
+  return (
+    <Card>
+      <CardHeader bordered>
+        <CardTitle>Readiness dimensions</CardTitle>
+        <CardDescription>
+          One count is one persisted rule evaluation on one analyzed page.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Dimension</TableHead>
+              <TableHead numeric>Determinate</TableHead>
+              <TableHead numeric>Expected</TableHead>
+              <TableHead numeric>N/A</TableHead>
+              <TableHead numeric>Errors</TableHead>
+              <TableHead numeric>Coverage</TableHead>
+              <TableHead>State</TableHead>
+              <TableHead className="w-28" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {dimensions.map((dimension) => {
+              const state = dimensionState(dimension);
+              return (
+                <TableRow key={dimension.key}>
+                  <TableCell className="min-w-64">
+                    <span className="font-medium">{dimension.label}</span>
+                    <span className="text-muted mt-0.5 block text-xs">{dimension.description}</span>
+                  </TableCell>
+                  <TableCell numeric>{dimension.observed_evaluation_count}</TableCell>
+                  <TableCell numeric>{dimension.expected_evaluation_count}</TableCell>
+                  <TableCell numeric>{dimension.not_applicable_count}</TableCell>
+                  <TableCell
+                    numeric
+                    className={
+                      dimension.error_count > 0 ? 'text-warning-text font-medium' : undefined
+                    }
+                  >
+                    {dimension.error_count}
+                  </TableCell>
+                  <TableCell numeric>{formatCoverage(dimension.coverage)}</TableCell>
+                  <TableCell>
+                    <Badge variant="status" value={stateBadgeValue(state)}>
+                      {state}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="secondary" size="sm" onClick={() => onOpen(dimension.key)}>
+                      View details <span className="sr-only">for {dimension.label}</span>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DimensionDrawer({
   dimension,
   crawlId,
   onClose,
 }: Readonly<{ dimension: ReadinessDimension | null; crawlId: string; onClose: () => void }>) {
-  const shown = dimension?.evidence_pages.length ?? 0;
-  const total = dimension?.failing_page_count ?? 0;
   return (
     <Drawer
       open={Boolean(dimension)}
       onOpenChange={(open) => (open ? undefined : onClose())}
-      title={dimension ? `Pages to fix — ${dimension.label}` : ''}
-      description={
-        dimension
-          ? shown < total
-            ? `Showing the ${shown} most affected of ${total} pages, worst first.`
-            : `${total} page${total === 1 ? '' : 's'} failed at least one check, worst first.`
-          : ''
-      }
+      title={dimension ? `${dimension.label} evidence` : ''}
+      description={dimension?.description ?? ''}
       closeLabel="Close evidence"
     >
+      {dimension ? (
+        <div className="grid gap-[var(--workspace-gap)]">
+          <CheckLedger checks={dimension.checks} />
+          <FailingPages dimension={dimension} crawlId={crawlId} />
+        </div>
+      ) : null}
+    </Drawer>
+  );
+}
+
+function CheckLedger({ checks }: Readonly<{ checks: ReadinessCheck[] }>) {
+  return (
+    <section className="grid gap-2">
+      <h3 className="text-foreground text-base font-semibold">Checks</h3>
+      {checks.length === 0 ? (
+        <p className="text-secondary text-sm">No determinate checks were recorded.</p>
+      ) : (
+        <ul className="divide-border-subtle divide-y">
+          {checks.map((check) => (
+            <CheckRow key={check.rule_id} check={check} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function CheckRow({ check }: Readonly<{ check: ReadinessCheck }>) {
+  const state =
+    check.error_count > 0
+      ? 'Incomplete'
+      : check.fail_count > 0
+        ? 'Needs work'
+        : check.pass_count > 0
+          ? 'Passing'
+          : 'Did not apply';
+  return (
+    <li className="grid gap-1 py-3 first:pt-0">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-foreground text-sm font-medium">{check.title}</span>
+        <span className="text-secondary text-xs">{state}</span>
+      </div>
+      <p className="text-secondary text-sm">
+        {check.remediation || 'No remediation guidance is recorded for this check.'}
+      </p>
+      <p className="text-muted text-xs tabular-nums">
+        {check.pass_count} passed · {check.fail_count} failed · {check.not_applicable_count} not
+        applicable · {check.error_count} errors
+      </p>
+    </li>
+  );
+}
+
+function FailingPages({
+  dimension,
+  crawlId,
+}: Readonly<{ dimension: ReadinessDimension; crawlId: string }>) {
+  const shown = dimension.evidence_pages.length;
+  const total = dimension.failing_page_count;
+  return (
+    <section className="grid gap-2">
+      <div className="grid gap-0.5">
+        <h3 className="text-foreground text-base font-semibold">Pages to fix</h3>
+        <p className="text-muted text-xs">
+          {total === 0
+            ? 'No failing pages were recorded.'
+            : shown < total
+              ? `Showing the ${shown} most affected of ${total} pages, worst first.`
+              : `${total} page${total === 1 ? '' : 's'} failed at least one check, worst first.`}
+        </p>
+      </div>
       <ul className="divide-border-subtle divide-y">
-        {(dimension?.evidence_pages ?? []).map((page) => (
+        {dimension.evidence_pages.map((page) => (
           <li key={page.site_url_id} className="grid gap-1.5 py-3 first:pt-0">
             <Link
               className="text-accent-text truncate text-sm font-medium hover:underline"
@@ -192,126 +304,6 @@ function EvidenceDrawer({
           </li>
         ))}
       </ul>
-    </Drawer>
-  );
-}
-
-function DimensionCard({
-  dimension,
-  onOpenEvidence,
-}: Readonly<{ dimension: ReadinessDimension; onOpenEvidence: () => void }>) {
-  return (
-    <Card>
-      <CardContent className="grid content-start gap-3">
-        <div className="grid gap-1">
-          <h3 className="text-foreground text-heading-sm">{dimension.label}</h3>
-          <p className="text-muted text-xs leading-relaxed">{dimension.description}</p>
-        </div>
-        <DimensionMeter dimension={dimension} />
-        {dimension.checks.length > 0 ? (
-          <div className="grid gap-1">
-            <Label>Checks</Label>
-            <ul className="grid">
-              {dimension.checks.map((check) => (
-                <CheckRow key={check.rule_id} check={check} />
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        {dimension.failing_page_count > 0 ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            className="justify-self-start"
-            onClick={onOpenEvidence}
-          >
-            View {dimension.failing_page_count} page
-            {dimension.failing_page_count === 1 ? '' : 's'} to fix
-          </Button>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-function ReadinessHeader({ data }: Readonly<{ data: AeoReadiness }>) {
-  const failing = data.dimensions.filter((dimension) => dimension.fail_count > 0);
-  const incomplete = data.dimensions.filter((dimension) => dimension.error_count > 0);
-  const status = [
-    failing.length
-      ? `${failing.length} of ${data.dimensions.length} need work: ${failing
-          .map((dimension) => dimension.label)
-          .join(', ')}.`
-      : '',
-    incomplete.length
-      ? `${incomplete.length} ${incomplete.length === 1 ? 'has' : 'have'} incomplete checks: ${incomplete
-          .map((dimension) => dimension.label)
-          .join(', ')}.`
-      : '',
-  ].filter(Boolean);
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>AEO Readiness</CardTitle>
-        <CardDescription className="max-w-3xl">
-          Seven things an answer engine needs from a page, checked across {data.analysis_count}{' '}
-          analyzed page{data.analysis_count === 1 ? '' : 's'}.{' '}
-          {status.length === 0
-            ? 'Every dimension is passing on the pages where its checks applied.'
-            : status.join(' ')}{' '}
-          These are recorded check results, not a score.
-        </CardDescription>
-      </CardHeader>
-    </Card>
-  );
-}
-
-export function AeoReadinessPanel({
-  projectId,
-  crawlId,
-}: Readonly<{ projectId: string; crawlId: string }>) {
-  const readiness = useQuery(siteHealthQueries.aeoReadiness(projectId, crawlId));
-  const [evidenceKey, setEvidenceKey] = useState<string | null>(null);
-
-  if (readiness.isLoading) {
-    return (
-      <output className="text-secondary block text-sm">Loading persisted AEO evaluations…</output>
-    );
-  }
-  if (readiness.isError) {
-    return <Alert tone="danger">Could not load AEO Readiness.</Alert>;
-  }
-  if (!readiness.data || readiness.data.state === 'unavailable') {
-    return (
-      <Alert tone="info">
-        {readiness.data?.limitations[0] ??
-          'AEO Readiness appears once a crawl has finished analyzing pages.'}
-      </Alert>
-    );
-  }
-
-  const data = readiness.data;
-  return (
-    <div className="grid min-w-0 gap-4" data-testid="aeo-readiness">
-      <ReadinessHeader data={data} />
-      {data.limitations.length ? <Alert tone="info">{data.limitations.join(' ')}</Alert> : null}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {data.dimensions.map((dimension) => (
-          <DimensionCard
-            key={dimension.key}
-            dimension={dimension}
-            onOpenEvidence={() => setEvidenceKey(dimension.key)}
-          />
-        ))}
-      </div>
-      <EvidenceDrawer
-        dimension={data.dimensions.find((dimension) => dimension.key === evidenceKey) ?? null}
-        crawlId={crawlId}
-        onClose={() => setEvidenceKey(null)}
-      />
-      <p className="text-subtle text-xs">
-        Taxonomy {data.taxonomy_version} · Analyzer {data.analyzer_version}
-      </p>
-    </div>
+    </section>
   );
 }

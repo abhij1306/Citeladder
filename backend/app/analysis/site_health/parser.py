@@ -30,6 +30,7 @@ from app.analysis.site_health.fact_entity import (
     safe_entity_signals,
 )
 from app.analysis.site_health.fact_links import links_and_assets
+from app.analysis.site_health.fact_regions import region_node_is_visible
 from app.analysis.site_health.fact_signals import (
     cta_texts,
     first_answer_text,
@@ -242,6 +243,8 @@ def _contact_points(root: Any) -> list[dict[str, str]]:
         for node in root.iter("a"):
             if len(points) >= _MAX_CONTACT_POINTS:
                 break
+            if not region_node_is_visible(node):
+                continue
             href = str(node.get("href") or "").strip()
             lowered = href.casefold()
             if lowered.startswith("mailto:"):

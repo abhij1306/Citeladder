@@ -5,8 +5,8 @@
 > **Scope:** three sequential pull requests. Start each PR only after the prior
 > PR merges, using a fresh implementation chat.
 
-**Next implementation slice:** PR1. PR2 and PR3 remain blocked on the preceding
-merge by design.
+**Next implementation slice:** PR2 after PR1 merges. PR3 remains blocked on the
+preceding merge by design.
 
 [../site-health.md](../site-health.md) is the canonical authority for Site
 Health runtime behavior, measurement meaning, checkpoint applicability, score
@@ -78,6 +78,9 @@ visible in-product.
 | PR3 | Robust seven-pillar evidence and applicability across all page kinds/traits, Web Fundamentals expansion, full calibration matrix | Formula or major UI redesign unless calibration proves a separate product-policy defect |
 
 ## PR1 — stabilize existing Site Health logic and screens
+
+**Implementation status:** complete in the PR1 change set; repository validation
+must pass before merge.
 
 **Scope lock.** PR1 does not add the Overview tab, the new persisted AEO scoring
 model, checkpoint-family registry, or the Content handoff. It improves
@@ -163,16 +166,14 @@ defect-derived Opportunities while their finding class is advisory/diagnostic.
   PR1, a sparse current AEO result is represented by the existing nullable score
   contract rather than a new per-page state field. Do not perform the PR2
   metric-contract rename yet.
-- **Architecture:** implement the supplied design now. Replace the small,
-  disclosure-first family list with the always-visible Page families ledger.
-  Show Families, Pages, Median depth, Duplicate metadata, and Orphaned pages
-  above URL pattern, type mix, pages, depth, indexable, and health columns.
-  Primary family facts cannot be hidden inside dropdowns. Keep Internal linking
-  and Structure depth visible below and use the normal app type scale.
-- **Architecture health:** show a state, not another synthesized score:
-  `Blocked` for an eligibility blocker, `Needs work` for observed objective
-  defects, `Limited evidence` when no defect is observed but crawl/architecture
-  evidence is incomplete, and `Good` only under sufficient coverage.
+- **Architecture:** group URLs by the persisted `page_kind`; page family is not
+  a second term. Show Page kinds, Pages, Median depth, Duplicate metadata, and
+  Orphaned pages above page kind, pages, median depth, indexable, duplicate
+  metadata, and orphaned columns. Remove URL-pattern and type-mix presentation.
+  Only assigned URLs collapse. Render the persisted observed hierarchy and its
+  parent evidence beneath the ledger without inferring relationships in the
+  browser. Persisted Internal linking and Structure depth summaries use the
+  supplied card layout, with detailed reports deferred to PR3.
 - **AEO Readiness:** retain the existing dimension ledger and evidence drawer,
   improve typography/spacing and show determinate, expected, N/A, error,
   coverage, and limitations accurately. PR1 does not introduce the final AEO
@@ -193,10 +194,13 @@ defect-derived Opportunities while their finding class is advisory/diagnostic.
 - Uncertainty-coded N/A outcomes lower readiness coverage in PR1; the
   API shape remains unchanged, sparse AEO score fields are `null`, and the AEO
   projection reports `incomplete` with a limitation.
-- The Architecture screen matches the supplied visible-ledger hierarchy and no
-  primary family fact requires opening a dropdown.
-- Existing routes and persistence contracts remain compatible inside PR1; the
-  Overview route/tab and Content handoff remain absent.
+- The Architecture screen groups every observed URL under exactly one persisted
+  page kind (including `other`) and no primary page-kind fact requires opening a
+  dropdown. It renders the persisted observed parent hierarchy, and contains no
+  URL-pattern family or type-mix terminology.
+- Existing routes remain stable; the pre-launch Architecture projection contract
+  cuts over atomically and the disposable database is rebuilt. The Overview
+  route/tab and Content handoff remain absent.
 - The database is rebuilt from `0001_initial.py`; all active versions are `1`.
 - The PR atomically updates
   [the canonical Site Health runtime](../site-health.md) for the new version-`1`

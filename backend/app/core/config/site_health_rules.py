@@ -24,6 +24,7 @@ from app.core.config.site_health_contracts import (
 )
 from app.core.config.site_health_rule_types import (
     FINDING_CLASS_ADVISORY,
+    FINDING_CLASS_DIAGNOSTIC,
     KIND_EVIDENCE_TRIGGERED,
     SiteHealthRule,
 )
@@ -40,6 +41,7 @@ from app.core.config.site_health_taxonomy import (
     PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
     _page_kinds,
 )
+from app.core.config.site_health_traits import PAGE_TRAIT_HAS_FAQ, _traits
 
 DIMENSION_WEIGHT_TECHNICAL: Final = 0.5
 
@@ -135,6 +137,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "none": "Missing H1 heading",
             "multiple": "More than one H1 heading",
         },
+        finding_class=FINDING_CLASS_ADVISORY,
     ),
     SiteHealthRule(
         rule_id="aeo.structured_data_present",
@@ -188,11 +191,12 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         severity=SEVERITY_MEDIUM,
         weight=2.0,
         applicability_key=APPLICABILITY_OBSERVED_CONTENT,
-        description=(
-            "Word count is below the per-page-kind minimum (PAGE_KIND_PROFILES)."
+        description="Page has too little page-owned content to evaluate reliably.",
+        remediation=(
+            "Add enough page-owned content to make the page purpose observable."
         ),
-        remediation="Add substantive, answer-oriented body content to the page.",
-        display_label="Thin content",
+        display_label="Very little observable content",
+        finding_class=FINDING_CLASS_ADVISORY,
     ),
     SiteHealthRule(
         rule_id="technical.canonical_conflict",
@@ -314,6 +318,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "(check CDN-managed default bot blocks)."
         ),
         display_label="AI crawlers blocked by robots.txt",
+        finding_class=FINDING_CLASS_DIAGNOSTIC,
     ),
     SiteHealthRule(
         rule_id="aeo.llms_txt_present",
@@ -469,6 +474,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "article:published_time, or <time datetime>)."
         ),
         display_label="Missing published/modified date",
+        finding_class=FINDING_CLASS_ADVISORY,
     ),
     SiteHealthRule(
         rule_id="aeo.outbound_citations",
@@ -489,6 +495,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description="Page links out to at least one non-social external domain.",
         remediation="Cite authoritative external sources relevant to the content.",
         display_label="No outbound citations",
+        finding_class=FINDING_CLASS_ADVISORY,
     ),
     SiteHealthRule(
         rule_id="aeo.organization_identity",
@@ -518,12 +525,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         # point. Kept where the reader genuinely arrived with a question --
         # and kept as an advisory even there, because "answer first" is a
         # recommendation about prose, not a reproducible fault.
-        applicability_key=_page_kinds(
-            PAGE_KIND_FAQ,
-            PAGE_KIND_GUIDE,
-            PAGE_KIND_DOCS,
-            reads_content=True,
-        ),
+        applicability_key=_traits(PAGE_TRAIT_HAS_FAQ, reads_content=True),
         description=(
             "The first block under the first heading is a substantive "
             "answer/definitional paragraph."
@@ -572,6 +574,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "extract it without executing JavaScript."
         ),
         display_label="Content not present in server HTML",
+        finding_class=FINDING_CLASS_DIAGNOSTIC,
     ),
     SiteHealthRule(
         rule_id="aeo.no_expand_gating",

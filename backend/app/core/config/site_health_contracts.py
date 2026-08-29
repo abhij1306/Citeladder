@@ -267,6 +267,23 @@ AEO_READINESS_MAX_EVALUATIONS: Final = 100_000
 # page total beside it so a capped list never reads as the whole set.
 AEO_READINESS_MAX_EVIDENCE_PAGES_PER_DIMENSION: Final = 25
 
+# Temporary PR1 presentation guard. The persisted PR2 checkpoint-family and
+# measurement-state contract does not exist yet, so PR1 qualifies the current
+# nullable AEO score with determinate checkpoint and readiness-dimension breadth.
+PR1_AEO_MIN_DETERMINATE_CHECKPOINTS: Final = 4
+PR1_AEO_MIN_DETERMINATE_DIMENSIONS: Final = 3
+
+# The shipped outcome vocabulary still stores these states as not_applicable.
+# They mean expected-but-unresolved, however, so they stay in readiness coverage
+# denominators until PR2 gives them explicit unknown/unavailable outcomes.
+PR1_AEO_UNCERTAINTY_REASONS: Final[frozenset[str]] = frozenset(
+    {
+        "coverage_not_complete",
+        "insufficient_evidence",
+        "no_checkable_alternates",
+    }
+)
+
 DIMENSION_TECHNICAL: Final = "technical"
 
 DIMENSION_AEO: Final = "aeo"
@@ -392,19 +409,17 @@ EVENT_CRAWL_FAILED: Final = "crawl.failed"
 
 EVENT_CRAWL_CANCELLED: Final = "crawl.cancelled"
 
-# v13: the author/date facts gained targeted visible byline/date evidence from
-# labelled primary-content nodes. Facts extracted under v12 stay replayable at
-# v12 (invariant 5).
-EXTRACTOR_VERSION: Final = "sh-extractor-13"
+# Pre-launch semantic versions reset with the disposable development database.
+EXTRACTOR_VERSION: Final = "sh-extractor-1"
 
 LINK_REWRITE_VERSION: Final = "sh-link-rewrite-1"
 
 LINK_REWRITE_ENCODED_TRACKING_QUERY: Final = "encoded_tracking_query_delimiter"
 
-ANALYZER_VERSION: Final = "sh-analyzer-8"
+ANALYZER_VERSION: Final = "sh-analyzer-1"
 
-RULE_CATALOG_VERSION: Final = "sh-rules-7"
+RULE_CATALOG_VERSION: Final = "sh-rules-1"
 
-SCORING_VERSION: Final = "sh-scoring-5"
+SCORING_VERSION: Final = "sh-scoring-1"
 
-CLASSIFIER_VERSION: Final = "sh-classifier-9"
+CLASSIFIER_VERSION: Final = "sh-classifier-1"

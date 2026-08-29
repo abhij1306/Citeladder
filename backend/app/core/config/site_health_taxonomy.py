@@ -115,10 +115,10 @@ HOMEPAGE_PATH_EQUIVALENTS: Final[frozenset[str]] = frozenset(
 
 PAGE_KIND_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
     (PAGE_KIND_ARTICLE, r"^/(?:[^/]+/)*?(blogs?|news|articles?)(/|$)"),
-    (PAGE_KIND_PRODUCT, r"^/(?:[^/]+/)*?(products?|p|shop)(/|$)"),
+    (PAGE_KIND_PRODUCT, r"^/(?:[^/]+/)*?(products?|p)(/|$)"),
     (
         PAGE_KIND_CATEGORY,
-        r"^/(?:[^/]+/)*?(category|categories|collections?|catalog)(/|$)",
+        r"^/(?:[^/]+/)*?(category|categories|collections?|catalog|shop|offers?|offers-list|deals?|search|q)(/|$)",
     ),
     (PAGE_KIND_SERVICE, r"^/(?:[^/]+/)*?(services?|solutions?)(/|$)"),
     (PAGE_KIND_LOCAL, r"^/(?:[^/]+/)*?(locations?|stores?|offices?)(/|$)"),
@@ -135,16 +135,25 @@ PAGE_KIND_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
     (PAGE_KIND_FAQ, r"^/(?:[^/]+/)*?(faqs?|help|support)(/|$)"),
     (
         PAGE_KIND_ABOUT_CONTACT,
-        r"^/(?:[^/]+/)*?(about|about-us|contact|contact-us)(/|$)",
+        r"^/(?:[^/]+/)*?(about|about-us|company|our-story|contact|contact-us|request-demo|book-demo)(/|$)",
     ),
     (
         PAGE_KIND_CASE_STUDY_REVIEW,
-        r"^/(?:[^/]+/)*?(case-study|case-studies|reviews?|testimonials?)(/|$)",
+        r"^/(?:[^/]+/)*?(case-study|case-studies|customers?|reviews?|testimonials?)(/|$)",
     ),
     (
         PAGE_KIND_TRUST_POLICY,
-        r"^/(?:[^/]+/)*?(privacy|privacy-policy|terms|terms-of-service|security|trust|policies?|legal)(/|$)",
+        r"^/(?:[^/]+/)*?(privacy|privacy-policy|terms|terms-of-service|cookies?|refund|returns?|shipping-policy|security|trust|policies?|legal)(/|$)",
     ),
+)
+
+# Blog/news archive routes need page-owned repeated-card evidence before they
+# override the ordinary article route. Exact archive shapes keep an individual
+# post such as /blogs/news/story on the article path.
+PAGE_KIND_ARCHIVE_PATH_PATTERNS: Final[tuple[str, ...]] = (
+    r"^/news/?$",
+    r"^/(?:[^/]+/)*?blogs?/news/?$",
+    r"^/(?:[^/]+/)*?blogs?/(?:category|categories|topics?|tags?)/[^/]+/?$",
 )
 
 PAGE_KIND_QUESTION_WORDS: Final[frozenset[str]] = frozenset(
@@ -300,7 +309,7 @@ PAGE_KIND_SCHEMA_TYPE_MAP: Final[dict[str, str]] = {
 }
 
 # Tier C semantic fallback. Matched against the page's own title, H1 and final
-# path segment ONLY when no structural evidence and no route family produced a
+# path segment ONLY when no structural evidence and no route pattern produced a
 # type. Every phrase names a page's own stated purpose in plain English; none
 # names an industry, a brand or a platform, and none maps to a page kind that
 # is not already in PAGE_KINDS. Longest phrase wins; declaration order breaks

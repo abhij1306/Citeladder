@@ -54,6 +54,9 @@ _PATH_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     (page_kind, re.compile(pattern))
     for page_kind, pattern in _config.PAGE_KIND_PATH_PATTERNS
 )
+_ARCHIVE_PATH_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(pattern) for pattern in _config.PAGE_KIND_ARCHIVE_PATH_PATTERNS
+)
 
 #: Signal precedence WITHIN a tier. Reaching two signals in one tier is a
 #: genuine disagreement, recorded as a conflict; this table decides it.
@@ -384,7 +387,7 @@ def _classification_signals(
         return matched, _schema_suggestion(facts)[0]
 
     route_signals = _route_signals(path)
-    matched.extend(_structural_signals(facts, route_signals))
+    matched.extend(_structural_signals(facts, route_signals, path=path))
     matched.extend(route_signals)
     matched.extend(_semantic_signals(path, facts))
     schema_page_kind, _schema_type = _schema_suggestion(facts)
@@ -392,7 +395,7 @@ def _classification_signals(
 
 
 def _structural_signals(
-    facts: dict, route_signals: list[dict[str, Any]]
+    facts: dict, route_signals: list[dict[str, Any]], *, path: str
 ) -> list[dict[str, Any]]:
     """Tier A — what the page's own primary content region contains."""
     entity = _mapping(facts.get("entity"))
@@ -406,7 +409,10 @@ def _structural_signals(
                 product_detail,
             )
         )
-    listing_detail = _listing_evidence(_mapping(entity.get("listing")))
+    listing = _mapping(entity.get("listing"))
+    listing_detail = _listing_evidence(listing)
+    if not listing_detail and _is_archive_path(path):
+        listing_detail = _archive_listing_evidence(listing)
     if listing_detail:
         signals.append(
             _signal(
@@ -511,6 +517,26 @@ def _listing_evidence(listing: dict) -> str:
     return f"grid:{size} {'+'.join(affordances)}"
 
 
+def _is_archive_path(path: str) -> bool:
+    return any(pattern.match(path) is not None for pattern in _ARCHIVE_PATH_PATTERNS)
+
+
+def _archive_listing_evidence(listing: dict) -> str:
+    """Repeated page-owned cards on an exact archive route are a listing.
+
+    Blog archives rarely expose commerce-style result, sort, or filter controls.
+    The exact route gate keeps an individual post carrying a related-posts
+    carousel on the article path.
+    """
+    size = listing.get("largest_card_list_size")
+    targets = listing.get("distinct_card_list_targets")
+    if not isinstance(size, int) or size < _config.LISTING_MIN_CARD_ITEMS:
+        return ""
+    if not isinstance(targets, int) or targets < _config.LISTING_MIN_CARD_ITEMS:
+        return ""
+    return f"archive_grid:{size}"
+
+
 def _location_evidence(location: dict, *, has_local_route: bool) -> str:
     """One address under a local route; a store finder listing many is not local."""
     if not has_local_route:
@@ -528,7 +554,7 @@ def _route_signals(path: str) -> list[dict[str, Any]]:
 
     Config order is the deterministic tie-breaker when two patterns identify
     the same segment. This preserves ``/blog/products/...`` as article while
-    still finding nested families such as ``/resources/guides/...``.
+    still finding nested route patterns such as ``/resources/guides/...``.
     """
     path_matches: list[tuple[int, int, str, re.Pattern[str]]] = []
     for priority, (page_kind, pattern) in enumerate(_PATH_PATTERNS):

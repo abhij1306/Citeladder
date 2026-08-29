@@ -17,7 +17,7 @@ import csv
 import io
 
 from app.analysis.csv_cells import csv_cell, md_cell
-from app.core.config.site_health_archetypes import ARCHITECTURE_FAMILY_COLLAPSE_MIN
+from app.core.config.site_health_archetypes import ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN
 
 _INVENTORY_COLUMNS = [
     "site_url_id",
@@ -157,7 +157,7 @@ def _node_label(node: dict) -> str:
 def _collapsed_lines(group: list[dict], prefix: str) -> list[str]:
     """Render a large sibling set as one count line per page kind.
 
-    A 142-product family listed URL by URL is not a readable architecture; the
+    A 142-product sibling set listed URL by URL is not readable architecture; the
     count IS the observation.
     """
     counts: dict[str, int] = {}
@@ -181,7 +181,7 @@ def _tree_lines(
     seen: set[str],
 ) -> list[str]:
     group = children.get(node_id, [])
-    if node_id is not None and _is_large_family(group):
+    if node_id is not None and _is_large_page_kind_group(group):
         return _collapsed_lines(group, prefix)
     lines: list[str] = []
     for index, node in enumerate(group):
@@ -202,13 +202,13 @@ def _tree_lines(
     return lines
 
 
-def _is_large_family(group: list[dict]) -> bool:
-    """Only one real architecture family may collapse into count rows."""
-    families = {str(node.get("family") or "") for node in group}
+def _is_large_page_kind_group(group: list[dict]) -> bool:
+    """Collapse only a large sibling group sharing one measured page kind."""
+    page_kinds = {str(node.get("page_kind") or "") for node in group}
     return (
-        len(group) >= ARCHITECTURE_FAMILY_COLLAPSE_MIN
-        and len(families) == 1
-        and "" not in families
+        len(group) >= ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN
+        and len(page_kinds) == 1
+        and "" not in page_kinds
     )
 
 

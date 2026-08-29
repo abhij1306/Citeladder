@@ -72,12 +72,16 @@ def form_fields(root: Any) -> list[str]:
     try:
         labels_by_for: dict[str, str] = {}
         for label in root.iter("label"):
+            if not region_node_is_visible(label):
+                continue
             target = str(label.get("for") or "").strip()
             if target and target not in labels_by_for:
                 labels_by_for[target] = _text(label)
         for node in root.iter("input", "select", "textarea"):
             if len(fields) >= config.SITE_HEALTH_MAX_FORM_FIELDS:
                 break
+            if not region_node_is_visible(node):
+                continue
             if _ignored_field(node):
                 continue
             candidate = _field_candidate(node, labels_by_for)

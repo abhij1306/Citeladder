@@ -22,6 +22,7 @@ def _row(
     site_url_id: uuid.UUID | None = None,
     url: str = "https://example.test/page",
     title: str = "",
+    reason: str = "",
 ) -> ReadinessEvaluationInput:
     return ReadinessEvaluationInput(
         evaluation_id=uuid.uuid4(),
@@ -31,6 +32,7 @@ def _row(
         rule_id=rule_id,
         outcome=outcome,
         title=title,
+        reason=reason,
     )
 
 
@@ -59,15 +61,15 @@ def test_projection_reconciles_states_and_never_guesses_unmapped_rules() -> None
         answerability.not_applicable_count,
         answerability.error_count,
     ) == (1, 1, 1, 1)
-    assert answerability.coverage == 1.0
+    assert answerability.coverage == 0.6667
     errored = next(
         check
         for check in answerability.checks
         if check.rule_id == "technical.thin_content"
     )
     assert errored.error_count == 1
-    assert result.observed_evaluation_count == 4
-    assert result.expected_evaluation_count == 20
+    assert result.observed_evaluation_count == 2
+    assert result.expected_evaluation_count == 3
     assert all(
         check.rule_id != "technical.title_present" for check in answerability.checks
     )
@@ -171,3 +173,26 @@ def test_dimensions_carry_a_plain_language_description() -> None:
     result = project_aeo_readiness([], analysis_count=0)
     assert all(dimension.description for dimension in result.dimensions)
     assert "answer" in result.dimensions[0].description.lower()
+
+
+def test_uncertainty_coded_not_applicable_lowers_coverage() -> None:
+    result = project_aeo_readiness(
+        [
+            _row(
+                "aeo.outbound_citations",
+                "not_applicable",
+                reason="insufficient_evidence",
+            ),
+            _row("aeo.date_present", "not_applicable", reason="coverage_not_complete"),
+        ],
+        analysis_count=1,
+    )
+
+    evidence = next(item for item in result.dimensions if item.key == "evidence")
+    freshness = next(item for item in result.dimensions if item.key == "freshness")
+    assert evidence.expected_evaluation_count == 1
+    assert evidence.observed_evaluation_count == 0
+    assert evidence.coverage == 0
+    assert freshness.expected_evaluation_count == 1
+    assert freshness.coverage == 0
+    assert any("not determinate" in limitation for limitation in result.limitations)

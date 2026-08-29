@@ -19,12 +19,16 @@ from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from app.analysis.site_health.scoring import assess_aeo_evidence
 from app.core.config.site_health_contracts import (
     AEO_READINESS_DIMENSION_DESCRIPTIONS,
     AEO_READINESS_DIMENSION_LABELS,
     AEO_READINESS_DIMENSIONS,
     AEO_READINESS_MAX_EVIDENCE_PAGES_PER_DIMENSION,
     AEO_READINESS_RULE_DIMENSIONS,
+    PR1_AEO_MIN_DETERMINATE_CHECKPOINTS,
+    PR1_AEO_MIN_DETERMINATE_DIMENSIONS,
+    PR1_AEO_UNCERTAINTY_REASONS,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
@@ -44,6 +48,7 @@ class ReadinessEvaluationInput:
     # so the projection never reaches into the rule catalog itself.
     title: str = ""
     remediation: str = ""
+    reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -193,10 +198,27 @@ def _evidence_pages(
     return pages, len(ordered)
 
 
+def _coverage_rows(
+    rows: list[ReadinessEvaluationInput],
+) -> tuple[list[ReadinessEvaluationInput], list[ReadinessEvaluationInput]]:
+    expected = [row for row in rows if _expected_for_coverage(row)]
+    determinate = [row for row in rows if _determinate_for_coverage(row)]
+    return expected, determinate
+
+
+def _checked_page_count(rows: list[ReadinessEvaluationInput]) -> int:
+    return len(
+        {
+            row.site_url_id
+            for row in rows
+            if row.outcome in (RULE_OUTCOME_PASS, RULE_OUTCOME_FAIL)
+        }
+    )
+
+
 def _dimension(
     key: str,
     *,
-    analysis_count: int,
     evaluations: list[ReadinessEvaluationInput],
     rule_copy: Mapping[str, tuple[str, str]],
 ) -> ReadinessDimension:
@@ -209,7 +231,7 @@ def _dimension(
         row for row in evaluations if AEO_READINESS_RULE_DIMENSIONS[row.rule_id] == key
     ]
     counts = Counter(row.outcome for row in rows)
-    expected = analysis_count * len(rules)
+    expected_rows, determinate_rows = _coverage_rows(rows)
     evidence_pages, failing_page_count = _evidence_pages(rows)
     return ReadinessDimension(
         key=key,
@@ -220,19 +242,17 @@ def _dimension(
         fail_count=counts[RULE_OUTCOME_FAIL],
         not_applicable_count=counts[RULE_OUTCOME_NOT_APPLICABLE],
         error_count=counts[RULE_OUTCOME_ERROR],
-        observed_evaluation_count=len(rows),
-        expected_evaluation_count=expected,
-        coverage=round(len(rows) / expected, 4) if expected else None,
+        observed_evaluation_count=len(determinate_rows),
+        expected_evaluation_count=len(expected_rows),
+        coverage=(
+            round(len(determinate_rows) / len(expected_rows), 4)
+            if expected_rows
+            else None
+        ),
         # A page counts as CHECKED only where a rule actually applied to it.
         # Counting not-applicable pages would make a dimension look broadly
         # measured when nothing in it was.
-        checked_page_count=len(
-            {
-                row.site_url_id
-                for row in rows
-                if row.outcome in (RULE_OUTCOME_PASS, RULE_OUTCOME_FAIL)
-            }
-        ),
+        checked_page_count=_checked_page_count(rows),
         failing_page_count=failing_page_count,
         checks=_checks(rows, rules, rule_copy),
         evidence_pages=evidence_pages,
@@ -240,6 +260,53 @@ def _dimension(
             failing_page_count > AEO_READINESS_MAX_EVIDENCE_PAGES_PER_DIMENSION
         ),
     )
+
+
+def _determinate_for_coverage(row: ReadinessEvaluationInput) -> bool:
+    return row.outcome in (RULE_OUTCOME_PASS, RULE_OUTCOME_FAIL)
+
+
+def _expected_for_coverage(row: ReadinessEvaluationInput) -> bool:
+    if row.outcome in (RULE_OUTCOME_PASS, RULE_OUTCOME_FAIL, RULE_OUTCOME_ERROR):
+        return True
+    return (
+        row.outcome == RULE_OUTCOME_NOT_APPLICABLE
+        and row.reason in PR1_AEO_UNCERTAINTY_REASONS
+    )
+
+
+def _projection_limitations(
+    *,
+    dimensions: tuple[ReadinessDimension, ...],
+    mapped: list[ReadinessEvaluationInput],
+    analysis_count: int,
+    determinate_count: int,
+    expected_count: int,
+) -> tuple[str, ...]:
+    limitations: list[str] = []
+    if determinate_count < expected_count:
+        limitations.append(
+            "Some expected checks were not determinate, so they lower AEO "
+            "measurement coverage without counting as failures."
+        )
+    error_count = sum(item.error_count for item in dimensions)
+    if error_count:
+        limitations.append(
+            f"{error_count} check{'s' if error_count != 1 else ''} could not be "
+            "evaluated and count as neither a pass nor a failure."
+        )
+    sufficiency = assess_aeo_evidence(mapped)
+    if analysis_count > 0 and not sufficiency.sufficient:
+        limitations.append(
+            "AEO score is not measured: "
+            f"{sufficiency.determinate_checkpoint_count} determinate checkpoint"
+            f"{'s' if sufficiency.determinate_checkpoint_count != 1 else ''} across "
+            f"{sufficiency.determinate_dimension_count} readiness dimension"
+            f"{'s' if sufficiency.determinate_dimension_count != 1 else ''}; at least "
+            f"{PR1_AEO_MIN_DETERMINATE_CHECKPOINTS} checkpoints across "
+            f"{PR1_AEO_MIN_DETERMINATE_DIMENSIONS} dimensions are required."
+        )
+    return tuple(limitations)
 
 
 def project_aeo_readiness(
@@ -255,7 +322,6 @@ def project_aeo_readiness(
     dimensions = tuple(
         _dimension(
             key,
-            analysis_count=analysis_count,
             evaluations=mapped,
             rule_copy=rule_copy or {},
         )
@@ -263,24 +329,19 @@ def project_aeo_readiness(
     )
     observed = sum(item.observed_evaluation_count for item in dimensions)
     expected = sum(item.expected_evaluation_count for item in dimensions)
-    limitations: list[str] = []
-    if observed < expected:
-        limitations.append(
-            "Some checks did not apply to every analyzed page, so they were "
-            "not measured there."
-        )
-    error_count = sum(item.error_count for item in dimensions)
-    if error_count:
-        limitations.append(
-            f"{error_count} check{'s' if error_count != 1 else ''} could not be "
-            "evaluated and count as neither a pass nor a failure."
-        )
+    limitations = _projection_limitations(
+        dimensions=dimensions,
+        mapped=mapped,
+        analysis_count=analysis_count,
+        determinate_count=observed,
+        expected_count=expected,
+    )
     return ReadinessResult(
         dimensions=dimensions,
         observed_evaluation_count=observed,
         expected_evaluation_count=expected,
         coverage=round(observed / expected, 4) if expected else None,
-        limitations=tuple(limitations),
+        limitations=limitations,
     )
 
 

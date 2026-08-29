@@ -56,6 +56,23 @@ describe('ContentMarkdown', () => {
     expect(container.querySelector('pre code')).toHaveTextContent('indented code');
   });
 
+  it('contains long generated URLs, code, and tables within the reading surface', () => {
+    const { container } = render(
+      <ContentMarkdown
+        markdown={`https://example.com/${'long-path-segment'.repeat(20)}\n\n\`\`\`text\n${'code'.repeat(80)}\n\`\`\`\n\n| Value |\n| - |\n| ${'cell'.repeat(80)} |`}
+      />,
+    );
+
+    expect(container.firstElementChild).toHaveClass(
+      'min-w-0',
+      'max-w-full',
+      'overflow-hidden',
+      '[overflow-wrap:anywhere]',
+      '[&_pre]:whitespace-pre-wrap',
+      '[&_table]:table-fixed',
+    );
+  });
+
   it('never parses raw HTML (script/iframe arrive as escaped text)', () => {
     const { container } = render(
       <ContentMarkdown markdown={'hello <script>window.pwned = true</script> <b>bold?</b>'} />,

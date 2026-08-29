@@ -39,7 +39,7 @@ export function GenerationResult({
   return (
     <Card
       data-component-id="content-result-card"
-      className="border-border bg-panel shadow-card rounded-sm border p-[var(--card-padding)]"
+      className="border-border bg-panel shadow-card min-w-0 rounded-sm border p-[var(--card-padding)]"
     >
       <CardContent className="flex flex-col gap-[var(--workspace-gap)] p-0">
         {detail.output_truncated ? (
@@ -77,7 +77,7 @@ export function GenerationResult({
 function ResultBody({ detail }: Readonly<{ detail: ContentGenerationDetail }>) {
   return (
     <>
-      <div data-component-id="content-result-body" className="py-2">
+      <div data-component-id="content-result-body" className="min-w-0 py-2">
         <ContentMarkdown markdown={detail.output_text ?? ''} />
       </div>
       <p data-component-id="content-ai-disclaimer" className="text-muted text-sm leading-relaxed">

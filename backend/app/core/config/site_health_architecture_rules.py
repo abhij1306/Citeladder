@@ -58,16 +58,13 @@ ARCHITECTURE_RULE_SPECS: Final[tuple[dict[str, Any], ...]] = (
         display_label="Breadcrumb hierarchy conflict",
     ),
     _rule(
-        "architecture.duplicate_metadata_in_family",
+        "architecture.duplicate_metadata_in_page_kind",
         severity=SEVERITY_MEDIUM,
         description=(
-            "An observed URL family repeats title and description metadata "
-            "across pages."
+            "An observed page kind repeats title and description metadata across pages."
         ),
-        remediation=(
-            "Give each family page metadata that describes its distinct purpose."
-        ),
-        display_label="Duplicate metadata within page families",
+        remediation=("Give each page metadata that describes its distinct purpose."),
+        display_label="Duplicate metadata within a page kind",
     ),
     _rule(
         "architecture.orphan_pages",
@@ -88,13 +85,11 @@ ARCHITECTURE_RULE_SPECS: Final[tuple[dict[str, Any], ...]] = (
         display_label="Detail pages without a clear parent",
     ),
     _rule(
-        "architecture.unhubbed_family",
+        "architecture.unhubbed_page_kind",
         severity=SEVERITY_MEDIUM,
-        description="A large observed detail-page family has no crawlable hub.",
-        remediation=(
-            "Create or expose a hub that links to the related detail-page family."
-        ),
-        display_label="Page family without an observed hub",
+        description="A large observed detail page kind has no crawlable hub.",
+        remediation=("Create or expose a hub that links to the related detail pages."),
+        display_label="Page kind without an observed hub",
     ),
 )
 

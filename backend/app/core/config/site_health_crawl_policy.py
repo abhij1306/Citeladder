@@ -17,7 +17,7 @@ MANUAL_PHASE_LIFECYCLE_KEY: Final = "manual_phase_lifecycle"
 SAMPLE_URL_LIMIT: Final = 10
 SAMPLE_DISCOVERY_URL_CAP: Final = 200
 
-URL_ADMISSION_POLICY_VERSION: Final = "sh-url-admission-4"
+URL_ADMISSION_POLICY_VERSION: Final = "sh-url-admission-1"
 INPUT_MODE_AUTO: Final = "auto"
 INPUT_MODE_EXACT_URLS: Final = "exact_urls"
 INPUT_MODE_DISCOVERY_SEEDS: Final = "discovery_seeds"

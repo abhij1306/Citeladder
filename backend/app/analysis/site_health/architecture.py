@@ -27,9 +27,8 @@ from app.core.config.site_health_archetypes import (
     ARCHITECTURE_EXCESSIVE_DEPTH_MIN,
     ARCHITECTURE_HUB_PAGE_KINDS,
     ARCHITECTURE_MAX_EVIDENCE_ITEMS,
-    ARCHITECTURE_MAX_FAMILIES,
     ARCHITECTURE_MAX_PAGES,
-    ARCHITECTURE_UNHUBBED_FAMILY_MIN_URLS,
+    ARCHITECTURE_UNHUBBED_PAGE_KIND_MIN_URLS,
     COMMON_STRUCTURES,
 )
 from app.core.config.site_health_contracts import (
@@ -55,6 +54,7 @@ class ArchitecturePage:
     page_kind: str
     depth_from_home: int | None
     inbound_count: int
+    outbound_count: int
     indexable: bool
     facts: dict
 
@@ -84,18 +84,10 @@ class ArchetypeAssessment:
 @dataclass(frozen=True, slots=True)
 class ObservedArchitecture:
     pages: tuple[dict, ...]
-    families: tuple[dict, ...]
+    page_kinds: tuple[dict, ...]
+    internal_linking: dict
+    structure_depth: dict
     archetype: ArchetypeAssessment
-    page_kind_counts: dict[str, int]
-
-
-def path_template(url: str) -> str:
-    """Replace only the final path segment with ``*``."""
-    path = urlsplit(url).path.rstrip("/") or "/"
-    if path == "/":
-        return "/"
-    parent = path.rsplit("/", 1)[0]
-    return f"{parent or ''}/*"
 
 
 def _metadata_signature(page: ArchitecturePage) -> tuple[str, str] | None:
@@ -113,7 +105,7 @@ def _duplicate_metadata_count(members: list[ArchitecturePage]) -> int:
     return sum(count for count in signatures.values() if count > 1)
 
 
-def _family_orphan_count(
+def _page_kind_orphan_count(
     members: list[ArchitecturePage], *, coverage_state: str
 ) -> int | None:
     if coverage_state != COVERAGE_STATE_COMPLETE:
@@ -125,39 +117,83 @@ def _family_orphan_count(
     )
 
 
-def _family_row(
-    template: str, members: list[ArchitecturePage], *, coverage_state: str
+def _page_kind_row(
+    page_kind: str, members: list[ArchitecturePage], *, coverage_state: str
 ) -> dict:
     depths = [
         page.depth_from_home for page in members if page.depth_from_home is not None
     ]
     duplicate_count = _duplicate_metadata_count(members)
     return {
-        "family": template,
-        "url_count": len(members),
-        "page_kind_distribution": dict(
-            sorted(Counter(page.page_kind for page in members).items())
-        ),
+        "page_kind": page_kind,
+        "page_count": len(members),
         "median_depth": float(median(depths)) if depths else None,
         "indexable_count": sum(1 for page in members if page.indexable),
-        "metadata_duplication_rate": round(duplicate_count / len(members), 4),
         "duplicate_metadata_count": duplicate_count,
-        "orphan_count": _family_orphan_count(members, coverage_state=coverage_state),
+        "orphan_count": _page_kind_orphan_count(members, coverage_state=coverage_state),
         "site_url_ids": [str(page.site_url_id) for page in members],
     }
 
 
-def _family_rows(pages: list[ArchitecturePage], *, coverage_state: str) -> list[dict]:
+def _page_kind_rows(
+    pages: list[ArchitecturePage], *, coverage_state: str
+) -> list[dict]:
     grouped: dict[str, list[ArchitecturePage]] = defaultdict(list)
     for page in pages:
-        grouped[path_template(page.url)].append(page)
+        grouped[page.page_kind].append(page)
     rows: list[dict] = []
-    for template in sorted(grouped)[:ARCHITECTURE_MAX_FAMILIES]:
+    for page_kind in sorted(grouped):
         members = sorted(
-            grouped[template], key=lambda item: (item.url, str(item.site_url_id))
+            grouped[page_kind], key=lambda item: (item.url, str(item.site_url_id))
         )
-        rows.append(_family_row(template, members, coverage_state=coverage_state))
+        rows.append(_page_kind_row(page_kind, members, coverage_state=coverage_state))
     return rows
+
+
+def _internal_linking_summary(
+    pages: list[ArchitecturePage], *, coverage_state: str
+) -> dict:
+    pages_with_incoming = sum(page.inbound_count > 0 for page in pages)
+    return {
+        "internal_link_count": sum(page.outbound_count for page in pages),
+        "pages_with_incoming_count": pages_with_incoming,
+        "pages_with_incoming_percentage": (
+            round(pages_with_incoming / len(pages), 4) if pages else None
+        ),
+        "orphan_page_count": (
+            sum(
+                page.page_kind != PAGE_KIND_HOMEPAGE and page.inbound_count == 0
+                for page in pages
+            )
+            if coverage_state == COVERAGE_STATE_COMPLETE
+            else None
+        ),
+    }
+
+
+def _structure_depth_summary(pages: list[ArchitecturePage]) -> dict:
+    measured = [
+        page.depth_from_home for page in pages if page.depth_from_home is not None
+    ]
+    counts = {
+        "depth_0": sum(depth == 0 for depth in measured),
+        "depth_1": sum(depth == 1 for depth in measured),
+        "depth_2": sum(depth == 2 for depth in measured),
+        "depth_3_plus": sum(depth >= 3 for depth in measured),
+    }
+    denominator = len(measured)
+    return {
+        "measured_page_count": denominator,
+        "unmeasured_page_count": len(pages) - denominator,
+        "buckets": [
+            {
+                "key": key,
+                "page_count": count,
+                "percentage": round(count / denominator, 4) if denominator else None,
+            }
+            for key, count in counts.items()
+        ],
+    }
 
 
 def _immediate_parent_url(url: str) -> str | None:
@@ -253,7 +289,7 @@ def _parent_source(
     if explicit_parent:
         return "explicit_structure"
     if path_parent:
-        return "url_family"
+        return "url_parent"
     return "unknown"
 
 
@@ -277,7 +313,6 @@ def _hierarchy_row(
         "url": page.url,
         "title": page.title,
         "page_kind": page.page_kind,
-        "family": path_template(page.url),
         "parent_site_url_id": str(parent) if parent else None,
         "parent_source": _parent_source(
             breadcrumb_parent, explicit_parent, path_parent
@@ -430,16 +465,18 @@ def build_observed_architecture(
     bounded = sorted(pages, key=lambda item: (item.url, str(item.site_url_id)))[
         :ARCHITECTURE_MAX_PAGES
     ]
-    counts = dict(sorted(Counter(page.page_kind for page in bounded).items()))
     return ObservedArchitecture(
         pages=tuple(_hierarchy_rows(bounded)),
-        families=tuple(_family_rows(bounded, coverage_state=coverage_state)),
+        page_kinds=tuple(_page_kind_rows(bounded, coverage_state=coverage_state)),
+        internal_linking=_internal_linking_summary(
+            bounded, coverage_state=coverage_state
+        ),
+        structure_depth=_structure_depth_summary(bounded),
         archetype=resolve_archetype(
             business_context=business_context,
             pages=bounded,
             coverage_state=coverage_state,
         ),
-        page_kind_counts=counts,
     )
 
 
@@ -496,12 +533,13 @@ def _hierarchy_conflicts(model: ObservedArchitecture) -> list[dict]:
     ]
 
 
-def _duplicate_families(model: ObservedArchitecture) -> list[dict]:
+def _duplicate_page_kinds(model: ObservedArchitecture) -> list[dict]:
     return [
-        family
-        for family in model.families
-        if family["url_count"] >= ARCHITECTURE_DUPLICATE_METADATA_MIN_URLS
-        and family["metadata_duplication_rate"] >= ARCHITECTURE_DUPLICATE_METADATA_RATE
+        page_kind
+        for page_kind in model.page_kinds
+        if page_kind["page_count"] >= ARCHITECTURE_DUPLICATE_METADATA_MIN_URLS
+        and page_kind["duplicate_metadata_count"] / page_kind["page_count"]
+        >= ARCHITECTURE_DUPLICATE_METADATA_RATE
     ]
 
 
@@ -525,15 +563,15 @@ def _parentless_pages(model: ObservedArchitecture) -> list[dict]:
     ]
 
 
-def _family_is_unhubbed(
-    family: dict,
+def _page_kind_is_unhubbed(
+    page_kind: dict,
     *,
     by_id: dict[str, ArchitecturePage],
     parent_by_id: dict[str, str | None],
 ) -> bool:
-    if family["url_count"] < ARCHITECTURE_UNHUBBED_FAMILY_MIN_URLS:
+    if page_kind["page_count"] < ARCHITECTURE_UNHUBBED_PAGE_KIND_MIN_URLS:
         return False
-    for site_url_id in family["site_url_ids"]:
+    for site_url_id in page_kind["site_url_ids"]:
         if by_id[site_url_id].page_kind not in ARCHITECTURE_DETAIL_PAGE_KINDS:
             return False
         if parent_by_id[site_url_id] is not None:
@@ -541,16 +579,16 @@ def _family_is_unhubbed(
     return True
 
 
-def _unhubbed_families(
+def _unhubbed_page_kinds(
     model: ObservedArchitecture, *, by_id: dict[str, ArchitecturePage]
 ) -> list[dict]:
     parent_by_id = {
         row["site_url_id"]: row["parent_site_url_id"] for row in model.pages
     }
     return [
-        family
-        for family in model.families
-        if _family_is_unhubbed(family, by_id=by_id, parent_by_id=parent_by_id)
+        page_kind
+        for page_kind in model.page_kinds
+        if _page_kind_is_unhubbed(page_kind, by_id=by_id, parent_by_id=parent_by_id)
     ]
 
 
@@ -572,10 +610,10 @@ def evaluate_architecture_rules(
     by_id = {str(page.site_url_id): page for page in source_pages}
     deep = _deep_pages(model)
     conflicts = _hierarchy_conflicts(model)
-    duplicate_families = _duplicate_families(model)
+    duplicate_page_kinds = _duplicate_page_kinds(model)
     orphans = _orphan_pages(model, by_id=by_id)
     parentless = _parentless_pages(model)
-    unhubbed = _unhubbed_families(model, by_id=by_id)
+    unhubbed = _unhubbed_page_kinds(model, by_id=by_id)
 
     def evidence(rows: list[dict], key: str) -> dict:
         return _rule_evidence(rows, key, coverage_state=coverage_state)
@@ -592,9 +630,9 @@ def evaluate_architecture_rules(
             evidence(conflicts, "pages"),
         ),
         _evaluation(
-            "architecture.duplicate_metadata_in_family",
-            RULE_OUTCOME_FAIL if duplicate_families else RULE_OUTCOME_PASS,
-            evidence(duplicate_families, "families"),
+            "architecture.duplicate_metadata_in_page_kind",
+            RULE_OUTCOME_FAIL if duplicate_page_kinds else RULE_OUTCOME_PASS,
+            evidence(duplicate_page_kinds, "page_kinds"),
         ),
         _coverage_evaluation(
             "architecture.orphan_pages", coverage_state, evidence(orphans, "pages")
@@ -605,9 +643,9 @@ def evaluate_architecture_rules(
             evidence(parentless, "pages"),
         ),
         _coverage_evaluation(
-            "architecture.unhubbed_family",
+            "architecture.unhubbed_page_kind",
             coverage_state,
-            evidence(unhubbed, "families"),
+            evidence(unhubbed, "page_kinds"),
         ),
     ]
 
@@ -618,6 +656,5 @@ __all__ = [
     "ObservedArchitecture",
     "build_observed_architecture",
     "evaluate_architecture_rules",
-    "path_template",
     "resolve_archetype",
 ]

@@ -142,7 +142,7 @@ function FeaturedRecommendation({
     <Card className="border-accent-border">
       <CardContent className="grid gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <AccentEyebrow>Next best action</AccentEyebrow>
             <h2 className="text-foreground text-xl">{detail.title}</h2>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -159,7 +159,11 @@ function FeaturedRecommendation({
           </Button>
         </div>
         <p className="text-secondary max-w-3xl text-sm whitespace-pre-line">{detail.remediation}</p>
-        {target ? <p className="text-muted text-xs">Applies to {target}</p> : null}
+        {target ? (
+          <p className="text-muted min-w-0 truncate text-xs" title={target}>
+            Applies to {target}
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -398,10 +402,10 @@ function RecommendationsTable({
 }: Readonly<{ projectId: string; rows: Opportunity[]; onOpen: (id: string) => void }>) {
   return (
     <Card>
-      <Table>
+      <Table className="min-w-3xl table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead>Recommendation</TableHead>
+            <TableHead className="w-[48%]">Recommendation</TableHead>
             <TableHead>Impact</TableHead>
             <TableHead>Area</TableHead>
             <TableHead>Status</TableHead>
@@ -412,11 +416,15 @@ function RecommendationsTable({
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.id} className="hover:bg-background-alt">
-              <TableCell>
-                <div className="grid gap-0.5">
-                  <span className="text-foreground text-sm font-medium">{row.title}</span>
+              <TableCell className="min-w-0">
+                <div className="grid min-w-0 gap-0.5">
+                  <span className="text-foreground truncate text-sm font-medium" title={row.title}>
+                    {row.title}
+                  </span>
                   {row.target_label ? (
-                    <span className="text-2xs text-muted break-all">{row.target_label}</span>
+                    <span className="text-2xs text-muted truncate" title={row.target_label}>
+                      {row.target_label}
+                    </span>
                   ) : null}
                 </div>
               </TableCell>

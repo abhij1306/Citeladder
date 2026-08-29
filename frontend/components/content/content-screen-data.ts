@@ -84,7 +84,6 @@ export function useContentContextPreview(projectId: string) {
 export type ContentOpportunityContext = {
   id: string;
   title: string;
-  remediation: string;
   target: string;
   pathway: 'owned' | 'earned';
   canonicalDomain: string | null;
@@ -107,7 +106,6 @@ export function useOpportunityContext(
     return {
       id: data.id,
       title: data.title,
-      remediation: data.remediation ?? '',
       target: data.target_url ?? data.target_theme ?? '',
       pathway: data.content_handoff.pathway,
       canonicalDomain: data.content_handoff.canonical_domain,

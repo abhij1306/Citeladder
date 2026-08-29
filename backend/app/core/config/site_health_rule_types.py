@@ -6,8 +6,9 @@ from typing import Final
 
 FINDING_CLASS_DEFECT: Final = "defect"
 FINDING_CLASS_ADVISORY: Final = "advisory"
+FINDING_CLASS_DIAGNOSTIC: Final = "diagnostic"
 FINDING_CLASSES: Final[frozenset[str]] = frozenset(
-    {FINDING_CLASS_DEFECT, FINDING_CLASS_ADVISORY}
+    {FINDING_CLASS_DEFECT, FINDING_CLASS_ADVISORY, FINDING_CLASS_DIAGNOSTIC}
 )
 
 # Expectations rely on the page-kind classification. Triggered rules validate

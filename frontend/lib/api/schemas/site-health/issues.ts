@@ -7,7 +7,7 @@ import { cursorPageSchema } from './pagination';
 // Issue severity + dimension enums (config-owned rule catalog).
 export const issueSeveritySchema = z.enum(['critical', 'high', 'medium', 'low', 'info']);
 export const issueDimensionSchema = z.enum(['technical', 'aeo']);
-export const findingClassSchema = z.enum(['defect', 'advisory']);
+export const findingClassSchema = z.enum(['defect', 'advisory', 'diagnostic']);
 
 // A single affected-URL summary on an issue projection. `page_kind` is the
 // affected page's classification; it is OPTIONAL — the v1 backend DTO has no

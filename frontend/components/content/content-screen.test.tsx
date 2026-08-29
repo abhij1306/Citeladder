@@ -1,7 +1,7 @@
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 
 import { ProjectProvider } from '@/lib/project/project-context';
 import { mswServer } from '@/test/msw-server';
@@ -12,6 +12,7 @@ import { ContentScreen } from './content-screen';
 const WORKSPACE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const PROJECT = '11111111-1111-4111-8111-111111111111';
 const GEN = '33333333-3333-4333-8333-333333333333';
+const OPPORTUNITY = '44444444-4444-4444-8444-444444444444';
 
 const project = {
   id: PROJECT,
@@ -131,6 +132,65 @@ const skillCatalog = {
   ],
 };
 
+const opportunityTask =
+  'Align the visible title, headings, and page claims with the corresponding schema values.';
+const longOpportunityTarget = `https://acme.com/${'very-long-unbroken-path-segment-'.repeat(12)}`;
+
+const opportunityDetail = {
+  id: OPPORTUNITY,
+  project_id: PROJECT,
+  rule_id: 'site_schema_conflict',
+  opportunity_type: 'site',
+  severity: 'high',
+  priority_score: 95,
+  title: 'Visible content conflicts with schema',
+  target_key: `url:${longOpportunityTarget}`,
+  target_prompt_id: null,
+  target_url: longOpportunityTarget,
+  target_theme: null,
+  target_label: longOpportunityTarget,
+  status: 'open',
+  system_rank: 1,
+  display_rank: 1,
+  order_source: 'system',
+  priority_factors: {},
+  evidence_summary: { count: 1, kinds: ['site_rule'] },
+  created_at: '2026-07-15T00:00:00Z',
+  updated_at: '2026-07-15T00:00:00Z',
+  remediation: opportunityTask,
+  evidence: {},
+  source_analysis_ids: [],
+  source_issue_ids: [],
+  source_metric_ids: [],
+  source_traffic_ids: [],
+  analyzer_version: '1',
+  rule_version: '1',
+  formula_version: '1',
+  content_handoff: {
+    opportunity_id: OPPORTUNITY,
+    pathway: 'owned',
+    source_class: null,
+    canonical_domain: null,
+    suggested_role: 'Content',
+    suggested_skill_id: 'content_page',
+    task_seed: opportunityTask,
+    target_url: longOpportunityTarget,
+    target_theme: null,
+    representative_citations: [],
+    affected_prompt_indices: [],
+    affected_themes: [],
+    observed_competitors: [],
+    coverage: {},
+    limitations: [],
+    truncated: false,
+    source_analysis_ids: [],
+    snapshot_versions: {},
+  },
+  linked_generations: [],
+  superseded_by_id: null,
+  superseded_at: null,
+};
+
 function mockBase(listItems: Record<string, unknown>[] = []) {
   mswServer.use(
     http.get('/api/v1/projects', () => HttpResponse.json([project])),
@@ -151,10 +211,10 @@ function mockBase(listItems: Record<string, unknown>[] = []) {
   );
 }
 
-function renderScreen(props: { demandSignalId?: string } = {}) {
+function renderScreen(props: { demandSignalId?: string; opportunityId?: string } = {}) {
   return renderWithProviders(
     <ProjectProvider>
-      <ContentScreen demandSignalId={props.demandSignalId} />
+      <ContentScreen demandSignalId={props.demandSignalId} opportunityId={props.opportunityId} />
     </ProjectProvider>,
   );
 }
@@ -328,6 +388,30 @@ describe('ContentScreen — search demand handoff', () => {
     renderScreen({ demandSignalId: DEMAND_SIGNAL });
 
     expect(await screen.findByText(/no longer in the latest snapshot/i)).toBeInTheDocument();
+  });
+});
+
+describe('ContentScreen — opportunity handoff', () => {
+  it('shows compact provenance without duplicating the editable task or overflowing long URLs', async () => {
+    mockBase();
+    mswServer.use(
+      http.get(`/api/v1/opportunities/${OPPORTUNITY}`, () => HttpResponse.json(opportunityDetail)),
+    );
+    renderScreen({ opportunityId: OPPORTUNITY });
+
+    const box = (await screen.findByRole('textbox', {
+      name: /describe the website content/i,
+    })) as HTMLTextAreaElement;
+    await waitFor(() => expect(box.value).toBe(opportunityTask));
+
+    const context = document.querySelector<HTMLElement>(
+      '[data-component-id="content-opportunity-context"]',
+    );
+    expect(context).not.toBeNull();
+    expect(within(context!).queryByText(opportunityTask)).toBeNull();
+    const target = within(context!).getByText(`Target: ${longOpportunityTarget}`);
+    expect(context).toHaveClass('min-w-0', '[overflow-wrap:anywhere]');
+    expect(target).toHaveClass('min-w-0');
   });
 });
 

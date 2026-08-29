@@ -63,8 +63,9 @@ class SiteObservedArchitecture(Base):
     )
     coverage_state: Mapped[str] = mapped_column(String(16), default="unknown")
     page_count: Mapped[int] = mapped_column(Integer, default=0)
-    page_kind_counts: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    families: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    page_kinds: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    internal_linking: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    structure_depth: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     hierarchy: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     archetype: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     source_analysis_ids: Mapped[list | None] = mapped_column(

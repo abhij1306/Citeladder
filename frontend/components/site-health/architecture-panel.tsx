@@ -1,47 +1,64 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Link2, ListTree } from 'lucide-react';
 
+import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PageKindBadge } from '@/components/site-health/page-kind-badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { siteHealthQueries } from '@/lib/api/site-health';
 import type {
-  ArchitectureFamily,
   ArchitectureNode,
+  ArchitecturePageKind,
   CoverageState,
   SiteArchitecture,
 } from '@/lib/api/types';
-import { downloadCrawlExport } from '@/lib/site-health/download';
 import { PLACEHOLDER } from '@/lib/site-health/status';
-import { cn } from '@/lib/utils';
-
-/**
- * Architecture tab — the crawl's page families, each expanding to its URLs.
- *
- * This deliberately shows one thing. An earlier version also rendered an
- * observed hierarchy tree and a "site profile" block (archetype, expected
- * structures, coverage prose); both described the analysis rather than the
- * site, and neither answered the question someone opens this tab with — *what
- * kinds of pages does my site have, and which URLs are they?* Families answer
- * exactly that, so the tree and profile are gone.
- *
- * One honesty rule survives from that removal and is load-bearing: a crawl that
- * did not prove it saw the whole site says so, once, at the top, and its orphan
- * counts stay unmeasured. A partial crawl cannot prove absence.
- */
 
 const COVERAGE_LABELS: Record<CoverageState, string> = {
   complete: 'Complete coverage',
   partial: 'Partial coverage',
   unknown: 'Coverage unknown',
 };
+
+const DEPTH_LABELS = {
+  depth_0: 'Depth 0',
+  depth_1: 'Depth 1',
+  depth_2: 'Depth 2',
+  depth_3_plus: 'Depth 3+',
+} as const;
+
+const PARENT_SOURCE_LABELS: Record<ArchitectureNode['parent_source'], string> = {
+  breadcrumb: 'Breadcrumb',
+  explicit_structure: 'Explicit structure',
+  url_parent: 'URL parent',
+  unknown: 'Root or unresolved',
+};
+
+function formatPercentage(value: number | null): string {
+  return value === null ? PLACEHOLDER : `${Math.round(value * 100)}%`;
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const ordered = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(ordered.length / 2);
+  return ordered.length % 2 === 0
+    ? (ordered[middle - 1]! + ordered[middle]!) / 2
+    : ordered[middle]!;
+}
 
 export function ArchitecturePanel({
   projectId,
@@ -51,15 +68,10 @@ export function ArchitecturePanel({
 
   if (architecture.isLoading) {
     return (
-      <div
-        className="grid gap-4"
-        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- output only permits phrasing content; this live region contains block skeletons.
-        role="status"
-        aria-label="Loading the observed architecture"
-      >
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <output className="grid gap-4" aria-label="Loading the observed architecture">
+        <Skeleton className="h-28 w-full" />
+        <Skeleton className="h-72 w-full" />
+      </output>
     );
   }
   if (architecture.isError) return <Alert tone="danger">Could not load Architecture.</Alert>;
@@ -67,21 +79,19 @@ export function ArchitecturePanel({
     return (
       <Alert tone="info">
         {architecture.data?.limitations[0] ??
-          'Page families appear once a crawl has finished and its structure has been derived.'}
+          'Page kinds appear once a crawl has finished and its structure has been derived.'}
       </Alert>
     );
   }
-
-  return <FamiliesCard data={architecture.data} />;
+  return <ArchitectureLedger data={architecture.data} />;
 }
 
-/** Group the projected pages under the family the backend assigned each one. */
-function pagesByFamily(nodes: ArchitectureNode[]): Map<string, ArchitectureNode[]> {
+function pagesByKind(nodes: ArchitectureNode[]): Map<string, ArchitectureNode[]> {
   const grouped = new Map<string, ArchitectureNode[]>();
   for (const node of nodes) {
-    const pages = grouped.get(node.family);
+    const pages = grouped.get(node.page_kind);
     if (pages) pages.push(node);
-    else grouped.set(node.family, [node]);
+    else grouped.set(node.page_kind, [node]);
   }
   for (const pages of grouped.values()) {
     pages.sort((left, right) => left.url.localeCompare(right.url));
@@ -89,191 +99,345 @@ function pagesByFamily(nodes: ArchitectureNode[]): Map<string, ArchitectureNode[
   return grouped;
 }
 
-function FamiliesCard({ data }: Readonly<{ data: SiteArchitecture }>) {
-  const grouped = useMemo(() => pagesByFamily(data.nodes), [data.nodes]);
-  const families = useMemo(
-    () => [...data.families].sort((left, right) => right.url_count - left.url_count),
-    [data.families],
+function ArchitectureLedger({ data }: Readonly<{ data: SiteArchitecture }>) {
+  const grouped = useMemo(() => pagesByKind(data.nodes), [data.nodes]);
+  const pageKinds = useMemo(
+    () => [...data.page_kinds].sort((left, right) => right.page_count - left.page_count),
+    [data.page_kinds],
   );
+  const depths = data.nodes.flatMap((node) =>
+    node.depth_from_home === null ? [] : [node.depth_from_home],
+  );
+  const duplicatePages = pageKinds.reduce(
+    (total, pageKind) => total + pageKind.duplicate_metadata_count,
+    0,
+  );
+
   return (
-    <div className="grid min-w-0 gap-4" data-testid="site-architecture">
+    <div className="grid min-w-0 gap-[var(--workspace-gap)]" data-testid="site-architecture">
       <Card>
-        <CardHeader>
-          <CardTitle>Page families</CardTitle>
-          <CardDescription className="max-w-3xl">
-            The {data.page_count} page{data.page_count === 1 ? '' : 's'} this crawl analyzed,
-            grouped by URL pattern. Open a family to see its pages.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 pt-0">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <CardHeader className="gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="grid gap-1">
+              <CardTitle>Page kinds</CardTitle>
+              <CardDescription>
+                URLs grouped by their persisted structural purpose for this crawl.
+              </CardDescription>
+            </div>
             <Badge
               variant="status"
               value={data.coverage_state === 'complete' ? 'success' : 'warning'}
             >
               {COVERAGE_LABELS[data.coverage_state]}
             </Badge>
-            {data.crawl_id ? <TreeExportButton crawlId={data.crawl_id} /> : null}
           </div>
+        </CardHeader>
+        <CardContent className="grid gap-4 pt-2">
+          <ArchitectureMetrics
+            pageKinds={pageKinds.length}
+            pages={data.page_count}
+            medianDepth={median(depths)}
+            duplicatePages={duplicatePages}
+            orphanCount={data.internal_linking.orphan_page_count}
+          />
           {data.limitations.map((limitation) => (
             <Alert key={limitation} tone="info">
               {limitation}
             </Alert>
           ))}
-          {families.length === 0 ? (
-            <p className="text-secondary text-sm">No page families were observed.</p>
+          {pageKinds.length === 0 ? (
+            <p className="text-secondary text-sm">No page kinds were measured.</p>
           ) : (
-            <ul className="border-border-subtle grid rounded-md border">
-              {families.map((family) => (
-                <FamilyRow
-                  key={family.family}
-                  family={family}
-                  pages={grouped.get(family.family) ?? []}
-                  crawlId={data.crawl_id}
-                />
-              ))}
-            </ul>
+            <PageKindTable pageKinds={pageKinds} grouped={grouped} crawlId={data.crawl_id} />
           )}
         </CardContent>
       </Card>
+      <HierarchyCard nodes={data.nodes} crawlId={data.crawl_id} />
+      <ArchitectureEvidence data={data} />
     </div>
   );
 }
 
-function FamilyRow({
-  family,
+function ArchitectureMetrics({
+  pageKinds,
   pages,
-  crawlId,
-}: Readonly<{ family: ArchitectureFamily; pages: ArchitectureNode[]; crawlId: string | null }>) {
-  const [open, setOpen] = useState(false);
-  const Chevron = open ? ChevronDown : ChevronRight;
-  const kinds = Object.entries(family.page_kind_distribution).sort(
-    ([, left], [, right]) => right - left,
-  );
-  return (
-    <li className="border-border-subtle border-b last:border-b-0">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="hover:bg-background-alt flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors"
-      >
-        <Chevron className="text-muted size-4 shrink-0" aria-hidden />
-        <span
-          className="mono text-foreground min-w-0 flex-1 truncate text-sm"
-          title={family.family}
-        >
-          {family.family}
-        </span>
-        <span className="hidden shrink-0 items-center gap-1 sm:flex">
-          {kinds.map(([kind, count]) => (
-            <span key={kind} className="flex items-center gap-1">
-              <PageKindBadge pageKind={kind} />
-              <span className="mono text-2xs text-muted">{count}</span>
-            </span>
-          ))}
-        </span>
-        <span className="mono text-secondary shrink-0 text-xs tabular-nums">
-          {family.url_count} URL{family.url_count === 1 ? '' : 's'}
-        </span>
-      </button>
-      {open ? (
-        <div className="border-border-subtle bg-background-alt border-t px-3 py-2.5">
-          <FamilyFacts family={family} />
-          {pages.length === 0 ? (
-            <p className="text-secondary text-sm">
-              This family&apos;s pages are outside the projected set.
-            </p>
-          ) : (
-            <ul className="grid gap-0.5">
-              {pages.map((page) => (
-                <li key={page.site_url_id} className="flex min-w-0 items-center gap-2">
-                  {crawlId ? (
-                    <Link
-                      href={`/site/crawls/${crawlId}/pages/${page.site_url_id}`}
-                      className="mono text-accent-text min-w-0 truncate text-xs hover:underline"
-                      title={page.url}
-                    >
-                      {page.url}
-                    </Link>
-                  ) : (
-                    <span className="mono text-foreground min-w-0 truncate text-xs">
-                      {page.url}
-                    </span>
-                  )}
-                  <PageKindBadge pageKind={page.page_kind || null} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ) : null}
-    </li>
-  );
-}
-
-function FamilyFacts({ family }: Readonly<{ family: ArchitectureFamily }>) {
-  const facts = [
-    { label: 'Indexable', value: `${family.indexable_count} / ${family.url_count}` },
-    {
-      label: 'Median depth',
-      value: family.median_depth === null ? PLACEHOLDER : String(family.median_depth),
-    },
-    {
-      label: 'Duplicate metadata',
-      value: `${Math.round(family.metadata_duplication_rate * 100)}%`,
-      warn: family.metadata_duplication_rate > 0,
-    },
-    {
-      // Null unless the crawl proved it reached every page — an orphan count is
-      // an absence claim, and a partial crawl cannot make one.
-      label: 'Orphans',
-      value: family.orphan_count === null ? PLACEHOLDER : String(family.orphan_count),
-    },
+  medianDepth,
+  duplicatePages,
+  orphanCount,
+}: Readonly<{
+  pageKinds: number;
+  pages: number;
+  medianDepth: number | null;
+  duplicatePages: number;
+  orphanCount: number | null;
+}>) {
+  const items = [
+    ['Page kinds', String(pageKinds)],
+    ['Pages', String(pages)],
+    ['Median depth', medianDepth === null ? PLACEHOLDER : String(medianDepth)],
+    ['Duplicate metadata', String(duplicatePages)],
+    ['Orphaned pages', orphanCount === null ? PLACEHOLDER : String(orphanCount)],
   ];
   return (
-    <dl className="mb-2.5 flex flex-wrap gap-x-6 gap-y-1">
-      {facts.map((fact) => (
-        <div key={fact.label} className="flex items-baseline gap-1.5">
-          <dt className="text-muted text-2xs">{fact.label}</dt>
-          <dd
-            className={cn(
-              'mono text-xs font-medium',
-              fact.warn ? 'text-warning-text' : 'text-foreground',
-            )}
-          >
-            {fact.value}
-          </dd>
+    <dl className="border-border-subtle grid grid-cols-2 border-y sm:grid-cols-3 lg:grid-cols-5">
+      {items.map(([label, value]) => (
+        <div
+          key={label}
+          className="border-border-subtle grid gap-1 border-b px-3 py-3 last:border-b-0 sm:border-r sm:border-b-0 sm:last:border-r-0"
+        >
+          <dt className="text-muted text-xs">{label}</dt>
+          <dd className="text-foreground text-lg font-semibold tabular-nums">{value}</dd>
         </div>
       ))}
     </dl>
   );
 }
 
-/**
- * Markdown is where an ASCII tree genuinely belongs, so the structural export
- * stays available here even though the screen itself no longer draws a tree.
- */
-function TreeExportButton({ crawlId }: Readonly<{ crawlId: string }>) {
-  const [exporting, setExporting] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const run = async () => {
-    setExporting(true);
-    setFailed(false);
-    try {
-      await downloadCrawlExport(crawlId, 'md', 'architecture');
-    } catch {
-      setFailed(true);
-    } finally {
-      setExporting(false);
-    }
-  };
+function PageKindTable({
+  pageKinds,
+  grouped,
+  crawlId,
+}: Readonly<{
+  pageKinds: ArchitecturePageKind[];
+  grouped: Map<string, ArchitectureNode[]>;
+  crawlId: string | null;
+}>) {
+  const [openKind, setOpenKind] = useState<string | null>(null);
   return (
-    <div className="flex items-center gap-3">
-      {failed ? <span className="text-danger-text text-xs">Export failed. Try again.</span> : null}
-      <Button variant="secondary" size="sm" onClick={run} disabled={exporting}>
-        {exporting ? 'Exporting…' : 'Export structure (Markdown)'}
-      </Button>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Page kind</TableHead>
+          <TableHead numeric>Pages</TableHead>
+          <TableHead numeric>Median depth</TableHead>
+          <TableHead numeric>Indexable</TableHead>
+          <TableHead numeric>Duplicate metadata</TableHead>
+          <TableHead numeric>Orphaned</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {pageKinds.map((pageKind) => {
+          const open = openKind === pageKind.page_kind;
+          const pages = grouped.get(pageKind.page_kind) ?? [];
+          const Chevron = open ? ChevronDown : ChevronRight;
+          return (
+            <Fragment key={pageKind.page_kind}>
+              <TableRow>
+                <TableCell>
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => setOpenKind(open ? null : pageKind.page_kind)}
+                    className="inline-flex min-h-11 items-center gap-2 text-left"
+                  >
+                    <Chevron className="text-muted size-4 shrink-0" aria-hidden />
+                    <PageKindBadge pageKind={pageKind.page_kind} />
+                  </button>
+                </TableCell>
+                <TableCell numeric>{pageKind.page_count}</TableCell>
+                <TableCell numeric>{pageKind.median_depth ?? PLACEHOLDER}</TableCell>
+                <TableCell numeric>
+                  {pageKind.indexable_count} / {pageKind.page_count}
+                </TableCell>
+                <TableCell numeric>{pageKind.duplicate_metadata_count}</TableCell>
+                <TableCell numeric>{pageKind.orphan_count ?? PLACEHOLDER}</TableCell>
+              </TableRow>
+              {open ? <PageKindPages pages={pages} crawlId={crawlId} /> : null}
+            </Fragment>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
+}
+
+function PageKindPages({
+  pages,
+  crawlId,
+}: Readonly<{ pages: ArchitectureNode[]; crawlId: string | null }>) {
+  return (
+    <TableRow className="bg-background-alt hover:bg-background-alt">
+      <TableCell colSpan={6} className="py-3">
+        {pages.length === 0 ? (
+          <p className="text-secondary text-sm">No projected URLs are available for this kind.</p>
+        ) : (
+          <ul className="grid gap-2 pl-6">
+            {pages.map((page) => (
+              <li key={page.site_url_id} className="min-w-0">
+                {crawlId ? (
+                  <Link
+                    href={`/site/crawls/${crawlId}/pages/${page.site_url_id}`}
+                    className="text-accent-text min-w-0 truncate text-sm hover:underline"
+                    title={page.url}
+                  >
+                    {page.url}
+                  </Link>
+                ) : (
+                  <span className="text-foreground min-w-0 truncate text-sm">{page.url}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function nodesByParent(nodes: ArchitectureNode[]): Map<string | null, ArchitectureNode[]> {
+  const nodeIds = new Set(nodes.map((node) => node.site_url_id));
+  const grouped = new Map<string | null, ArchitectureNode[]>();
+  for (const node of nodes) {
+    const parentId =
+      node.parent_site_url_id &&
+      node.parent_site_url_id !== node.site_url_id &&
+      nodeIds.has(node.parent_site_url_id)
+        ? node.parent_site_url_id
+        : null;
+    const siblings = grouped.get(parentId);
+    if (siblings) siblings.push(node);
+    else grouped.set(parentId, [node]);
+  }
+  for (const siblings of grouped.values()) {
+    siblings.sort((left, right) => left.url.localeCompare(right.url));
+  }
+  return grouped;
+}
+
+function HierarchyCard({
+  nodes,
+  crawlId,
+}: Readonly<{ nodes: ArchitectureNode[]; crawlId: string | null }>) {
+  const grouped = useMemo(() => nodesByParent(nodes), [nodes]);
+  const roots = grouped.get(null) ?? [];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Observed hierarchy</CardTitle>
+        <CardDescription>
+          Persisted parent relationships from breadcrumbs, explicit structure, or a safe URL parent.
+          Unresolved pages remain at the root.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {roots.length === 0 ? (
+          <p className="text-secondary text-sm">No hierarchy nodes were measured.</p>
+        ) : (
+          <HierarchyList nodes={roots} grouped={grouped} crawlId={crawlId} />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function HierarchyList({
+  nodes,
+  grouped,
+  crawlId,
+}: Readonly<{
+  nodes: ArchitectureNode[];
+  grouped: Map<string | null, ArchitectureNode[]>;
+  crawlId: string | null;
+}>) {
+  return (
+    <ul className="border-border-subtle grid gap-2 border-l pl-4">
+      {nodes.map((node) => {
+        const children = grouped.get(node.site_url_id) ?? [];
+        return (
+          <li key={node.site_url_id} className="grid min-w-0 gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {crawlId ? (
+                <Link
+                  href={`/site/crawls/${crawlId}/pages/${node.site_url_id}`}
+                  className="text-accent-text min-w-0 text-sm [overflow-wrap:anywhere] hover:underline"
+                >
+                  {node.url}
+                </Link>
+              ) : (
+                <span className="text-foreground min-w-0 text-sm [overflow-wrap:anywhere]">
+                  {node.url}
+                </span>
+              )}
+              <PageKindBadge pageKind={node.page_kind} />
+              <span className="text-muted text-2xs">
+                {PARENT_SOURCE_LABELS[node.parent_source]}
+              </span>
+            </div>
+            {children.length > 0 ? (
+              <HierarchyList nodes={children} grouped={grouped} crawlId={crawlId} />
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function ArchitectureEvidence({ data }: Readonly<{ data: SiteArchitecture }>) {
+  const linking = data.internal_linking;
+  return (
+    <div className="grid gap-[var(--workspace-gap)] md:grid-cols-2">
+      <Card>
+        <CardHeader className="flex-row items-center gap-2 pb-2">
+          <Link2 className="text-accent-text size-4" aria-hidden />
+          <CardTitle>Internal linking</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-3 gap-4 pt-2">
+          <EvidenceMetric label="Internal links" value={String(linking.internal_link_count)} />
+          <EvidenceMetric
+            label="Have incoming links"
+            value={formatPercentage(linking.pages_with_incoming_percentage)}
+            supporting={`${linking.pages_with_incoming_count} pages`}
+          />
+          <EvidenceMetric
+            label="Orphaned pages"
+            value={
+              linking.orphan_page_count === null ? PLACEHOLDER : String(linking.orphan_page_count)
+            }
+          />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="flex-row items-center gap-2 pb-2">
+          <ListTree className="text-accent-text size-4" aria-hidden />
+          <CardTitle>Structure depth</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 pt-2">
+          {data.structure_depth.buckets.map((bucket) => (
+            <div key={bucket.key} className="grid grid-cols-[4.5rem_1fr_auto] items-center gap-3">
+              <span className="text-secondary text-xs">{DEPTH_LABELS[bucket.key]}</span>
+              <div className="bg-background-alt h-1.5 overflow-hidden rounded-full">
+                <div
+                  className="bg-accent h-full rounded-full"
+                  style={{ width: `${Math.round((bucket.percentage ?? 0) * 100)}%` }}
+                />
+              </div>
+              <span className="text-foreground min-w-16 text-right text-xs font-medium tabular-nums">
+                {bucket.page_count} ({formatPercentage(bucket.percentage)})
+              </span>
+            </div>
+          ))}
+          {data.structure_depth.unmeasured_page_count > 0 ? (
+            <p className="text-muted text-xs">
+              {data.structure_depth.unmeasured_page_count} pages have no measured depth.
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function EvidenceMetric({
+  label,
+  value,
+  supporting,
+}: Readonly<{ label: string; value: string; supporting?: string }>) {
+  return (
+    <div className="grid content-start gap-1">
+      <span className="text-foreground text-xl font-semibold tabular-nums">{value}</span>
+      <span className="text-muted text-xs">{label}</span>
+      {supporting ? <span className="text-subtle text-2xs">{supporting}</span> : null}
     </div>
   );
 }

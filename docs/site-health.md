@@ -26,7 +26,7 @@ The user-facing area has three pages:
 
 The removed Site Intelligence workspace and industry-pack/knowledge subsystems
 must not be reintroduced as parallel owners. Site Health owns one persisted
-observed-architecture projection whose read surface exposes observed families
+observed-architecture projection whose read surface exposes observed page kinds
 and hierarchy only.
 
 ## Pipeline
@@ -173,12 +173,68 @@ architecture-formula, and archetype-policy versions.
 Each structural rule evaluation references that exact architecture projection,
 so a later formula or policy version persists independent replayable results.
 
-Page families replace only the final path segment with `*` and report URL and
-page-kind counts, median observed depth, indexable count, metadata-duplication
-rate, and—only for complete coverage—orphan count. Parent evidence resolves in
-strict order: visible breadcrumb links, explicit `BreadcrumbList`/`isPartOf`
-relationships, a crawled immediate URL parent whose page kind can safely act as
-a hub, then `unknown`. Cross-links never manufacture a parent.
+### Page-kind classification
+
+`page_kind` is the only user-facing term for a page's structural purpose.
+"Page family" is not a second concept or a URL-pattern group. Every analyzed
+URL has exactly one persisted `page_kind`; when the evidence cannot support a
+specific kind, the classifier deliberately assigns `other` rather than forcing
+a guess. Architecture groups pages by that persisted value, so one unusual URL
+cannot appear as a one-page family merely because its path is unique.
+
+The bounded taxonomy is `homepage`, `product`, `category`, `service`, `local`,
+`article`, `guide`, `docs`, `pricing`, `faq`, `about_contact`, `comparison`,
+`case_study_review`, `trust_policy`, and `other`. `category` is the listing or
+hub kind for repeated collections of products or other navigable results. The
+taxonomy stays intentionally broad enough for stable audits across industries;
+new kinds require a distinct checklist or recommendation contract, not only a
+new URL vocabulary.
+
+Classification is deterministic and uses this precedence:
+
+1. Normalize the canonical URL before classification. Host casing, fragments,
+   trailing slashes, default index documents, duplicate query parameters, and
+   tracking parameters cannot create different classifications. Meaningful
+   routing parameters remain available as evidence.
+2. Prefer page-owned structural evidence. A primary product entity requires
+   facts such as a buy box, offer, SKU, price, availability, or variants outside
+   repeated cards. A `category` requires a substantial repeated-card collection
+   supported by result counts, sorting, filtering, facets, or pagination. A
+   single location entity requires its own address/location evidence. Repeated
+   recommendation cards in an article or product page do not make it a listing.
+3. Apply high-confidence route evidence: `/` is `homepage`; product, collection,
+   service, location, guide, comparison, pricing, documentation, FAQ,
+   about/contact, case-study/review, and legal/policy route vocabularies map to
+   their corresponding fixed kinds. Archive roots such as `/blog` or `/news`
+   require listing structure, while their detail descendants remain `article`.
+4. Use visible semantic evidence only when stronger evidence is absent. The
+   title, H1, final slug, question-heading structure, author/date evidence, and
+   bounded main-content heuristics may resolve an otherwise ambiguous page.
+5. Treat structured data as corroboration, never self-certification. Schema is
+   the page's claim about itself and cannot alone select the kind whose expected
+   schema will subsequently be audited. Globally injected `Organization`,
+   `WebSite`, or breadcrumb markup never classifies every page.
+6. If the strongest tier contains conflicting kinds, or schema is the only
+   signal, abstain to `other`. Persist the deciding signal, alternatives,
+   conflicts, confidence label, and reason so the result remains explainable.
+
+The classifier uses evidence tiers rather than adding unrelated signal weights.
+Several weak hints therefore cannot outvote one page-owned structural fact, and
+confidence is the explainable label `high`, `medium`, `low`, or `unknown`, not
+an uncalibrated probability. An LLM does not classify page kinds in the shipped
+runtime. A future bounded ambiguity resolver may choose only from the fixed
+taxonomy and may not override deterministic evidence or invent a kind.
+
+URL templates such as `/products/{slug}` may be retained later as internal
+template evidence for template-wide defect analysis, but a template is not a
+page kind and is not the primary Architecture grouping. Template clustering is
+deferred until its DOM/schema/heading fingerprint, provenance, and confidence
+contract are specified; a last-segment wildcard alone is insufficient.
+
+Parent evidence resolves in strict order: visible breadcrumb links, explicit
+`BreadcrumbList`/`isPartOf` relationships, a crawled immediate URL parent whose
+page kind can safely act as a hub, then `unknown`. Cross-links never manufacture
+a parent.
 
 The archetype can only be mapped from a sufficiently grounded onboarding
 `business_model`; an absent/weak profile or materially contradictory crawl
@@ -187,15 +243,36 @@ Common structures not observed are suppressed unless coverage is complete.
 
 ### Architecture read surface
 
-The Architecture tab renders page families only — each family expanding to the
-URLs assigned to it. The observed hierarchy tree and the site-profile block are
-not presented; the Markdown export below remains the place a structural tree
-belongs.
+The Architecture tab groups the observed URLs by `page_kind`. Each row exposes
+the kind, page count, median observed depth, indexable count, duplicate metadata
+count, and—only for complete coverage—orphan count; its assigned URL list is
+disclosed on demand. There is no URL-pattern "family" column and no "type mix."
+
+The same tab renders the persisted observed hierarchy beneath that ledger.
+Nodes are nested only by their returned `parent_site_url_id`, and each
+relationship names its persisted `parent_source`: visible breadcrumb, explicit
+structure, safe immediate URL parent, or unresolved. The browser does not infer
+parents from links or paths; a missing or unresolved parent stays at the root.
+
+Two persisted summaries remain visible below. Internal linking reports the
+total observed internal links, the count and percentage of observed pages with
+at least one incoming link, and the orphan count when complete coverage permits
+that absence claim. Structure depth reports page counts and percentages for
+depth 0, depth 1, depth 2, and depth 3+, plus the number of pages whose depth was
+not measured. Percentages use only pages with measured depth as their
+denominator. Detailed internal-link and depth reports are deferred to PR3, so
+PR1 presents no report links or report actions.
+
+Architecture health is a state, not a synthesized score. An observed
+indexability blocker is `Blocked`; an observed duplicate-metadata, orphan, or
+excessive-depth defect is `Needs work`; no observed defect with incomplete
+crawl/architecture evidence is `Limited evidence`; only sufficient evidence
+without one of those findings is `Good`.
 
 `GET /api/v1/projects/{project_id}/site-health/architecture` projects the newest
 persisted model for the selected (or latest usable) crawl. It never re-derives
 the model, crawls, or scores. The response carries `coverage_state` alongside
-every site-level number, the page-family rows, the hierarchy nodes with their
+every site-level number, the page-kind rows, the hierarchy nodes with their
 `parent_source`, the architecture formula version of the row it actually read,
 and a plain-language `limitations` line whenever coverage is not `complete`. A
 crawl with no persisted model returns `state:
@@ -243,16 +320,30 @@ capped list never reads as the whole set. A rule ID stays provenance and is
 never display copy.
 Unmapped Site Health rules remain outside this view; there is no fallback
 bucket. Each dimension exposes pass, fail, not-applicable, error, expected and
-observed counts, coverage, and at most 25 failing pages in `evidence_pages`.
+determinate counts, coverage, and at most 25 failing pages in `evidence_pages`.
 The true failing-page total is reported separately even when that page list is
 bounded.
-Not-applicable remains disclosed and never becomes a failure. This adds no AEO
-Readiness score and does not reinterpret Site Health scoring.
+Coverage is determinate pass/fail checks divided by expected checks. Structural
+not-applicability leaves the expected set, while the temporary stored
+`not_applicable` rows carrying `coverage_not_complete`, `insufficient_evidence`,
+or `no_checkable_alternates` remain expected and non-determinate. Errors also
+remain expected and non-determinate. They lower coverage without becoming a
+failure.
+
+PR1 retains the current nullable score fields and defect-only formula, but
+qualifies every AEO score with a config-owned breadth guard: at least four
+unique determinate checkpoint IDs across three readiness dimensions. Below
+either minimum, page, page-detail, page-kind, and crawl-summary `aeo_score`
+serialize `null`; the AEO projection is `incomplete` and carries a bounded
+limitation. The UI renders **Not measured**, so one passing check can never
+present AEO 100. PR2 replaces this temporary guard with the approved persisted
+measurement contract below.
 
 ## Approved measurement contract (target; not shipped)
 
 This section is the canonical logic for the approved measurement contract that
-will replace `sh-scoring-5`. The three-PR implementation sequence lives in
+will replace the temporary PR1 scoring formula while retaining active version
+`1`. The three-PR implementation sequence lives in
 [`plans/site-health-measurement-cutover.md`](plans/site-health-measurement-cutover.md).
 This file owns measurement meaning and formulas; the plan owns delivery order
 and acceptance. Runtime sections outside this target block remain shipped truth
@@ -416,7 +507,7 @@ only from page-owned structural evidence or an independently observed trait.
 
 | Page kind | Objective readiness checkpoints | Advisory capabilities or unknowns |
 |---|---|---|
-| `homepage` | Visible site/entity identity; clear primary purpose; crawlable routes to important page families; consistent title/main identity | `WebSite`/`Organization`, logo, `sameAs`, contact data. Entity legitimacy and reputation are unknown. |
+| `homepage` | Visible site/entity identity; clear primary purpose; crawlable routes to important page kinds; consistent title/main identity | `WebSite`/`Organization`, logo, `sameAs`, contact data. Entity legitimacy and reputation are unknown. |
 | `article` | Article headline and substantial article-owned body; visible creator where the page presents authored editorial content; visible date where the content is explicitly dated or time-sensitive; present markup matches visible facts | `Article`/`BlogPosting`, representative image, author profile, sources, methodology. Word count, originality, expertise, and factual accuracy are not crawler verdicts. |
 | `product` | Product identity/description; for a purchasable PDP, visible price and currency or range, availability/purchase state, usable purchase action, and selected-variant consistency; present merchant facts match visible facts | `Product`/`Offer`, identifiers, shipping/returns, Merchant Center. Product snippet eligibility is `name` plus one of offer/review/aggregate rating, not always an offer ([Product snippets](https://developers.google.com/search/docs/appearance/structured-data/product-snippet)). |
 | `category` | A real collection/listing; crawlable detail-page links; persistent linked pagination when needed; explicit empty state where empty | Category description, breadcrumbs, `CollectionPage`/`ItemList`. Filter/facet crawl policy is cluster-scoped. |
@@ -773,7 +864,10 @@ page chrome, and repeated recommendation cards cannot speak for the primary
 entity.
 
 Evidence resolves in order: page-owned structure, the nearest exact semantic
-path segment, then bounded FAQ/article/title semantics. Structured data may
+path segment, then bounded FAQ/article/title semantics. An exact blog/news or
+blog/category archive route plus a page-owned repeated linked-card collection
+is structural category evidence; an individual post with a related-card strip
+remains an article. Structured data may
 corroborate and suggest schema but never decides page kind by itself. Same-tier
 conflicts abstain to `other`; lower-tier conflicts persist. The winning signal,
 tier, conflicts, alternatives, schema suggestion, and `high|medium|low|unknown`
@@ -801,7 +895,9 @@ It reads page facts independently of `page_kind`; trait gates therefore cannot
 become consequences of classification. Trait evidence is stricter than a
 similar classifier signal: for example, `has_faq` requires FAQ markup or
 question-mark subheadings. Traits split bundled contracts such as about versus
-contact and case study versus review. They persist in
+contact and case study versus review. Contact links and fields in header,
+navigation, footer, and aside chrome never activate page-owned
+`contact_intent`. Traits persist in
 `SitePageAnalysis.page_traits` and appear in page detail.
 
 ## Content sufficiency
@@ -852,9 +948,10 @@ Not-applicable is different from pass and is excluded from scoring.
 - Question-heading rules apply to FAQ pages only, and are not applicable to a
   page with no h2/h3 subheadings at all: no sections is a different fact from
   badly phrased sections.
-- Answer-first structure applies to FAQ, guide, and docs pages, as an advisory.
-  A service page, a comparison, a case study, or a narrative article carries no
-  obligation to open with a direct answer.
+- Answer-first structure is a no-score advisory only when independent
+  page-owned `has_faq` evidence proves an answer task. A route/title guess,
+  service page, comparison, case study, narrative article, or generic guide/docs
+  page carries no obligation to open with a direct answer.
 - A canonical declaration that points away from the page is not a conflict —
   consolidating a sorted, filtered, or tracked URL onto its parent is what the
   element is for. Only positive evidence of a broken target fails: a canonical
@@ -863,9 +960,9 @@ Not-applicable is different from pass and is excluded from scoring.
   removed before the comparison, and a relative canonical is resolved against
   the page URL first.
 - Product offer and visible/schema parity rules apply only to product pages.
-- Architecture depth, breadcrumb-conflict, and duplicate-family-metadata rules
+- Architecture depth, breadcrumb-conflict, and duplicate-page-kind-metadata rules
   report positive observations at any coverage. Orphan, parentless-detail,
-  unhubbed-family, and sitemap-orphan absence claims require complete coverage;
+  unhubbed-page-kind, and sitemap-orphan absence claims require complete coverage;
   the currently shipped evaluator stores `not_applicable` with
   `coverage_not_complete`. That encoding means expected-but-non-determinate for
   coverage and presentation; the replacement outcome is `unavailable`.
@@ -888,9 +985,14 @@ Every failed evaluation freezes its description, remediation, and
 analyzer/catalog versions onto `SiteIssue`. Reads use that stored copy, never
 the current catalog.
 
-**Only defects score in the shipped formula.** Advisory evaluations
+**Only defects score in the shipped formula.** Advisory and diagnostic evaluations
 are excluded from scoring entirely — pass, fail, and error alike — so guidance
-can neither lower nor raise the shipped health score. The approved replacement
+or neutral compatibility evidence can neither lower nor raise the shipped
+health score. Diagnostics persist as evaluations but never create issues or
+Opportunities. Exact-one-H1, very-low-word-count, outbound-citation, date,
+answer-first, and expand-gating proxies are no-score advisories;
+server-rendered-content and AI-crawler-access proxies are no-score diagnostics.
+The approved replacement
 allows only explicitly score-owned advisories to affect AEO Readiness, never
 Technical Integrity. Defects and advisories retain separate filtered views;
 only defects feed severity filters and Opportunities.
@@ -900,6 +1002,9 @@ sitemap membership, then robots evidence. Intended exclusion is not applicable;
 an intended-indexing contradiction is a defect; unknown intent is a non-critical
 advisory. Promo-like paths and missing inbound links are not intent evidence.
 
-Version owners remain in `backend/app/core/config/site_health_*`; the disposable
+Version owners remain in `backend/app/core/config/site_health_*`; the active
+values are `sh-extractor-1`, `sh-classifier-1`, `sh-traits-1`,
+`sh-analyzer-1`, `sh-rules-1`, `sh-scoring-1`, `sh-coverage-1`,
+`sh-link-metrics-1`, `sh-architecture-1`, and `sh-archetypes-1`. The disposable
 development reset policy above applies. An unclassified `other` page retains
 its Technical score but has no AEO score.

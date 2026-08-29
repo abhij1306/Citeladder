@@ -446,10 +446,10 @@ _V2_PAGE = b"""
 
 
 def test_extractor_version_is_sh_extractor_13():
-    # sh-extractor-13 adds targeted visible byline/date facts while retaining
+    # sh-extractor-1 includes targeted visible byline/date facts while retaining
     # the explicit breadcrumb relationship URLs of v12.
-    assert EXTRACTOR_VERSION == "sh-extractor-13"
-    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-13"
+    assert EXTRACTOR_VERSION == "sh-extractor-1"
+    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-1"
 
 
 def test_visible_breadcrumb_links_preserve_resolvable_urls():

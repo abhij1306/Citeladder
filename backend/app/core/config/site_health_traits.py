@@ -52,4 +52,19 @@ PAGE_TRAIT_CONTACT_FORM_FIELDS: Final[frozenset[str]] = frozenset(
     {"email", "e-mail", "phone", "telephone", "message", "enquiry", "inquiry"}
 )
 PAGE_TRAIT_PROCEDURAL_MIN_STEPS: Final = 3
+
+PAGE_TRAIT_APPLICABILITY_PREFIX: Final = "page_trait:"
+PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX: Final = "page_trait_content:"
+
+
+def _traits(*traits: str, reads_content: bool = False) -> str:
+    """Build a config-owned trait applicability key."""
+    prefix = (
+        PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX
+        if reads_content
+        else PAGE_TRAIT_APPLICABILITY_PREFIX
+    )
+    return f"{prefix}{'|'.join(traits)}"
+
+
 TRAITS_VERSION: Final = "sh-traits-1"

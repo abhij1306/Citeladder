@@ -105,29 +105,43 @@ async def _seed_architecture(
             source_snapshot_id=snapshot.id,
             coverage_state=coverage_state,
             page_count=len(urls),
-            page_kind_counts={"homepage": 1, "product": 2},
-            families=[
+            page_kinds=[
                 {
-                    "family": "/*",
-                    "url_count": 3,
-                    "page_kind_distribution": {"product": 3},
+                    "page_kind": "product",
+                    "page_count": 2,
                     "median_depth": 1.0,
-                    "indexable_count": 3,
-                    "metadata_duplication_rate": 0.0,
+                    "indexable_count": 2,
                     "duplicate_metadata_count": 0,
                     "orphan_count": 0
                     if coverage_state == COVERAGE_STATE_COMPLETE
                     else None,
-                    "site_url_ids": [str(row.id) for row in urls],
+                    "site_url_ids": [str(row.id) for row in urls[1:]],
                 }
             ],
+            internal_linking={
+                "internal_link_count": 2,
+                "pages_with_incoming_count": 2,
+                "pages_with_incoming_percentage": 0.6667,
+                "orphan_page_count": (
+                    0 if coverage_state == COVERAGE_STATE_COMPLETE else None
+                ),
+            },
+            structure_depth={
+                "measured_page_count": 3,
+                "unmeasured_page_count": 0,
+                "buckets": [
+                    {"key": "depth_0", "page_count": 1, "percentage": 0.3333},
+                    {"key": "depth_1", "page_count": 2, "percentage": 0.6667},
+                    {"key": "depth_2", "page_count": 0, "percentage": 0.0},
+                    {"key": "depth_3_plus", "page_count": 0, "percentage": 0.0},
+                ],
+            },
             hierarchy=[
                 {
                     "site_url_id": str(urls[0].id),
                     "url": urls[0].normalized_url,
                     "title": "Home",
                     "page_kind": "homepage",
-                    "family": "/*",
                     "parent_site_url_id": None,
                     "parent_source": "unknown",
                     "depth_from_home": 0,
@@ -138,7 +152,6 @@ async def _seed_architecture(
                         "url": row.normalized_url,
                         "title": "Product",
                         "page_kind": "product",
-                        "family": "/*",
                         "parent_site_url_id": str(urls[0].id),
                         "parent_source": "breadcrumb",
                         "depth_from_home": 1,
@@ -195,7 +208,9 @@ async def test_architecture_projects_persisted_model_and_coverage(
     assert body["coverage_state"] == COVERAGE_STATE_COMPLETE
     assert body["page_count"] == 3
     assert "archetype" not in body
-    assert body["families"][0]["orphan_count"] == 0
+    assert body["page_kinds"][0]["orphan_count"] == 0
+    assert body["internal_linking"]["internal_link_count"] == 2
+    assert body["structure_depth"]["buckets"][1]["page_count"] == 2
     assert {node["site_url_id"] for node in body["nodes"]} == {
         str(row.id) for row in urls
     }
@@ -227,7 +242,8 @@ async def test_partial_coverage_states_the_limit_and_withholds_absence(
         )
     ).json()
     assert body["coverage_state"] == COVERAGE_STATE_PARTIAL
-    assert body["families"][0]["orphan_count"] is None
+    assert body["page_kinds"][0]["orphan_count"] is None
+    assert body["internal_linking"]["orphan_page_count"] is None
     assert body["limitations"] and "page budget" in body["limitations"][0]
 
 

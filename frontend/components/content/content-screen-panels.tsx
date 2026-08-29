@@ -146,25 +146,17 @@ function ContextLine({ available, label }: Readonly<{ available: boolean; label:
   );
 }
 
-/**
- * The opportunity in its own words. The previous version said only that a
- * link would be kept, which told the user nothing about what they were
- * being asked to write — and the backend never sent the text to the model
- * either. Both halves are fixed together.
- */
+/** Compact provenance; the editable task itself appears once in the textarea. */
 function OpportunityContext({ opportunity }: Readonly<{ opportunity: ContentOpportunityContext }>) {
   return (
     <div
       data-component-id="content-opportunity-context"
-      className="border-border bg-well grid gap-2 rounded-sm border p-4"
+      className="border-border bg-well grid min-w-0 gap-2 rounded-sm border p-4 [overflow-wrap:anywhere]"
     >
       <span className={eyebrowClasses}>Based on opportunity</span>
-      <p className="text-foreground text-sm font-semibold">{opportunity.title}</p>
-      {opportunity.remediation ? (
-        <p className="text-secondary text-sm leading-relaxed">{opportunity.remediation}</p>
-      ) : null}
+      <p className="text-foreground min-w-0 text-sm font-semibold">{opportunity.title}</p>
       {opportunity.target ? (
-        <p className="text-muted text-xs">Target: {opportunity.target}</p>
+        <p className="text-muted min-w-0 text-xs">Target: {opportunity.target}</p>
       ) : null}
       <p className="text-muted text-xs">
         Path: {opportunity.pathway === 'earned' ? 'Earned' : 'Owned'}

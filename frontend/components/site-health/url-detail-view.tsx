@@ -268,13 +268,9 @@ function PageKindEvidencePanel({
           </div>
         ) : null}
         {evidence.signals.length > 0 ? <EvidenceSignals evidence={evidence} /> : null}
-        <div className="text-2xs text-muted flex flex-wrap items-center gap-x-4 gap-y-1">
-          <span>
-            Signals are evaluated in a fixed priority order; the highest-priority match sets the
-            type.
-          </span>
-          <span className="mono ms-auto">{evidence.classifierVersion}</span>
-        </div>
+        <p className="text-2xs text-muted">
+          Signals are evaluated in a fixed priority order; the highest-priority match sets the type.
+        </p>
       </div>
     </div>
   );

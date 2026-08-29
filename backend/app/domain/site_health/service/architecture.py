@@ -24,9 +24,19 @@ def _unavailable(reason: str, *, crawl_id: uuid.UUID | None = None) -> dict:
         "crawl_id": crawl_id,
         "coverage_state": "unknown",
         "page_count": 0,
-        "page_kind_counts": {},
-        "families": [],
+        "page_kinds": [],
         "nodes": [],
+        "internal_linking": {
+            "internal_link_count": 0,
+            "pages_with_incoming_count": 0,
+            "pages_with_incoming_percentage": None,
+            "orphan_page_count": None,
+        },
+        "structure_depth": {
+            "measured_page_count": 0,
+            "unmeasured_page_count": 0,
+            "buckets": [],
+        },
         "architecture_formula_version": ARCHITECTURE_FORMULA_VERSION,
         "limitations": [reason],
     }
@@ -61,7 +71,6 @@ def _node(row: dict) -> dict:
         "url": str(row.get("url") or ""),
         "title": str(row.get("title") or ""),
         "page_kind": str(row.get("page_kind") or ""),
-        "family": str(row.get("family") or ""),
         "parent_site_url_id": (
             str(row["parent_site_url_id"]) if row.get("parent_site_url_id") else None
         ),
@@ -70,14 +79,13 @@ def _node(row: dict) -> dict:
     }
 
 
-def _family(row: dict) -> dict:
+def _page_kind(row: dict) -> dict:
     return {
-        "family": str(row.get("family") or ""),
-        "url_count": int(row.get("url_count") or 0),
-        "page_kind_distribution": dict(row.get("page_kind_distribution") or {}),
+        "page_kind": str(row.get("page_kind") or "other"),
+        "page_count": int(row.get("page_count") or 0),
         "median_depth": row.get("median_depth"),
         "indexable_count": int(row.get("indexable_count") or 0),
-        "metadata_duplication_rate": float(row.get("metadata_duplication_rate") or 0.0),
+        "duplicate_metadata_count": int(row.get("duplicate_metadata_count") or 0),
         "orphan_count": row.get("orphan_count"),
     }
 
@@ -131,11 +139,12 @@ def _projection(model: SiteObservedArchitecture, *, crawl_id: uuid.UUID) -> dict
         "crawl_id": crawl_id,
         "coverage_state": coverage_state,
         "page_count": int(model.page_count or 0),
-        "page_kind_counts": dict(model.page_kind_counts or {}),
-        "families": [
-            _family(row) for row in model.families or [] if isinstance(row, dict)
+        "page_kinds": [
+            _page_kind(row) for row in model.page_kinds or [] if isinstance(row, dict)
         ],
         "nodes": nodes,
+        "internal_linking": dict(model.internal_linking or {}),
+        "structure_depth": dict(model.structure_depth or {}),
         "architecture_formula_version": model.architecture_formula_version,
         "limitations": _limitations(coverage_state),
     }

@@ -9,7 +9,7 @@ import type { z } from 'zod';
 
 import type {
   aeoReadinessSchema,
-  architectureFamilySchema,
+  architecturePageKindSchema,
   architectureNodeSchema,
   architectureSchema,
   auditEventSchema,
@@ -181,7 +181,7 @@ export type RerunPageResponse = z.infer<typeof rerunPageResponseSchema>;
 export type SiteHealthDashboard = z.infer<typeof siteHealthDashboardSchema>;
 export type AeoReadiness = z.infer<typeof aeoReadinessSchema>;
 export type CoverageState = z.infer<typeof coverageStateSchema>;
-export type ArchitectureFamily = z.infer<typeof architectureFamilySchema>;
+export type ArchitecturePageKind = z.infer<typeof architecturePageKindSchema>;
 export type ArchitectureNode = z.infer<typeof architectureNodeSchema>;
 export type SiteArchitecture = z.infer<typeof architectureSchema>;
 export type ReadinessDimension = z.infer<typeof readinessDimensionSchema>;

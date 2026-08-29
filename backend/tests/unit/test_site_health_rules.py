@@ -36,6 +36,7 @@ from app.core.config.site_health_page_profiles import PRODUCT_ANALYSIS_RULES
 from app.core.config.site_health_rule_types import (
     FINDING_CLASS_ADVISORY,
     FINDING_CLASS_DEFECT,
+    FINDING_CLASS_DIAGNOSTIC,
     KIND_EVIDENCE_CLASSES,
     SiteHealthRule,
 )
@@ -1354,8 +1355,8 @@ def test_organization_identity():
 
 
 def _answer_page_facts(**overrides):
-    """The healthy fixture as a DOCS page: answer_first still applies there."""
-    return _html_facts(page_kind="docs", **overrides)
+    """A page with independently observed FAQ/answer-task structure."""
+    return _html_facts(page_kind="faq", page_traits=["has_faq"], **overrides)
 
 
 def test_answer_first():
@@ -1395,6 +1396,27 @@ def test_answer_first_does_not_apply_to_narrative_or_commercial_pages():
     rule = rule_for("aeo.answer_first")
     assert rule is not None
     assert rule.finding_class == FINDING_CLASS_ADVISORY
+
+
+@pytest.mark.parametrize(
+    ("rule_id", "finding_class"),
+    [
+        ("technical.single_h1", FINDING_CLASS_ADVISORY),
+        ("technical.thin_content", FINDING_CLASS_ADVISORY),
+        ("aeo.server_rendered_content", FINDING_CLASS_DIAGNOSTIC),
+        ("aeo.outbound_citations", FINDING_CLASS_ADVISORY),
+        ("aeo.date_present", FINDING_CLASS_ADVISORY),
+        ("aeo.no_expand_gating", FINDING_CLASS_ADVISORY),
+        ("technical.ai_crawler_access", FINDING_CLASS_DIAGNOSTIC),
+        ("aeo.answer_first", FINDING_CLASS_ADVISORY),
+    ],
+)
+def test_pr1_proxy_rules_have_non_defect_ownership(
+    rule_id: str, finding_class: str
+) -> None:
+    rule = rule_for(rule_id)
+    assert rule is not None
+    assert rule.finding_class == finding_class
 
 
 def test_answer_first_not_applicable_without_headings():

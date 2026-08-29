@@ -10,7 +10,7 @@
 #   dimension_score = 100 × passed_weight
 #                     / (passed_weight + failed_weight + error_weight)
 #   over APPLICABLE DEFECT evaluations only (``not_applicable`` excluded, and
-#   ``finding_class == advisory`` excluded entirely); ``error`` is given ZERO
+#   every non-defect finding class excluded entirely); ``error`` is given ZERO
 #   credit but its weight stays in the denominator (it is a distinct outcome,
 #   never silently dropped and never coerced to a pass).
 #   Round ONCE to ``SCORE_ROUNDING_DECIMALS``.
@@ -18,9 +18,9 @@
 #   scores using ``DIMENSION_WEIGHT_TECHNICAL`` / ``DIMENSION_WEIGHT_AEO``.
 #
 # ONLY DEFECTS SCORE. ``finding_class`` distinguishes a reproducible problem
-# from deterministic-but-opinionated guidance, and the product tells users the
-# two are different: advisories have their own view, are excluded from severity
-# filters, and never become Opportunities. Scoring did not read the field at
+# from guidance and diagnostics, and the product tells users those states are
+# different: non-defects are excluded from severity filters and never become
+# Opportunities. Scoring did not read the field at
 # all, so a "gentle advisory" lowered the customer's health score by exactly as
 # much as a defect of the same weight. Advisory PASSES are dropped too, not
 # only failures: leaving them in would let a page lift its score by satisfying
@@ -38,8 +38,11 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.core.config.site_health_contracts import (
+    AEO_READINESS_RULE_DIMENSIONS,
     DIMENSION_AEO,
     DIMENSION_TECHNICAL,
+    PR1_AEO_MIN_DETERMINATE_CHECKPOINTS,
+    PR1_AEO_MIN_DETERMINATE_DIMENSIONS,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
@@ -75,6 +78,17 @@ class _ScoredLike(Protocol):
     @property
     def finding_class(self) -> str: ...
 
+    @property
+    def rule_id(self) -> str: ...
+
+
+class _SufficiencyLike(Protocol):
+    @property
+    def rule_id(self) -> str: ...
+
+    @property
+    def outcome(self) -> str: ...
+
 
 @dataclass(frozen=True)
 class _Scored:
@@ -88,6 +102,35 @@ class _Scored:
     outcome: str
     weight: float
     finding_class: str = FINDING_CLASS_DEFECT
+    rule_id: str = ""
+
+
+@dataclass(frozen=True)
+class AeoEvidenceSufficiency:
+    determinate_checkpoint_count: int
+    determinate_dimension_count: int
+    sufficient: bool
+
+
+def assess_aeo_evidence(
+    evaluations: Iterable[_SufficiencyLike],
+) -> AeoEvidenceSufficiency:
+    """Qualify the current AEO score with temporary PR1 breadth policy."""
+    checkpoint_ids = {
+        evaluation.rule_id
+        for evaluation in evaluations
+        if evaluation.outcome in (RULE_OUTCOME_PASS, RULE_OUTCOME_FAIL)
+        and evaluation.rule_id in AEO_READINESS_RULE_DIMENSIONS
+    }
+    dimensions = {AEO_READINESS_RULE_DIMENSIONS[rule_id] for rule_id in checkpoint_ids}
+    return AeoEvidenceSufficiency(
+        determinate_checkpoint_count=len(checkpoint_ids),
+        determinate_dimension_count=len(dimensions),
+        sufficient=(
+            len(checkpoint_ids) >= PR1_AEO_MIN_DETERMINATE_CHECKPOINTS
+            and len(dimensions) >= PR1_AEO_MIN_DETERMINATE_DIMENSIONS
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -213,8 +256,14 @@ def score_analysis(
     evals = list(evaluations)
     technical = score_dimension(evals, dimension=DIMENSION_TECHNICAL)
     aeo = score_dimension(evals, dimension=DIMENSION_AEO)
+    sufficiency = assess_aeo_evidence(evals)
     aeo_score_value = (
-        None if str(page_kind or "").strip().lower() == PAGE_KIND_OTHER else aeo.score
+        None
+        if (
+            str(page_kind or "").strip().lower() == PAGE_KIND_OTHER
+            or not sufficiency.sufficient
+        )
+        else aeo.score
     )
     overall = overall_score(
         {

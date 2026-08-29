@@ -243,7 +243,7 @@ describe('UrlDetail', () => {
     // signal row), the confidence label, signals count.
     expect(screen.getByText('Classified by')).toBeInTheDocument();
     expect(screen.getAllByText('path_pattern')).toHaveLength(2);
-    expect(screen.getByText('Medium — URL family')).toBeInTheDocument();
+    expect(screen.getByText('Medium — URL pattern')).toBeInTheDocument();
     expect(screen.getByText('Signals matched')).toBeInTheDocument();
     // The schema conflict is highlighted, naming both types.
     const note = screen.getByRole('note');
@@ -253,7 +253,7 @@ describe('UrlDetail', () => {
     expect(screen.getByText('structured_data')).toBeInTheDocument();
     expect(screen.getAllByText('route')).not.toHaveLength(0);
     expect(screen.getByText('chosen')).toBeInTheDocument();
-    expect(screen.getByText('sh-classifier-1')).toBeInTheDocument();
+    expect(screen.queryByText('sh-classifier-1')).toBeNull();
 
     // Collapsing hides the panel again.
     await user.click(toggle);

@@ -21,6 +21,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     SCORING_VERSION,
 )
+from app.core.config.site_health_rule_types import FINDING_CLASS_DIAGNOSTIC
 from app.core.config.site_health_traits import TRAITS_VERSION
 from app.models.site_health.analysis import (
     SiteIssue,
@@ -294,7 +295,10 @@ async def _persist_evaluations_and_issues(
         )
         session.add(evaluation)
         evaluation_ids.append(evaluation_id)
-        if ev.outcome == RULE_OUTCOME_FAIL:
+        if (
+            ev.outcome == RULE_OUTCOME_FAIL
+            and ev.finding_class != FINDING_CLASS_DIAGNOSTIC
+        ):
             failed.append((ev, evaluation_id))
     analysis.source_evaluation_ids = evaluation_ids
     # Evaluation rows depend on the already-flushed analysis. Flush them as

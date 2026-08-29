@@ -74,7 +74,7 @@ export function byPageKindRows(
  */
 export const CONFIDENCE_LABELS: Readonly<Record<string, string>> = {
   high: 'High — page structure',
-  medium: 'Medium — URL family',
+  medium: 'Medium — URL pattern',
   low: 'Low — semantic evidence',
   unknown: 'Unclassified',
 };

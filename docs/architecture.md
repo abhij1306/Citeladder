@@ -25,6 +25,10 @@ page types, page-type schema contracts, rule evaluations, scores, issues,
 snapshots, deterministic comparable-crawl changes, exports, and site-derived
 opportunities.
 
+Its existing Architecture tab is the single read surface for the persisted
+observed-architecture projection: a page-kind ledger plus the evidence-ordered
+parent hierarchy. It does not own a second workspace or an editable site model.
+
 Its product surface is deliberately limited to Site Health, Issues, and
 Opportunities. Detailed contracts live in [`site-health.md`](site-health.md).
 

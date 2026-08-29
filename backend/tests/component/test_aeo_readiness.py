@@ -102,9 +102,10 @@ async def test_seven_dimensions_exactly_reconcile_and_trace_failing_page(
         assert dimension["fail_count"] == counts["fail"]
         assert dimension["not_applicable_count"] == counts["not_applicable"]
         assert dimension["error_count"] == counts["error"]
-        assert dimension["observed_evaluation_count"] == sum(counts.values())
-        assert dimension["expected_evaluation_count"] == sum(counts.values())
-        assert dimension["coverage"] == 1.0
+        determinate = counts["pass"] + counts["fail"]
+        assert dimension["observed_evaluation_count"] == determinate
+        assert dimension["expected_evaluation_count"] == determinate
+        assert dimension["coverage"] == (1.0 if determinate else None)
     # Evidence is page-shaped: each failing page appears once, listing the
     # checks it failed, and every check carries catalog copy rather than an id.
     failed_checks = [
@@ -148,3 +149,48 @@ async def test_readiness_read_is_workspace_isolated(
         headers={"X-Workspace-Id": str(foreign.workspace_id)},
     )
     assert response.status_code == 404
+
+
+async def test_sparse_readiness_is_incomplete_and_uncertainty_lowers_coverage(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _register(client, "readiness-sparse@example.com")
+    async with session_factory() as session:
+        scenario, analyses, _expected = await _seed_readiness(
+            session, email="readiness-sparse@example.com"
+        )
+        rows = list(
+            (
+                await session.scalars(
+                    select(SiteRuleEvaluation)
+                    .where(
+                        SiteRuleEvaluation.analysis_id.in_(
+                            analysis.id for analysis in analyses
+                        ),
+                        SiteRuleEvaluation.rule_id.in_(AEO_READINESS_RULE_DIMENSIONS),
+                    )
+                    .order_by(SiteRuleEvaluation.id)
+                )
+            ).all()
+        )
+        for row in rows:
+            row.outcome = "not_applicable"
+            row.evidence = {"reason": "insufficient_evidence"}
+        rows[0].outcome = "pass"
+        rows[0].evidence = {"fixture": True}
+        await session.commit()
+
+    response = await client.get(
+        f"/api/v1/projects/{scenario.project_id}/site-health/aeo-readiness",
+        headers={"X-Workspace-Id": str(scenario.workspace_id)},
+        params={"crawl_id": scenario.crawl_id},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["state"] == "incomplete"
+    assert body["observed_evaluation_count"] == 1
+    assert body["expected_evaluation_count"] == len(rows)
+    assert body["coverage"] == pytest.approx(1 / len(rows), abs=0.0001)
+    assert any("AEO score is not measured" in item for item in body["limitations"])
