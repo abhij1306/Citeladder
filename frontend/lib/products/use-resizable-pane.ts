@@ -33,6 +33,7 @@ function clampWidth(width: number): number {
 }
 
 const listeners = new Set<() => void>();
+let volatileWidth: number | null = null;
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
@@ -45,6 +46,7 @@ function subscribe(listener: () => void): () => void {
 }
 
 function getStoredWidth(): number {
+  if (volatileWidth !== null) return volatileWidth;
   try {
     const stored = Number(window.localStorage.getItem(STORAGE_KEY));
     return Number.isFinite(stored) && stored > 0 ? clampWidth(stored) : DEFAULT_PANE_WIDTH;
@@ -62,8 +64,10 @@ function getServerWidth(): number {
 function storeWidth(width: number): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, String(width));
+    volatileWidth = null;
   } catch {
-    // Same as above: persistence is a convenience, never a requirement.
+    // Keep the reader's decision for this session when persistence is blocked.
+    volatileWidth = width;
   }
   for (const listener of listeners) listener();
 }

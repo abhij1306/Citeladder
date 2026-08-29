@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   DEFAULT_PANE_WIDTH,
@@ -36,6 +36,23 @@ describe('useResizablePane', () => {
     act(() => result.current.endDrag());
     expect(result.current.dragging).toBe(false);
     expect(renderHook(() => useResizablePane()).result.current.width).toBe(DEFAULT_PANE_WIDTH + 60);
+  });
+
+  it('keeps the landed width in memory when browser storage rejects writes', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Storage is blocked', 'SecurityError');
+    });
+    const { result } = renderHook(() => useResizablePane());
+
+    act(() => result.current.beginDrag(400));
+    act(() => result.current.dragTo(460));
+    act(() => result.current.endDrag());
+
+    expect(result.current.dragging).toBe(false);
+    expect(result.current.width).toBe(DEFAULT_PANE_WIDTH + 60);
+
+    setItem.mockRestore();
+    act(() => result.current.reset());
   });
 
   it('nudges by keyboard and remembers the result', () => {
