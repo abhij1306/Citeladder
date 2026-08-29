@@ -19,6 +19,7 @@ from app.core.config.site_health_contracts import (
     SEVERITY_MEDIUM,
 )
 from app.core.config.site_health_rules import (
+    KIND_EVIDENCE_TRIGGERED,
     SiteHealthRule,
 )
 from app.core.config.site_health_taxonomy import (
@@ -144,6 +145,7 @@ PRODUCT_PARITY_SCHEMA_FACT_KEYS: Final[dict[str, str]] = {
 PRODUCT_ANALYSIS_RULES: Final[tuple[SiteHealthRule, ...]] = (
     SiteHealthRule(
         rule_id="aeo.product_offer_details",
+        kind_evidence=KIND_EVIDENCE_TRIGGERED,
         rule_version=PAGE_PROFILE_RULE_VERSION,
         dimension=DIMENSION_AEO,
         category=CATEGORY_STRUCTURED_DATA,
@@ -160,6 +162,7 @@ PRODUCT_ANALYSIS_RULES: Final[tuple[SiteHealthRule, ...]] = (
     ),
     SiteHealthRule(
         rule_id="aeo.product_visible_schema_parity",
+        kind_evidence=KIND_EVIDENCE_TRIGGERED,
         rule_version=PAGE_PROFILE_RULE_VERSION,
         dimension=DIMENSION_AEO,
         category=CATEGORY_CONTENT,

@@ -323,6 +323,18 @@ APPLICABILITY_CRAWL_FINALIZE: Final = "crawl_finalize"
 
 APPLICABILITY_OBSERVED_CONTENT: Final = "observed_content"
 
+# NOT_APPLICABLE reason vocabulary. These strings reach the user through the
+# evaluation evidence -- a skipped rule has to be able to explain itself -- so
+# they are named constants rather than literals scattered through the checks.
+#
+# ``insufficient_evidence`` is deliberately a REASON and not a fifth outcome.
+# not_applicable already delivers exactly what uncertainty needs: excluded from
+# scoring, disclosed rather than hidden, and never a failure. Uncertainty must
+# never be converted into a defect.
+SKIP_REASON_INSUFFICIENT_EVIDENCE: Final = "insufficient_evidence"
+
+SKIP_REASON_LOW_CONFIDENCE_KIND: Final = "low_confidence_kind"
+
 CODE_MONITORING_NOT_ALLOWED: Final = "monitoring_not_allowed"
 
 CODE_QUOTA_EXCEEDED: Final = "site_health_quota_exceeded"

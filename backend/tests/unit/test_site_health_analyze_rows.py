@@ -15,6 +15,7 @@ from app.models.site_health.analysis import (
 )
 from app.workers.site_health.phases.analyze_rows import (
     _persist_evaluations_and_issues,
+    _prepare_page_evaluation,
 )
 
 
@@ -84,3 +85,41 @@ async def test_evaluations_and_issues_flush_as_two_ordered_batches() -> None:
     assert analysis.source_evaluation_ids == [row.id for row in persisted_evaluations]
     assert len(persisted_issues) == 1
     assert persisted_issues[0].evaluation_id == persisted_evaluations[1].id
+
+
+def test_prepare_page_evaluation_injects_classifier_evidence() -> None:
+    """The evaluation copy must carry the tier the confidence gate reads.
+
+    ``_kind_expectation_allowed`` opens when ``page_kind_evidence`` is absent,
+    so if this injection were ever dropped the gate would silently stop
+    gating. Asserting the injection here is what makes that fail-open safe.
+    """
+    crawl = SimpleNamespace(
+        id=uuid.uuid4(),
+        workspace_id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        root_url="https://x.example/",
+        site_facts=None,
+        analyzer_version="",
+        scoring_version="",
+    )
+    task = SimpleNamespace(url_hash="whatever")
+    facts = {
+        "has_html": True,
+        "title": "Acme",
+        "body": {"word_count": 40, "text": "word " * 40},
+        "delivery": {"final_url": "https://x.example/", "is_https": True},
+        "headings": {"h1_count": 1, "counts": {"h1": 1}, "h1_texts": ["Acme"]},
+        "structured_data": {"count": 0, "blocks": [], "types": []},
+    }
+
+    assessment, evaluations, _scores = _prepare_page_evaluation(
+        crawl=cast(Any, crawl), task=cast(Any, task), facts=facts
+    )
+
+    assert assessment.tier
+    assert "tier" in assessment.to_evidence()
+    # The artifact's own facts are never mutated by the evaluation copy.
+    assert "page_kind" not in facts
+    assert "page_kind_evidence" not in facts
+    assert evaluations

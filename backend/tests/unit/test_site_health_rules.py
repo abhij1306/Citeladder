@@ -28,12 +28,15 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
+    SKIP_REASON_LOW_CONFIDENCE_KIND,
 )
+from app.core.config.site_health_page_profiles import PRODUCT_ANALYSIS_RULES
 from app.core.config.site_health_rules import (
     ANSWER_FIRST_MIN_WORDS,
     EXPAND_GATED_MAX_RATIO,
     FINDING_CLASS_ADVISORY,
     FINDING_CLASS_DEFECT,
+    KIND_EVIDENCE_CLASSES,
     META_DESCRIPTION_LENGTH_BAND,
     QUESTION_HEADINGS_MIN_RATIO,
     RENDER_BLOCKING_MAX_RESOURCES,
@@ -72,6 +75,9 @@ def _html_facts(**overrides):
     facts = {
         "has_html": True,
         "page_kind": "homepage",
+        # Structural evidence: the strongest tier, so kind expectations apply.
+        # The worker injects this alongside page_kind on the evaluation copy.
+        "page_kind_evidence": {"tier": "structural", "confidence": "high"},
         "title": "Acme Widgets — everything you need to know",
         "meta_description": (
             "Acme Widgets helps teams ship reliable widgets faster with "
@@ -1434,3 +1440,97 @@ def test_multi_kind_token_still_fails_closed_on_an_unclassified_page():
     # checklist it should answer for.
     facts = _html_facts(page_kind=None, author="")
     assert _outcome(facts, "aeo.author_present").outcome == RULE_OUTCOME_NOT_APPLICABLE
+
+
+# --- classification confidence gates kind EXPECTATIONS ----------------------
+#
+# The classifier has always recorded whether it read page-owned structure, a
+# URL path segment, or bounded semantics -- and nothing consumed it. A page
+# inferred to be an FAQ purely because its path contains /support/ answered the
+# whole FAQ checklist, and was scored on it, as confidently as a page whose
+# structure proved what it was.
+
+
+def _tiered(tier, **overrides):
+    return _html_facts(
+        page_kind="article",
+        page_kind_evidence={"tier": tier, "confidence": "x"},
+        author="",
+        dates={"published": "", "modified": ""},
+        **overrides,
+    )
+
+
+def test_structural_evidence_admits_kind_expectation_defects():
+    # Page-owned structure proved the kind, so the checklist applies in full.
+    ev = _outcome(_tiered("structural"), "aeo.author_present")
+    assert ev.outcome == RULE_OUTCOME_FAIL
+
+
+def test_route_and_semantic_evidence_suppress_kind_expectation_defects():
+    for tier in ("route", "semantic"):
+        ev = _outcome(_tiered(tier), "aeo.author_present")
+        assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE, tier
+        assert ev.evidence["reason"] == SKIP_REASON_LOW_CONFIDENCE_KIND, tier
+
+
+def test_advisories_are_offered_at_every_confidence_tier():
+    # An opportunity costs nothing if the guess was wrong, and withholding a
+    # suggestion helps no one. Only defects, which move the score, need
+    # evidence the page owns.
+    for tier in ("structural", "route", "semantic"):
+        ev = _outcome(
+            _tiered(tier, structured_data={"count": 0, "blocks": [], "types": []}),
+            "aeo.structured_data_present",
+        )
+        assert ev.outcome == RULE_OUTCOME_FAIL, tier
+        assert ev.finding_class == FINDING_CLASS_ADVISORY
+
+
+def test_triggered_validation_runs_at_every_confidence_tier():
+    """The trigger is the artifact, not the classification.
+
+    A Product block that contradicts the visible page is a defect however the
+    page was classified, so these rules are never gated. They self-resolve to
+    not_applicable when the block is absent, which is what makes that safe.
+    """
+    contradicting = {
+        "count": 1,
+        "has_json_ld": True,
+        "types": ["Article"],
+        "blocks": [
+            {
+                "type": "Article",
+                "syntax": "json-ld",
+                "name": "A completely unrelated headline",
+                "props_present": ["headline"],
+            }
+        ],
+    }
+    for tier in ("structural", "route", "semantic"):
+        ev = _outcome(
+            _tiered(tier, structured_data=contradicting),
+            "aeo.schema_matches_content",
+        )
+        assert ev.outcome == RULE_OUTCOME_FAIL, tier
+
+
+def test_missing_classifier_evidence_opens_the_gate():
+    """Absent evidence resolves to structural, deliberately.
+
+    The one production writer always injects it. Failing CLOSED on absence
+    would empty the AEO dimension for a whole crawl, and a None score is
+    silent where a false positive at least argues with the user.
+    ``test_prepare_page_evaluation_injects_classifier_evidence`` holds the
+    injection itself in place.
+    """
+    facts = _html_facts(page_kind="article", author="")
+    facts.pop("page_kind_evidence")
+    assert _outcome(facts, "aeo.author_present").outcome == RULE_OUTCOME_FAIL
+
+
+def test_every_kind_scoped_rule_declares_its_evidence_class():
+    # A new page-kind rule defaults to EXPECTATION, so it is gated unless it
+    # explicitly declares that an artifact triggers it.
+    for rule in (*SITE_HEALTH_RULES, *PRODUCT_ANALYSIS_RULES):
+        assert rule.kind_evidence in KIND_EVIDENCE_CLASSES, rule.rule_id

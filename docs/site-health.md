@@ -325,6 +325,29 @@ become the `blog` route family.
 `other` is an abstention. It is not treated as a proven `WebPage`, and
 page-kind-specific rules are not scored for it.
 
+Confidence is consumed, not merely recorded. Every page-kind-scoped rule
+declares how it relates to the classification:
+
+- **expectation** — asserts something should be present *because of* the page
+  kind. Only as sound as the classification behind it.
+- **triggered** — validates an artifact that is actually present, and already
+  resolves not-applicable when it is absent.
+- **universal** — not page-kind-scoped.
+
+An expectation **defect** requires structural evidence: page-owned structure
+the classifier read from the page itself. A kind established only from a URL
+path segment or from bounded title/content semantics yields
+`not_applicable` with reason `low_confidence_kind` instead, so a page inferred
+to be an FAQ because its path contains `/support/` is never accused of missing
+FAQ structure. Advisories are offered at every tier, because an opportunity
+costs nothing when the guess is wrong. Triggered validation runs at every tier,
+because its trigger is the artifact rather than the classification.
+
+The gate keys on the evidence tier rather than the confidence label:
+`_confidence` demotes structural evidence to `medium` whenever any other signal
+disagreed, so reading the label alone would suppress checks on pages whose own
+structure proved what they were.
+
 ## Structured-data extraction and schema contracts
 
 The bounded extractor reads JSON-LD graphs and shallow microdata. It normalizes

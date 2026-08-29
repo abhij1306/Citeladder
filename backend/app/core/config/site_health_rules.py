@@ -50,6 +50,32 @@ FINDING_CLASSES: Final[frozenset[str]] = frozenset(
     {FINDING_CLASS_DEFECT, FINDING_CLASS_ADVISORY}
 )
 
+# How a page-kind-scoped rule RELATES to the classification, which decides
+# whether it may fire when that classification is weak.
+#
+# EXPECTATION  asserts something SHOULD be on the page because of what kind of
+#              page it is. Only as sound as the classification behind it: a
+#              page inferred to be an FAQ from a /support/ path segment must
+#              not be accused of missing FAQ structure.
+# TRIGGERED    validates an artifact that IS present, and already resolves
+#              not_applicable when it is absent. The trigger is the artifact,
+#              not the classification, so a Product block contradicting the
+#              visible page is a defect however the page was classified.
+# UNIVERSAL    not page-kind-scoped at all.
+KIND_EVIDENCE_EXPECTATION: Final = "expectation"
+
+KIND_EVIDENCE_TRIGGERED: Final = "triggered"
+
+KIND_EVIDENCE_UNIVERSAL: Final = "universal"
+
+KIND_EVIDENCE_CLASSES: Final[frozenset[str]] = frozenset(
+    {
+        KIND_EVIDENCE_EXPECTATION,
+        KIND_EVIDENCE_TRIGGERED,
+        KIND_EVIDENCE_UNIVERSAL,
+    }
+)
+
 
 class SiteHealthRule:
     """One deterministic Site Health rule (frozen catalog entry).
@@ -68,6 +94,7 @@ class SiteHealthRule:
         "display_label",
         "display_label_variants",
         "finding_class",
+        "kind_evidence",
         "remediation",
         "rule_id",
         "rule_version",
@@ -90,6 +117,7 @@ class SiteHealthRule:
         display_label: str = "",
         display_label_variants: dict[str, str] | None = None,
         finding_class: str = FINDING_CLASS_DEFECT,
+        kind_evidence: str = KIND_EVIDENCE_EXPECTATION,
     ) -> None:
         self.rule_id = rule_id
         self.rule_version = rule_version
@@ -99,6 +127,12 @@ class SiteHealthRule:
         if finding_class not in FINDING_CLASSES:
             raise ValueError(f"Unsupported finding class: {finding_class}")
         self.finding_class = finding_class
+        if kind_evidence not in KIND_EVIDENCE_CLASSES:
+            raise ValueError(f"Unsupported kind evidence: {kind_evidence}")
+        # Expectation is the conservative default: a new page-kind rule is
+        # gated by classification confidence unless it declares that its
+        # trigger is the artifact rather than the page kind.
+        self.kind_evidence = kind_evidence
         self.weight = weight
         self.applicability_key = applicability_key
         self.description = description
@@ -430,6 +464,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
     ),
     SiteHealthRule(
         rule_id="aeo.schema_required_valid",
+        kind_evidence=KIND_EVIDENCE_TRIGGERED,
         rule_version=RULE_CATALOG_VERSION,
         dimension=DIMENSION_AEO,
         category=CATEGORY_STRUCTURED_DATA,
@@ -448,6 +483,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
     ),
     SiteHealthRule(
         rule_id="aeo.schema_recommended_present",
+        kind_evidence=KIND_EVIDENCE_TRIGGERED,
         rule_version=RULE_CATALOG_VERSION,
         dimension=DIMENSION_AEO,
         category=CATEGORY_STRUCTURED_DATA,
@@ -468,6 +504,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
     ),
     SiteHealthRule(
         rule_id="aeo.schema_matches_content",
+        kind_evidence=KIND_EVIDENCE_TRIGGERED,
         rule_version=RULE_CATALOG_VERSION,
         dimension=DIMENSION_AEO,
         category=CATEGORY_STRUCTURED_DATA,

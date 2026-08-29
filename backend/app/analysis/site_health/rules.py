@@ -52,6 +52,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
+    SKIP_REASON_LOW_CONFIDENCE_KIND,
 )
 from app.core.config.site_health_page_profiles import (
     PRODUCT_ANALYSIS_RULES,
@@ -62,6 +63,7 @@ from app.core.config.site_health_rules import (
     ANSWER_FIRST_MIN_WORDS,
     EXPAND_GATED_MAX_RATIO,
     FINDING_CLASS_ADVISORY,
+    KIND_EVIDENCE_EXPECTATION,
     META_DESCRIPTION_LENGTH_BAND,
     QUESTION_HEADINGS_MIN_RATIO,
     RENDER_BLOCKING_MAX_RESOURCES,
@@ -79,6 +81,7 @@ from app.core.config.site_health_taxonomy import (
     PAGE_KIND_HTML_APPLICABILITY_PREFIX,
     PAGE_KIND_OTHER,
     PAGE_KIND_PROFILES,
+    PAGE_KIND_TIER_STRUCTURAL,
     PageKindProfile,
 )
 
@@ -607,6 +610,48 @@ def _page_kind_scope(key: str, prefix: str, facts: dict) -> tuple[bool, str]:
     return profile.page_kind in allowed, "other_page_kind"
 
 
+def _kind_expectation_allowed(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
+    """Gate kind EXPECTATIONS on how the page kind was actually established.
+
+    The classifier already records whether it read page-owned structure, a URL
+    path segment, or bounded title/content semantics -- and nothing consumed
+    that. So a page inferred to be an FAQ purely because its path contains
+    ``/support/`` answered the entire FAQ checklist and was scored on it,
+    exactly as confidently as a page whose structure proved what it was.
+
+    The gate keys on the winning TIER rather than the confidence label,
+    because ``_confidence`` demotes structural evidence to ``medium`` whenever
+    any other signal disagreed -- including a weak schema hint. A corroborated
+    visible buy box is page-owned evidence and stays fully eligible; reading
+    the label alone would have suppressed it.
+
+    Advisories pass at every tier: an opportunity costs nothing if the guess
+    was wrong, and withholding a suggestion helps no one. Only DEFECTS, which
+    lower the score, require evidence the page owns.
+
+    Rules whose trigger is an artifact rather than a page kind never reach
+    here (``KIND_EVIDENCE_TRIGGERED``): a Product block contradicting the
+    visible page is a defect however the page was classified.
+    """
+    if rule.kind_evidence != KIND_EVIDENCE_EXPECTATION:
+        return True, ""
+    if rule.finding_class == FINDING_CLASS_ADVISORY:
+        return True, ""
+    evidence = facts.get("page_kind_evidence")
+    tier = ""
+    if isinstance(evidence, dict):
+        tier = str(evidence.get("tier") or "")
+    # Absent evidence resolves to structural, i.e. the gate opens. The one
+    # production writer always injects it (``_classify_and_score``), so
+    # absence means a non-production caller. Failing CLOSED here would empty
+    # the AEO dimension for a whole crawl -- and a None AEO score is silent,
+    # where a false positive at least argues with the user. Two tests hold the
+    # injection and the suppression in place.
+    if not tier or tier == PAGE_KIND_TIER_STRUCTURAL:
+        return True, ""
+    return False, SKIP_REASON_LOW_CONFIDENCE_KIND
+
+
 def _applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
     """``(applicable, skip_reason)`` for one rule against ``facts``.
 
@@ -631,6 +676,9 @@ def _applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
         )
         if not applies:
             return False, reason
+        allowed, gate_reason = _kind_expectation_allowed(rule, facts)
+        if not allowed:
+            return False, gate_reason
         return _observed_content(facts)
     if key.startswith(PAGE_KIND_HTML_APPLICABILITY_PREFIX):
         applies, reason = _page_kind_scope(
@@ -638,9 +686,15 @@ def _applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
         )
         if not applies:
             return False, reason
+        allowed, gate_reason = _kind_expectation_allowed(rule, facts)
+        if not allowed:
+            return False, gate_reason
         return bool(facts.get("has_html")), "no_html"
     if key.startswith(PAGE_KIND_APPLICABILITY_PREFIX):
-        return _page_kind_scope(key, PAGE_KIND_APPLICABILITY_PREFIX, facts)
+        applies, reason = _page_kind_scope(key, PAGE_KIND_APPLICABILITY_PREFIX, facts)
+        if not applies:
+            return False, reason
+        return _kind_expectation_allowed(rule, facts)
     if key == APPLICABILITY_SITE_ROOT:
         # Site-level rules apply only inside the crawl root's own analysis,
         # where the worker injected facts["site"] from the crawl's
