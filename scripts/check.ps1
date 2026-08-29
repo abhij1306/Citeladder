@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("All", "Backend", "Frontend", "Docs")]
+    [ValidateSet("All", "Backend", "Frontend", "Docs", "Contract")]
     [string] $Scope = "All",
     [switch] $CheckOnly
 )

@@ -348,12 +348,13 @@ function HoverTooltip({
   formatValue: (value: number) => string;
 }>) {
   return (
-    <output
+    <div
+      aria-hidden="true"
       className="border-border-subtle bg-elevated text-foreground text-2xs shadow-card pointer-events-none absolute top-0 rounded-sm border px-2 py-1"
       style={{ left: `${(point.x / plotWidth) * 100}%` }}
     >
       <span className="text-muted">{point.label}</span>{' '}
       <span className="font-mono font-medium tabular-nums">{formatValue(point.value)}</span>
-    </output>
+    </div>
   );
 }

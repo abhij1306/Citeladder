@@ -102,13 +102,12 @@ export function EngineComparison({
 
 function ShareOfVoiceCard({ visibility }: Readonly<{ visibility: Visibility }>) {
   const rows = sortedRankings(visibility.rankings).filter((row) => (row.mention_count ?? 0) > 0);
-  // Same ARIA summary contract the donut figure exposed — and derived from
-  // the SAME source as the bars/numerals (share_of_voice), so a row with no
-  // share data is omitted from the summary instead of being announced with a
-  // mention-derived share its (zero-width) bar doesn't show.
-  const shares = rows.flatMap((row) => {
+  // Derived from the same source as the bars/numerals. Rows with unavailable
+  // share data remain present in the accessible summary without inventing a
+  // percentage for their zero-width visual bar.
+  const shares = rows.map((row) => {
     const pct = sovPercent(row);
-    return pct === null ? [] : [`${row.name} ${pct}%`];
+    return pct === null ? `${row.name} share unavailable` : `${row.name} ${pct}%`;
   });
   const summary = shares.length > 0 ? shares.join(', ') : 'No data';
 
