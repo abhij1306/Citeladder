@@ -387,6 +387,25 @@ with no second opinion.
 Observed traits persist on `SitePageAnalysis.page_traits` as a queryable array
 and appear on the per-URL detail beside the page kind.
 
+## Content sufficiency
+
+There is no magical minimum word count and no ideal page length, so length is
+evidence, never the verdict. `technical.thin_content` reports an **empty** page,
+not a short one: one low universal floor (`MIN_MEANINGFUL_WORDS`) replaces the
+former per-kind ladder of 40 to 300 words, and the word count is recorded as
+evidence rather than as the judgement.
+
+Below the floor a page can still prove itself structurally — a category page
+that actually lists items, a location page carrying findable details, a product
+or pricing page showing a price, a contact page handing over a way to reply, an
+about page identifying the entity. Those signals only ever ADD a way to pass;
+none of them can fail a page the floor would have passed, so the check reports
+fewer pages than the floor alone would, never more.
+
+A page kind with no structural signal is judged on the floor alone. That is the
+correct answer rather than a gap: a 150-word article is short, not defective,
+and nothing in the crawl can tell those apart.
+
 ## Structured-data extraction and schema contracts
 
 The bounded extractor reads JSON-LD graphs and shallow microdata. It normalizes

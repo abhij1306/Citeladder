@@ -76,6 +76,9 @@ from app.core.config.site_health_rules import (
     SiteHealthRule,
 )
 from app.core.config.site_health_taxonomy import (
+    CONTENT_SUFFICIENCY_PRICE_KINDS,
+    CONTENT_SUFFICIENCY_TRAITS,
+    MIN_MEANINGFUL_WORDS,
     PAGE_KIND_APPLICABILITY_PREFIX,
     PAGE_KIND_CONTENT_APPLICABILITY_PREFIX,
     PAGE_KIND_HTML_APPLICABILITY_PREFIX,
@@ -94,14 +97,38 @@ def _profile_for(facts: dict) -> PageKindProfile | None:
     return PAGE_KIND_PROFILES.get(page_kind)
 
 
-def _sufficient_word_minimum(facts: dict) -> tuple[int, str]:
-    """Per-type thin-content minimum, falling back to the ``other`` profile.
+def _observed_traits(facts: dict) -> set[str]:
+    observed = facts.get("page_traits")
+    if isinstance(observed, list | tuple):
+        return {str(trait) for trait in observed}
+    return set()
 
-    Returns ``(minimum, page_kind)`` so the check evidence records exactly
-    which profile drove the outcome.
+
+def _has_price_evidence(facts: dict) -> bool:
+    """A visible price, or a Product/Offer that declares one."""
+    entity_product = (facts.get("entity") or {}).get("product") or {}
+    if entity_product.get("has_primary_price"):
+        return True
+    if str((facts.get("commerce") or {}).get("visible_price") or "").strip():
+        return True
+    product = (facts.get("structured_data") or {}).get("product") or {}
+    return bool(product.get("price"))
+
+
+def _structural_sufficiency(facts: dict) -> tuple[str, bool]:
+    """``(signal, satisfied)`` for a short page that may still be complete.
+
+    Only ever ADDS a way to pass. Nothing here can fail a page the word floor
+    would have passed, so the check reports fewer pages than the floor alone
+    would, never more.
     """
-    profile = _profile_for(facts) or PAGE_KIND_PROFILES[PAGE_KIND_OTHER]
-    return profile.min_sufficient_words, profile.page_kind
+    page_kind = str(facts.get("page_kind") or "").strip().lower()
+    if page_kind in CONTENT_SUFFICIENCY_PRICE_KINDS:
+        return "price", _has_price_evidence(facts)
+    wanted = CONTENT_SUFFICIENCY_TRAITS.get(page_kind)
+    if wanted:
+        return "|".join(wanted), bool(_observed_traits(facts) & set(wanted))
+    return "", False
 
 
 @dataclass(frozen=True)
@@ -201,14 +228,36 @@ def _check_open_graph_present(facts: dict) -> tuple[str, dict]:
 
 
 def _check_thin_content(facts: dict) -> tuple[str, dict]:
+    """Report an EMPTY page, not a short one.
+
+    This used to compare the word count against a per-page-kind minimum
+    ranging from 40 to 300. Segmenting by kind beat one global threshold, but
+    the premise underneath was still that length proves substance, and it does
+    not: there is no magical minimum word count and no ideal page length. A
+    category page with 25 words over 60 well-organized products, a contact
+    page complete in 30 words, and a product page with 65 words plus price,
+    availability and specifications were all reported as thin.
+
+    The verdict is now emptiness, against one low universal floor, with word
+    count kept as EVIDENCE rather than as the judgement. Below the floor a
+    page can still prove itself structurally -- a listing that lists, a
+    location with findable details, a commercial page with a price -- which
+    only ever adds a way to pass.
+    """
     body = facts.get("body") or {}
     word_count = int(body.get("word_count", 0) or 0)
-    minimum, page_kind = _sufficient_word_minimum(facts)
-    return _pass_fail(word_count >= minimum), {
+    profile = _profile_for(facts) or PAGE_KIND_PROFILES[PAGE_KIND_OTHER]
+    evidence: dict[str, Any] = {
         "word_count": word_count,
-        "minimum": minimum,
-        "page_kind": page_kind,
+        "minimum": MIN_MEANINGFUL_WORDS,
+        "page_kind": profile.page_kind,
     }
+    if word_count >= MIN_MEANINGFUL_WORDS:
+        return RULE_OUTCOME_PASS, evidence
+    signal, satisfied = _structural_sufficiency(facts)
+    evidence["structural_signal"] = signal
+    evidence["structurally_sufficient"] = satisfied
+    return _pass_fail(satisfied), evidence
 
 
 # --- v2 P2: hygiene checks -------------------------------------------------

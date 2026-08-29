@@ -47,13 +47,9 @@ from app.core.config.site_health_rules import (
     SiteHealthRule,
 )
 from app.core.config.site_health_taxonomy import (
-    PAGE_KIND_OTHER,
+    MIN_MEANINGFUL_WORDS,
     PAGE_KIND_PROFILES,
 )
-
-# The v1 global thin-content minimum now lives in the config-owned ``other``
-# profile (identical value, so unclassified pages score exactly as before).
-MIN_SUFFICIENT_WORDS = PAGE_KIND_PROFILES[PAGE_KIND_OTHER].min_sufficient_words
 
 # The rules whose rows the finalize-writer owns: never applicable per-page.
 _CRAWL_FINALIZE_RULE_IDS = {
@@ -61,13 +57,6 @@ _CRAWL_FINALIZE_RULE_IDS = {
     for rule in SITE_HEALTH_RULES
     if rule.applicability_key == APPLICABILITY_CRAWL_FINALIZE
 }
-
-
-def test_other_profile_minimum_preserves_v1_parity():
-    # Pin the v1 contract: the ``other`` profile minimum must stay 100 words
-    # so unclassified pages score exactly as v1 did (spec §5.2). The alias
-    # above intentionally derives from config; this assertion does not.
-    assert PAGE_KIND_PROFILES[PAGE_KIND_OTHER].min_sufficient_words == 100
 
 
 def _html_facts(**overrides):
@@ -125,8 +114,8 @@ def _html_facts(**overrides):
         },
         "open_graph": {"og:title": "T", "og:description": "D"},
         "body": {
-            "word_count": MIN_SUFFICIENT_WORDS + 10,
-            "text": "word " * (MIN_SUFFICIENT_WORDS + 10),
+            "word_count": MIN_MEANINGFUL_WORDS + 10,
+            "text": "word " * (MIN_MEANINGFUL_WORDS + 10),
         },
         "author": "Jane Doe",
         "dates": {"published": "2026-01-15", "modified": "2026-06-01"},
@@ -278,13 +267,13 @@ def test_open_graph_incomplete_fails():
     assert ev.evidence["has_og_description"] is False
 
 
-def test_thin_content_fails():
+def test_thin_content_fails_on_an_empty_page():
     ev = _outcome(
-        _html_facts(page_kind=None, body={"word_count": MIN_SUFFICIENT_WORDS - 1}),
+        _html_facts(page_kind=None, body={"word_count": MIN_MEANINGFUL_WORDS - 1}),
         "technical.thin_content",
     )
     assert ev.outcome == RULE_OUTCOME_FAIL
-    assert ev.evidence["minimum"] == MIN_SUFFICIENT_WORDS
+    assert ev.evidence["minimum"] == MIN_MEANINGFUL_WORDS
 
 
 def test_has_html_rules_not_applicable_without_html():
@@ -490,41 +479,106 @@ def test_page_type_token_for_unconfigured_type_fail_closed():
     assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
 
 
-def test_thin_content_uses_per_type_minimum():
-    article_min = PAGE_KIND_PROFILES["article"].min_sufficient_words
-    other_min = PAGE_KIND_PROFILES[PAGE_KIND_OTHER].min_sufficient_words
-    assert article_min > other_min  # the config actually differentiates
-    # Between the two minimums: an article fails while `other` passes.
-    facts_article = _html_facts(page_kind="article", body={"word_count": other_min})
-    ev = _outcome(facts_article, "technical.thin_content")
-    assert ev.outcome == RULE_OUTCOME_FAIL
-    assert ev.evidence["minimum"] == article_min
-    assert ev.evidence["page_kind"] == "article"
-    facts_other = _html_facts(page_kind="other", body={"word_count": other_min})
-    ev_other = _outcome(facts_other, "technical.thin_content")
-    assert ev_other.outcome == RULE_OUTCOME_PASS
-    assert ev_other.evidence["minimum"] == other_min
+def test_length_alone_never_decides_a_page_is_bad():
+    """The per-kind ladder is gone: 40 for a homepage up to 300 for an article.
+
+    Segmenting by kind beat one global threshold, but the premise underneath
+    was still that length proves substance. A 150-word article is short; it is
+    not defective, and the analyzer has no way to tell the difference.
+    """
+    short_but_real = {"word_count": MIN_MEANINGFUL_WORDS + 1, "text": "word " * 30}
+    for page_kind in ("article", "guide", "comparison", "docs", "other"):
+        ev = _outcome(
+            _html_facts(page_kind=page_kind, body=short_but_real),
+            "technical.thin_content",
+        )
+        assert ev.outcome == RULE_OUTCOME_PASS, page_kind
+        assert ev.evidence["minimum"] == MIN_MEANINGFUL_WORDS
 
 
-def test_thin_content_without_page_type_falls_back_to_other_minimum():
+def test_thin_content_without_page_type_falls_back_to_other():
     ev = _outcome(
-        _html_facts(page_kind=None, body={"word_count": MIN_SUFFICIENT_WORDS}),
+        _html_facts(page_kind=None, body={"word_count": MIN_MEANINGFUL_WORDS}),
         "technical.thin_content",
     )
     assert ev.outcome == RULE_OUTCOME_PASS
-    assert ev.evidence["minimum"] == MIN_SUFFICIENT_WORDS
+    assert ev.evidence["minimum"] == MIN_MEANINGFUL_WORDS
     assert ev.evidence["page_kind"] == "other"
 
 
-def test_thin_content_homepage_minimum_is_lower():
-    homepage_min = PAGE_KIND_PROFILES["homepage"].min_sufficient_words
-    assert homepage_min < MIN_SUFFICIENT_WORDS
+def test_a_listing_page_is_sufficient_because_it_lists():
+    """25 words over 60 products is an excellent category page.
+
+    Below the floor a page can still prove itself structurally. This is the
+    only thing the per-kind knowledge is used for now, and it can only ever
+    ADD a way to pass -- nothing here fails a page the floor would have passed.
+    """
+    almost_empty = {"word_count": 5, "text": "Women dresses sorted by"}
+    listing = _outcome(
+        _html_facts(page_kind="category", page_traits=["listing"], body=almost_empty),
+        "technical.thin_content",
+    )
+    assert listing.outcome == RULE_OUTCOME_PASS
+    assert listing.evidence["structurally_sufficient"] is True
+    # Same page kind, same word count, no listing: genuinely empty.
+    empty = _outcome(
+        _html_facts(page_kind="category", page_traits=[], body=almost_empty),
+        "technical.thin_content",
+    )
+    assert empty.outcome == RULE_OUTCOME_FAIL
+    assert empty.evidence["structurally_sufficient"] is False
+
+
+def test_a_commercial_page_is_sufficient_because_it_shows_a_price():
+    almost_empty = {"word_count": 6, "text": "Ilkley Refectory Table 1240"}
+    priced = _outcome(
+        _html_facts(
+            page_kind="product",
+            body=almost_empty,
+            entity={"product": {"has_primary_price": True}},
+        ),
+        "technical.thin_content",
+    )
+    assert priced.outcome == RULE_OUTCOME_PASS
+    assert priced.evidence["structural_signal"] == "price"
+
+
+def test_a_contact_or_about_page_proves_itself_either_way():
+    # The two halves of the bundled kind have different evidence, and either
+    # one is enough: a contact page hands over a way to reply, an about page
+    # identifies the entity.
+    almost_empty = {"word_count": 4, "text": "Northgate Joinery Leeds"}
+    for traits in (["contact_intent"], ["about_intent"]):
+        ev = _outcome(
+            _html_facts(
+                page_kind="about_contact", page_traits=traits, body=almost_empty
+            ),
+            "technical.thin_content",
+        )
+        assert ev.outcome == RULE_OUTCOME_PASS, traits
+
+
+def test_structural_sufficiency_only_ever_adds_a_pass():
+    # A kind with no structural signal is judged on the floor alone, which is
+    # the correct answer rather than a gap.
     ev = _outcome(
-        _html_facts(page_kind="homepage", body={"word_count": homepage_min}),
+        _html_facts(page_kind="article", page_traits=[], body={"word_count": 200}),
         "technical.thin_content",
     )
     assert ev.outcome == RULE_OUTCOME_PASS
-    assert ev.evidence["minimum"] == homepage_min
+    assert "structural_signal" not in ev.evidence
+
+
+def test_thin_content_weight_is_reduced_on_a_homepage():
+    # Emptiness matters less on the one page whose job is to route visitors
+    # elsewhere, so the weight override survives the threshold removal.
+    ev = _outcome(
+        _html_facts(page_kind="homepage", body={"word_count": MIN_MEANINGFUL_WORDS}),
+        "technical.thin_content",
+    )
+    assert ev.weight == 1.0
+    assert ev.outcome == RULE_OUTCOME_PASS
+    assert ev.evidence["minimum"] == MIN_MEANINGFUL_WORDS
 
 
 def test_weight_override_applies_for_configured_page_type():

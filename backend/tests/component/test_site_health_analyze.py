@@ -40,7 +40,7 @@ from app.core.config.site_health_crawl_policy import (
     SELECTION_SOURCE_FREE_SAMPLE,
 )
 from app.core.config.site_health_taxonomy import (
-    PAGE_KIND_PROFILES,
+    MIN_MEANINGFUL_WORDS,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,
@@ -597,11 +597,13 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
                 )
             )
         ).scalar_one()
-        article_min = PAGE_KIND_PROFILES["article"].min_sufficient_words
         assert thin.evidence["page_kind"] == "article"
-        assert thin.evidence["minimum"] == article_min
-        # The rich page (140 words) is thin FOR AN ARTICLE (>= 300 words).
-        assert thin.outcome == RULE_OUTCOME_FAIL
+        assert thin.evidence["minimum"] == MIN_MEANINGFUL_WORDS
+        # A 140-word article used to be "thin" against a 300-word floor. It is
+        # short, not defective, and the analyzer cannot tell the difference --
+        # so the only thing still reported here is an actually empty page.
+        assert thin.outcome == RULE_OUTCOME_PASS
+        assert thin.evidence["word_count"] >= MIN_MEANINGFUL_WORDS
 
         # The crawl rollup carries the per-page-type breakdown.
         crawl = await session.get(SiteCrawl, seed.crawl_id)

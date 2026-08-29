@@ -27,6 +27,7 @@ from pathlib import Path
 import pytest
 
 from app.analysis.site_health.page_kinds import classify
+from app.analysis.site_health.page_traits import derive_traits
 from app.analysis.site_health.parser import extract_page_facts
 from app.analysis.site_health.rules import evaluate_all
 from app.core.config.site_health_contracts import (
@@ -217,19 +218,10 @@ _CONTRACTS_BY_FIXTURE = {contract.fixture: contract for contract in _CONTRACTS}
 # the phase that removes it. Deleting entries is the point; adding one requires
 # explaining why a new false positive is acceptable, which it is not.
 KNOWN_FALSE_POSITIVES: dict[str, frozenset[str]] = {
-    # Phase 2 emptied every other entry here. What remains is one rule:
-    # ``technical.thin_content`` still asserts quality from length, so a
-    # category grid, a complete contact page, an article and a PDP with a
-    # visible price are all still called thin. Phase 5 replaces the word-count
-    # ladder with kind-specific content sufficiency and empties the rest.
-    "flat_category_listing.html": frozenset({"technical.thin_content"}),
-    "contact_page.html": frozenset({"technical.thin_content"}),
-    "category_faceted_canonical.html": frozenset({"technical.thin_content"}),
-    "tracked_url_canonical.html": frozenset({"technical.thin_content"}),
-    "article_no_schema.html": frozenset({"technical.thin_content"}),
-    "docs_reference.html": frozenset({"technical.thin_content"}),
-    "support_index.html": frozenset({"technical.thin_content"}),
-    "broken_pdp_schema_mismatch.html": frozenset({"technical.thin_content"}),
+    # EMPTY, and ``test_the_ratchet_is_empty`` keeps it that way. Every valid
+    # page in this suite now produces zero defect-class findings. Adding an
+    # entry here means shipping a rule that accuses a correctly built page,
+    # which is the thing this suite exists to prevent.
 }
 
 
@@ -250,9 +242,10 @@ def _defect_failures(contract: FixtureContract) -> tuple[set[str], set[str]]:
     )
     assessment = classify(contract.url, facts)
     # Mirrors the worker's evaluation-copy enrichment exactly
-    # (``analyze_rows._classify_and_score``).
+    # (``analyze_rows._prepare_page_evaluation``).
     facts["page_kind"] = assessment.page_kind
     facts["page_kind_evidence"] = assessment.to_evidence()
+    facts["page_traits"] = list(derive_traits(contract.url, facts))
     facts["sitemap_member"] = contract.sitemap_member
     evaluations = evaluate_all(facts)
     defects = {
@@ -362,3 +355,14 @@ def test_every_fixture_has_a_contract() -> None:
         "store_locator_index.html",
     }
     assert on_disk - region_suite_only == set(_CONTRACTS_BY_FIXTURE)
+
+
+def test_the_ratchet_is_empty() -> None:
+    """No valid page in this suite produces a defect. Keep it that way.
+
+    The list started at 41 entries across nine correctly built pages. Adding
+    one back means shipping a rule that accuses a page nothing is wrong with,
+    and the argument for that has to be made here, in the open, rather than
+    discovered later in a customer's crawl.
+    """
+    assert KNOWN_FALSE_POSITIVES == {}

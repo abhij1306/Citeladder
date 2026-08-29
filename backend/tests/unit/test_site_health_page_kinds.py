@@ -553,11 +553,13 @@ def test_classifier_version_stamped_from_config() -> None:
 
 
 def test_page_type_config_tables_are_internally_consistent() -> None:
-    # Every taxonomy member has a profile with a sane thin-content minimum.
+    # Every taxonomy member has a profile: the table doubles as the registry
+    # of kinds the evaluator will accept, so a missing entry silently makes
+    # every page-kind-scoped rule inapplicable.
     for page_kind in PAGE_KINDS:
         profile = PAGE_KIND_PROFILES.get(page_kind)
         assert profile is not None, f"missing PAGE_KIND_PROFILES entry: {page_kind}"
-        assert profile.min_sufficient_words >= 0
+        assert profile.page_kind == page_kind
     # Path patterns and the schema map only reference taxonomy members.
     for page_kind, _pattern in PAGE_KIND_PATH_PATTERNS:
         assert page_kind in PAGE_KINDS, f"path pattern type unknown: {page_kind}"

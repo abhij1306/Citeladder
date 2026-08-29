@@ -576,17 +576,16 @@ class PageKindProfile:
 
     The profile key doubles as the rule ``applicability_key`` token this
     page type answers to (``page_kind:<type>`` — unknown tokens stay
-    fail-closed in the evaluator). ``min_sufficient_words`` is the per-type
-    thin-content minimum read by ``technical.thin_content`` (the v1 global
-    ``MIN_SUFFICIENT_WORDS`` analysis constant moved here in v2 — invariant
-    1; the check itself moved from ``aeo.sufficient_text`` to
-    ``technical.thin_content`` in the sh-rules-2 catalog, spec §5.3).
-    ``rule_weight_overrides`` maps ``rule_id -> weight`` resolved at
-    evaluation time; sparse by design.
+    fail-closed in the evaluator). ``rule_weight_overrides`` maps
+    ``rule_id -> weight`` resolved at evaluation time; sparse by design.
+
+    ``min_sufficient_words`` used to live here, a per-type threshold from 40
+    to 300. Segmenting by type was better than one global number, but the
+    premise underneath it was still that length proves substance. See
+    ``MIN_MEANINGFUL_WORDS`` and ``CONTENT_SUFFICIENCY_TRAITS``.
     """
 
     __slots__ = (
-        "min_sufficient_words",
         "page_kind",
         "rule_weight_overrides",
     )
@@ -595,59 +594,99 @@ class PageKindProfile:
         self,
         *,
         page_kind: str,
-        min_sufficient_words: int,
         rule_weight_overrides: dict[str, float] | None = None,
     ) -> None:
         self.page_kind = page_kind
-        self.min_sufficient_words = min_sufficient_words
         self.rule_weight_overrides = dict(rule_weight_overrides or {})
 
 
+# --- content sufficiency -----------------------------------------------------
+#
+# There is no magical minimum word count, and no ideal page length. The old
+# per-kind ladder (40 for a homepage up to 300 for an article) asserted quality
+# from length, and length is not the verdict: a category page with 25 words and
+# 60 well-organized products is excellent, a contact page is complete in 30
+# words with an address, a phone number, opening hours and a form, and a
+# product page is complete in 65 words plus price, availability and specs.
+#
+# What remains worth reporting is an EMPTY page. One universal floor covers
+# that, and it is deliberately low enough that only genuine emptiness trips it.
+MIN_MEANINGFUL_WORDS: Final = 25
+
+# Below the floor, a page can still prove it is complete STRUCTURALLY. These
+# only ever add a way to pass -- never a way to fail -- so the check can only
+# report fewer pages than the floor alone would, never more.
+#
+# Keyed on traits, because a trait is exactly the observation that answers
+# "does this page do the thing its kind exists to do".
+CONTENT_SUFFICIENCY_TRAITS: Final[dict[str, tuple[str, ...]]] = {
+    # A listing page is sufficient when it actually lists things.
+    PAGE_KIND_CATEGORY: (PAGE_TRAIT_LISTING,),
+    # A location page is sufficient when it carries findable NAP details.
+    PAGE_KIND_LOCAL: (PAGE_TRAIT_LOCAL_INTENT,),
+    # Either half of the bundled kind proves itself: a contact page by handing
+    # over a way to make contact, an about page by identifying the entity.
+    PAGE_KIND_ABOUT_CONTACT: (PAGE_TRAIT_CONTACT_INTENT, PAGE_TRAIT_ABOUT_INTENT),
+    PAGE_KIND_FAQ: (PAGE_TRAIT_HAS_FAQ,),
+}
+
+# A commercial page proves itself with a price: that is the fact the visitor
+# came for, and it is not made of prose.
+CONTENT_SUFFICIENCY_PRICE_KINDS: Final[frozenset[str]] = frozenset(
+    {PAGE_KIND_PRODUCT, PAGE_KIND_PRICING}
+)
+
+
 PAGE_KIND_PROFILES: Final[dict[str, PageKindProfile]] = {
-    # Homepages are naturally link-heavy/thin; a lower minimum and a
-    # reduced thin-content weight keep them from reading as thin.
+    # A homepage is naturally link-heavy and short on prose. It has no special
+    # floor any more -- one below MIN_MEANINGFUL_WORDS really is empty -- but
+    # the reduced weight stays, because emptiness matters less on the one page
+    # whose job is to route visitors elsewhere.
     PAGE_KIND_HOMEPAGE: PageKindProfile(
         page_kind=PAGE_KIND_HOMEPAGE,
-        min_sufficient_words=40,
         rule_weight_overrides={"technical.thin_content": 1.0},
     ),
     PAGE_KIND_ARTICLE: PageKindProfile(
-        page_kind=PAGE_KIND_ARTICLE, min_sufficient_words=300
+        page_kind=PAGE_KIND_ARTICLE,
     ),
     PAGE_KIND_PRODUCT: PageKindProfile(
-        page_kind=PAGE_KIND_PRODUCT, min_sufficient_words=80
+        page_kind=PAGE_KIND_PRODUCT,
     ),
     PAGE_KIND_CATEGORY: PageKindProfile(
-        page_kind=PAGE_KIND_CATEGORY, min_sufficient_words=60
+        page_kind=PAGE_KIND_CATEGORY,
     ),
     PAGE_KIND_PRICING: PageKindProfile(
-        page_kind=PAGE_KIND_PRICING, min_sufficient_words=80
+        page_kind=PAGE_KIND_PRICING,
     ),
-    PAGE_KIND_DOCS: PageKindProfile(page_kind=PAGE_KIND_DOCS, min_sufficient_words=150),
-    PAGE_KIND_FAQ: PageKindProfile(page_kind=PAGE_KIND_FAQ, min_sufficient_words=120),
+    PAGE_KIND_DOCS: PageKindProfile(
+        page_kind=PAGE_KIND_DOCS,
+    ),
+    PAGE_KIND_FAQ: PageKindProfile(
+        page_kind=PAGE_KIND_FAQ,
+    ),
     PAGE_KIND_ABOUT_CONTACT: PageKindProfile(
-        page_kind=PAGE_KIND_ABOUT_CONTACT, min_sufficient_words=60
+        page_kind=PAGE_KIND_ABOUT_CONTACT,
     ),
     PAGE_KIND_SERVICE: PageKindProfile(
-        page_kind=PAGE_KIND_SERVICE, min_sufficient_words=100
+        page_kind=PAGE_KIND_SERVICE,
     ),
     PAGE_KIND_LOCAL: PageKindProfile(
-        page_kind=PAGE_KIND_LOCAL, min_sufficient_words=80
+        page_kind=PAGE_KIND_LOCAL,
     ),
     PAGE_KIND_GUIDE: PageKindProfile(
-        page_kind=PAGE_KIND_GUIDE, min_sufficient_words=200
+        page_kind=PAGE_KIND_GUIDE,
     ),
     PAGE_KIND_COMPARISON: PageKindProfile(
-        page_kind=PAGE_KIND_COMPARISON, min_sufficient_words=150
+        page_kind=PAGE_KIND_COMPARISON,
     ),
     PAGE_KIND_CASE_STUDY_REVIEW: PageKindProfile(
-        page_kind=PAGE_KIND_CASE_STUDY_REVIEW, min_sufficient_words=150
+        page_kind=PAGE_KIND_CASE_STUDY_REVIEW,
     ),
     PAGE_KIND_TRUST_POLICY: PageKindProfile(
-        page_kind=PAGE_KIND_TRUST_POLICY, min_sufficient_words=80
+        page_kind=PAGE_KIND_TRUST_POLICY,
     ),
     PAGE_KIND_OTHER: PageKindProfile(
-        page_kind=PAGE_KIND_OTHER, min_sufficient_words=100
+        page_kind=PAGE_KIND_OTHER,
     ),
 }
 
