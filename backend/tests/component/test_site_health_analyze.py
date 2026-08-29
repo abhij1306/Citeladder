@@ -35,6 +35,7 @@ from app.core.config.site_health_contracts import (
     SCORING_VERSION,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
+    TASK_KIND_SITE_SETUP,
 )
 from app.core.config.site_health_crawl_policy import (
     SELECTION_SOURCE_FREE_SAMPLE,
@@ -81,6 +82,59 @@ from tests.component.site_health_worker_helpers import (
     _thin_html,
     _worker,
 )
+
+
+@pytest.mark.asyncio
+async def test_root_analysis_defers_until_durable_site_setup_commits(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    root = "https://example.com/"
+    async with session_factory() as session:
+        seed, ((_site_url_id, analyze_task_id),) = await _seed_analyze_phase_crawl(
+            session, root=root, urls=(root,), site_facts=None
+        )
+        _canonical, root_hash = canonical_identity(root)
+        session.add(
+            SiteCrawlTask(
+                crawl_id=seed.crawl_id,
+                workspace_id=seed.workspace_id,
+                task_kind=TASK_KIND_SITE_SETUP,
+                requested_url=root,
+                url_hash=root_hash,
+                idempotency_key=f"{seed.crawl_id}:{TASK_KIND_SITE_SETUP}:{root_hash}:0",
+                status=TASK_STATUS_QUEUED,
+                randomized_position=-1,
+            )
+        )
+        await session.commit()
+
+    requests: list[tuple[str, str]] = []
+    worker = _worker(
+        session_factory,
+        {"/": _rich_page()},
+        owner="root-setup-dependency",
+        requests=requests,
+    )
+    claimed = await worker._queue.claim(
+        owner=worker.owner,
+        limit=1,
+        kinds=[TASK_KIND_ANALYZE],
+    )
+    assert len(claimed) == 1
+    await worker._execute_claimed(claimed[0])
+
+    async with session_factory() as session:
+        analyze_task = await session.get(SiteCrawlTask, analyze_task_id)
+        analysis_count = await session.scalar(
+            select(func.count())
+            .select_from(SitePageAnalysis)
+            .where(SitePageAnalysis.crawl_id == seed.crawl_id)
+        )
+        assert analyze_task is not None
+        assert analyze_task.status == TASK_STATUS_QUEUED
+        assert analyze_task.attempt_count == 0
+        assert analysis_count == 0
+    assert requests == []
 
 
 @pytest.mark.asyncio

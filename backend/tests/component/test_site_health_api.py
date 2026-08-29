@@ -18,6 +18,7 @@ from app.core.config.site_health_contracts import (
     INITIAL_TASK_GENERATION,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
+    TASK_KIND_SITE_SETUP,
 )
 from app.core.config.site_health_crawl_policy import (
     MANUAL_PHASE_LIFECYCLE_KEY,
@@ -236,6 +237,18 @@ async def test_stop_discovery_cancels_unowned_tasks_without_stopping_analysis(
                     lease_owner="worker-1" if status == TASK_STATUS_RUNNING else None,
                 )
             )
+        setup_url = "https://acme.test/"
+        session.add(
+            SiteCrawlTask(
+                crawl_id=crawl.id,
+                workspace_id=scenario.workspace_id,
+                task_kind=TASK_KIND_SITE_SETUP,
+                requested_url=setup_url,
+                url_hash=_hash(setup_url),
+                idempotency_key=f"{crawl.id}:site_setup:stop",
+                status=TASK_STATUS_QUEUED,
+            )
+        )
         analysis_url = "https://acme.test/analysis-continues"
         session.add(
             SiteCrawlTask(
@@ -278,6 +291,16 @@ async def test_stop_discovery_cancels_unowned_tasks_without_stopping_analysis(
                 SiteCrawlTask.error_code == "stopped",
             )
         )
+        cancelled_setup = await session.scalar(
+            select(func.count())
+            .select_from(SiteCrawlTask)
+            .where(
+                SiteCrawlTask.crawl_id == scenario.crawl_id,
+                SiteCrawlTask.task_kind == TASK_KIND_SITE_SETUP,
+                SiteCrawlTask.status == TASK_STATUS_CANCELLED,
+                SiteCrawlTask.error_code == "stopped",
+            )
+        )
         live_analysis = await session.scalar(
             select(func.count())
             .select_from(SiteCrawlTask)
@@ -288,6 +311,7 @@ async def test_stop_discovery_cancels_unowned_tasks_without_stopping_analysis(
             )
         )
         assert cancelled_discovery == 2
+        assert cancelled_setup == 1
         assert live_analysis == 1
 
 
@@ -367,6 +391,20 @@ async def test_discovery_resume_clones_only_the_requested_batch(
                     status=TASK_STATUS_CANCELLED,
                 )
             )
+        setup_url = "https://acme.test/"
+        setup_hash = _hash(setup_url)
+        session.add(
+            SiteCrawlTask(
+                crawl_id=crawl.id,
+                workspace_id=crawl.workspace_id,
+                task_kind=TASK_KIND_SITE_SETUP,
+                requested_url=setup_url,
+                url_hash=setup_hash,
+                generation=INITIAL_TASK_GENERATION,
+                idempotency_key=f"{crawl.id}:site_setup:{setup_hash}:0",
+                status=TASK_STATUS_CANCELLED,
+            )
+        )
         await session.commit()
 
     async with session_factory() as session:
@@ -387,4 +425,12 @@ async def test_discovery_resume_clones_only_the_requested_batch(
                 SiteCrawlTask.status == TASK_STATUS_QUEUED,
             )
         )
-        assert queued == 1
+        assert queued == 2
+        resumed_setup = await session.scalar(
+            select(SiteCrawlTask).where(
+                SiteCrawlTask.phase_run_id == result.phase_run.id,
+                SiteCrawlTask.task_kind == TASK_KIND_SITE_SETUP,
+            )
+        )
+        assert resumed_setup is not None
+        assert resumed_setup.generation == INITIAL_TASK_GENERATION + 1

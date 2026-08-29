@@ -1,4 +1,4 @@
-"""Site setup and sitemap ingestion/persistence stage for discovery."""
+"""Acquisition and persistence helpers shared by discovery and site setup."""
 
 from __future__ import annotations
 
@@ -42,7 +42,6 @@ from app.core.config.site_health_crawl_policy import (
 )
 from app.core.config.site_health_rules import SITEMAP_CONTENT_TYPES
 from app.core.config.site_health_runtime import site_health_settings
-from app.core.config.task_queue import TASK_STATUS_RUNNING
 from app.domain.site_health.discovery import admit_candidates, build_frontier_candidates
 from app.domain.site_health.entitlements import lock_runtime
 from app.domain.site_health.frontier_support import (
@@ -61,11 +60,10 @@ from app.domain.site_health.state_events import (
     apply_discovery_status,
     record_crawl_event,
 )
-from app.domain.site_health.task_guards import crawl_is_active, lease_is_owned
+from app.domain.site_health.task_guards import task_can_persist
 from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
-from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
 from app.models.site_health.urls import SiteUrlObservation
 from app.workers.site_health.helpers import _count_disclosure
 from app.workers.site_health.phases.contracts import (
@@ -107,22 +105,6 @@ def _crawler_stance(requested_url: str, robots_body: str | None) -> dict[str, st
         ).can_fetch(requested_url)
         stance[bot] = AI_CRAWLER_STANCE_ALLOW if allowed else AI_CRAWLER_STANCE_BLOCK
     return stance
-
-
-def _discover_task_is_viable(
-    task: SiteCrawlTask | None,
-    crawl: SiteCrawl | None,
-    *,
-    owner: str,
-) -> bool:
-    """Cheap preflight before staging discovery writes."""
-    return bool(
-        task is not None
-        and crawl is not None
-        and lease_is_owned(task, owner=owner)
-        and task.status == TASK_STATUS_RUNNING
-        and crawl_is_active(crawl)
-    )
 
 
 def _llms_url(authority: str) -> str:
@@ -183,7 +165,7 @@ async def _fetch_well_known(
         return None
 
 
-async def _site_setup(
+async def collect_site_setup(
     ctx: PhaseContext,
     *,
     requested_url: str,
@@ -195,7 +177,7 @@ async def _site_setup(
     include_globs: list[str] | None,
     exclude_globs: list[str] | None,
     sample_mode: bool,
-) -> tuple[dict, tuple[str, ...], tuple[str, ...]]:
+) -> tuple[dict, tuple[str, ...]]:
     """Build bounded site facts and ingest the optional sitemap tree."""
     stance = _crawler_stance(requested_url, robots_body)
     declared_sitemaps: list[str] = []
@@ -247,7 +229,7 @@ async def _site_setup(
             "files": list(sitemap_files)[: site_health_settings.max_sitemap_documents],
         },
     }
-    return site_facts, sitemap_urls, sitemap_files
+    return site_facts, sitemap_urls
 
 
 async def _llms_facts(
@@ -385,7 +367,7 @@ async def _persist_discover(
     async with ctx.session_factory() as session:
         task_hint = await session.get(SiteCrawlTask, task_id)
         crawl_hint = await session.get(SiteCrawl, crawl_id)
-        if not _discover_task_is_viable(task_hint, crawl_hint, owner=ctx.owner):
+        if not task_can_persist(task_hint, crawl_hint, owner=ctx.owner):
             await session.rollback()
             return
         assert task_hint is not None and crawl_hint is not None  # noqa: S101 - narrows for the type checker; not a runtime check
@@ -418,8 +400,6 @@ async def _persist_discover(
             await session.rollback()
             return
         task, crawl = locked
-        if depth == 0 and outcome.site_facts is not None:
-            crawl.site_facts = outcome.site_facts
         if succeeded_artifact_id is not None:
             assert admission is not None  # noqa: S101 - narrows for the type checker; not a runtime check
             _apply_discover_success(
@@ -527,15 +507,6 @@ async def _persist_discover_success(
         phase_run_id=task.phase_run_id,
         runtime=runtime,
     )
-    await _persist_sitemap_candidates(
-        session,
-        crawl=crawl,
-        outcome=outcome,
-        depth=depth,
-        input_mode=input_mode,
-        phase_run_id=task.phase_run_id,
-        runtime=runtime,
-    )
     await _dispose_fetched_page(
         session,
         crawl=crawl,
@@ -613,40 +584,6 @@ async def _dispose_fetched_page(
         )
 
 
-async def _persist_sitemap_candidates(
-    session: AsyncSession,
-    *,
-    crawl: SiteCrawl,
-    outcome: _DiscoverOutcome,
-    depth: int,
-    input_mode: str,
-    phase_run_id: uuid.UUID | None,
-    runtime: WorkspaceSiteHealthRuntime | None = None,
-) -> None:
-    if (
-        depth != 0
-        or not outcome.sitemap_urls
-        or crawl.sample_mode
-        or input_mode == INPUT_MODE_EXACT_URLS
-    ):
-        return
-    candidates = _sitemap_candidates(outcome.sitemap_urls)
-    admission = await admit_candidates(
-        session,
-        crawl=crawl,
-        candidates=candidates,
-        phase_run_id=phase_run_id,
-        runtime=runtime,
-    )
-    await _write_sitemap_observations(
-        session,
-        crawl=crawl,
-        candidates=candidates,
-        admission=admission,
-        phase_run_id=phase_run_id,
-    )
-
-
 def _failure_retry_state(
     task: SiteCrawlTask, outcome: _DiscoverOutcome
 ) -> tuple[bool, int]:
@@ -686,7 +623,7 @@ def _candidates_for(
     return candidates
 
 
-def _sitemap_candidates(urls: tuple[str, ...]) -> list[FrontierCandidate]:
+def build_sitemap_candidates(urls: tuple[str, ...]) -> list[FrontierCandidate]:
     """Turn ingested sitemap URLs into deterministically-ordered candidates.
 
     Depth 1 keeps sitemap-sourced URLs within the max-depth ceiling;
@@ -713,7 +650,7 @@ def _sitemap_candidates(urls: tuple[str, ...]) -> list[FrontierCandidate]:
     return candidates
 
 
-async def _write_sitemap_observations(
+async def write_sitemap_observations(
     session: AsyncSession,
     *,
     crawl: SiteCrawl,

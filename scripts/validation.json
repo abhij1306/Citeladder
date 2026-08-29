@@ -52,6 +52,13 @@
       "backendTests": ["tests/unit/test_export_openapi.py"]
     },
     {
+      "sources": ["backend/app/core/db_conflicts.py"],
+      "backendTests": [
+        "tests/unit/test_site_health_worker_conflicts.py",
+        "tests/component/test_site_health_terminalization_cancellation.py"
+      ]
+    },
+    {
       "sources": [
         "backend/scripts/seed_dev_data.py",
         "backend/scripts/seed_dev_runs.py",

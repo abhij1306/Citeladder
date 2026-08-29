@@ -35,12 +35,14 @@ from app.core.config.site_health_contracts import (
     CRAWL_STATUS_FAILED,
     CRAWL_STATUS_RUNNING,
     DISCOVERY_STATUS_COMPLETED,
+    DISCOVERY_STATUS_RUNNING,
     DISCOVERY_STATUS_SAMPLE_COMPLETED,
     OBSERVATION_SOURCE_SITEMAP,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
+    TASK_KIND_SITE_SETUP,
 )
 from app.core.config.site_health_crawl_policy import (
     AUTOMATIC_MONITOR_LIMIT_KEY,
@@ -52,6 +54,7 @@ from app.core.config.site_health_runtime import (
 from app.core.config.task_queue import (
     TASK_STATUS_FAILED,
     TASK_STATUS_QUEUED,
+    TASK_STATUS_RUNNING,
     TASK_STATUS_SUCCEEDED,
 )
 from app.domain.site_health.frontier import _store_frontier_candidates
@@ -68,9 +71,11 @@ from app.models.site_health.crawl import SiteCrawl, SiteDiscoveryFrontier
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
+from app.workers.site_health.phases import site_setup as site_setup_phase
 from app.workers.site_health.phases.discover_stages import (
-    _write_sitemap_observations,
+    write_sitemap_observations,
 )
+from app.workers.site_health.scheduling import claim_for_lane, configured_lane_plan
 from app.workers.site_health_worker import SiteHealthWorker
 from tests.component.site_health_helpers import seed_site_crawl
 from tests.component.site_health_worker_helpers import (
@@ -81,6 +86,7 @@ from tests.component.site_health_worker_helpers import (
     _html,
     _HttpxHandlerTransport,
     _seed_analyze_ready,
+    _seed_root_branches,
     _seed_root_discover,
     _seed_runtime,
     _worker,
@@ -148,7 +154,14 @@ async def test_progressive_analysis_keeps_discovered_page_priority(
     # Analysis of a page already in hand outranks fetching another one, so the
     # analyzed counter moves as discovery proceeds rather than only after the
     # whole discovery tree has drained.
-    claimed = await worker._claim_one()
+    processing_lane = next(
+        lane
+        for lane in configured_lane_plan()
+        if TASK_KIND_ANALYZE in lane.preferred_kinds
+    )
+    claimed = await claim_for_lane(
+        worker._queue, owner=worker.owner, lane=processing_lane
+    )
     assert claimed is not None
     assert claimed.task_kind == TASK_KIND_ANALYZE
     assert claimed.priority > discover.priority
@@ -237,7 +250,7 @@ async def test_sitemap_observations_use_bounded_bulk_statements(
     crawl = SimpleNamespace(
         id=uuid.uuid4(), workspace_id=uuid.uuid4(), project_id=uuid.uuid4()
     )
-    await _write_sitemap_observations(
+    await write_sitemap_observations(
         session,
         crawl=crawl,
         candidates=candidates,
@@ -264,7 +277,7 @@ async def test_full_allowance_discover_admits_children_and_completes(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     root = "https://example.com/"
-    # A full-allowance crawl with the planner's single root discover task.
+    # A full-allowance crawl using the discover-only phase fixture.
     seed = await _seed_root_discover(session_factory, root=root)
 
     pages = {
@@ -823,11 +836,11 @@ async def test_discover_robots_denied_short_circuits_and_records_site_facts(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     """A robots.txt that disallows our crawler denies the root WITHOUT a page
-    fetch (non-retryable), yet the depth-0 site setup still records the
+    fetch (non-retryable), yet the durable site-setup branch still records the
     AI-crawler stance (llms.txt + sitemap probes honor the same policy, so
     they are skipped too)."""
     root = "https://example.com/"
-    seed = await _seed_root_discover(session_factory, root=root)
+    seed = await _seed_root_branches(session_factory, root=root)
     pages = {
         "/robots.txt": b"User-agent: *\nDisallow: /\n",
         "/llms.txt": b"# Acme llms\n",
@@ -845,7 +858,10 @@ async def test_discover_robots_denied_short_circuits_and_records_site_facts(
 
     async with session_factory() as session:
         task = await session.scalar(
-            select(SiteCrawlTask).where(SiteCrawlTask.crawl_id == seed.crawl_id)
+            select(SiteCrawlTask).where(
+                SiteCrawlTask.crawl_id == seed.crawl_id,
+                SiteCrawlTask.task_kind == TASK_KIND_DISCOVER,
+            )
         )
         assert task is not None
         assert task.status == TASK_STATUS_FAILED
@@ -867,6 +883,133 @@ async def test_discover_robots_denied_short_circuits_and_records_site_facts(
         sitemap = site_facts.get("sitemap") or {}
         assert sitemap.get("fetched") is False
         assert sitemap.get("files") == []
+
+
+@pytest.mark.asyncio
+async def test_root_and_site_setup_branches_converge_durably(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = "https://example.com/"
+    seed = await _seed_root_branches(session_factory, root=root)
+    setup_started = asyncio.Event()
+    release_setup = asyncio.Event()
+    site_facts = {
+        "robots": {"status": ROBOTS_FETCH_STATUS_NOT_FOUND},
+        "llms_txt": {"fetched": False},
+        "sitemap": {"fetched": False, "files": []},
+    }
+
+    async def blocked_site_setup(*_args, **_kwargs):
+        setup_started.set()
+        await release_setup.wait()
+        return site_facts, ()
+
+    monkeypatch.setattr(site_health_settings, "worker_concurrency", 2)
+    monkeypatch.setattr(site_health_settings, "global_concurrency", 2)
+    monkeypatch.setattr(site_health_settings, "acquisition_lane_reserve", 1)
+    monkeypatch.setattr(site_setup_phase, "collect_site_setup", blocked_site_setup)
+    worker = _worker(
+        session_factory,
+        {"/": _html([])},
+        owner="durable-root-setup",
+    )
+
+    run = asyncio.create_task(worker.run_once())
+    await asyncio.wait_for(setup_started.wait(), timeout=5)
+    for _ in range(100):
+        async with session_factory() as session:
+            discover_status = await session.scalar(
+                select(SiteCrawlTask.status).where(
+                    SiteCrawlTask.crawl_id == seed.crawl_id,
+                    SiteCrawlTask.task_kind == TASK_KIND_DISCOVER,
+                )
+            )
+            crawl = await session.get(SiteCrawl, seed.crawl_id)
+        if discover_status == TASK_STATUS_SUCCEEDED:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("root discovery did not complete beside blocked site setup")
+
+    assert crawl is not None
+    assert crawl.discovery_status == DISCOVERY_STATUS_RUNNING
+    assert crawl.site_facts is None
+    release_setup.set()
+    assert await asyncio.wait_for(run, timeout=5) == 2
+
+    async with session_factory() as session:
+        setup_task = await session.scalar(
+            select(SiteCrawlTask).where(
+                SiteCrawlTask.crawl_id == seed.crawl_id,
+                SiteCrawlTask.task_kind == TASK_KIND_SITE_SETUP,
+            )
+        )
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert setup_task is not None
+        assert setup_task.status == TASK_STATUS_SUCCEEDED
+        assert crawl is not None
+        assert crawl.discovery_status == DISCOVERY_STATUS_COMPLETED
+        assert crawl.site_facts == site_facts
+
+
+@pytest.mark.asyncio
+async def test_reclaimed_site_setup_acknowledges_persisted_evidence_without_refetch(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = "https://example.com/"
+    seed = await _seed_root_branches(session_factory, root=root)
+    first = _worker(session_factory, {"/": _html([])}, owner="setup-ack-fails")
+
+    async def drop_queue_ack(**_kwargs) -> bool:
+        return False
+
+    monkeypatch.setattr(first._queue, "succeed", drop_queue_ack)
+    claimed = await first._queue.claim(
+        owner=first.owner,
+        limit=1,
+        kinds=[TASK_KIND_SITE_SETUP],
+    )
+    assert len(claimed) == 1
+    await first._execute_claimed(claimed[0])
+
+    async with session_factory() as session:
+        task = await session.get(SiteCrawlTask, claimed[0].id)
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert task is not None
+        assert task.status == TASK_STATUS_RUNNING
+        assert crawl is not None
+        assert crawl.site_facts is not None
+        persisted_facts = dict(crawl.site_facts)
+        task.status = TASK_STATUS_QUEUED
+        task.lease_owner = None
+        task.lease_expires_at = None
+        await session.commit()
+
+    requests: list[tuple[str, str]] = []
+    reclaimed = _worker(
+        session_factory,
+        {},
+        owner="setup-reclaimed",
+        requests=requests,
+    )
+    replay = await reclaimed._queue.claim(
+        owner=reclaimed.owner,
+        limit=1,
+        kinds=[TASK_KIND_SITE_SETUP],
+    )
+    assert len(replay) == 1
+    await reclaimed._execute_claimed(replay[0])
+
+    async with session_factory() as session:
+        task = await session.get(SiteCrawlTask, claimed[0].id)
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert task is not None
+        assert task.status == TASK_STATUS_SUCCEEDED
+        assert crawl is not None
+        assert crawl.site_facts == persisted_facts
+    assert requests == []
 
 
 @pytest.mark.asyncio
@@ -915,7 +1058,7 @@ async def test_discover_robots_404_records_not_found_and_crawls_fail_open(
     stance defaults to allow — NOT ``fetch_failed`` (robots unreachable),
     and the crawl completes normally.
     """
-    seed = await _seed_root_discover(session_factory, root="https://example.com/")
+    seed = await _seed_root_branches(session_factory, root="https://example.com/")
     # No "/robots.txt" key -> the mock transport 404s it; the root serves.
     worker = _worker(session_factory, {"/": _html([])}, owner="robots-404")
     await worker.run_until_idle()
@@ -942,10 +1085,10 @@ async def test_discover_robots_5xx_fails_unavailable_without_page_fetch(
     The root discover fails non-retryable as ``robots_unavailable``
     (distinct from a parse-based ``robots_denied``) WITHOUT a page fetch —
     the llms/sitemap probes honor the same temporary deny-all — while the
-    depth-0 site setup still records the robots evidence (5xx status, not
+    durable site-setup branch still records the robots evidence (5xx status, not
     fetched)."""
     root = "https://example.com/"
-    seed = await _seed_root_discover(session_factory, root=root)
+    seed = await _seed_root_branches(session_factory, root=root)
     requests: list[tuple[str, str]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -967,7 +1110,10 @@ async def test_discover_robots_5xx_fails_unavailable_without_page_fetch(
 
     async with session_factory() as session:
         task = await session.scalar(
-            select(SiteCrawlTask).where(SiteCrawlTask.crawl_id == seed.crawl_id)
+            select(SiteCrawlTask).where(
+                SiteCrawlTask.crawl_id == seed.crawl_id,
+                SiteCrawlTask.task_kind == TASK_KIND_DISCOVER,
+            )
         )
         assert task is not None
         assert task.status == TASK_STATUS_FAILED
@@ -995,7 +1141,7 @@ async def test_discover_site_setup_llms_stance_sitemap_and_finalize_orphan(
 ) -> None:
     """Full-allowance pipeline in ONE run (the real production flow):
 
-    The depth-0 site setup parses robots (per-bot stance + declared sitemap),
+    The durable site-setup branch parses robots (per-bot stance + declared sitemap),
     probes llms.txt, ingests the sitemap tree into in-scope admissions, caches
     the robots policy across every task, and persists the bounded
     ``site_facts`` display copy on the crawl row. When the crawl terminalizes,
@@ -1004,7 +1150,7 @@ async def test_discover_site_setup_llms_stance_sitemap_and_finalize_orphan(
     weight 0.0, with the orphan issue in the snapshot rollup.
     """
     root = "https://example.com/"
-    seed = await _seed_root_discover(session_factory, root=root)
+    seed = await _seed_root_branches(session_factory, root=root)
     # Seed the root's monitored membership + analyze task UPFRONT (next to the
     # planner's discover task) so discovery, sitemap ingestion, and analysis
     # all land inside one terminalization/snapshot.
@@ -1179,7 +1325,7 @@ async def test_sitemap_attempt_limit_includes_failed_child_documents(
     monkeypatch.setattr(site_health_settings, "max_sitemap_documents", 5)
     monkeypatch.setattr(site_health_settings, "per_host_delay_seconds", 0.0)
     root = "https://example.com/"
-    seed = await _seed_root_discover(session_factory, root=root)
+    seed = await _seed_root_branches(session_factory, root=root)
     child_refs = "".join(
         f"<sitemap><loc>https://example.com/child-{index}.xml</loc></sitemap>"
         for index in range(100)

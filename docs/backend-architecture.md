@@ -237,6 +237,19 @@ A Site Health crawl is created only by the explicit user **Run new crawl**
 action. Discovery and analysis remain durable internal phases: admitted pages
 are progressively and automatically enqueued for analysis while discovery is
 running, subject to the entitlement/runtime allowance frozen on that crawl.
+The one Site Health worker schedules those tasks through capacity-sharing
+acquisition and processing lanes. Reserved acquisition slots prevent analysis
+bursts from starving the discovery frontier, while either lane borrows idle
+capacity from the other under the same global ceiling and shared host gate.
+Each crawl seeds distinct leased root-acquisition and `site_setup` tasks.
+`site_setup` owns robots/AI-crawler facts, llms.txt, and bounded sitemap
+admission; root acquisition owns the homepage artifact and internal-link
+frontier. Lifecycle reconciliation treats both as discovery prerequisites, and
+root analysis defers until setup commits its site facts. The branches converge
+durably rather than through process-local coroutine state.
+User cancellation remains one atomic transaction and replays on bounded
+PostgreSQL lock conflicts, so an in-flight evidence commit cannot surface as a
+failed Stop action.
 The product control surface has no separate discovery or analysis start action.
 
 The standard production crawl freezes a 50-page requested limit. Advanced

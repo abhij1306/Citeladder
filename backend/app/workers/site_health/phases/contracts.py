@@ -39,9 +39,6 @@ class DiscoverOutcome:
     status_code: int | None = None
     retry_after_seconds: float | None = None
     attempts: tuple[FetchCallTrace, ...] = ()
-    site_facts: dict | None = None
-    sitemap_urls: tuple[str, ...] = ()
-    sitemap_files: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)

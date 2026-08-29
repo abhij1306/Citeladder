@@ -1,9 +1,8 @@
-"""Phase 1 — DISCOVER: build the crawl's URL inventory.
+"""Phase 1 — DISCOVER: acquire one page and expand the URL frontier.
 
-Fetches the root, resolves and caches the per-authority robots.txt policy,
-reads the well-known AI-crawler files, ingests sitemaps, and seeds the frontier
-with admissible candidates. The depth-0 (root) task additionally performs site
-setup, writing the crawl's site_facts.
+Each task resolves the shared robots policy, securely fetches its page, and
+persists admissible link candidates. The crawl's independent ``site_setup``
+task owns well-known files and sitemap ingestion.
 
 The worker invokes this module through its explicit ``run(ctx, task)`` seam;
 this remains in-process and does not own claiming or terminalization.
@@ -19,7 +18,6 @@ from app.connectors.web_evidence.contracts import (
     FetchRequest,
     FetchResult,
 )
-from app.connectors.web_evidence.robots import RobotsPolicy
 from app.core.config.site_health_acquisition import (
     ERROR_BOT_BLOCKED,
     FETCH_PURPOSE_DISCOVER,
@@ -54,7 +52,6 @@ from app.workers.site_health.phases.contracts import (
 from app.workers.site_health.phases.discover_stages import (
     _persist_discover,
     _persisted_discover_artifact_id,
-    _site_setup,
 )
 from app.workers.site_health.urls import authority_key as _authority_key
 
@@ -91,7 +88,6 @@ async def run(ctx: PhaseContext, claimed: SiteCrawlTask) -> None:
         kind = task.task_kind
         requested_url = task.requested_url
         depth = task.depth
-        sample_mode = bool(crawl.sample_mode)
         config = dict(crawl.configuration or {})
         root_registrable_domain = config.get("root_registrable_domain") or ""
         include_globs = config.get("include_globs")
@@ -114,7 +110,6 @@ async def run(ctx: PhaseContext, claimed: SiteCrawlTask) -> None:
             include_globs=include_globs,
             exclude_globs=exclude_globs,
             depth=depth,
-            sample_mode=sample_mode,
         )
         await _persist_discover(
             ctx,
@@ -134,7 +129,6 @@ async def _fetch_discover(
     include_globs: list[str] | None,
     exclude_globs: list[str] | None,
     depth: int,
-    sample_mode: bool,
 ) -> _DiscoverOutcome:
     """Fetch + parse one target into a bounded ``_DiscoverOutcome``.
 
@@ -143,47 +137,17 @@ async def _fetch_discover(
     limit, oversize, timeout, DNS). Never raises for an expected fetch
     failure — the caller persists an attempt row either way.
 
-    v2 P2: enforces the per-authority robots.txt policy before fetching
-    (a denied URL short-circuits to ``ERROR_ROBOTS_DENIED`` without a
-    request), and the depth-0 (root) task additionally runs the one-shot
-    site setup — AI-crawler stance, llms.txt probe, and (Starter only)
-    sitemap ingestion — whose bounded results ride the outcome into
-    ``_persist_discover``.
+    Enforces the per-authority robots.txt policy before fetching (a denied URL
+    short-circuits to ``ERROR_ROBOTS_DENIED`` without a request).
 
     A response carrying a challenge-platform marker classifies as
     ``ERROR_BOT_BLOCKED`` (terminal; presentation maps it to ``blocked``),
     never the generic ``ERROR_HTTP_4XX``.
     """
     authority = _authority_key(requested_url)
-    policy: RobotsPolicy | None = None
-    robots_body: str | None = None
-    robots_status: int | None = None
+    policy = None
     if authority:
-        policy, robots_body, robots_status = await ctx.robots.ensure(authority)
-
-    # Site setup runs at depth 0 even when the root page itself is
-    # robots-denied or fails: the AI-crawler stance / llms.txt result is
-    # site-level evidence the dashboard shows regardless (spec §5.3).
-    site_facts: dict | None = None
-    sitemap_urls: tuple[str, ...] = ()
-    sitemap_files: tuple[str, ...] = ()
-    if depth == 0:
-        (
-            site_facts,
-            sitemap_urls,
-            sitemap_files,
-        ) = await _site_setup(
-            ctx,
-            requested_url=requested_url,
-            authority=authority,
-            robots_policy=policy,
-            robots_body=robots_body,
-            robots_status=robots_status,
-            root_registrable_domain=root_registrable_domain,
-            include_globs=include_globs,
-            exclude_globs=exclude_globs,
-            sample_mode=sample_mode,
-        )
+        policy, _, _ = await ctx.robots.ensure(authority)
 
     if policy is not None and not policy.can_fetch(requested_url):
         error_code, error_detail = _robots_denial_error(policy)
@@ -191,9 +155,6 @@ async def _fetch_discover(
             error_code=error_code,
             error_detail=error_detail,
             retryable=False,
-            site_facts=site_facts,
-            sitemap_urls=sitemap_urls,
-            sitemap_files=sitemap_files,
         )
 
     request = FetchRequest(
@@ -221,9 +182,6 @@ async def _fetch_discover(
             status_code=exc.status_code,
             retry_after_seconds=exc.retry_after_seconds,
             attempts=exc.attempts,
-            site_facts=site_facts,
-            sitemap_urls=sitemap_urls,
-            sitemap_files=sitemap_files,
         )
 
     return _parse_discover_result(
@@ -231,9 +189,6 @@ async def _fetch_discover(
         root_registrable_domain=root_registrable_domain,
         include_globs=include_globs,
         exclude_globs=exclude_globs,
-        site_facts=site_facts,
-        sitemap_urls=sitemap_urls,
-        sitemap_files=sitemap_files,
     )
 
 
@@ -243,17 +198,11 @@ def _parse_discover_result(
     root_registrable_domain: str,
     include_globs: list[str] | None,
     exclude_globs: list[str] | None,
-    site_facts: dict | None,
-    sitemap_urls: tuple[str, ...],
-    sitemap_files: tuple[str, ...],
 ) -> _DiscoverOutcome:
     """Classify and parse one completed discovery response."""
     outcome = _DiscoverOutcome(
         result=result,
         attempts=result.attempts,
-        site_facts=site_facts,
-        sitemap_urls=sitemap_urls,
-        sitemap_files=sitemap_files,
     )
     status = result.status_code
     if _is_bot_block(result):

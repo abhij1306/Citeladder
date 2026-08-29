@@ -10,24 +10,10 @@ import uuid
 from collections.abc import Callable
 from typing import Any, Protocol
 
-from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.site_health_runtime import site_health_settings
 from app.models.site_health.queue import SiteCrawlTask
-
-# Postgres SQLSTATEs that mean "this transaction lost a race, run it again":
-# 40001 serialization_failure, 40P01 deadlock_detected, 55P03 lock_not_available.
-# None says anything about the page being crawled, so none is a terminal task
-# failure.
-#
-# 55P03 is what `lock_timeout` raises, and it was missing: a sibling holding a
-# contended row just long enough killed the waiter outright, with
-# `attempt_count` and `conflict_count` both still 0 because the crash never
-# reached the retry path at all. Three tasks died that way in one measured
-# crawl and finalized it `partially_completed` -- a lock this worker would have
-# got on a second try, reported as pages that could not be analyzed.
-_TRANSIENT_DB_SQLSTATES = frozenset({"40001", "40P01", "55P03"})
 
 
 class _RetryableQueue(Protocol):
@@ -43,35 +29,6 @@ class _RetryableQueue(Protocol):
         error_detail: str,
         mutate: Callable[[Any], None] | None = ...,
     ) -> bool: ...
-
-
-def is_transient_db_conflict(exc: BaseException) -> bool:
-    """Whether the database rolled this transaction back over a lock race.
-
-    The SQLSTATE is the authority whenever the driver exposes one — a message
-    match would read "deadlock detected" out of an unrelated error's own text.
-    The message check is the fallback for a driver that carries no code.
-    """
-    coded = False
-    for error in (exc, getattr(exc, "orig", None), getattr(exc, "__cause__", None)):
-        if error is None:
-            continue
-        code = getattr(error, "sqlstate", None) or getattr(error, "pgcode", None)
-        if code is None:
-            continue
-        coded = True
-        if code in _TRANSIENT_DB_SQLSTATES:
-            return True
-    if coded:
-        return False
-    return isinstance(exc, DBAPIError) and any(
-        token in str(exc)
-        for token in (
-            "deadlock detected",
-            "could not serialize",
-            "canceling statement due to lock timeout",
-        )
-    )
 
 
 async def requeue_conflicted_task(

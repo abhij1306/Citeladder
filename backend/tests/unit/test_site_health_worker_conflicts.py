@@ -19,7 +19,7 @@ import pytest
 from sqlalchemy.exc import DBAPIError
 
 from app.core.config.site_health_runtime import site_health_settings
-from app.workers.site_health.db_conflicts import is_transient_db_conflict
+from app.core.db_conflicts import is_transient_db_conflict
 from app.workers.site_health_worker import SiteHealthWorker
 
 

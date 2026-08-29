@@ -28,6 +28,7 @@ from app.core.config.site_health_contracts import (
     CRAWL_STATUS_RUNNING,
     INITIAL_TASK_GENERATION,
     TASK_KIND_ANALYZE,
+    TASK_KIND_SITE_SETUP,
 )
 from app.core.config.site_health_crawl_policy import (
     AUTOMATIC_MONITOR_LIMIT_KEY,
@@ -846,6 +847,16 @@ async def test_standard_crawl_progressively_enqueues_analyzable_pages(
     async with session_factory() as session:
         crawl = await session.get(SiteCrawl, crawl_id)
         assert crawl is not None
+        setup_tasks = await session.scalar(
+            select(func.count())
+            .select_from(SiteCrawlTask)
+            .where(
+                SiteCrawlTask.crawl_id == crawl_id,
+                SiteCrawlTask.task_kind == TASK_KIND_SITE_SETUP,
+                SiteCrawlTask.requested_url == crawl.root_url,
+            )
+        )
+        assert setup_tasks == 1
         await admit_candidates(
             session,
             crawl=crawl,

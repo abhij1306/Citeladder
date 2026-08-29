@@ -33,6 +33,7 @@ from app.core.config.site_health_contracts import (
     SCORING_VERSION,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
+    TASK_KIND_SITE_SETUP,
 )
 from app.core.config.site_health_crawl_policy import (
     SELECTION_SOURCE_USER,
@@ -439,8 +440,7 @@ async def _seed_root_discover(
     monitored_urls: int = DEFAULT_SEED_MONITORED_URLS,
     sample_mode: bool = False,
 ):
-    """Seed a crawl with a single QUEUED root discover task (the planner's
-    output), ready for one worker run."""
+    """Seed an isolated QUEUED root-discover task for phase-focused tests."""
     async with session_factory() as session:
         seed = await seed_site_crawl(session, task_count=0, root_url=root)
         await _seed_runtime(session, seed.workspace_id, monitored_urls=monitored_urls)
@@ -467,6 +467,42 @@ async def _seed_root_discover(
         )
         await session.commit()
         return seed
+
+
+async def _seed_root_branches(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    root: str,
+    monitored_urls: int = DEFAULT_SEED_MONITORED_URLS,
+    sample_mode: bool = False,
+):
+    """Seed the planner's durable root-acquisition and site-setup branches."""
+    seed = await _seed_root_discover(
+        session_factory,
+        root=root,
+        monitored_urls=monitored_urls,
+        sample_mode=sample_mode,
+    )
+    _canonical, root_hash = canonical_identity(root)
+    async with session_factory() as session:
+        session.add(
+            SiteCrawlTask(
+                crawl_id=seed.crawl_id,
+                workspace_id=seed.workspace_id,
+                task_kind=TASK_KIND_SITE_SETUP,
+                requested_url=root,
+                url_hash=root_hash,
+                generation=0,
+                idempotency_key=(
+                    f"{seed.crawl_id}:{TASK_KIND_SITE_SETUP}:{root_hash}:0"
+                ),
+                status=TASK_STATUS_QUEUED,
+                priority=1_000,
+                randomized_position=-1,
+            )
+        )
+        await session.commit()
+    return seed
 
 
 async def _seed_root_only(

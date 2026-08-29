@@ -44,7 +44,10 @@ from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
 from app.models.site_health.urls import MonitoredSiteUrl
-from app.workers.site_health.acquisition import reusable_discover_artifact
+from app.workers.site_health.acquisition import (
+    reusable_discover_artifact,
+    root_site_setup_pending,
+)
 from app.workers.site_health.helpers import (
     _classify_http_error,
     _count_disclosure,
@@ -110,8 +113,9 @@ async def run(ctx: PhaseContext, claimed: SiteCrawlTask) -> None:
         reusable, discover_pending = await reusable_discover_artifact(
             session, crawl=crawl, task=task
         )
+        setup_pending = await root_site_setup_pending(session, crawl=crawl, task=task)
 
-    if discover_pending:
+    if discover_pending or setup_pending:
         await ctx.queue.defer(
             task_id=task_id,
             owner=ctx.owner,

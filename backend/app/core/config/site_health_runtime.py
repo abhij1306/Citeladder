@@ -178,6 +178,12 @@ class SiteHealthSettings(BaseSettings):
     db_conflict_base_delay_seconds: float = 0.05
     db_conflict_jitter_seconds: float = 0.2
     worker_concurrency: int = 8
+    # Number of in-process worker slots that prefer acquisition/discovery work.
+    # Remaining slots prefer analysis and persisted projections. Either side
+    # borrows the other's idle capacity, so this is a starvation guard rather
+    # than a hard per-lane ceiling. Runtime keeps at least one processing slot
+    # whenever total concurrency is greater than one.
+    acquisition_lane_reserve: int = 2
     poll_interval_seconds: float = 1.0
     # Bounded recheck when analyze observes a still-running discover task for
     # the same URL. A non-zero delay prevents a claim/defer hot loop.
@@ -305,6 +311,7 @@ class SiteHealthSettings(BaseSettings):
                 "global_concurrency",
                 "per_host_concurrency",
                 "worker_concurrency",
+                "acquisition_lane_reserve",
                 "db_conflict_max_requeues",
             ),
         )
@@ -390,6 +397,18 @@ def _site_crawl_task_model() -> type[SiteCrawlTask]:
 # The boost is larger than any value priority so the ordering is categorical,
 # not a tuning knob: finish the pages we already hold before fetching more.
 ANALYZE_PRIORITY_BOOST: Final = 1_000
+
+# Site setup is the crawl's one-shot discovery prerequisite. It shares the
+# acquisition lane with page discovery but outranks ordinary frontier rows so
+# robots/llms/sitemap evidence starts beside the root rather than behind a
+# manually seeded discovery burst.
+SITE_SETUP_PRIORITY_BOOST: Final = 1_000
+
+# Cancellation owns the crawl row and may arrive behind a full worker batch.
+# PostgreSQL's lock timeout aborts that transaction rather than waiting
+# indefinitely; bounded whole-transaction replay lets the user action win once
+# the current evidence commit releases the row.
+CRAWL_CANCEL_DB_CONFLICT_RETRIES: Final = 3
 
 
 def _site_task_claim_order(model: type[SiteCrawlTask]) -> tuple:

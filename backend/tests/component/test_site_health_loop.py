@@ -13,6 +13,10 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.config.site_health_contracts import (
+    TASK_KIND_ANALYZE,
+    TASK_KIND_DISCOVER,
+)
 from app.core.config.site_health_runtime import (
     site_health_settings,
 )
@@ -25,6 +29,26 @@ from tests.component.site_health_helpers import seed_site_crawl
 from tests.component.site_health_worker_helpers import (
     _worker,
 )
+
+
+async def _add_analyze_tasks(
+    session: AsyncSession, *, crawl_id: uuid.UUID, workspace_id: uuid.UUID, count: int
+) -> None:
+    for index in range(count):
+        session.add(
+            SiteCrawlTask(
+                crawl_id=crawl_id,
+                workspace_id=workspace_id,
+                task_kind=TASK_KIND_ANALYZE,
+                requested_url=f"https://example.com/analyze-{index}",
+                url_hash=f"analyze-{index}",
+                idempotency_key=f"{crawl_id}:{TASK_KIND_ANALYZE}:lane-{index}:0",
+                status=TASK_STATUS_QUEUED,
+                priority=1_000,
+                randomized_position=index,
+            )
+        )
+    await session.commit()
 
 
 @pytest.mark.asyncio
@@ -116,3 +140,59 @@ async def test_run_once_waits_for_all_claimed_tasks_before_raising(
     with pytest.raises(RuntimeError, match="boom"):
         await asyncio.wait_for(run, timeout=5)
     assert blocked_finished.is_set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    (
+        "discover_count",
+        "analyze_count",
+        "expected_discover",
+        "expected_analyze",
+    ),
+    ((4, 4, 1, 3), (4, 0, 4, 0), (0, 4, 0, 4)),
+    ids=(
+        "mixed-backlog-reserves-discovery",
+        "idle-processing-borrows",
+        "idle-acquisition-borrows",
+    ),
+)
+async def test_pipelined_lanes_reserve_and_borrow_capacity(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+    discover_count: int,
+    analyze_count: int,
+    expected_discover: int,
+    expected_analyze: int,
+) -> None:
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=discover_count)
+        await _add_analyze_tasks(
+            session,
+            crawl_id=seed.crawl_id,
+            workspace_id=seed.workspace_id,
+            count=analyze_count,
+        )
+
+    worker = _worker(session_factory, {}, owner=f"lanes-{analyze_count}")
+    release = asyncio.Event()
+    first_wave_ready = asyncio.Event()
+    started: list[str] = []
+
+    async def block_first_wave(task: SiteCrawlTask) -> None:
+        started.append(task.task_kind)
+        if len(started) == 4:
+            first_wave_ready.set()
+        await release.wait()
+
+    monkeypatch.setattr(site_health_settings, "worker_concurrency", 4)
+    monkeypatch.setattr(site_health_settings, "global_concurrency", 4)
+    monkeypatch.setattr(site_health_settings, "acquisition_lane_reserve", 1)
+    monkeypatch.setattr(worker, "_execute_claimed", block_first_wave)
+
+    run = asyncio.create_task(worker.run_pipelined(drain=True))
+    await asyncio.wait_for(first_wave_ready.wait(), timeout=5)
+    assert started.count(TASK_KIND_DISCOVER) == expected_discover
+    assert started.count(TASK_KIND_ANALYZE) == expected_analyze
+    release.set()
+    assert await asyncio.wait_for(run, timeout=5) == discover_count + analyze_count

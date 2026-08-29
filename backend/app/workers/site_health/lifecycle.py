@@ -61,9 +61,11 @@ from app.core.config.site_health_contracts import (
     DISCOVERY_STATUS_STOPPED,
     EVENT_CRAWL_COMPLETED,
     EVENT_CRAWL_FAILED,
+    SITE_ACQUISITION_TASK_KINDS,
     SITE_TASK_KINDS,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
+    TASK_KIND_SITE_SETUP,
 )
 from app.core.config.site_health_crawl_policy import (
     MANUAL_PHASE_LIFECYCLE_KEY,
@@ -341,7 +343,9 @@ class CrawlLifecycle(CrawlFinalizeMixin):
             .where(
                 remaining_task.crawl_id == crawl_id,
                 remaining_task.workspace_id == workspace_id,
-                remaining_task.task_kind.in_([TASK_KIND_DISCOVER, TASK_KIND_ANALYZE]),
+                remaining_task.task_kind.in_(
+                    sorted(SITE_ACQUISITION_TASK_KINDS | {TASK_KIND_ANALYZE})
+                ),
                 remaining_task.status.not_in(list(TASK_TERMINAL_STATUSES)),
             )
             .exists()
@@ -763,7 +767,8 @@ class CrawlLifecycle(CrawlFinalizeMixin):
             return int(getattr(row, field)) if row is not None else 0
 
         return {
-            "discover_non_terminal": count(TASK_KIND_DISCOVER, "non_terminal"),
+            "discover_non_terminal": count(TASK_KIND_DISCOVER, "non_terminal")
+            + count(TASK_KIND_SITE_SETUP, "non_terminal"),
             "analyze_non_terminal": count(TASK_KIND_ANALYZE, "non_terminal"),
             "analyze_total": count(TASK_KIND_ANALYZE, "total"),
             "analyze_succeeded": count(TASK_KIND_ANALYZE, "succeeded"),
@@ -774,5 +779,6 @@ class CrawlLifecycle(CrawlFinalizeMixin):
                 count(TASK_KIND_DISCOVER, "failed")
                 - count(TASK_KIND_DISCOVER, "excluded"),
                 0,
-            ),
+            )
+            + count(TASK_KIND_SITE_SETUP, "failed"),
         }

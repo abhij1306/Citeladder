@@ -17,8 +17,10 @@ from app.core.config.site_health_acquisition import (
 from app.core.config.site_health_contracts import (
     EXTRACTOR_VERSION,
     TASK_KIND_DISCOVER,
+    TASK_KIND_SITE_SETUP,
 )
 from app.core.config.task_queue import TASK_ACTIVE_STATUSES
+from app.domain.site_health.normalization import canonical_identity
 from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
@@ -62,3 +64,25 @@ async def reusable_discover_artifact(
         .limit(1)
     )
     return None, pending is not None
+
+
+async def root_site_setup_pending(
+    session: AsyncSession, *, crawl: SiteCrawl, task: SiteCrawlTask
+) -> bool:
+    """Keep root analysis behind its durable site-level evidence prerequisite."""
+    if crawl.site_facts is not None:
+        return False
+    _canonical, root_hash = canonical_identity(crawl.root_url)
+    if task.url_hash != root_hash:
+        return False
+    pending = await session.scalar(
+        select(SiteCrawlTask.id)
+        .where(
+            SiteCrawlTask.crawl_id == crawl.id,
+            SiteCrawlTask.workspace_id == crawl.workspace_id,
+            SiteCrawlTask.task_kind == TASK_KIND_SITE_SETUP,
+            SiteCrawlTask.status.in_(sorted(TASK_ACTIVE_STATUSES)),
+        )
+        .limit(1)
+    )
+    return pending is not None

@@ -14,8 +14,9 @@
 #   4. Freeze the operational settings + runtime projection + rule/scoring
 #      into ``SiteCrawl.configuration`` so a live env change never alters an
 #      in-flight run (invariant 9), store the normalized 64-bit ``random_seed``.
-#   5. Seed the in-scope root ``discover`` task (generation 0), plus re-seed the
-#      persistent monitored set's ``analyze`` tasks on a recrawl.
+#   5. Seed independent root ``discover`` and durable ``site_setup`` branches,
+#      plus re-seed the persistent monitored set's ``analyze`` tasks on a
+#      recrawl.
 #   6. Drive the crawl DRAFT -> VALIDATING -> QUEUED (overall) and
 #      PENDING -> RUNNING (discovery) through ``state_events`` guards, record
 #      the lifecycle events, and commit with the root task ``queued`` so the
@@ -58,6 +59,7 @@ from app.core.config.site_health_contracts import (
     SCORING_VERSION,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
+    TASK_KIND_SITE_SETUP,
 )
 from app.core.config.site_health_crawl_policy import (
     INPUT_MODE_AUTO,
@@ -71,6 +73,7 @@ from app.core.config.site_health_crawl_policy import (
     URL_EXCLUSION_INVALID,
 )
 from app.core.config.site_health_runtime import (
+    SITE_SETUP_PRIORITY_BOOST,
     site_health_settings,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
@@ -386,6 +389,23 @@ def _add_initial_discovery_tasks(
                 randomized_position=position,
             )
         )
+    _canonical, root_hash = canonical_identity(root_url)
+    session.add(
+        SiteCrawlTask(
+            crawl_id=crawl.id,
+            workspace_id=workspace_id,
+            phase_run_id=phase_run_id,
+            task_kind=TASK_KIND_SITE_SETUP,
+            requested_url=root_url,
+            url_hash=root_hash,
+            depth=0,
+            generation=0,
+            idempotency_key=f"{crawl.id}:{TASK_KIND_SITE_SETUP}:{root_hash}:0",
+            status=TASK_STATUS_QUEUED,
+            priority=SITE_SETUP_PRIORITY_BOOST,
+            randomized_position=-1,
+        )
+    )
 
 
 async def create_crawl(
@@ -402,15 +422,15 @@ async def create_crawl(
     page_kinds: list[str] | None = None,
     commit: bool = True,
 ) -> SiteCrawl:
-    """Create + queue a Site Health crawl (freeze scope, seed the root task).
+    """Create + queue a crawl with durable root and site-setup branches.
 
     Derives the crawl root from ``Project.website_url``, freezes the primary
     registrable domain + narrowing onto the profile and the operational
     settings + runtime projection into ``SiteCrawl.configuration``, seeds the in-scope
-    root ``discover`` task (and re-seeds the persistent monitored set's
-    ``analyze`` tasks), then drives the lifecycle to ``queued`` and commits so
-    the worker can claim the root. Rejects a second active crawl for the same
-    project (409). Caller owns nothing else — this commits.
+    root ``discover`` and ``site_setup`` tasks (and re-seeds the persistent
+    monitored set's ``analyze`` tasks), then drives the lifecycle to ``queued``
+    and commits so the worker can claim both branches. Rejects a second active
+    crawl for the same project (409). Caller owns nothing else — this commits.
     """
     # Lock the project row before checking active state so two concurrent
     # requests for the same project serialize instead of racing past

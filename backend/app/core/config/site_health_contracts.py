@@ -117,6 +117,8 @@ PAGE_ANALYSIS_STATUS_FAILED: Final = "failed"
 
 TASK_KIND_DISCOVER: Final = "discover"
 
+TASK_KIND_SITE_SETUP: Final = "site_setup"
+
 TASK_KIND_ANALYZE: Final = "analyze"
 
 TASK_KIND_CHANGE_INTEL: Final = "change_intel"
@@ -125,6 +127,10 @@ TASK_KIND_LINK_METRICS: Final = "link_metrics"
 
 TASK_KIND_ARCHITECTURE: Final = "architecture"
 
+SITE_ACQUISITION_TASK_KINDS: Final[frozenset[str]] = frozenset(
+    {TASK_KIND_DISCOVER, TASK_KIND_SITE_SETUP}
+)
+
 POST_TERMINAL_SITE_TASK_KINDS: Final[frozenset[str]] = frozenset(
     {TASK_KIND_CHANGE_INTEL, TASK_KIND_LINK_METRICS, TASK_KIND_ARCHITECTURE}
 )
@@ -132,11 +138,16 @@ POST_TERMINAL_SITE_TASK_KINDS: Final[frozenset[str]] = frozenset(
 SITE_TASK_KINDS: Final[frozenset[str]] = frozenset(
     {
         TASK_KIND_DISCOVER,
+        TASK_KIND_SITE_SETUP,
         TASK_KIND_ANALYZE,
         TASK_KIND_CHANGE_INTEL,
         TASK_KIND_LINK_METRICS,
         TASK_KIND_ARCHITECTURE,
     }
+)
+
+SITE_PROCESSING_TASK_KINDS: Final[frozenset[str]] = (
+    SITE_TASK_KINDS - SITE_ACQUISITION_TASK_KINDS
 )
 
 INITIAL_TASK_GENERATION: Final = 0

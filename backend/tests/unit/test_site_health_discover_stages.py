@@ -34,7 +34,9 @@ def test_sitemap_admission_skips_one_url_when_identity_policy_rejects(
 
 def test_discover_persistence_uses_the_explicit_context_seam() -> None:
     assert not hasattr(discover_stages, "DiscoverPersistenceMixin")
-    site_setup_parameters = inspect.signature(discover_stages._site_setup).parameters
+    site_setup_parameters = inspect.signature(
+        discover_stages.collect_site_setup
+    ).parameters
     assert next(iter(site_setup_parameters)) == "ctx"
     assert (
         next(iter(inspect.signature(discover_stages._persist_discover).parameters))

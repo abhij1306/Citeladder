@@ -22,7 +22,9 @@ from app.core.config.site_health_contracts import (
     EVENT_DISCOVERY_STARTED,
     EVENT_DISCOVERY_STOPPED,
     INITIAL_TASK_GENERATION,
+    SITE_ACQUISITION_TASK_KINDS,
     TASK_KIND_DISCOVER,
+    TASK_KIND_SITE_SETUP,
 )
 from app.core.config.site_health_crawl_policy import (
     PHASE_DISCOVERY,
@@ -116,6 +118,59 @@ async def _clone_cancelled_discovery_tasks(
     return created
 
 
+async def _resume_cancelled_site_setup(
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    phase_run_id: uuid.UUID,
+) -> None:
+    """Restore the one-shot setup prerequisite when a stopped crawl resumes."""
+    if crawl.site_facts is not None:
+        return
+    source = await session.scalar(
+        select(SiteCrawlTask)
+        .where(
+            SiteCrawlTask.crawl_id == crawl.id,
+            SiteCrawlTask.task_kind == TASK_KIND_SITE_SETUP,
+            SiteCrawlTask.status == TASK_STATUS_CANCELLED,
+        )
+        .order_by(SiteCrawlTask.generation.desc(), SiteCrawlTask.id.desc())
+        .limit(1)
+    )
+    if source is None:
+        return
+    generations = await max_task_generations(
+        session,
+        crawl_id=crawl.id,
+        task_kind=TASK_KIND_SITE_SETUP,
+        url_hashes=(source.url_hash,),
+    )
+    generation = generations.get(source.url_hash, INITIAL_TASK_GENERATION) + 1
+    await session.execute(
+        pg_insert(SiteCrawlTask)
+        .values(
+            crawl_id=crawl.id,
+            workspace_id=crawl.workspace_id,
+            phase_run_id=phase_run_id,
+            task_kind=TASK_KIND_SITE_SETUP,
+            requested_url=source.requested_url,
+            url_hash=source.url_hash,
+            depth=0,
+            generation=generation,
+            idempotency_key=(
+                f"{crawl.id}:{TASK_KIND_SITE_SETUP}:{source.url_hash}:{generation}"
+            ),
+            status=TASK_STATUS_QUEUED,
+            priority=source.priority,
+            randomized_position=source.randomized_position,
+            max_attempts=source.max_attempts,
+        )
+        .on_conflict_do_nothing(
+            index_elements=["crawl_id", "task_kind", "url_hash", "generation"]
+        )
+    )
+
+
 async def start_discovery(
     session: AsyncSession,
     *,
@@ -164,6 +219,7 @@ async def start_discovery(
             phase_run_id=run.id,
             requested_count=additional_url_count,
         )
+    await _resume_cancelled_site_setup(session, crawl=crawl, phase_run_id=run.id)
     record_crawl_event(
         session,
         crawl_id=crawl.id,
@@ -184,7 +240,9 @@ async def stop_discovery(
     crawl = await lock_crawl(session, workspace_id=workspace_id, crawl_id=crawl_id)
     run = await running_phase(session, crawl_id=crawl.id, phase=PHASE_DISCOVERY)
     stopped_count = await stop_phase_tasks(
-        session, crawl_id=crawl.id, task_kinds=(TASK_KIND_DISCOVER,)
+        session,
+        crawl_id=crawl.id,
+        task_kinds=tuple(sorted(SITE_ACQUISITION_TASK_KINDS)),
     )
     mark_phase_run_stopped(run)
     if phase_stop_changed_state(

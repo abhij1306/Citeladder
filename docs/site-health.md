@@ -32,8 +32,11 @@ and hierarchy only.
 ## Pipeline
 
 ```text
-explicit user Run new crawl -> seed + sitemap + internal links
-  -> URL admission and corpus disposition
+explicit user Run new crawl
+  -> durable root acquisition ───────────────┐
+  -> durable site setup -> sitemap admission ├─> discovery convergence
+                                             ┘
+  -> internal-link frontier and corpus disposition
   -> SSRF-pinned curl_cffi acquisition
   -> immutable fetch attempt and artifact
   -> bounded normalized HTML/delivery/structured-data facts
@@ -53,6 +56,18 @@ repair lifecycle state, or call a model.
 - URL safety and redirect targets are validated at the acquisition boundary.
 - Discovery and analysis use PostgreSQL tasks with leases, retries,
   heartbeats, idempotent terminalization, and cancellation.
+- Root acquisition and site setup are independent durable tasks on that same
+  queue. Site setup owns robots/AI-crawler facts, llms.txt, and the bounded
+  sitemap walk; root acquisition can fetch and expand internal links beside it.
+  Discovery completes only after both branches and their admitted frontier
+  drain. Root analysis waits for committed site facts so site-root rules never
+  race the setup branch.
+- The single worker uses capacity-sharing acquisition and processing lanes.
+  Acquisition-reserved slots keep discovery moving during analysis bursts;
+  processing slots prefer analysis and persisted post-crawl projections. Each
+  lane borrows the other's idle slots, all slots remain under one global
+  concurrency ceiling, and every network fallback still uses the shared host
+  gate.
 - As admissible pages arrive, analysis is automatically enqueued and progresses
   alongside discovery. The frozen entitlement/runtime allowance still bounds
   which pages may be analyzed; discovery never turns an unentitled inventory

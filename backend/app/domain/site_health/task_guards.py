@@ -61,6 +61,20 @@ def lease_is_owned(
     )
 
 
+def task_can_persist(
+    task: SiteCrawlTask | None,
+    crawl: SiteCrawl | None,
+    *,
+    owner: str,
+) -> bool:
+    """Return whether an owned running task may stage evidence for its crawl."""
+    return bool(
+        lease_is_owned(task, owner=owner)
+        and task.status == TASK_STATUS_RUNNING
+        and crawl_is_active(crawl)
+    )
+
+
 def monitored_is_active(
     monitored: MonitoredSiteUrl | None,
 ) -> TypeGuard[MonitoredSiteUrl]:

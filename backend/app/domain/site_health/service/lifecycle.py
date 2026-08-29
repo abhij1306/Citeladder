@@ -10,6 +10,7 @@ keeps its scores instead of dead-ending on a null summary.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -40,6 +41,10 @@ from app.core.config.site_health_crawl_policy import (
     PHASE_ANALYSIS,
     PHASE_DISCOVERY,
 )
+from app.core.config.site_health_runtime import (
+    CRAWL_CANCEL_DB_CONFLICT_RETRIES,
+    site_health_settings,
+)
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,
     TASK_STATUS_CAPACITY_WAIT,
@@ -50,6 +55,7 @@ from app.core.config.task_queue import (
     TASK_STATUS_RUNNING,
     TASK_STATUS_SUCCEEDED,
 )
+from app.core.db_conflicts import is_transient_db_conflict
 from app.domain.entitlements.service import (
     refresh_site_health_runtime_for_workspace,
 )
@@ -378,6 +384,33 @@ async def _dashboard_crawl_details(
 # Cancel (atomic)
 # =========================================================================
 async def cancel_crawl(
+    session: AsyncSession, *, workspace_id: uuid.UUID, crawl_id: uuid.UUID
+) -> dict:
+    """Cancel atomically, replaying the transaction after bounded lock races."""
+    for conflict_count in range(CRAWL_CANCEL_DB_CONFLICT_RETRIES + 1):
+        try:
+            return await _cancel_crawl_once(
+                session, workspace_id=workspace_id, crawl_id=crawl_id
+            )
+        except Exception as exc:
+            if (
+                conflict_count >= CRAWL_CANCEL_DB_CONFLICT_RETRIES
+                or not is_transient_db_conflict(exc)
+            ):
+                raise
+            await session.rollback()
+            retry_number = conflict_count + 1
+            logger.info(
+                "site_health.cancel_lock_conflict_retry",
+                extra={"crawl_id": str(crawl_id), "retry_number": retry_number},
+            )
+            await asyncio.sleep(
+                site_health_settings.db_conflict_retry_delay(retry_number)
+            )
+    raise RuntimeError("unreachable cancellation retry state")
+
+
+async def _cancel_crawl_once(
     session: AsyncSession, *, workspace_id: uuid.UUID, crawl_id: uuid.UUID
 ) -> dict:
     """Cancel a crawl atomically: transition states, cancel tasks, record event.
