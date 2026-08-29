@@ -207,5 +207,9 @@ def _shuffled_slots(
     ]
     # The seed is persisted specifically for reproducible scheduling; this is
     # not a secret, token, identifier, or security decision.
-    random.Random(int(seed)).shuffle(slots)  # noqa: S311 - deterministic order, not crypto
+    #
+    # Two markers, because two analysers with two syntaxes both flag `random`
+    # here: `noqa: S311` is Ruff's, `NOSONAR` is SonarCloud's (python:S2245).
+    # Dropping either one fails a different gate.
+    random.Random(int(seed)).shuffle(slots)  # noqa: S311 - NOSONAR, not crypto
     return slots
