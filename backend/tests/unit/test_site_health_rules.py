@@ -11,6 +11,8 @@ Pure, offline.
 
 from __future__ import annotations
 
+import pytest
+
 from app.analysis.site_health.rules import (
     evaluate_all,
     evaluate_rule,
@@ -31,12 +33,15 @@ from app.core.config.site_health_contracts import (
     SKIP_REASON_LOW_CONFIDENCE_KIND,
 )
 from app.core.config.site_health_page_profiles import PRODUCT_ANALYSIS_RULES
-from app.core.config.site_health_rules import (
-    ANSWER_FIRST_MIN_WORDS,
-    EXPAND_GATED_MAX_RATIO,
+from app.core.config.site_health_rule_types import (
     FINDING_CLASS_ADVISORY,
     FINDING_CLASS_DEFECT,
     KIND_EVIDENCE_CLASSES,
+    SiteHealthRule,
+)
+from app.core.config.site_health_rules import (
+    ANSWER_FIRST_MIN_WORDS,
+    EXPAND_GATED_MAX_RATIO,
     META_DESCRIPTION_LENGTH_BAND,
     QUESTION_HEADINGS_MIN_RATIO,
     RENDER_BLOCKING_MAX_RESOURCES,
@@ -44,7 +49,6 @@ from app.core.config.site_health_rules import (
     SITE_HEALTH_RULES,
     TITLE_LENGTH_BAND,
     TTFB_WARN_MS,
-    SiteHealthRule,
 )
 from app.core.config.site_health_taxonomy import (
     MIN_MEANINGFUL_WORDS,
@@ -675,6 +679,72 @@ def test_unresolvable_canonical_fails():
     ev = _outcome(facts, "technical.canonical_conflict")
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert ev.evidence["problem"] == "invalid_canonical"
+
+
+def test_a_different_port_is_a_different_origin():
+    """An origin is scheme, host AND port.
+
+    Dropping the port made ``https://x.example:444/a`` compare equal to
+    ``https://x.example/a``, so a canonical handing indexing authority across
+    two origins read as ordinary same-origin consolidation and passed. It also
+    disagreed with ``normalized_url_for_compare``, which has always kept the
+    port -- the two comparisons in one rule contradicted each other.
+    """
+    facts = _html_facts(canonical_url="https://x.example:444/")
+    ev = _outcome(facts, "technical.canonical_conflict")
+    assert ev.outcome == RULE_OUTCOME_FAIL
+    assert ev.evidence["problem"] == "cross_origin_canonical"
+
+
+def test_a_default_port_is_still_the_same_origin():
+    # :443 on HTTPS is the same origin as no port at all, the same rule
+    # normalized_url_for_compare already applies.
+    ev = _outcome(
+        _html_facts(canonical_url="https://x.example:443/"),
+        ("technical.canonical_conflict"),
+    )
+    assert ev.outcome == RULE_OUTCOME_PASS
+    assert ev.evidence["self_canonical"] is True
+
+
+@pytest.mark.parametrize(
+    "canonical",
+    [
+        "https://x.example:notaport/",
+        "https://x.example:99999/",
+    ],
+)
+def test_an_unreadable_port_makes_the_canonical_invalid(canonical):
+    """``urlsplit`` is lazy about the port and only raises when it is read.
+
+    Swallowing that and substituting None made the port vanish, so a malformed
+    authority normalized to a clean one and compared EQUAL to the page it was
+    a broken canonical for -- passing as self-canonical.
+    """
+    ev = _outcome(_html_facts(canonical_url=canonical), "technical.canonical_conflict")
+    assert ev.outcome == RULE_OUTCOME_FAIL
+    assert ev.evidence["problem"] == "invalid_canonical"
+
+
+def test_an_unparseable_canonical_is_not_intent_evidence():
+    """It is not evidence in either direction, so precedence falls through.
+
+    Before the port was validated this compared equal to the page and read as
+    intended_index. Treating the mismatch as intent instead would swing it to
+    intended_exclude and suppress the noindex defect entirely, which is the
+    worse of the two errors -- so it yields no canonical evidence at all.
+    """
+    ev = _outcome(
+        _html_facts(
+            robots={"noindex": True, "nofollow": False},
+            canonical_url="https://x.example:notaport/",
+            sitemap_member=True,
+        ),
+        "technical.indexable",
+    )
+    assert ev.outcome == RULE_OUTCOME_FAIL
+    assert ev.evidence["canonical_unparseable"] is True
+    assert ev.evidence["intent_source"] == "sitemap_membership"
 
 
 def test_canonical_to_a_different_hreflang_alternate_fails():

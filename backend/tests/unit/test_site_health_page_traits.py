@@ -1,10 +1,10 @@
 """Page-trait derivation: observations a page carries, not inferences.
 
-Traits exist because ``page_kind`` is exclusive and was carrying two jobs. A
-product page with an FAQ block had to become one or the other, and whichever it
-became, the other checklist was lost. These tests hold the line that a trait is
-read from evidence the page actually carries -- never guessed from its kind,
-and never so loose that a page picks one up by accident.
+Traits exist because ``page_kind`` is exclusive. A product page with an FAQ
+block can keep its primary kind while separately recording the FAQ observation.
+These tests hold the line that a trait is read from evidence the page actually
+carries -- never guessed from its kind, and never so loose that a page picks
+one up by accident.
 
 Pure and offline.
 """
@@ -19,6 +19,7 @@ from app.analysis.site_health.page_kinds import classify
 from app.analysis.site_health.page_traits import derive_traits
 from app.analysis.site_health.parser import extract_page_facts
 from app.core.config import site_health_taxonomy as config
+from app.core.config import site_health_traits as traits_config
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "site_health"
 
@@ -90,9 +91,8 @@ def test_an_article_with_descriptive_headings_is_not_an_faq() -> None:
 def test_traits_never_read_the_page_kind() -> None:
     """A trait is derived from facts, never from the classification.
 
-    This is what lets a product page with an FAQ answer both checklists, and
-    what makes trait-scoped rules safe to run at any classification
-    confidence.
+    This is what lets a product page retain an FAQ observation, and what makes
+    trait-scoped rules safe to run at any classification confidence.
     """
     url = "https://northgate.example/faq"
     facts = _facts("faq_accordion.html", url)
@@ -127,7 +127,7 @@ def test_a_product_page_carrying_an_faq_keeps_both() -> None:
 def test_derive_traits_returns_config_order() -> None:
     url = "https://northgate.example/contact-us"
     traits = derive_traits(url, _facts("contact_page.html", url))
-    assert list(traits) == [t for t in config.PAGE_TRAITS if t in traits]
+    assert list(traits) == [t for t in traits_config.PAGE_TRAITS if t in traits]
 
 
 def test_derive_traits_tolerates_malformed_facts() -> None:
@@ -136,6 +136,36 @@ def test_derive_traits_tolerates_malformed_facts() -> None:
         assert derive_traits("https://x.example/", facts) == ()
     assert derive_traits("", {}) == ()
     assert derive_traits("not a url", {}) == ()
+
+
+@pytest.mark.parametrize(
+    "facts",
+    [
+        {"entity": {"listing": {"largest_card_list_size": "many"}}},
+        {"entity": {"location": {"address_entity_count": "two", "has_phone": True}}},
+        {"ordered_list_steps": "six"},
+        {"ordered_list_steps": {"a": 1}},
+        {"ordered_list_steps": [1, 2, 3]},
+        {"ordered_list_steps": None},
+    ],
+)
+def test_a_malformed_count_never_raises(facts) -> None:
+    """A count that is not a number reads as zero, and never as an exception.
+
+    Unlike a rule check -- whose exception ``evaluate_rule`` converts into a
+    distinct ERROR outcome -- ``derive_traits`` is called straight from the
+    worker with no guard, so one malformed persisted field failed the entire
+    page analysis rather than one trait.
+    """
+    assert derive_traits("https://x.example/", facts) == ()
+
+
+def test_valid_numeric_counts_still_convert() -> None:
+    at = traits_config.PAGE_TRAIT_PROCEDURAL_MIN_STEPS
+    for value in (at, float(at), str(at)):
+        assert "procedural" in derive_traits(
+            "https://x.example/", {"ordered_list_steps": value}
+        ), value
 
 
 def test_route_segments_match_exactly() -> None:
@@ -159,8 +189,8 @@ def test_a_contact_route_alone_is_enough_but_so_is_a_mailto() -> None:
 
 def test_procedural_needs_a_real_sequence() -> None:
     # Two list items are a pair of sentences, not a procedure.
-    below = {"ordered_list_steps": config.PAGE_TRAIT_PROCEDURAL_MIN_STEPS - 1}
-    at = {"ordered_list_steps": config.PAGE_TRAIT_PROCEDURAL_MIN_STEPS}
+    below = {"ordered_list_steps": traits_config.PAGE_TRAIT_PROCEDURAL_MIN_STEPS - 1}
+    at = {"ordered_list_steps": traits_config.PAGE_TRAIT_PROCEDURAL_MIN_STEPS}
     assert "procedural" not in derive_traits("https://x.example/", below)
     assert "procedural" in derive_traits("https://x.example/", at)
 
@@ -169,4 +199,4 @@ def test_every_trait_is_declared_in_the_config_vocabulary() -> None:
     url = "https://northgate.example/contact-us"
     for fixture in sorted(path.name for path in _FIXTURES.glob("*.html")):
         for trait in derive_traits(url, _facts(fixture, url)):
-            assert trait in config.PAGE_TRAITS, (fixture, trait)
+            assert trait in traits_config.PAGE_TRAITS, (fixture, trait)

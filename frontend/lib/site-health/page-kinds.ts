@@ -87,7 +87,7 @@ export const CONFIDENCE_LABELS: Readonly<Record<string, string>> = {
  * classification. An unknown trait falls back to its own token: a backend that
  * ships a new observation should surface it, not hide it.
  */
-export const PAGE_TRAIT_LABELS: Readonly<Record<string, string>> = {
+const PAGE_TRAIT_LABELS: Readonly<Record<string, string>> = {
   has_faq: 'Has an FAQ',
   has_reviews: 'Has reviews',
   has_variants: 'Has variants',
@@ -102,7 +102,11 @@ export const PAGE_TRAIT_LABELS: Readonly<Record<string, string>> = {
 };
 
 export function pageTraitLabel(trait: string): string {
-  return PAGE_TRAIT_LABELS[trait] ?? trait;
+  // Own properties only. A plain object literal still inherits `constructor`,
+  // `toString` and `__proto__`, so a bare lookup on an untrusted token returns
+  // a function or the prototype rather than a label — and React throws when
+  // asked to render one as a child.
+  return Object.hasOwn(PAGE_TRAIT_LABELS, trait) ? PAGE_TRAIT_LABELS[trait] : trait;
 }
 
 export function pageKindConfidenceLabel(confidence: string, tier: string): string {

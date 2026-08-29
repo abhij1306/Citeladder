@@ -14,16 +14,25 @@ from app.core.config.site_health_rules import TRACKING_QUERY_PARAMS
 
 
 def _split_compare_url(raw: str) -> tuple[SplitResult, int | None] | None:
+    """``(parts, port)`` for a parseable URL, or None when it is not one.
+
+    ``urlsplit`` is lazy about the port: it succeeds on
+    ``https://x.example:notaport/`` and only raises when ``.port`` is read.
+    Catching that and substituting ``None`` made a malformed authority look
+    like a clean one -- the port simply vanished, so
+    ``https://x.example:99999/a`` normalized to ``https://x.example/a`` and
+    compared EQUAL to the page it was supposed to be a broken canonical for.
+
+    An unreadable port means the URL did not parse, and it is reported as such.
+    """
     try:
         parts = urlsplit(raw)
-        try:
-            port = parts.port
-        except ValueError:
-            port = None
+        port = parts.port
     except ValueError:
-        # ``urlsplit`` raises only ValueError, and only on a genuinely
-        # unparseable URL (a bad IPv6 literal, a non-numeric port). Anything
-        # else out of here is a bug and must not be turned into "no URL".
+        # ``urlsplit`` and ``.port`` raise only ValueError, and only on a
+        # genuinely unparseable URL (a bad IPv6 literal, a non-numeric or
+        # out-of-range port). Anything else out of here is a bug and must not
+        # be turned into "no URL".
         return None
     return parts, port
 
@@ -94,16 +103,27 @@ def resolve_canonical(canonical: str, final_url: str) -> str:
 
 
 def canonical_origin(url: str) -> str:
-    """``scheme://host`` for origin comparison, or "" when unparseable."""
+    """The URL origin -- scheme, host AND port -- or "" when unparseable.
+
+    The port is part of an origin, and dropping it made
+    ``https://x.example:444/a`` compare equal to ``https://x.example/a``. Those
+    are different origins, so a canonical handing indexing authority across
+    them read as ordinary same-origin consolidation and passed silently.
+
+    Default ports normalize away via ``_compare_netloc``, so ``:443`` on HTTPS
+    stays equal to no port at all -- the same rule
+    ``normalized_url_for_compare`` already applies, which is what kept the two
+    comparisons disagreeing with each other.
+    """
     parsed = _split_compare_url(str(url or "").strip())
     if parsed is None:
         return ""
-    parts, _port = parsed
+    parts, port = parsed
     scheme = (parts.scheme or "").lower()
     host = (parts.hostname or "").lower()
     if scheme not in {"http", "https"} or not host:
         return ""
-    return f"{scheme}://{host}"
+    return f"{scheme}://{_compare_netloc(scheme, host, port)}"
 
 
 def normalized_url_for_compare(url: str) -> str:
@@ -132,6 +152,16 @@ def _canonical_intent(
         return None
     final_url = str((facts.get("delivery") or {}).get("final_url") or "")
     canonical = resolve_canonical(declared, final_url)
+    if not canonical_origin(canonical):
+        # An unparseable canonical is not evidence of intent in either
+        # direction. Before ports were validated it silently compared EQUAL to
+        # the page and read as intended_index; treating it as a mismatch
+        # instead would swing it to intended_exclude and suppress a real
+        # noindex defect. It is simply no canonical evidence, so precedence
+        # falls through to sitemap membership and robots.
+        evidence["canonical_url"] = canonical[:2048]
+        evidence["canonical_unparseable"] = True
+        return None
     same = normalized_url_for_compare(canonical) == normalized_url_for_compare(
         final_url
     )

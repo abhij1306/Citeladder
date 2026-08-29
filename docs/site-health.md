@@ -359,9 +359,11 @@ contact_intent, about_intent, case_study_intent, review_intent,
 comparison_content, procedural
 ```
 
-A product page carrying an FAQ block is a `product` with `has_faq`, and answers
-both checklists, rather than being filed as one or the other or requiring a
-`product_with_faq` kind that would never cover the combinations.
+A product page carrying an FAQ block is a `product` with a separate `has_faq`
+observation, rather than being filed as one or the other or requiring a
+`product_with_faq` kind that would never cover every combination. Traits can
+drive focused checks without changing the primary kind;
+`aeo.reviewer_identified` is the first trait-scoped rule.
 
 Traits also separate the two kinds that bundle unlike pages. `about_contact`
 mixes pages with different success criteria — demanding contact details of
@@ -451,6 +453,15 @@ Not-applicable is different from pass and is excluded from scoring.
   is not reported as missing markup its format does not have.
 - Schema presence/type/property rules apply only to classified page kinds.
 - Author and citation rules apply only to authored editorial types.
+  `aeo.author_present` is `not_applicable` on `case_study_review`: a case study
+  is usually published by the organization and owes no named writer.
+- Trait-scoped rules apply wherever the trait is OBSERVED, across every page
+  kind and every confidence tier, because a trait is an observation and there
+  is no classification behind it to be unsure of. Where the trait is absent
+  they are `not_applicable` with reason `trait_not_observed`.
+  `aeo.reviewer_identified` is the first of these: any page carrying
+  `review_intent` owes the reader an identifiable evaluator, whether it is
+  filed under `/reviews/` or is a product page with a verdict on it.
 - Date rules also include documentation.
 - Question-heading rules apply to FAQ pages only, and are not applicable to a
   page with no h2/h3 subheadings at all: no sections is a different fact from

@@ -1,9 +1,8 @@
 """False-positive avoidance as a CI contract.
 
 Every fixture below except one is a page a competent site owner built
-correctly. The contract each carries is not "these findings appeared" but
-"these findings must NEVER appear", so a rule that starts accusing a valid page
-fails this suite instead of reaching a customer's crawl.
+correctly. Each contract states its exact defect set, so a rule that starts
+accusing a valid page fails this suite instead of reaching a customer's crawl.
 
 The contract is stated in DEFECT terms. An advisory failure is a free
 suggestion that does not touch the score, so it is deliberately not constrained
@@ -34,7 +33,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_FAIL,
 )
-from app.core.config.site_health_rules import FINDING_CLASS_DEFECT
+from app.core.config.site_health_rule_types import FINDING_CLASS_DEFECT
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "site_health"
 
@@ -50,7 +49,7 @@ _HEADERS = {
 
 @dataclass(frozen=True)
 class FixtureContract:
-    """One page and the findings it must and must never produce."""
+    """One page and the exact defects it should produce."""
 
     fixture: str
     url: str
@@ -58,27 +57,10 @@ class FixtureContract:
     confidence: str
     #: Defects this page genuinely deserves. Empty for a well-built page.
     must_fail: frozenset[str] = frozenset()
-    #: Defects this page must never produce. The false-positive guard.
-    must_never_fail: frozenset[str] = frozenset()
-    #: True when the page is deliberately broken (documents intent only).
-    is_counter_example: bool = False
     #: Why this fixture exists, in one line.
     why: str = ""
     sitemap_member: bool = True
 
-
-# Findings no correctly-built page of any kind should ever produce. Listed once
-# and folded into every valid fixture's ``must_never_fail`` below.
-_NEVER_ON_A_VALID_PAGE = frozenset(
-    {
-        "aeo.structured_data_present",
-        "aeo.open_graph_present",
-        "technical.thin_content",
-        "technical.canonical_present",
-        "technical.meta_description_present",
-        "technical.canonical_conflict",
-    }
-)
 
 _CONTRACTS: tuple[FixtureContract, ...] = (
     FixtureContract(
@@ -87,8 +69,6 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         page_kind="category",
         confidence="high",
         why="38 words of prose over a real 8-item grid: length is not the verdict",
-        must_never_fail=_NEVER_ON_A_VALID_PAGE
-        | {"aeo.answer_first", "aeo.question_headings", "aeo.schema_required_valid"},
     ),
     FixtureContract(
         fixture="contact_page.html",
@@ -96,8 +76,6 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         page_kind="about_contact",
         confidence="medium",
         why="27 words, but address, phone, email, hours and a form: complete",
-        must_never_fail=_NEVER_ON_A_VALID_PAGE
-        | {"aeo.answer_first", "aeo.question_headings", "aeo.author_present"},
     ),
     FixtureContract(
         fixture="faq_accordion.html",
@@ -105,12 +83,6 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         page_kind="faq",
         confidence="medium",
         why="answers server-rendered inside closed details: present, not hidden",
-        must_never_fail=_NEVER_ON_A_VALID_PAGE
-        | {
-            "aeo.no_expand_gating",
-            "aeo.question_headings",
-            "aeo.schema_required_valid",
-        },
     ),
     FixtureContract(
         fixture="category_faceted_canonical.html",
@@ -118,7 +90,6 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         page_kind="category",
         confidence="high",
         why="a sorted view canonicalised onto its parent: the point of canonical",
-        must_never_fail=_NEVER_ON_A_VALID_PAGE | {"aeo.answer_first"},
     ),
     FixtureContract(
         fixture="tracked_url_canonical.html",
@@ -129,8 +100,6 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         page_kind="article",
         confidence="medium",
         why="from a newsletter, so a tracking parameter must not read as a conflict",
-        must_never_fail=_NEVER_ON_A_VALID_PAGE
-        | {"aeo.answer_first", "aeo.author_present", "aeo.date_present"},
     ),
     FixtureContract(
         fixture="article_no_schema.html",
@@ -138,14 +107,6 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         page_kind="article",
         confidence="medium",
         why="visible byline, visible date, real citations, zero JSON-LD",
-        must_never_fail=_NEVER_ON_A_VALID_PAGE
-        | {
-            "aeo.answer_first",
-            "aeo.author_present",
-            "aeo.date_present",
-            "aeo.outbound_citations",
-            "aeo.schema_required_valid",
-        },
     ),
     FixtureContract(
         fixture="docs_reference.html",
@@ -153,8 +114,6 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         page_kind="docs",
         confidence="medium",
         why="reference documentation has no subheadings and no question headings",
-        must_never_fail=_NEVER_ON_A_VALID_PAGE
-        | {"aeo.answer_first", "aeo.question_headings", "aeo.date_present"},
     ),
     FixtureContract(
         fixture="support_index.html",
@@ -162,13 +121,6 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         page_kind="faq",
         confidence="medium",
         why="a /support/ route guess must not admit the whole FAQ checklist",
-        must_never_fail=_NEVER_ON_A_VALID_PAGE
-        | {
-            "aeo.answer_first",
-            "aeo.question_headings",
-            "aeo.schema_required_valid",
-            "aeo.schema_matches_content",
-        },
     ),
     FixtureContract(
         fixture="guide_no_howto.html",
@@ -176,21 +128,12 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         page_kind="guide",
         confidence="medium",
         why="a real how-to with steps and an outcome, and no HowTo markup",
-        must_never_fail=_NEVER_ON_A_VALID_PAGE
-        | {
-            "aeo.answer_first",
-            "aeo.author_present",
-            "aeo.date_present",
-            "aeo.question_headings",
-            "aeo.schema_required_valid",
-        },
     ),
     FixtureContract(
         fixture="broken_pdp_schema_mismatch.html",
         url="https://northgate.example/oak-dining-tables/ilkley",
         page_kind="product",
         confidence="high",
-        is_counter_example=True,
         why="the counter-example: schema and noindex both contradict the page",
         must_fail=frozenset(
             {
@@ -198,13 +141,6 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
                 "aeo.schema_matches_content",
                 "aeo.product_offer_details",
                 "technical.indexable",
-            }
-        ),
-        must_never_fail=frozenset(
-            {
-                "aeo.structured_data_present",
-                "aeo.open_graph_present",
-                "technical.thin_content",
             }
         ),
     ),
@@ -280,7 +216,8 @@ def test_fixture_produces_exactly_its_contracted_defects(
     in neither set, and a fixed one fails here until its
     ``KNOWN_FALSE_POSITIVES`` entry is deleted -- so the list can only shrink.
     """
-    defects, _errors = _defect_failures(contract)
+    defects, errors = _defect_failures(contract)
+    assert not errors, f"{contract.fixture} raised in {sorted(errors)}"
     allowed = contract.must_fail | KNOWN_FALSE_POSITIVES.get(
         contract.fixture, frozenset()
     )
@@ -291,56 +228,19 @@ def test_fixture_produces_exactly_its_contracted_defects(
     )
 
 
-@pytest.mark.parametrize("contract", _CONTRACTS, ids=_IDS)
-def test_forbidden_findings_are_only_ever_known_bugs(
-    contract: FixtureContract,
-) -> None:
-    """No ``must_never_fail`` finding may appear except as a listed known bug."""
-    defects, _errors = _defect_failures(contract)
-    forbidden = (contract.must_never_fail & defects) - KNOWN_FALSE_POSITIVES.get(
-        contract.fixture, frozenset()
-    )
-    assert not forbidden, (
-        f"{contract.fixture} must never produce {sorted(forbidden)}: {contract.why}"
-    )
-
-
-@pytest.mark.parametrize("contract", _CONTRACTS, ids=_IDS)
-def test_deserved_findings_survive(contract: FixtureContract) -> None:
-    """A rule must not be 'fixed' by weakening it into silence."""
-    defects, _errors = _defect_failures(contract)
-    assert contract.must_fail <= defects, (
-        f"{contract.fixture} stopped reporting {sorted(contract.must_fail - defects)}"
-    )
-
-
-@pytest.mark.parametrize("contract", _CONTRACTS, ids=_IDS)
-def test_no_rule_errors_on_any_fixture(contract: FixtureContract) -> None:
-    """An ERROR outcome is a wiring bug, never a finding about the page."""
-    _defects, errors = _defect_failures(contract)
-    assert not errors, f"{contract.fixture} raised in {sorted(errors)}"
-
-
 def test_counter_example_exists() -> None:
     """Without a broken page the suite could pass by silencing everything."""
-    counter = [contract for contract in _CONTRACTS if contract.is_counter_example]
+    counter = [contract for contract in _CONTRACTS if contract.must_fail]
     assert counter, "the suite needs at least one deliberately broken fixture"
-    assert all(contract.must_fail for contract in counter)
 
 
-def test_known_false_positives_only_cover_documented_targets() -> None:
-    """Every allowlist entry must be a finding some contract forbids.
-
-    Stops the ratchet being used to wave through a defect nobody decided was
-    wrong -- an entry here has to correspond to a stated ``must_never_fail``.
-    """
+def test_known_false_positives_only_cover_valid_contracts() -> None:
+    """The allowlist may only describe an otherwise-valid fixture."""
     for fixture, rule_ids in KNOWN_FALSE_POSITIVES.items():
         contract = _CONTRACTS_BY_FIXTURE.get(fixture)
         assert contract is not None, f"{fixture} has no contract"
-        undocumented = rule_ids - contract.must_never_fail
-        assert not undocumented, (
-            f"{fixture}: {sorted(undocumented)} is allowlisted but not forbidden"
-        )
+        assert not contract.must_fail, f"{fixture} is the deliberately broken fixture"
+        assert rule_ids, f"{fixture} has an empty allowlist entry"
 
 
 def test_every_fixture_has_a_contract() -> None:

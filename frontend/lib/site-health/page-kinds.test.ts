@@ -7,6 +7,7 @@ import {
   byPageKindRows,
   pageKindConfidenceLabel,
   pageKindLabel,
+  pageTraitLabel,
   readPageKindEvidence,
 } from './page-kinds';
 
@@ -38,6 +39,14 @@ describe('pageKindLabel (the single shared mapping)', () => {
 
   it('falls back to title-casing an unknown type instead of rendering blank', () => {
     expect(pageKindLabel('landing_page')).toBe('Landing Page');
+  });
+});
+
+describe('pageTraitLabel', () => {
+  it('does not expose properties inherited from Object.prototype', () => {
+    expect(pageTraitLabel('constructor')).toBe('constructor');
+    expect(pageTraitLabel('toString')).toBe('toString');
+    expect(pageTraitLabel('__proto__')).toBe('__proto__');
   });
 });
 

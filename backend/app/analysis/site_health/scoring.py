@@ -46,10 +46,10 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_PASS,
     SCORING_VERSION,
 )
+from app.core.config.site_health_rule_types import FINDING_CLASS_DEFECT
 from app.core.config.site_health_rules import (
     DIMENSION_WEIGHT_AEO,
     DIMENSION_WEIGHT_TECHNICAL,
-    FINDING_CLASS_DEFECT,
     SCORE_ROUNDING_DECIMALS,
 )
 from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER

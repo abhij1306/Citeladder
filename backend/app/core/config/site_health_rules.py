@@ -22,6 +22,11 @@ from app.core.config.site_health_contracts import (
     SEVERITY_LOW,
     SEVERITY_MEDIUM,
 )
+from app.core.config.site_health_rule_types import (
+    FINDING_CLASS_ADVISORY,
+    KIND_EVIDENCE_TRIGGERED,
+    SiteHealthRule,
+)
 from app.core.config.site_health_taxonomy import (
     PAGE_KIND_APPLICABILITY_PREFIX,
     PAGE_KIND_ARTICLE,
@@ -33,9 +38,11 @@ from app.core.config.site_health_taxonomy import (
     PAGE_KIND_GUIDE,
     PAGE_KIND_HOMEPAGE,
     PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
-    PAGE_TRAIT_REVIEW_INTENT,
     _page_kinds,
-    _page_traits,
+)
+from app.core.config.site_health_traits import (
+    PAGE_TRAIT_REVIEW_INTENT,
+    page_traits_key,
 )
 
 DIMENSION_WEIGHT_TECHNICAL: Final = 0.5
@@ -43,115 +50,6 @@ DIMENSION_WEIGHT_TECHNICAL: Final = 0.5
 DIMENSION_WEIGHT_AEO: Final = 0.5
 
 SCORE_ROUNDING_DECIMALS: Final = 1
-
-FINDING_CLASS_DEFECT: Final = "defect"
-
-FINDING_CLASS_ADVISORY: Final = "advisory"
-
-FINDING_CLASSES: Final[frozenset[str]] = frozenset(
-    {FINDING_CLASS_DEFECT, FINDING_CLASS_ADVISORY}
-)
-
-# How a page-kind-scoped rule RELATES to the classification, which decides
-# whether it may fire when that classification is weak.
-#
-# EXPECTATION  asserts something SHOULD be on the page because of what kind of
-#              page it is. Only as sound as the classification behind it: a
-#              page inferred to be an FAQ from a /support/ path segment must
-#              not be accused of missing FAQ structure.
-# TRIGGERED    validates an artifact that IS present, and already resolves
-#              not_applicable when it is absent. The trigger is the artifact,
-#              not the classification, so a Product block contradicting the
-#              visible page is a defect however the page was classified.
-# UNIVERSAL    not page-kind-scoped at all.
-KIND_EVIDENCE_EXPECTATION: Final = "expectation"
-
-KIND_EVIDENCE_TRIGGERED: Final = "triggered"
-
-KIND_EVIDENCE_UNIVERSAL: Final = "universal"
-
-KIND_EVIDENCE_CLASSES: Final[frozenset[str]] = frozenset(
-    {
-        KIND_EVIDENCE_EXPECTATION,
-        KIND_EVIDENCE_TRIGGERED,
-        KIND_EVIDENCE_UNIVERSAL,
-    }
-)
-
-
-class SiteHealthRule:
-    """One deterministic Site Health rule (frozen catalog entry).
-
-    Every rule carries a stable ``rule_id`` + ``rule_version`` + dimension +
-    category + severity + weight + applicability-predicate key + description +
-    remediation. The evaluator applies these; it never invents rule metadata
-    inline (invariant 1).
-    """
-
-    __slots__ = (
-        "applicability_key",
-        "category",
-        "description",
-        "dimension",
-        "display_label",
-        "display_label_variants",
-        "finding_class",
-        "kind_evidence",
-        "remediation",
-        "rule_id",
-        "rule_version",
-        "severity",
-        "weight",
-    )
-
-    def __init__(
-        self,
-        *,
-        rule_id: str,
-        rule_version: str,
-        dimension: str,
-        category: str,
-        severity: str,
-        weight: float,
-        applicability_key: str,
-        description: str,
-        remediation: str,
-        display_label: str = "",
-        display_label_variants: dict[str, str] | None = None,
-        finding_class: str = FINDING_CLASS_DEFECT,
-        kind_evidence: str = KIND_EVIDENCE_EXPECTATION,
-    ) -> None:
-        self.rule_id = rule_id
-        self.rule_version = rule_version
-        self.dimension = dimension
-        self.category = category
-        self.severity = severity
-        if finding_class not in FINDING_CLASSES:
-            raise ValueError(f"Unsupported finding class: {finding_class}")
-        self.finding_class = finding_class
-        if kind_evidence not in KIND_EVIDENCE_CLASSES:
-            raise ValueError(f"Unsupported kind evidence: {kind_evidence}")
-        # Expectation is the conservative default: a new page-kind rule is
-        # gated by classification confidence unless it declares that its
-        # trigger is the artifact rather than the page kind.
-        self.kind_evidence = kind_evidence
-        self.weight = weight
-        self.applicability_key = applicability_key
-        self.description = description
-        self.remediation = remediation
-        # Current human-facing catalog title (mockup 710/711). The persisted
-        # issue/evaluation rows never store this; the API reads it live so a
-        # relabel takes effect immediately. Empty falls back to ``rule_id``.
-        self.display_label = display_label or rule_id
-        # Optional per-outcome titles for a rule whose ONE condition covers
-        # opposite failures. ``technical.single_h1`` fails on ``h1_count != 1``,
-        # so its single title had to read "Multiple or missing H1" — which tells
-        # a reader neither which one happened nor what to do. Keyed by a token
-        # the projection derives from the persisted evidence; an unmatched token
-        # falls back to ``display_label``, so a rule without variants (all but
-        # one today) is unaffected.
-        self.display_label_variants = dict(display_label_variants or {})
-
 
 SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
     SiteHealthRule(
@@ -568,8 +466,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         #
         # Traits are observations, so this is not gated by classification
         # confidence -- there is no classification behind it to be unsure of.
-        kind_evidence=KIND_EVIDENCE_UNIVERSAL,
-        applicability_key=_page_traits(
+        applicability_key=page_traits_key(
             PAGE_TRAIT_REVIEW_INTENT,
             reads_content=True,
         ),

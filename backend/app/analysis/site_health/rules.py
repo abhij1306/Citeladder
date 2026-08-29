@@ -34,6 +34,12 @@ from app.analysis.site_health.product_rules import (
     check_product_offer_details,
     check_product_visible_schema_parity,
 )
+from app.analysis.site_health.rule_scope import (
+    applicability,
+    observed_traits,
+    profile_for,
+    server_render_signals,
+)
 from app.analysis.site_health.schema_rules import (
     check_schema_expected_for_type,
     check_schema_matches_content,
@@ -45,63 +51,39 @@ from app.core.config.site_health_acquisition import (
     AI_CRAWLER_STANCE_BLOCK,
 )
 from app.core.config.site_health_contracts import (
-    APPLICABILITY_CRAWL_FINALIZE,
-    APPLICABILITY_OBSERVED_CONTENT,
-    APPLICABILITY_SITE_ROOT,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
-    SKIP_REASON_LOW_CONFIDENCE_KIND,
 )
 from app.core.config.site_health_page_profiles import (
     PRODUCT_ANALYSIS_RULES,
     PRODUCT_ANALYSIS_RULES_BY_ID,
     PRODUCT_SCHEMA_EXPECTATION,
 )
+from app.core.config.site_health_rule_types import (
+    FINDING_CLASS_ADVISORY,
+    SiteHealthRule,
+)
 from app.core.config.site_health_rules import (
     ANSWER_FIRST_MIN_WORDS,
     EXPAND_GATED_MAX_RATIO,
-    FINDING_CLASS_ADVISORY,
-    KIND_EVIDENCE_EXPECTATION,
     META_DESCRIPTION_LENGTH_BAND,
     QUESTION_HEADINGS_MIN_RATIO,
     RENDER_BLOCKING_MAX_RESOURCES,
-    SERVER_RENDERED_MIN_WORDS,
     SITE_HEALTH_RULES,
     SITE_HEALTH_RULES_BY_ID,
     SOCIAL_DOMAINS,
     TITLE_LENGTH_BAND,
     TTFB_WARN_MS,
-    SiteHealthRule,
 )
 from app.core.config.site_health_taxonomy import (
     CONTENT_SUFFICIENCY_PRICE_KINDS,
     CONTENT_SUFFICIENCY_TRAITS,
     MIN_MEANINGFUL_WORDS,
-    PAGE_KIND_APPLICABILITY_PREFIX,
-    PAGE_KIND_CONTENT_APPLICABILITY_PREFIX,
-    PAGE_KIND_HTML_APPLICABILITY_PREFIX,
     PAGE_KIND_OTHER,
     PAGE_KIND_PROFILES,
-    PAGE_KIND_TIER_STRUCTURAL,
-    PAGE_TRAIT_APPLICABILITY_PREFIX,
-    PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX,
-    PageKindProfile,
 )
-
-
-def _profile_for(facts: dict) -> PageKindProfile | None:
-    """The config profile for ``facts["page_kind"]`` (None when unknown)."""
-    page_kind = str(facts.get("page_kind") or "").strip().lower()
-    return PAGE_KIND_PROFILES.get(page_kind)
-
-
-def _observed_traits(facts: dict) -> set[str]:
-    observed = facts.get("page_traits")
-    if isinstance(observed, list | tuple):
-        return {str(trait) for trait in observed}
-    return set()
 
 
 def _has_price_evidence(facts: dict) -> bool:
@@ -127,7 +109,7 @@ def _structural_sufficiency(facts: dict) -> tuple[str, bool]:
         return "price", _has_price_evidence(facts)
     wanted = CONTENT_SUFFICIENCY_TRAITS.get(page_kind)
     if wanted:
-        return "|".join(wanted), bool(_observed_traits(facts) & set(wanted))
+        return "|".join(wanted), bool(observed_traits(facts) & set(wanted))
     return "", False
 
 
@@ -246,7 +228,7 @@ def _check_thin_content(facts: dict) -> tuple[str, dict]:
     """
     body = facts.get("body") or {}
     word_count = int(body.get("word_count", 0) or 0)
-    profile = _profile_for(facts) or PAGE_KIND_PROFILES[PAGE_KIND_OTHER]
+    profile = profile_for(facts) or PAGE_KIND_PROFILES[PAGE_KIND_OTHER]
     evidence: dict[str, Any] = {
         "word_count": word_count,
         "minimum": MIN_MEANINGFUL_WORDS,
@@ -551,33 +533,8 @@ def _check_question_headings(facts: dict) -> tuple[str, dict]:
     }
 
 
-def _server_render_signals(facts: dict) -> tuple[bool, dict]:
-    """``(is_js_shell, evidence)`` for the server-rendered-content signal.
-
-    Shared by ``_check_server_rendered_content`` (which reports it) and
-    ``_applicability`` (which uses it to skip the rules that read content this
-    page never delivered). One definition so the HIGH finding and the
-    not-applicable rules can never disagree about whether a page is a shell.
-    """
-    body = facts.get("body") or {}
-    word_count = int(body.get("word_count", 0) or 0)
-    text_chars = len(str(body.get("text") or ""))
-    inline_script_chars = int(facts.get("inline_script_chars", 0) or 0)
-    # A page is a shell only when it is BOTH text-thin AND script-dominated:
-    # the signature of a JS shell whose content never made it into the HTML.
-    is_shell = (
-        word_count < SERVER_RENDERED_MIN_WORDS and inline_script_chars > text_chars
-    )
-    return is_shell, {
-        "word_count": word_count,
-        "minimum_words": SERVER_RENDERED_MIN_WORDS,
-        "body_text_chars": text_chars,
-        "inline_script_chars": inline_script_chars,
-    }
-
-
 def _check_server_rendered_content(facts: dict) -> tuple[str, dict]:
-    is_shell, evidence = _server_render_signals(facts)
+    is_shell, evidence = server_render_signals(facts)
     return _pass_fail(not is_shell), evidence
 
 
@@ -632,169 +589,13 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
 }
 
 
-def _observed_content(facts: dict) -> tuple[bool, str]:
-    """Content-reading rules need content we actually RECEIVED.
-
-    On a client-rendered shell the body is empty, so asserting "missing H1",
-    "thin content" or "no outbound citations" would be reporting the absence of
-    something we never had a chance to see — six derived findings, each scoring
-    against the page, for one real problem. ``aeo.server_rendered_content``
-    owns that problem and stays applicable (it is ``has_html``), so the shell is
-    still reported once, at HIGH, with its remediation.
-    """
-    if not facts.get("has_html"):
-        return False, "no_html"
-    is_shell, _evidence = _server_render_signals(facts)
-    return not is_shell, "content_not_server_rendered"
-
-
-def _page_kind_scope(key: str, prefix: str, facts: dict) -> tuple[bool, str]:
-    """``<prefix><type>[|<type>...]`` resolved against ``facts["page_kind"]``.
-
-    The token names every type the check is MEANT for, so a product page is
-    never asked for an author byline and an FAQ is never asked for
-    Product/offers markup. An absent or unknown page type is inapplicable
-    (fail-closed) — we do not guess which checklist a page we could not
-    classify should answer for.
-    """
-    profile = _profile_for(facts)
-    if profile is None:
-        return False, "other_page_kind"
-    allowed = {token for token in key[len(prefix) :].split("|") if token}
-    return profile.page_kind in allowed, "other_page_kind"
-
-
-def _kind_expectation_allowed(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
-    """Gate kind EXPECTATIONS on how the page kind was actually established.
-
-    The classifier already records whether it read page-owned structure, a URL
-    path segment, or bounded title/content semantics -- and nothing consumed
-    that. So a page inferred to be an FAQ purely because its path contains
-    ``/support/`` answered the entire FAQ checklist and was scored on it,
-    exactly as confidently as a page whose structure proved what it was.
-
-    The gate keys on the winning TIER rather than the confidence label,
-    because ``_confidence`` demotes structural evidence to ``medium`` whenever
-    any other signal disagreed -- including a weak schema hint. A corroborated
-    visible buy box is page-owned evidence and stays fully eligible; reading
-    the label alone would have suppressed it.
-
-    Advisories pass at every tier: an opportunity costs nothing if the guess
-    was wrong, and withholding a suggestion helps no one. Only DEFECTS, which
-    lower the score, require evidence the page owns.
-
-    Rules whose trigger is an artifact rather than a page kind never reach
-    here (``KIND_EVIDENCE_TRIGGERED``): a Product block contradicting the
-    visible page is a defect however the page was classified.
-    """
-    if rule.kind_evidence != KIND_EVIDENCE_EXPECTATION:
-        return True, ""
-    if rule.finding_class == FINDING_CLASS_ADVISORY:
-        return True, ""
-    evidence = facts.get("page_kind_evidence")
-    tier = ""
-    if isinstance(evidence, dict):
-        tier = str(evidence.get("tier") or "")
-    # Absent evidence resolves to structural, i.e. the gate opens. The one
-    # production writer always injects it (``_classify_and_score``), so
-    # absence means a non-production caller. Failing CLOSED here would empty
-    # the AEO dimension for a whole crawl -- and a None AEO score is silent,
-    # where a false positive at least argues with the user. Two tests hold the
-    # injection and the suppression in place.
-    if not tier or tier == PAGE_KIND_TIER_STRUCTURAL:
-        return True, ""
-    return False, SKIP_REASON_LOW_CONFIDENCE_KIND
-
-
-def _page_trait_scope(key: str, prefix: str, facts: dict) -> tuple[bool, str]:
-    """``<prefix><trait>[|<trait>]`` resolved against ``facts["page_traits"]``.
-
-    A trait is an OBSERVATION the page carries, so this is not gated by
-    classification confidence the way a kind expectation is: there is no
-    classification involved. It is also why a product page with an FAQ block
-    can answer FAQ integrity checks without being reclassified.
-    """
-    observed = facts.get("page_traits")
-    traits: set[str] = set()
-    if isinstance(observed, list | tuple):
-        traits = {str(trait) for trait in observed}
-    wanted = {token for token in key[len(prefix) :].split("|") if token}
-    return bool(traits & wanted), "trait_not_observed"
-
-
-def _applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
-    """``(applicable, skip_reason)`` for one rule against ``facts``.
-
-    The reason is carried into the NOT_APPLICABLE evidence so a skipped rule
-    can explain itself. A bare ``not_applicable`` is indistinguishable from a
-    pass in the UI, which matters most for the shell case: the user needs to
-    read "we could not see this page's content", not silence.
-    """
-    key = (rule.applicability_key or "always").strip().lower()
-    if key == "always":
-        return True, ""
-    if key == "has_html":
-        return bool(facts.get("has_html")), "no_html"
-    if key == APPLICABILITY_OBSERVED_CONTENT:
-        return _observed_content(facts)
-    if key.startswith(PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX):
-        applies, reason = _page_trait_scope(
-            key, PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX, facts
-        )
-        if not applies:
-            return False, reason
-        return _observed_content(facts)
-    if key.startswith(PAGE_TRAIT_APPLICABILITY_PREFIX):
-        return _page_trait_scope(key, PAGE_TRAIT_APPLICABILITY_PREFIX, facts)
-    if key.startswith(PAGE_KIND_CONTENT_APPLICABILITY_PREFIX):
-        # Page-kind scope AND the shell guard. Order matters only for the skip
-        # reason: an article we could not render should say "we could not see
-        # this page's content", not "wrong page kind".
-        applies, reason = _page_kind_scope(
-            key, PAGE_KIND_CONTENT_APPLICABILITY_PREFIX, facts
-        )
-        if not applies:
-            return False, reason
-        allowed, gate_reason = _kind_expectation_allowed(rule, facts)
-        if not allowed:
-            return False, gate_reason
-        return _observed_content(facts)
-    if key.startswith(PAGE_KIND_HTML_APPLICABILITY_PREFIX):
-        applies, reason = _page_kind_scope(
-            key, PAGE_KIND_HTML_APPLICABILITY_PREFIX, facts
-        )
-        if not applies:
-            return False, reason
-        allowed, gate_reason = _kind_expectation_allowed(rule, facts)
-        if not allowed:
-            return False, gate_reason
-        return bool(facts.get("has_html")), "no_html"
-    if key.startswith(PAGE_KIND_APPLICABILITY_PREFIX):
-        applies, reason = _page_kind_scope(key, PAGE_KIND_APPLICABILITY_PREFIX, facts)
-        if not applies:
-            return False, reason
-        return _kind_expectation_allowed(rule, facts)
-    if key == APPLICABILITY_SITE_ROOT:
-        # Site-level rules apply only inside the crawl root's own analysis,
-        # where the worker injected facts["site"] from the crawl's
-        # site_facts (spec §5.3 — exactly once per crawl).
-        return facts.get("site") is not None, "not_site_root"
-    if key == APPLICABILITY_CRAWL_FINALIZE:
-        # Never applicable in the per-page pass: the finalize-writer owns
-        # these rows (single-writer per rule scope) and the analyze writer
-        # filters them out before persisting.
-        return False, "crawl_finalize_scope"
-    # Unknown applicability key: treat as inapplicable (fail-closed).
-    return False, "unknown_applicability"
-
-
 def _weight_for(rule: SiteHealthRule, facts: dict) -> float:
     """The rule's weight, with any per-(rule_id, page_kind) config override.
 
     Resolved at evaluation time from ``PAGE_KIND_PROFILES`` so the emitted
     ``RuleEvaluation`` carries exactly the weight scoring will credit.
     """
-    profile = _profile_for(facts)
+    profile = profile_for(facts)
     if profile is not None:
         override = profile.rule_weight_overrides.get(rule.rule_id)
         if override is not None:
@@ -820,7 +621,7 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
         description=rule.description,
         remediation=rule.remediation,
     )
-    applicable, skip_reason = _applicability(rule, facts)
+    applicable, skip_reason = applicability(rule, facts)
     if not applicable:
         return RuleEvaluation(
             outcome=RULE_OUTCOME_NOT_APPLICABLE,

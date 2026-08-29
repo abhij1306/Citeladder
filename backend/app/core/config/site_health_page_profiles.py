@@ -18,7 +18,7 @@ from app.core.config.site_health_contracts import (
     SEVERITY_HIGH,
     SEVERITY_MEDIUM,
 )
-from app.core.config.site_health_rules import (
+from app.core.config.site_health_rule_types import (
     KIND_EVIDENCE_TRIGGERED,
     SiteHealthRule,
 )

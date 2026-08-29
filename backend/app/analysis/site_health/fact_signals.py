@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
 from app.analysis.site_health.dom import node_text as _text
+from app.analysis.site_health.fact_regions import card_list_containers, primary_region
 from app.connectors.web_evidence.url_policy import registrable_domain
 from app.core.config import site_health_acquisition as config
 from app.core.config.site_health_rules import ANSWER_FIRST_MAX_HOPS
@@ -191,3 +192,23 @@ def first_answer_text(root: Any) -> str:
         return ""
     answer = _sibling_answer(first_heading) or _walk_answer(root, first_heading)
     return answer[: config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS]
+
+
+def ordered_list_steps(root: Any) -> int:
+    """Longest primary-content ordered list outside repeated card grids."""
+    try:
+        region, _source = primary_region(root)
+        excluded = {id(item) for item in card_list_containers(region)}
+        return max(
+            (
+                len(ordered.xpath("./li"))
+                for ordered in region.xpath(".//ol")
+                if not any(
+                    id(ancestor) in excluded for ancestor in ordered.iterancestors()
+                )
+            ),
+            default=0,
+        )
+    except DOM_ERRORS as exc:
+        dom_failure("ordered_list_steps", exc)
+        return 0

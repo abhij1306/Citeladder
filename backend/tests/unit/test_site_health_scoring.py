@@ -30,7 +30,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_PASS,
     SCORING_VERSION,
 )
-from app.core.config.site_health_rules import (
+from app.core.config.site_health_rule_types import (
     FINDING_CLASS_ADVISORY,
     FINDING_CLASS_DEFECT,
 )

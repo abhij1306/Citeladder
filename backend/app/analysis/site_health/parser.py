@@ -22,22 +22,19 @@ from lxml import etree
 from lxml import html as lxml_html
 
 from app.analysis.site_health.commerce_facts import extract_commerce_facts
-from app.analysis.site_health.content_heuristics import visible_byline, visible_date
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
 from app.analysis.site_health.dom import node_text as _text
+from app.analysis.site_health.fact_authorship import author_and_dates
 from app.analysis.site_health.fact_entity import (
     empty_entity_signals,
     safe_entity_signals,
 )
 from app.analysis.site_health.fact_links import links_and_assets
-from app.analysis.site_health.fact_regions import (
-    card_list_containers,
-    primary_region,
-)
 from app.analysis.site_health.fact_signals import (
     cta_texts,
     first_answer_text,
     form_fields,
+    ordered_list_steps,
     outbound_domains,
 )
 from app.analysis.site_health.page_kinds import is_question_heading
@@ -56,7 +53,6 @@ from app.core.config.site_health_rules import (
 from app.core.config.site_health_runtime import (
     site_health_settings,
 )
-from app.core.config.site_health_taxonomy import PAGE_KIND_ARTICLE_SCAN_CHARS
 
 # Bounded per-field caps so a single hostile attribute can never bloat the
 # persisted facts dict.
@@ -73,8 +69,6 @@ _MAX_FORM_FIELD_CHARS = site_health_config.SITE_HEALTH_MAX_FORM_FIELD_CHARS
 _MAX_LINK_CONTEXT = site_health_config.SITE_HEALTH_MAX_LINK_CONTEXT
 _MAX_LINK_CONTEXT_CHARS = site_health_config.SITE_HEALTH_MAX_LINK_CONTEXT_CHARS
 CTA_BUTTON_ROLE_TOKENS = site_health_config.CTA_BUTTON_ROLE_TOKENS
-_MAX_AUTHOR_CHARS = site_health_config.SITE_HEALTH_MAX_AUTHOR_CHARS
-_MAX_DATE_CHARS = site_health_config.SITE_HEALTH_MAX_DATE_CHARS
 _MAX_OUTBOUND_DOMAINS = site_health_config.SITE_HEALTH_MAX_OUTBOUND_DOMAINS
 _MAX_DOMAIN_CHARS = site_health_config.SITE_HEALTH_MAX_DOMAIN_CHARS
 _MAX_HREFLANG_ALTERNATES = site_health_config.SITE_HEALTH_MAX_HREFLANG_ALTERNATES
@@ -430,106 +424,6 @@ def _delivery_facts(
     }
 
 
-def _structured_author_and_dates(
-    structured_data: dict[str, Any],
-) -> tuple[str, str, str]:
-    author = ""
-    published = ""
-    modified = ""
-    for block in structured_data.get("blocks") or []:
-        if not author:
-            author = str(block.get("author") or "").strip()
-        if not published:
-            published = str(block.get("date_published") or "").strip()
-        if not modified:
-            modified = str(block.get("date_modified") or "").strip()
-    return author, published, modified
-
-
-def _first_declared_time(root: Any) -> str:
-    try:
-        for node in root.xpath("//time[@datetime]"):
-            candidate = (node.get("datetime") or "").strip()
-            if candidate:
-                return candidate
-    except DOM_ERRORS as exc:
-        dom_failure("_first_declared_time", exc)
-    return ""
-
-
-def _author_and_dates(
-    root: Any,
-    structured_data: dict[str, Any],
-    article_meta: dict[str, str],
-    body_text: str = "",
-) -> tuple[str, dict[str, str]]:
-    """Author byline + published/modified dates (bounded, precedence-ordered).
-
-    Precedence runs strongest to weakest: declared structured data, then
-    declared metadata, then the VISIBLE byline and date printed on the page.
-
-    That last step is the point of this function. Every source above it is
-    markup, so a properly attributed article -- "By Ruth Ellery, 2 February
-    2026" in the byline, exactly where a reader looks for it -- reported no
-    author and no date, and ``aeo.author_present`` / ``aeo.date_present``
-    failed it. Those rules are about whether the page tells a reader who wrote
-    this and when; answering that question only from markup asked something
-    else entirely.
-
-    The visible scan reuses the classifier's own byline/date patterns
-    (``content_heuristics``) so the two cannot disagree about what a byline
-    looks like, and reads the same bounded prefix the article heuristic does.
-    """
-    structured_author, structured_published, structured_modified = (
-        _structured_author_and_dates(structured_data)
-    )
-    prefix = str(body_text or "")[:PAGE_KIND_ARTICLE_SCAN_CHARS]
-    author = (
-        structured_author
-        or _meta_content(root, name="author").strip()
-        or (article_meta.get("article:author") or "").strip()
-        or visible_byline(prefix)
-    )
-    published = (
-        structured_published
-        or (article_meta.get("article:published_time") or "").strip()
-        or _first_declared_time(root)
-        or visible_date(prefix)
-    )
-    modified = (
-        structured_modified or (article_meta.get("article:modified_time") or "").strip()
-    )
-    return (
-        author[:_MAX_AUTHOR_CHARS],
-        {
-            "published": published[:_MAX_DATE_CHARS],
-            "modified": modified[:_MAX_DATE_CHARS],
-        },
-    )
-
-
-def _ordered_list_steps(root: Any) -> int:
-    """Items in the LONGEST ordered list inside the page primary region.
-
-    Evidence for the ``procedural`` trait: a page that lays out numbered steps
-    is doing something a page of prose is not. Scoped to the primary region and
-    outside repeated card lists for the same reason every entity signal is --
-    a paginated "1 2 3 next" strip in the chrome is not a procedure.
-    """
-    try:
-        node, _source = primary_region(root)
-        excluded = {id(item) for item in card_list_containers(node)}
-        longest = 0
-        for ordered in node.xpath(".//ol"):
-            if any(id(ancestor) in excluded for ancestor in ordered.iterancestors()):
-                continue
-            longest = max(longest, len(ordered.xpath("./li")))
-        return longest
-    except DOM_ERRORS as exc:
-        dom_failure("_ordered_list_steps", exc)
-        return 0
-
-
 def _landmarks(root: Any) -> dict[str, bool]:
     """Presence of the main/article/nav landmark elements."""
     out = {"main": False, "article": False, "nav": False}
@@ -762,7 +656,7 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
         facts["links"]["anchors"], base_host=base_host
     )
     facts["landmarks"] = _landmarks(root)
-    facts["ordered_list_steps"] = _ordered_list_steps(root)
+    facts["ordered_list_steps"] = ordered_list_steps(root)
     facts["question_heading_ratio"] = _question_heading_ratio(facts["headings"])
     facts["hreflang_alternates"] = _hreflang_alternates(root, final_url=final_url)
     facts["first_answer_text"] = first_answer_text(root)
@@ -779,8 +673,12 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
     # ``_body_text`` strips script/style/noscript/template, which this needs
     # anyway -- a date inside a JSON-LD block is declared markup, already
     # covered by the structured-data branch, and is not a VISIBLE date.
-    facts["author"], facts["dates"] = _author_and_dates(
-        root, facts["structured_data"], article_meta, facts["body"]["text"]
+    facts["author"], facts["dates"] = author_and_dates(
+        root,
+        facts["structured_data"],
+        article_meta,
+        meta_author=_meta_content(root, name="author"),
+        body_text=facts["body"]["text"],
     )
     try:
         facts["commerce"] = extract_commerce_facts(

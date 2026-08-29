@@ -48,9 +48,7 @@ from app.core.config.site_health_contracts import (
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_PARTIALLY_COMPLETED,
 )
-from app.core.config.site_health_rules import (
-    FINDING_CLASS_DEFECT,
-)
+from app.core.config.site_health_rule_types import FINDING_CLASS_DEFECT
 from app.domain.opportunities.change_hits import load_change_hits
 from app.domain.opportunities.commerce_hits import load_commerce_opportunity_hits
 from app.domain.opportunities.common import (

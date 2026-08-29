@@ -118,8 +118,8 @@ class SitePageAnalysis(Base):
     # detail "why this type?" disclosure.
     page_kind_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # Observed page traits, independent of the primary kind: a product page
-    # with an FAQ block carries both, and answers both checklists, without the
-    # taxonomy growing a product_with_faq. Stored as a queryable array rather
+    # with an FAQ block retains both observations without the taxonomy growing
+    # a product_with_faq. Stored as a queryable array rather
     # than nested in the evidence blob so the pages and issues surfaces can
     # slice by trait. Traits carry their own version: they are derived from
     # the same facts but never from the classification.

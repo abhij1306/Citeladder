@@ -5,11 +5,10 @@ kind wins, and everything the losing signals knew is discarded. That single
 answer was being asked to carry two jobs.
 
 A product page with an FAQ block had to become either a product or an FAQ, and
-whichever it became, the other checklist was lost. Growing the taxonomy to
-``product_with_faq``, ``service_with_local``, ``guide_with_faq`` multiplies
-kinds without ever covering the combinations. Traits are additive and
-non-exclusive instead: that page stays a ``product``, gains ``has_faq``, and
-answers both.
+the losing signal was discarded. Growing the taxonomy to
+``product_with_faq``, ``service_with_local``, or ``guide_with_faq`` would
+multiply kinds without covering every combination. Traits are additive: that
+page stays a ``product`` and separately gains ``has_faq``.
 
 Traits are also how two conflated kinds are separated without splitting them.
 ``about_contact`` bundles pages with genuinely different success criteria --
@@ -30,7 +29,8 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import urlsplit
 
-from app.core.config import site_health_taxonomy as _config
+from app.core.config import site_health_taxonomy as _taxonomy
+from app.core.config import site_health_traits as _config
 
 
 def _mapping(value: Any) -> dict[str, Any]:
@@ -39,6 +39,23 @@ def _mapping(value: Any) -> dict[str, Any]:
 
 def _sequence(value: Any) -> list[Any]:
     return list(value) if isinstance(value, list | tuple) else []
+
+
+def _count(value: Any) -> int:
+    """A persisted count as an int, or 0 when the value is not one.
+
+    Facts are replayed from JSONB written by an older extractor, so every
+    reader in this module is defensive -- except the three that reached for
+    ``int()`` directly. A count that came back as a string or a dict raised,
+    and unlike a rule check (whose exception ``evaluate_rule`` converts into a
+    distinct ERROR outcome) ``derive_traits`` is called straight from the
+    worker with no guard, so one malformed field failed the whole page
+    analysis. The module docstring promised this never happens.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0
 
 
 def _path_segments(final_url: str) -> set[str]:
@@ -98,10 +115,10 @@ def _has_faq(facts: dict[str, Any]) -> bool:
         for key in ("h2_texts", "h3_texts")
         for text in _sequence(headings.get(key))
     ]
-    if len(texts) < _config.PAGE_KIND_FAQ_MIN_HEADINGS:
+    if len(texts) < _taxonomy.PAGE_KIND_FAQ_MIN_HEADINGS:
         return False
     questions = sum(1 for text in texts if text.strip().endswith("?"))
-    return questions / len(texts) >= _config.PAGE_KIND_FAQ_QUESTION_RATIO
+    return questions / len(texts) >= _taxonomy.PAGE_KIND_FAQ_QUESTION_RATIO
 
 
 def _has_reviews(facts: dict[str, Any]) -> bool:
@@ -123,13 +140,13 @@ def _has_variants(facts: dict[str, Any]) -> bool:
 
 def _listing(facts: dict[str, Any]) -> bool:
     listing = _mapping(_mapping(facts.get("entity")).get("listing"))
-    size = int(listing.get("largest_card_list_size", 0) or 0)
-    return size >= _config.LISTING_MIN_CARD_ITEMS
+    size = _count(listing.get("largest_card_list_size"))
+    return size >= _taxonomy.LISTING_MIN_CARD_ITEMS
 
 
 def _local_intent(facts: dict[str, Any]) -> bool:
     location = _mapping(_mapping(facts.get("entity")).get("location"))
-    if int(location.get("address_entity_count", 0) or 0) < 1:
+    if _count(location.get("address_entity_count")) < 1:
         return False
     return bool(location.get("has_phone") or location.get("has_hours"))
 
@@ -152,7 +169,7 @@ def _procedural(facts: dict[str, Any]) -> bool:
         _config.PAGE_TRAIT_SCHEMA_TYPES[_config.PAGE_TRAIT_PROCEDURAL]
     ) & _schema_types(facts):
         return True
-    steps = int(facts.get("ordered_list_steps", 0) or 0)
+    steps = _count(facts.get("ordered_list_steps"))
     return steps >= _config.PAGE_TRAIT_PROCEDURAL_MIN_STEPS
 
 

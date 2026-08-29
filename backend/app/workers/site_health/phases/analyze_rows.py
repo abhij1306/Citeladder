@@ -21,7 +21,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     SCORING_VERSION,
 )
-from app.core.config.site_health_taxonomy import TRAITS_VERSION
+from app.core.config.site_health_traits import TRAITS_VERSION
 from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,

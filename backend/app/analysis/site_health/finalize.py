@@ -29,9 +29,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_PASS,
 )
 from app.core.config.site_health_link_metrics import COVERAGE_STATE_COMPLETE
-from app.core.config.site_health_rules import (
-    SiteHealthRule,
-)
+from app.core.config.site_health_rule_types import SiteHealthRule
 
 # Evidence lists are bounded so a pathological crawl can never bloat a row.
 _MAX_EVIDENCE_URLS = site_health_config.SITE_HEALTH_MAX_EVIDENCE_URLS
