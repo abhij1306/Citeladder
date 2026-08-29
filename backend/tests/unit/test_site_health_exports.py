@@ -304,6 +304,20 @@ def test_architecture_markdown_collapses_a_large_page_kind_group_to_a_count() ->
     assert not any("https://x.test/p/" in line for line in tree)
 
 
+def test_architecture_markdown_does_not_collapse_nodes_with_descendants() -> None:
+    nodes = [_node("root", "https://x.test/", parent=None, kind="homepage")]
+    nodes += [
+        _node(str(index), f"https://x.test/p/{index}", parent="root")
+        for index in range(ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN)
+    ]
+    nodes.append(_node("child", "https://x.test/p/0/details", parent="0", kind="docs"))
+
+    body = architecture_to_markdown(_architecture_model(nodes))
+
+    assert f"[{ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN} product]" not in body
+    assert "https://x.test/p/0/details" in body
+
+
 def test_architecture_markdown_does_not_collapse_mixed_page_kinds() -> None:
     nodes = [
         _node("root", "https://x.test/", parent=None, kind="homepage"),

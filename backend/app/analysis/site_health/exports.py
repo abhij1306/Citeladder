@@ -181,7 +181,7 @@ def _tree_lines(
     seen: set[str],
 ) -> list[str]:
     group = children.get(node_id, [])
-    if node_id is not None and _is_large_page_kind_group(group):
+    if node_id is not None and _is_large_page_kind_group(group, children):
         return _collapsed_lines(group, prefix)
     lines: list[str] = []
     for index, node in enumerate(group):
@@ -202,13 +202,16 @@ def _tree_lines(
     return lines
 
 
-def _is_large_page_kind_group(group: list[dict]) -> bool:
-    """Collapse only a large sibling group sharing one measured page kind."""
+def _is_large_page_kind_group(
+    group: list[dict], children: dict[str | None, list[dict]]
+) -> bool:
+    """Collapse only a large, homogeneous sibling group of leaf pages."""
     page_kinds = {str(node.get("page_kind") or "") for node in group}
     return (
         len(group) >= ARCHITECTURE_PAGE_KIND_COLLAPSE_MIN
         and len(page_kinds) == 1
         and "" not in page_kinds
+        and not any(children.get(str(node.get("site_url_id") or "")) for node in group)
     )
 
 
