@@ -25,6 +25,14 @@ export function getApiRequestTimeoutMs(): number {
 }
 
 /**
+ * Commerce buyer-prompt generation performs one structured model call. Keep
+ * its browser request alive for the backend model gateway's 180-second bound
+ * plus response/persistence overhead instead of applying the ordinary
+ * 30-second API limit.
+ */
+export const COMMERCE_BUYER_PROMPT_REQUEST_TIMEOUT_MS = 195_000;
+
+/**
  * Bounded backoff between the API client's network-failure retries (A3). The
  * delay is multiplied by the attempt number, so attempt 2 waits one unit.
  */
@@ -60,13 +68,8 @@ export const MIN_REPETITIONS = 1;
 export const MAX_REPETITIONS = 10;
 export const DEFAULT_REPETITIONS = 1;
 
-// Initial user-editable batch size for advanced Site Health controls. The
-// backend remains authoritative for entitlement and maximum limits.
-export const SITE_HEALTH_DEFAULT_PHASE_BATCH_SIZE = 10;
-
 // Polling cadences and retry ceilings.
 export const ACTIVE_RUN_POLL_MS = 3_000;
 export const CONTENT_LIST_POLL_MS = 3_000;
 export const CONTENT_DETAIL_POLL_MS = 2_000;
 export const SYNC_RUN_POLL_MS = 3_000;
-export const ATTRIBUTION_RECOMPUTE_POLL_MS = 3_000;

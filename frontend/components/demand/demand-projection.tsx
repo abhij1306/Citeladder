@@ -27,7 +27,7 @@ import {
 import { formatWindowDate } from '@/lib/format';
 import { useProjectContext } from '@/lib/project/project-context';
 
-export function DemandProjectionSkeleton() {
+function DemandProjectionSkeleton() {
   return (
     <div className="grid gap-[var(--workspace-gap)]" aria-busy="true">
       <output className="sr-only">Loading search demand</output>

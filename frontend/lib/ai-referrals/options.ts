@@ -18,8 +18,6 @@ import type { z } from 'zod';
 
 import type { AiReferralsWindow } from '@/lib/api/ai-referrals';
 import type { snapshotGranularitySchema } from '@/lib/api/schemas';
-import { bucketAdjective } from '@/lib/format';
-
 /**
  * Date-range presets. `latest` sends NO window bounds — the backend serves
  * the project's latest persisted snapshot at the requested granularity, so
@@ -69,12 +67,6 @@ export { bucketAdjective, GRANULARITY_OPTIONS } from '@/lib/format';
 
 /** Snapshot bucket granularity — mirrors the backend contract vocabulary. */
 export type AiReferralsGranularity = z.infer<typeof snapshotGranularitySchema>;
-
-/** Capitalized adjective for sentence-start copy ("Weekly visibility score…"). */
-export function bucketAdjectiveTitle(granularity: AiReferralsGranularity): string {
-  const adjective = bucketAdjective(granularity);
-  return adjective.charAt(0).toUpperCase() + adjective.slice(1);
-}
 
 /** Bucket-count badge label ("13 weeks", "1 day"). */
 export function bucketCountLabel(granularity: AiReferralsGranularity, count: number): string {

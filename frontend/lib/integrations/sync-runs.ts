@@ -39,9 +39,3 @@ export const SYNC_RUN_BADGE: Record<SyncRunStatus, RunStatusValue> = {
   failed: 'failed',
   cancelled: 'cancelled',
 };
-
-/** Human label for a sync-run wire status (`retry_wait` → `Retry wait`). */
-export function syncRunStatusLabel(status: SyncRunStatus): string {
-  const words = status.replaceAll('_', ' ');
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}

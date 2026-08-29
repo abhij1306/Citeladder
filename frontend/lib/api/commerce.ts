@@ -2,6 +2,7 @@
 import { z } from 'zod';
 
 import { apiClient, type ApiRequestOptions } from './client';
+import { COMMERCE_BUYER_PROMPT_REQUEST_TIMEOUT_MS } from '@/lib/config/operational';
 import { strictValidate } from './schemas';
 import {
   buyerPromptSchema,
@@ -100,7 +101,11 @@ export const commerceApi = {
   generateBuyerPrompts: async (projectId: string, targets: CommerceTarget[], count: number) =>
     strictValidate(
       z.array(buyerPromptSchema),
-      await apiClient.post(path(projectId, 'buyer-prompts/generate'), { targets, count }),
+      await apiClient.post(
+        path(projectId, 'buyer-prompts/generate'),
+        { targets, count },
+        { timeoutMs: COMMERCE_BUYER_PROMPT_REQUEST_TIMEOUT_MS },
+      ),
       'commerce.generateBuyerPrompts',
     ),
   addBuyerPrompt: async (projectId: string, target: CommerceTarget, text: string) =>

@@ -34,8 +34,6 @@ export {
   CONTENT_PROMPT_MAX_LEN,
 } from '@/lib/config/operational';
 
-export const CONTENT_OUTPUT_TYPE_WEBSITE_PAGE = 'website_page';
-
 /** A skill id. The catalog is server-owned — never hardcode the set. */
 export type ContentSkill = string;
 export type ContentSkillView = z.infer<typeof contentSkillViewSchema>;

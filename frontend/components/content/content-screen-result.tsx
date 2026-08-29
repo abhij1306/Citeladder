@@ -220,7 +220,7 @@ const FEEDBACK_REASONS: ReadonlyArray<{ value: ContentFeedbackReason; label: str
  * common path stays a single click and the reason never becomes a required
  * field standing between the user and dismissing a bad result.
  */
-export function FeedbackReasonPicker({
+function FeedbackReasonPicker({
   disabled,
   onSelect,
 }: Readonly<{

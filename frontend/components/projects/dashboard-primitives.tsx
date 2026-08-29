@@ -113,11 +113,11 @@ export function MovementChart({ movements }: Readonly<{ movements: CommandCenter
           </div>
           <div className="mt-3.5 flex h-14 items-end justify-center gap-2.5" aria-hidden>
             <span
-              className="bg-border-strong w-6 rounded-t transition-all"
+              className="bg-border-strong w-6 rounded-t transition-[height]"
               style={{ height: `${Math.max(6, ((row.previous ?? 0) / ceiling) * 56)}px` }}
             />
             <span
-              className="bg-accent w-6 rounded-t shadow-xs transition-all"
+              className="bg-accent w-6 rounded-t shadow-xs transition-[height]"
               style={{ height: `${Math.max(6, ((row.current ?? 0) / ceiling) * 56)}px` }}
             />
           </div>

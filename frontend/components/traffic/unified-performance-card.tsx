@@ -121,7 +121,7 @@ export function UnifiedPerformanceCard({
   dashboard,
   granularity,
 }: Readonly<{ dashboard: TrafficDashboard; granularity: TrafficGranularity }>) {
-  const [activeMetrics, setActiveMetrics] = useState<Set<MetricKey>>(new Set(METRIC_ORDER));
+  const [activeMetrics, setActiveMetrics] = useState<Set<MetricKey>>(() => new Set(METRIC_ORDER));
   const stats = trafficStats(dashboard);
   const metricSeries = {
     clicks: toChartPoints(dashboard.series.clicks),

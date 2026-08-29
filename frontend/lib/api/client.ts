@@ -60,6 +60,8 @@ export type ApiRequestOptions = {
   requestId?: string;
   idempotencyKey?: string;
   retryNetworkFailures?: boolean;
+  /** Bounded override for operations whose server contract exceeds the default. */
+  timeoutMs?: number;
 };
 
 type ResponseKind = 'json' | 'text' | 'blob';
@@ -101,8 +103,8 @@ function buildHeaders(options: InternalRequestOptions, requestId: string) {
  * request loop converts into a retryable network-class `ApiError`; the
  * caller's own abort reason passes through untouched.
  */
-function attemptSignal(signal?: AbortSignal) {
-  const timeout = AbortSignal.timeout(getApiRequestTimeoutMs());
+function attemptSignal(signal?: AbortSignal, timeoutMs?: number) {
+  const timeout = AbortSignal.timeout(timeoutMs ?? getApiRequestTimeoutMs());
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
@@ -110,7 +112,7 @@ async function fetchResponse(path: string, options: InternalRequestOptions, requ
   return fetch(`${API_BASE_URL}${path}`, {
     method: options.method,
     body: options.body,
-    signal: attemptSignal(options.signal),
+    signal: attemptSignal(options.signal, options.timeoutMs),
     cache: 'no-store',
     credentials: 'include',
     headers: buildHeaders(options, requestId),

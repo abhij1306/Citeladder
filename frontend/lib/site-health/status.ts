@@ -76,12 +76,6 @@ export function shouldPollCrawl(crawl: Pick<SiteCrawl, 'status'>): boolean {
 }
 
 /**
- * Kept for callers that schedule age-based polling. Stalled classification is
- * backend-owned and never inferred from elapsed client time.
- */
-export const STALL_TIMEOUT_MS = 10 * 60_000;
-
-/**
  * Poll cadence for an active crawl, backed off by how long it has been running.
  *
  * A flat 4s for a crawl's entire lifetime is right for the first minute and

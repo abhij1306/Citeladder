@@ -106,11 +106,9 @@ export function useResizablePane(): ResizablePane {
   // Written once the drag ends rather than on every pointer move: a drag is
   // one decision, not sixty.
   const endDrag = useCallback(() => {
-    setDragWidth((current) => {
-      if (current !== null) storeWidth(current);
-      return null;
-    });
-  }, []);
+    setDragWidth(null);
+    if (dragWidth !== null) storeWidth(dragWidth);
+  }, [dragWidth]);
 
   const nudge = useCallback(
     (delta: number) => storeWidth(clampWidth(getStoredWidth() + delta)),

@@ -105,7 +105,7 @@ function ProductFields({
   const client = useQueryClient();
   const product = catalog.products.find((row) => row.id === target.id);
   const [name, setName] = useState(product?.name ?? '');
-  const [price, setPrice] = useState(product?.price?.toString() ?? '');
+  const [price, setPrice] = useState(() => product?.price?.toString() ?? '');
   const parsed = price.trim() ? Number(price) : null;
   const priceValid = parsed == null || (Number.isFinite(parsed) && parsed >= 0);
   const edits = product ? productEdits(product, name, parsed) : {};

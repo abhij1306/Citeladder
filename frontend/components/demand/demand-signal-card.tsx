@@ -237,7 +237,7 @@ export function DemandSignalCard({
   }[insight.tone];
 
   return (
-    <Card className="bg-panel border-border hover:border-border-strong transition-all hover:shadow-xs">
+    <Card className="bg-panel border-border hover:border-border-strong transition-[border-color,box-shadow] hover:shadow-xs">
       <CardContent className="grid gap-4 p-4 sm:p-[var(--card-padding)]">
         {/* Header: Rank, Badges, Query Title */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

@@ -38,7 +38,7 @@ function NavLink({ item, active }: Readonly<{ item: NavItem; active: boolean }>)
   );
 }
 
-export function StationLinks({
+function StationLinks({
   group,
   compact = false,
 }: Readonly<{ group: NavGroup; compact?: boolean }>) {

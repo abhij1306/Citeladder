@@ -7,17 +7,14 @@
  */
 import type { DemandSignal } from '@/lib/api/demand';
 
-export const SIGNAL_TYPES = [
-  'striking_distance',
-  'query_cannibalization',
-  'property_relative_ctr_gap',
-  'high_impression_low_ctr',
-  'emerging_query',
-  'declining_query',
-  'branded_query_performance',
-] as const;
-
-export type SignalType = (typeof SIGNAL_TYPES)[number];
+export type SignalType =
+  | 'striking_distance'
+  | 'query_cannibalization'
+  | 'property_relative_ctr_gap'
+  | 'high_impression_low_ctr'
+  | 'emerging_query'
+  | 'declining_query'
+  | 'branded_query_performance';
 
 export type FilterTab =
   'all' | 'striking_distance' | 'cannibalization' | 'ctr_gap' | 'trends' | 'branded';

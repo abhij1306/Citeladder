@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
@@ -50,12 +51,12 @@ function NoProjectState() {
         <p className="text-secondary text-sm">
           Create a project first — content generation needs a project and its website.
         </p>
-        <a
+        <Link
           href="/projects"
           className="text-accent-text text-sm font-medium underline underline-offset-4"
         >
           Go to Projects
-        </a>
+        </Link>
       </CardContent>
     </Card>
   );

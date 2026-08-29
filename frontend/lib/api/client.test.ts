@@ -135,6 +135,17 @@ describe('apiClient', () => {
     expect(new Headers(init.headers).get('X-Request-ID')).toBe('req-test');
   });
 
+  it('uses a bounded per-request timeout override when supplied', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiClient } = await import('./client');
+    await apiClient.post('/generate', {}, { timeoutMs: 195_000 });
+
+    expect(timeoutSpy).toHaveBeenCalledWith(195_000);
+  });
+
   it('rejects when an aborted signal fires during a retry backoff', async () => {
     const controller = new AbortController();
     const fetchMock = vi.fn().mockImplementation(() => {

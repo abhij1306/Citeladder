@@ -41,27 +41,6 @@ function DemandEvidenceContent({
 }>) {
   const details = demandEvidenceDetails(signal);
 
-  function demandEvidenceDetails(signal: DemandSignal) {
-    const evidence = signal.evidence;
-    const rawBand = evidence.position_band;
-    return {
-      targetKind: signalTargetKind(signal),
-      target: signalTarget(signal),
-      metrics: signal.metrics,
-      pages: competingPages(signal),
-      cohortMedianCtr: numericMetric(signal, 'cohort_median_ctr'),
-      positionBand:
-        typeof rawBand === 'number' && Number.isFinite(rawBand) ? Math.floor(rawBand) : null,
-      linkablePageUrl: safePageUrl(signal.page_url),
-      metricRowIds: Array.isArray(evidence.source_metric_row_ids)
-        ? (evidence.source_metric_row_ids as string[])
-        : [],
-      artifactIds: Array.isArray(evidence.source_artifact_ids)
-        ? (evidence.source_artifact_ids as string[])
-        : [],
-    };
-  }
-
   return (
     <Drawer
       open={open}
@@ -238,4 +217,25 @@ function DemandEvidenceContent({
       </div>
     </Drawer>
   );
+}
+
+function demandEvidenceDetails(signal: DemandSignal) {
+  const evidence = signal.evidence;
+  const rawBand = evidence.position_band;
+  return {
+    targetKind: signalTargetKind(signal),
+    target: signalTarget(signal),
+    metrics: signal.metrics,
+    pages: competingPages(signal),
+    cohortMedianCtr: numericMetric(signal, 'cohort_median_ctr'),
+    positionBand:
+      typeof rawBand === 'number' && Number.isFinite(rawBand) ? Math.floor(rawBand) : null,
+    linkablePageUrl: safePageUrl(signal.page_url),
+    metricRowIds: Array.isArray(evidence.source_metric_row_ids)
+      ? (evidence.source_metric_row_ids as string[])
+      : [],
+    artifactIds: Array.isArray(evidence.source_artifact_ids)
+      ? (evidence.source_artifact_ids as string[])
+      : [],
+  };
 }

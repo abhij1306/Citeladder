@@ -24,6 +24,11 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+function restoreDocumentInteraction(): void {
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+}
+
 export function ResizablePromptWorkspace({
   rail,
   children,
@@ -54,11 +59,6 @@ export function ResizablePromptWorkspace({
     const clamped = clamp(next, min, max);
     widthRef.current = clamped;
     setRailWidth(clamped);
-  };
-
-  const restoreDocumentInteraction = () => {
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
   };
 
   const finishDrag = (pointerId?: number) => {
