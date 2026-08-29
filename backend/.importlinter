@@ -1,0 +1,142 @@
+; Backend architecture policy.
+;
+; The frontend has had an architecture gate (`pnpm check:policy`) for a while;
+; the backend had nothing, so the only thing keeping `app/domain` from importing
+; `app/api`, or a model from reaching into a worker, was reviewer attention.
+;
+; These contracts encode the directions that hold TODAY, with zero violations,
+; so the first import that reverses one fails the build instead of becoming the
+; new shape of the codebase. They are deliberately `forbidden` contracts rather
+; than one strict `layers` stack: `app/` still has genuine cycles between
+; `core`/`models`, `analysis`/`domain`, and `connectors`/`analysis`, and a
+; layers contract would have to be either false or almost entirely ignored.
+; Every remaining wart is named below in an `ignore_imports` line, which is the
+; point -- a wart with a name cannot quietly become two.
+;
+; Run with `lint-imports` (see scripts/check.ps1 and .github/workflows/ci.yml).
+
+[importlinter]
+root_package = app
+include_external_packages = False
+
+[importlinter:contract:api-is-a-leaf]
+name = Only app.main may import the API layer
+type = forbidden
+source_modules =
+    app.analysis
+    app.connectors
+    app.core
+    app.domain
+    app.models
+    app.orchestration
+    app.workers
+forbidden_modules =
+    app.api
+
+[importlinter:contract:workers-are-a-leaf]
+name = Nothing may import the worker processes
+type = forbidden
+source_modules =
+    app.analysis
+    app.api
+    app.connectors
+    app.core
+    app.domain
+    app.models
+    app.orchestration
+forbidden_modules =
+    app.workers
+
+[importlinter:contract:core-is-the-floor]
+; `app.core` holds configuration, database wiring, security primitives and
+; telemetry: the things every other package is allowed to sit on. It must not
+; acquire a dependency on business logic, or the import graph gains a cycle
+; through the one module everything already imports.
+;
+; `core -> models` and `core -> connectors` are NOT forbidden here: the config
+; package legitimately references ORM types and transport contracts. That is a
+; deliberate exclusion, not an oversight.
+name = Core depends on no business logic
+type = forbidden
+source_modules =
+    app.core
+forbidden_modules =
+    app.analysis
+    app.api
+    app.domain
+    app.orchestration
+    app.workers
+
+[importlinter:contract:models-are-persistence-only]
+; One violation exists and is named: `Prompt._sync_normalized_hash` keeps the
+; dedupe key correct on every ORM write path, and the hash function lives in
+; the domain. The right fix is to move that pure text/sha256 helper down into
+; `app.core`; until then it is one recorded exception rather than an open door.
+name = Models depend on no upper layer
+type = forbidden
+source_modules =
+    app.models
+forbidden_modules =
+    app.analysis
+    app.api
+    app.domain
+    app.orchestration
+    app.workers
+ignore_imports =
+    app.models.prompt -> app.domain.prompts.normalization
+
+[importlinter:contract:connectors-are-transport-only]
+; Connectors own outbound I/O (answer engines, web evidence) and must stay
+; usable from any layer above. The two allowances below are leaf helpers with
+; no `app` imports of their own -- `normalize_domain` and the shared DOM
+; exception set/logger -- so neither drags the analysis layer in behind it.
+name = Connectors depend on no upper layer
+type = forbidden
+source_modules =
+    app.connectors
+forbidden_modules =
+    app.analysis
+    app.api
+    app.domain
+    app.models
+    app.orchestration
+    app.workers
+ignore_imports =
+    app.connectors.answer_engines.normalization -> app.analysis.normalization
+    app.connectors.web_evidence.brand_evidence -> app.analysis.site_health.dom
+; Direct imports only. The transitive form of this rule is broken by chains
+; that run through edges this policy deliberately allows (connectors -> core ->
+; models, models -> connectors, domain -> orchestration). Forbidding those
+; chains would mean forbidding the allowed edge, so the contract checks the
+; direct dependency it is actually about. The two leaf contracts above are
+; checked transitively, which is stronger, because they can be.
+allow_indirect_imports = True
+
+[importlinter:contract:orchestration-is-infrastructure]
+; Provider capacity and pacing are policy over the queue, not product logic.
+name = Orchestration depends on no product layer
+type = forbidden
+source_modules =
+    app.orchestration
+forbidden_modules =
+    app.analysis
+    app.api
+    app.connectors
+    app.domain
+    app.workers
+allow_indirect_imports = True
+
+[importlinter:contract:analysis-does-not-reach-up]
+; `analysis` is the deterministic scoring/extraction layer. It reads domain
+; schemas and normalization helpers (allowed), but a rule or extractor that
+; needs an API type, a worker, or the capacity manager has the dependency
+; backwards.
+name = Analysis depends on no API, worker, or orchestration
+type = forbidden
+source_modules =
+    app.analysis
+forbidden_modules =
+    app.api
+    app.orchestration
+    app.workers
+allow_indirect_imports = True

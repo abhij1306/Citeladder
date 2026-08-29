@@ -285,7 +285,7 @@ async def _lock_buckets(
             .where(*_identity_filter(request, spec))
             .with_for_update()
         )
-        assert bucket is not None  # just inserted-or-existed; same transaction
+        assert bucket is not None  # noqa: S101 - inserted-or-existed, same transaction
         _sync_bucket_policy(bucket, spec=spec, route_policy=route_policy)
         buckets.append(bucket)
     return buckets

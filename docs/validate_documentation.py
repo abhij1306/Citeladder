@@ -140,7 +140,7 @@ def _iter_files() -> Iterator[Path]:
         dirnames[:] = [
             name
             for name in dirnames
-            if not f"{prefix}{name}/".startswith(SKIP_PREFIXES + (ARCHIVE_PREFIX,))
+            if not f"{prefix}{name}/".startswith((*SKIP_PREFIXES, ARCHIVE_PREFIX))
         ]
         for name in filenames:
             yield Path(dirpath) / name
@@ -194,7 +194,8 @@ def validate() -> list[Issue]:
             issues.append(
                 Issue(
                     _relative(path),
-                    "unclassified active document; add it to the authority map or archive it",
+                    "unclassified active document; add it to the authority "
+                    "map or archive it",
                 )
             )
 
@@ -258,7 +259,8 @@ def main() -> int:
         1 for path in (ROOT / "docs/archive").rglob("*") if path.is_file()
     )
     print(
-        f"Documentation boundary valid: {active_count} active documents, {archived_count} archived files."
+        f"Documentation boundary valid: {active_count} active documents, "
+        f"{archived_count} archived files."
     )
     return 0
 

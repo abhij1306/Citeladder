@@ -501,7 +501,7 @@ async def _resolve_span(
             schema=_ResolvedBatch.model_json_schema(),
         )
         batch = _ResolvedBatch.model_validate_json(raw)
-    except Exception:
+    except Exception:  # noqa: BLE001 - any model or schema fault means no resolution, not a failed shelf
         return None
     return batch.recommendations or None
 

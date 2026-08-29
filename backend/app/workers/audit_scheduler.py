@@ -116,7 +116,7 @@ class AuditScheduler:
         while True:
             try:
                 await self.run_once()
-            except Exception:  # noqa: BLE001 - one bad row cannot stop scheduling
+            except Exception:
                 logger.exception("audit scheduler tick failed")
             await asyncio.sleep(audit_schedule_settings.poll_interval_seconds)
 
@@ -192,7 +192,7 @@ class AuditScheduler:
                         )
                     )
                 ) is not None
-            except Exception:  # noqa: BLE001 - scheduler must survive bad schedules
+            except Exception:
                 logger.exception(
                     "scheduled audit planning failed",
                     extra={"schedule_id": str(schedule_id)},

@@ -7,6 +7,8 @@ happy path advances, terminal states are dead ends, and any illegal move raises
 
 from __future__ import annotations
 
+import itertools
+
 import pytest
 
 from app.core.config.audits import (
@@ -39,7 +41,7 @@ def test_happy_path_transitions_are_legal() -> None:
         AUDIT_STATUS_REPORTING,
         AUDIT_STATUS_COMPLETED,
     ]
-    for current, target in zip(chain, chain[1:], strict=False):
+    for current, target in itertools.pairwise(chain):
         assert can_transition(current, target)
         assert transition_status(current, target) == target
 

@@ -199,7 +199,7 @@ class AnalyticsWorker(DrainableWorkerMixin):
                     "registered executor"
                 )
             await executor(self._session_factory, claimed)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - worker backstop; the fault is recorded on the task, not raised
             error = exc
         finally:
             heartbeat.cancel()

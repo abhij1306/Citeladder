@@ -247,12 +247,12 @@ class SiteHealthRuntimePolicy:
     """Neutral, immutable projection of a resolved monitored-URL allowance."""
 
     __slots__ = (
-        "discovery_mode",
-        "discovery_url_cap",
-        "sample_url_limit",
-        "monitored_url_limit",
         "allows_user_selection",
         "count_disclosure",
+        "discovery_mode",
+        "discovery_url_cap",
+        "monitored_url_limit",
+        "sample_url_limit",
     )
 
     def __init__(

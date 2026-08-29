@@ -145,8 +145,9 @@ Two scripts own completion. Run them from the repository root, in this order,
 once the planned implementation is finished — not after every step.
 
 ```powershell
-.\scripts\check.ps1     # static + fix gate: ruff, mypy, complexity, vulture,
-                        # prettier, eslint, tsc, frontend policies, docs index
+.\scripts\check.ps1     # static + fix gate: ruff, mypy, complexity,
+                        # import-linter, vulture, deptry, prettier, eslint,
+                        # tsc, frontend policies, docs index
 .\scripts	test.ps1      # affected backend, frontend, and mapped E2E tests
 ```
 
@@ -166,8 +167,13 @@ missing mapping; never substitute a broad or full-suite fallback.
 Static-analysis commands, pinned by the frozen locks:
 
 ```powershell
-# From backend/. Vulture is a CI gate; Radon is an advisory report.
-uv run vulture app --min-confidence 80
+# From backend/. Vulture, import-linter and deptry are CI gates; Radon is an
+# advisory report. `app`, `evaluations` and `scripts` are all gated: an
+# operational script that silently rots is a script nobody can run on the day
+# they need it.
+uv run vulture app evaluations scripts --min-confidence 80
+uv run lint-imports          # layer contracts, backend/.importlinter
+uv run deptry .              # declared-but-unused / used-but-undeclared deps
 uv run radon cc app -s -n C
 uv run radon mi app -s -n B
 
@@ -177,10 +183,41 @@ pnpm check:duplicates
 pnpm report:duplicates:tests
 ```
 
-The complexity policy enforces CC 15 per function and 900 LOC per module on both
-sides. The exception lists are empty and should stay that way, and there is no
-rebaseline command: CI compares the policy with the PR base and rejects higher or
-newly added exceptions.
+The backend complexity policy enforces **CC 12 per function and 800 LOC per
+module** across `app`, `evaluations` and `scripts`; the frontend policy has its
+own ceilings. The exception lists are empty and should stay that way, and there
+is no rebaseline command: CI compares the policy with the PR base and rejects
+higher ceilings, higher exceptions, and newly added exceptions. Roots may be
+*added* (widening the gate is a tightening) but never removed.
+
+### Coverage
+
+There is no repository-wide coverage floor. A single number over 500 modules is
+satisfiable by testing the easy ones, and it makes whoever touches untested
+legacy code pay that debt down before an unrelated fix can land. The gate is
+**changed-line coverage**: `diff-cover` compares `coverage.xml` with the PR base
+and requires 90% of added or edited executable lines to be run by the suite.
+Files with no coverage data (`scripts/`, `migrations/`) contribute no lines
+rather than counting as zero; they are held by ruff, mypy, vulture and the
+complexity policy instead.
+
+### Architecture policy
+
+`backend/.importlinter` is the backend counterpart to the frontend's
+`pnpm check:policy`. Seven contracts pin the directions that hold today: the API
+and the workers are leaves nothing imports, `core` depends on no business logic,
+and `models`, `connectors`, `orchestration` and `analysis` do not reach up.
+Three known warts are recorded as named `ignore_imports` lines rather than
+softened rules -- a wart with a name cannot quietly become two.
+
+### Suppressions
+
+`RUF100` is enabled, so a `# noqa` that suppresses nothing fails the build. A
+suppression must name a rule this config actually enables and must currently
+apply; every one carries its reason inline. This was added after an audit found
+22 dead directives, including two file-level `# ruff: noqa: E501` blankets on
+files with no long lines and thirteen `# noqa: BLE001` comments for a rule that
+was enabled in one subpackage only.
 
 ## Project utility scripts
 

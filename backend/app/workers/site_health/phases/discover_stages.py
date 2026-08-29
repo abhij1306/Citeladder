@@ -374,7 +374,7 @@ class DiscoverPersistenceMixin(PhaseSupport):
             if not _discover_task_is_viable(task_hint, crawl_hint, owner=self.owner):
                 await session.rollback()
                 return
-            assert task_hint is not None and crawl_hint is not None
+            assert task_hint is not None and crawl_hint is not None  # noqa: S101 - narrows for the type checker; not a runtime check
             task = task_hint
             crawl = crawl_hint
 
@@ -406,7 +406,7 @@ class DiscoverPersistenceMixin(PhaseSupport):
             if depth == 0 and outcome.site_facts is not None:
                 crawl.site_facts = outcome.site_facts
             if succeeded_artifact_id is not None:
-                assert admission is not None
+                assert admission is not None  # noqa: S101 - narrows for the type checker; not a runtime check
                 self._apply_discover_success(
                     session,
                     crawl=crawl,
@@ -476,7 +476,7 @@ class DiscoverPersistenceMixin(PhaseSupport):
         outcome: _DiscoverOutcome,
         depth: int,
     ) -> tuple[uuid.UUID, AdmissionResult, int]:
-        assert outcome.output is not None and outcome.result is not None
+        assert outcome.output is not None and outcome.result is not None  # noqa: S101 - narrows for the type checker; not a runtime check
         artifact_id = await self._write_artifact(
             session,
             crawl=crawl,

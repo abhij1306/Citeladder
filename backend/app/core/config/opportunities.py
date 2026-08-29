@@ -176,12 +176,12 @@ class OpportunityRule:
     """
 
     __slots__ = (
-        "rule_id",
+        "enabled",
         "opportunity_type",
+        "remediation",
+        "rule_id",
         "severity",
         "title",
-        "remediation",
-        "enabled",
     )
 
     def __init__(

@@ -324,7 +324,7 @@ class AuditWorker(AuditExecutionMixin, AuditTerminalizationMixin, DrainableWorke
         for task in claimed:
             try:
                 parked = await self._execute_task(task) or parked
-            except BaseException as exc:  # noqa: BLE001 - see run_pipelined docstring
+            except BaseException as exc:
                 if isinstance(exc, asyncio.CancelledError):
                     raise
                 logger.error(

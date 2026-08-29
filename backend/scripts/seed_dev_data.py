@@ -40,19 +40,18 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.config.audits import AUDIT_TRIGGER_SYSTEM, audit_settings
 from app.core.config.brand_profile import (
     BRAND_PROFILE_FIELDS,
     BRAND_PROFILE_REVIEW_CONFIRMED,
     BRAND_PROFILE_SOURCE_MANUAL,
 )
-from app.core.config.entitlements import KEY_MONITORED_URLS
 from app.core.config.integrations_transport import INTEGRATION_TRANSPORT_GOOGLE
 from app.core.config.provider_catalog import (
     ENGINE_CHATGPT,
@@ -63,26 +62,10 @@ from app.core.config.provider_catalog import (
     TRANSPORT_OPENAI,
     measurement_route,
 )
-from app.core.config.site_health_contracts import (
-    CRAWL_STATUS_COMPLETED,
-    CRAWL_TERMINAL_STATUSES,
-)
 from app.core.database import SessionLocal
 from app.core.security import encrypt_secret
-from app.domain.audits.creation import create_audit
 from app.domain.auth.service import register_user
-from app.domain.billing.bootstrap import ensure_user_billing
-from app.domain.entitlements.grants import issue_override_bundle
-from app.domain.entitlements.types import GrantSpec
 from app.domain.integrations.sync import enqueue_sync_run
-from app.domain.opportunities import commands
-from app.domain.opportunities.queries import list_opportunities
-from app.domain.opportunities.recompute import recompute as recompute_opportunities
-from app.domain.site_health.planner import create_crawl
-from app.domain.site_health.selection import (
-    BULK_SELECT_MODE_ALL,
-    bulk_select_monitored_set,
-)
 from app.domain.workspaces.service import ensure_personal_workspace
 from app.models.brand import (
     Brand,
@@ -100,30 +83,26 @@ from app.models.integrations import (
 from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet
 from app.models.provider import ProviderConnection, ProviderRoute
-from app.models.site_health.crawl import SiteCrawl
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
-from app.workers import audit_worker
 from app.workers.analytics_worker import AnalyticsWorker
-from app.workers.audit_worker import AuditWorker
 from app.workers.integration_worker import IntegrationWorker
-from app.workers.site_health_worker import SiteHealthWorker
+from scripts.seed_dev_runs import (
+    run_actions_and_comparison,
+    run_seed_audits,
+    run_site_health_crawls,
+)
 from scripts.seed_dev_support import (
     PROMPT_SPECS,
-    SEED_MONITORED_URL_ALLOWANCE,
-    _build_seed_adapter,
-    _FakeResolver,
     _integration_transport,
     _prompt_bucket,
     _SeedStubAdapter,
-    _site_transport,
-    set_seed_audit_generation,
 )
 
 __all__ = [
     "PROMPT_SPECS",
-    "_prompt_bucket",
     "_SeedStubAdapter",
+    "_prompt_bucket",
 ]
 
 logging.basicConfig(level=logging.INFO)
@@ -143,30 +122,6 @@ _DEVELOPMENT_ENVS = frozenset({"development", "dev", "local", "test", "testing"}
 
 class SeedEnvironmentError(RuntimeError):
     """The configured target is not an approved development database."""
-
-
-async def _drain_site_crawl(
-    worker: SiteHealthWorker, *, workspace_id: uuid.UUID, crawl_id: uuid.UUID
-) -> None:
-    """Drain delayed host-gated tasks until the selected crawl terminalizes."""
-    for _ in range(120):
-        await worker.run_until_idle()
-        async with SessionLocal() as session:
-            status = await session.scalar(
-                select(SiteCrawl.status).where(
-                    SiteCrawl.id == crawl_id,
-                    SiteCrawl.workspace_id == workspace_id,
-                )
-            )
-        if status in CRAWL_TERMINAL_STATUSES:
-            if status != CRAWL_STATUS_COMPLETED:
-                raise RuntimeError(
-                    f"seed Site Health crawl terminalized unsuccessfully: "
-                    f"{crawl_id} ({status})"
-                )
-            return
-        await asyncio.sleep(0.25)
-    raise RuntimeError(f"seed Site Health crawl did not terminalize: {crawl_id}")
 
 
 def _require_development_target() -> None:
@@ -226,43 +181,31 @@ async def _cleanup_previous_seed(session: AsyncSession) -> None:
         logger.info("Removed previously-seeded demo user")
 
 
-async def _seed_monitored_urls_grant(
-    session: AsyncSession,
-    owner_user_id: uuid.UUID,
-    workspace_id: uuid.UUID,
-) -> None:
-    """Give the demo workspace a positive ``monitored_urls`` allowance.
-
-    Uses the production grant path (billing bootstrap + operator override
-    bundle) so the projected ``WorkspaceSiteHealthRuntime`` row is a true
-    projection: full discovery, user selection, and count disclosure — exactly
-    what the seeded "discover -> select -> recrawl analyzes" flow needs.
-    """
-    owner = await session.get(User, owner_user_id)
-    if owner is None:  # pragma: no cover - the seeder just created this user
-        raise RuntimeError("demo user missing during entitlement seed")
-    account = await ensure_user_billing(session, owner, workspace_ids=(workspace_id,))
-    await issue_override_bundle(
-        session,
-        operator_user=owner,
-        account_id=account.id,
-        grants=(GrantSpec(key=KEY_MONITORED_URLS, value=SEED_MONITORED_URL_ALLOWANCE),),
-        reason="dev seed monitored-URL allowance",
-        valid_from=datetime.now(UTC) - timedelta(days=1),
-        valid_until=None,
-        idempotency_key=f"seed-dev-data:{workspace_id}",
-    )
-
-
 # ---------------------------------------------------------------------------
 # Main seed
 # ---------------------------------------------------------------------------
-async def seed() -> None:
-    # Fail closed BEFORE the first delete/commit or any credential creation.
-    _require_development_target()
-    async with SessionLocal() as session:
-        await _cleanup_previous_seed(session)
+@dataclass(frozen=True)
+class _SeedWorkspaces:
+    """Identity the later stages hang everything else off."""
 
+    workspace_id: uuid.UUID
+    agency_workspace_id: uuid.UUID
+    demo_user_id: uuid.UUID
+
+
+@dataclass(frozen=True)
+class _SeedPrimaryProject:
+    project_id: uuid.UUID
+    active_prompt_ids: list[uuid.UUID]
+
+
+@dataclass(frozen=True)
+class _SeedAgencyProject:
+    project_id: uuid.UUID
+    prompt_set_id: uuid.UUID
+
+
+async def _seed_user_and_workspaces() -> _SeedWorkspaces:
     # 1. Demo user + personal workspace (via the real auth service).
     async with SessionLocal() as session:
         user = await register_user(session, DEMO_EMAIL, DEMO_PASSWORD)
@@ -320,6 +263,14 @@ async def seed() -> None:
             agency_workspace_id,
         )
 
+    return _SeedWorkspaces(
+        workspace_id=workspace_id,
+        agency_workspace_id=agency_workspace_id,
+        demo_user_id=demo_user_id,
+    )
+
+
+async def _seed_provider_connections(workspace_id: uuid.UUID) -> None:
     # 2. Provider connections + routes (BYOK, fake keys) on the main workspace.
     async with SessionLocal() as session:
         engines_transports = [
@@ -352,6 +303,10 @@ async def seed() -> None:
         await session.commit()
         logger.info("Seeded 3 provider connections + routes")
 
+
+async def _seed_primary_project(
+    workspace_id: uuid.UUID, demo_user_id: uuid.UUID
+) -> _SeedPrimaryProject:
     # 3. Project #1: Wanderlust Gear Co. (controlled_localized benchmark mode).
     async with SessionLocal() as session:
         project = Project(
@@ -456,6 +411,14 @@ async def seed() -> None:
             len(active_prompt_ids),
         )
 
+    return _SeedPrimaryProject(
+        project_id=project_id, active_prompt_ids=active_prompt_ids
+    )
+
+
+async def _seed_google_integrations(
+    workspace_id: uuid.UUID, project_id: uuid.UUID
+) -> None:
     # 4. Persist one real Google consent graph (shared by GSC + GA4), map both
     # properties, and drain the real sync + analytics queues against a
     # deterministic provider transport. This yields immutable raw artifacts,
@@ -535,6 +498,10 @@ async def seed() -> None:
     ).run_until_idle()
     logger.info("Completed deterministic GSC/GA4 sync and analytics refresh")
 
+
+async def _seed_agency_project(
+    agency_workspace_id: uuid.UUID,
+) -> _SeedAgencyProject:
     # 5. Project #2: a second, smaller project on the agency workspace
     #    (forced_grounded benchmark mode) to exercise multi-project / cross-
     #    workspace surfaces.
@@ -616,188 +583,60 @@ async def seed() -> None:
         )
         await session.commit()
 
-    # 6. Run a REAL completed audit for project #1 across all 3 engines,
-    #    using the stubbed adapter (no network calls) - patches build_adapter
-    #    for the duration of this run only, then restores it.
-    _original_build_adapter = audit_worker.build_adapter
-    _original_min_interval = audit_settings.min_request_interval_seconds
-    _original_heartbeat = audit_settings.heartbeat_interval_seconds
-    audit_worker.build_adapter = _build_seed_adapter
-    audit_settings.min_request_interval_seconds = 0.0
-    audit_settings.heartbeat_interval_seconds = 3600.0
-    try:
-        async with SessionLocal() as session:
-            audit1 = await create_audit(
-                session,
-                trigger=AUDIT_TRIGGER_SYSTEM,
-                workspace_id=workspace_id,
-                project_id=project_id,
-                engines=[ENGINE_CHATGPT, ENGINE_CLAUDE, ENGINE_GEMINI],
-                prompt_set_id=None,
-                prompt_ids=active_prompt_ids,
-                repetitions=2,
-                random_seed="42",
-            )
-            audit1_id = audit1.id
-        worker1 = AuditWorker(session_factory=SessionLocal, owner="seed-worker-1")
-        await worker1.run_until_idle()
-        logger.info("Completed audit %s for project %s", audit1_id, project_id)
+    return _SeedAgencyProject(project_id=project2_id, prompt_set_id=prompt_set2_id)
 
-        async with SessionLocal() as session:
-            audit2 = await create_audit(
-                session,
-                trigger=AUDIT_TRIGGER_SYSTEM,
-                workspace_id=agency_workspace_id,
-                project_id=project2_id,
-                engines=[ENGINE_GEMINI],
-                prompt_set_id=prompt_set2_id,
-                repetitions=1,
-                random_seed="7",
-            )
-            audit2_id = audit2.id
-        worker2 = AuditWorker(session_factory=SessionLocal, owner="seed-worker-2")
-        await worker2.run_until_idle()
-        logger.info("Completed audit %s for project %s", audit2_id, project2_id)
-    finally:
-        audit_worker.build_adapter = _original_build_adapter
-        audit_settings.min_request_interval_seconds = _original_min_interval
-        audit_settings.heartbeat_interval_seconds = _original_heartbeat
 
-    # 7. Site Health: run the REAL crawl planner (`create_crawl`) + REAL
-    #    SiteHealthWorker (with a mocked transport) to drain discovery, then
-    #    select every discovered URL as "monitored" and recrawl so the
-    #    analyze tasks get seeded for them (mirrors the production
-    #    "discover -> select monitored URLs -> recrawl analyzes" flow; a
-    #    hand-built crawl/task never goes through that selection gate).
+async def seed() -> None:
+    """Build the demo dataset, then run the real workers over it.
+
+    Each numbered stage owns one slice of the dataset and hands the next its
+    identifiers; the worker drains live in ``scripts.seed_dev_runs``.
+    """
+    # Fail closed BEFORE the first delete/commit or any credential creation.
+    _require_development_target()
     async with SessionLocal() as session:
-        await _seed_monitored_urls_grant(session, demo_user_id, workspace_id)
-        crawl1 = await create_crawl(
-            session, workspace_id=workspace_id, project_id=project_id, random_seed="99"
-        )
-        crawl1_id = crawl1.id
+        await _cleanup_previous_seed(session)
 
-    worker3 = SiteHealthWorker(
-        session_factory=SessionLocal,
-        owner="seed-site-worker",
-        resolver=_FakeResolver(),
-        transport=_site_transport(),
+    workspaces = await _seed_user_and_workspaces()
+    await _seed_provider_connections(workspaces.workspace_id)
+    primary = await _seed_primary_project(
+        workspaces.workspace_id, workspaces.demo_user_id
     )
-    await _drain_site_crawl(worker3, workspace_id=workspace_id, crawl_id=crawl1_id)
-    logger.info("Completed site health discovery crawl %s", crawl1_id)
+    await _seed_google_integrations(workspaces.workspace_id, primary.project_id)
+    agency = await _seed_agency_project(workspaces.agency_workspace_id)
 
-    async with SessionLocal() as session:
-        await bulk_select_monitored_set(
-            session,
-            workspace_id=workspace_id,
-            project_id=project_id,
-            crawl_id=crawl1_id,
-            mode=BULK_SELECT_MODE_ALL,
-            expected_selection_version=0,
-        )
-        await session.commit()
-
-    # Recrawl: `create_crawl` re-seeds `analyze` tasks for every active
-    # monitored URL (`seed_monitored_targets`), which is how Starter's
-    # per-page analyses actually get produced.
-    async with SessionLocal() as session:
-        crawl2 = await create_crawl(
-            session, workspace_id=workspace_id, project_id=project_id, random_seed="100"
-        )
-        crawl2_id = crawl2.id
-    await _drain_site_crawl(worker3, workspace_id=workspace_id, crawl_id=crawl2_id)
-    logger.info("Completed site health analysis crawl %s", crawl2_id)
-
-    # A second analysis recrawl supplies the immediate comparable A/B pair for
-    # the shipped Website Changes projection. The deterministic transport is
-    # unchanged, so this is also the clean-stack zero-false-regression proof.
-    async with SessionLocal() as session:
-        crawl3 = await create_crawl(
-            session, workspace_id=workspace_id, project_id=project_id, random_seed="101"
-        )
-        crawl3_id = crawl3.id
-    await _drain_site_crawl(worker3, workspace_id=workspace_id, crawl_id=crawl3_id)
-    logger.info("Completed comparable site health crawl %s", crawl3_id)
-
-    # 8. Materialize the first action set and resolve one item between two
-    # comparable Wanderlust audits. The second deterministic adapter generation
-    # improves the evidence mix without changing prompt or engine identity.
-    async with SessionLocal() as session:
-        await recompute_opportunities(
-            session,
-            workspace_id=workspace_id,
-            project_id=project_id,
-            audit_id=audit1_id,
-            site_crawl_id=crawl3_id,
-        )
-        actions = await list_opportunities(
-            session,
-            workspace_id=workspace_id,
-            project_id=project_id,
-        )
-        if actions["items"]:
-            await commands.update_status(
-                session,
-                workspace_id=workspace_id,
-                opportunity_id=actions["items"][0]["id"],
-                status="resolved",
-                changed_by_user_id=demo_user_id,
-            )
-
-    audit_worker.build_adapter = _build_seed_adapter
-    audit_settings.min_request_interval_seconds = 0.0
-    audit_settings.heartbeat_interval_seconds = 3600.0
-    try:
-        comparison_audit_id = audit1_id
-        for generation, random_seed in ((1, "43"), (2, "44")):
-            set_seed_audit_generation(generation)
-            async with SessionLocal() as session:
-                comparison_audit = await create_audit(
-                    session,
-                    trigger=AUDIT_TRIGGER_SYSTEM,
-                    workspace_id=workspace_id,
-                    project_id=project_id,
-                    engines=[ENGINE_CHATGPT, ENGINE_CLAUDE, ENGINE_GEMINI],
-                    prompt_set_id=None,
-                    prompt_ids=active_prompt_ids,
-                    repetitions=2,
-                    random_seed=random_seed,
-                )
-                comparison_audit_id = comparison_audit.id
-            comparison_worker = AuditWorker(
-                session_factory=SessionLocal,
-                owner=f"seed-worker-comparison-{generation}",
-            )
-            await comparison_worker.run_until_idle()
-    finally:
-        set_seed_audit_generation(0)
-        audit_worker.build_adapter = _original_build_adapter
-        audit_settings.min_request_interval_seconds = _original_min_interval
-        audit_settings.heartbeat_interval_seconds = _original_heartbeat
-
-    async with SessionLocal() as session:
-        await recompute_opportunities(
-            session,
-            workspace_id=workspace_id,
-            project_id=project_id,
-            audit_id=comparison_audit_id,
-            site_crawl_id=crawl3_id,
-        )
-    logger.info(
-        "Completed comparable audit %s with action history for project %s",
-        comparison_audit_id,
-        project_id,
+    audit_id = await run_seed_audits(
+        workspace_id=workspaces.workspace_id,
+        project_id=primary.project_id,
+        active_prompt_ids=primary.active_prompt_ids,
+        agency_workspace_id=workspaces.agency_workspace_id,
+        project2_id=agency.project_id,
+        prompt_set2_id=agency.prompt_set_id,
+    )
+    site_crawl_id = await run_site_health_crawls(
+        workspace_id=workspaces.workspace_id,
+        project_id=primary.project_id,
+        demo_user_id=workspaces.demo_user_id,
+    )
+    await run_actions_and_comparison(
+        workspace_id=workspaces.workspace_id,
+        project_id=primary.project_id,
+        demo_user_id=workspaces.demo_user_id,
+        active_prompt_ids=primary.active_prompt_ids,
+        audit_id=audit_id,
+        site_crawl_id=site_crawl_id,
     )
 
     # The password is deliberately NOT logged (CodeQL: clear-text logging of
     # sensitive information). It is a fixed dev-seed constant defined at the top
-    # of this module, so anyone who can run the seeder can already read it —
+    # of this module, so anyone who can run the seeder can already read it -
     # writing it into log output only risks it leaking into captured CI logs.
     logger.info(
         "Seed complete. Demo login: %s / see DEMO_PASSWORD in "
         "scripts/seed_dev_data.py (workspace=%s, agency_workspace=%s)",
         DEMO_EMAIL,
-        workspace_id,
-        agency_workspace_id,
+        workspaces.workspace_id,
+        workspaces.agency_workspace_id,
     )
 
 

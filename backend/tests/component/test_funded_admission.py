@@ -350,7 +350,7 @@ async def test_byok_run_writes_no_funded_rows(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as session:
-        account, workspace_id, project_id, prompt_set_id = await _seed_funded(session)
+        _account, workspace_id, project_id, prompt_set_id = await _seed_funded(session)
         # BYOK mode needs an executable tenant credential: mark the seeded
         # tenant connection probed (``_seed_funded`` keeps it unprobed).
         tenant_connection = await session.scalar(

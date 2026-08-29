@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import json
 import time
 import uuid
@@ -93,7 +94,7 @@ def test_slot_plan_rotates_archetypes_and_forms_while_covering_topics() -> None:
     # Adjacent slots never share a surface form, which is what stops a batch
     # coming back as one sentence frame repeated across topics.
     forms = [slot.form for slot in SLOTS]
-    assert all(first != second for first, second in zip(forms, forms[1:], strict=False))
+    assert all(first != second for first, second in itertools.pairwise(forms))
 
 
 def test_parse_drops_unknown_duplicate_and_off_job_slots() -> None:

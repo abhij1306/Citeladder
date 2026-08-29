@@ -595,7 +595,7 @@ async def _write_recompute(
     if skip_if_current and _snapshot_is_current(
         current, audit=audit, crawl=crawl, demand_snapshot=demand_snapshot
     ):
-        assert current is not None
+        assert current is not None  # noqa: S101 - narrows for the type checker; not a runtime check
         return project_snapshot(current)
     live_rows = list(
         (

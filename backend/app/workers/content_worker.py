@@ -371,7 +371,7 @@ class ContentWorker(DrainableWorkerMixin):
                 return True
 
             if outcome.succeeded:
-                assert outcome.response is not None
+                assert outcome.response is not None  # noqa: S101 - narrows for the type checker; not a runtime check
                 _apply_success(row, outcome.response, now)
             else:
                 _apply_failure(

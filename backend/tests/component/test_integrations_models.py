@@ -480,7 +480,7 @@ async def test_workspace_delete_cascades_graph(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as session:
-        ws_id, grant_id, connection_id = await _seed_connection(session)
+        ws_id, _grant_id, connection_id = await _seed_connection(session)
         run = _run(ws_id, connection_id)
         session.add(run)
         await session.flush()

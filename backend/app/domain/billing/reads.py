@@ -1,6 +1,5 @@
 """Authenticated billing entitlement and usage projections."""
 # The response projections mirror the public contract field-by-field.
-# ruff: noqa: E501
 
 from __future__ import annotations
 

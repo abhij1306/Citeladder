@@ -25,7 +25,7 @@ def authority_key(url: str) -> str:
             port = parts.port
         except ValueError:
             port = None
-    except Exception:
+    except ValueError:
         return ""
     if not scheme or not host:
         return ""

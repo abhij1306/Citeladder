@@ -187,13 +187,23 @@ pass.
 
 Never make validation pass by raising the CC/LOC ceilings in
 `backend/scripts/complexity_policy.json` or
-`frontend/scripts/frontend_complexity_policy.json`; adding complexity or
-duplication exceptions; weakening lint, type, format, or coverage
-configuration; lowering `fail_under`; editing `scripts/validation.json` to avoid
-relevant tests; deleting, skipping, xfail-ing, disabling, trivializing, or
-over-mocking tests; mechanically splitting or hiding complexity; swallowing
-failures; using `--no-verify`; or substituting a smaller hand-picked test set at
-completion.
+`frontend/scripts/frontend_complexity_policy.json`; removing a root from either
+policy; adding complexity or duplication exceptions; weakening lint, type,
+format, or coverage configuration; lowering `[tool.diff_cover] fail_under`;
+narrowing `[tool.mypy] files`; dropping a rule family from `[tool.ruff.lint]
+select`; adding a `per-file-ignores` entry that covers application code;
+softening an `.importlinter` contract or adding an `ignore_imports` line;
+editing `scripts/validation.json` to avoid relevant tests; deleting, skipping,
+xfail-ing, disabling, trivializing, or over-mocking tests; mechanically
+splitting or hiding complexity; swallowing failures; using `--no-verify`; or
+substituting a smaller hand-picked test set at completion.
+
+A `# noqa` must name a rule this repository actually enables, must currently
+apply, and must carry its reason inline. `RUF100` fails the build on a
+directive that suppresses nothing, so a decorative suppression is a build
+error, not a style preference. `backend/tests/unit/test_static_analysis_tools.py`
+asserts the gate configuration itself, so weakening one of the above breaks a
+test rather than passing quietly.
 
 If a gate exposes a design problem, refactor the implementation. If a repository
 rule is obsolete, report it separately and change it only when the user asks or

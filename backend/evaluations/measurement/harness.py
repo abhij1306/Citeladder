@@ -207,16 +207,8 @@ def prompt_fixture_digest(path: Path | None = None) -> str:
     return sha256_file(path or MEASUREMENT_PROMPTS_PATH)
 
 
-def load_measurement_prompts(
-    path: Path | None = None,
-) -> tuple[MeasurementPrompt, ...]:
-    """Load and validate the fixed generic prompt set.
-
-    Rejects a prompt set outside the configured 10-20 count, and any prompt
-    carrying project brand identity, a domain, an email address, a URL, or a
-    credential-shaped token (invariant 6).
-    """
-    source = path or MEASUREMENT_PROMPTS_PATH
+def _read_prompt_entries(source: Path) -> list[object]:
+    """Return the raw prompt array, rejecting a set outside the allowed count."""
     payload = json.loads(source.read_text(encoding="utf-8"))
     raw_prompts = payload.get("prompts") if isinstance(payload, dict) else payload
     if not isinstance(raw_prompts, list):
@@ -228,35 +220,49 @@ def load_measurement_prompts(
             f"{MEASUREMENT_PROMPT_MIN_COUNT}-{MEASUREMENT_PROMPT_MAX_COUNT} "
             f"prompts, found {count}"
         )
-    prompts: list[MeasurementPrompt] = []
-    seen: set[str] = set()
-    for entry in raw_prompts:
-        if not isinstance(entry, dict):
-            # A bare string (or number, or list) in the array is a malformed
-            # prompt set, which is the CLI's MeasurementConfigurationError
-            # path — not an AttributeError out of ``entry.get``.
-            raise MeasurementConfigurationError(
-                "each measurement prompt must be an object, found "
-                f"{type(entry).__name__}"
-            )
-        prompt_id = str(entry.get("prompt_id") or "").strip()
-        text = str(entry.get("text") or "").strip()
-        if not prompt_id or not text:
-            raise MeasurementConfigurationError(
-                "each measurement prompt needs a prompt_id and text"
-            )
-        if prompt_id in seen:
-            raise MeasurementConfigurationError(f"duplicate prompt_id {prompt_id!r}")
-        seen.add(prompt_id)
-        _reject_unsafe_prompt(text)
-        prompts.append(
-            MeasurementPrompt(
-                prompt_id=prompt_id,
-                text=text,
-                intent=str(entry.get("intent") or ""),
-            )
+    return raw_prompts
+
+
+def _parse_prompt_entry(entry: object, seen: set[str]) -> MeasurementPrompt:
+    """Validate one entry and record its id in ``seen``."""
+    if not isinstance(entry, dict):
+        # A bare string (or number, or list) in the array is a malformed
+        # prompt set, which is the CLI's MeasurementConfigurationError
+        # path — not an AttributeError out of ``entry.get``.
+        raise MeasurementConfigurationError(
+            f"each measurement prompt must be an object, found {type(entry).__name__}"
         )
-    return tuple(prompts)
+    prompt_id = str(entry.get("prompt_id") or "").strip()
+    text = str(entry.get("text") or "").strip()
+    if not prompt_id or not text:
+        raise MeasurementConfigurationError(
+            "each measurement prompt needs a prompt_id and text"
+        )
+    if prompt_id in seen:
+        raise MeasurementConfigurationError(f"duplicate prompt_id {prompt_id!r}")
+    seen.add(prompt_id)
+    _reject_unsafe_prompt(text)
+    return MeasurementPrompt(
+        prompt_id=prompt_id,
+        text=text,
+        intent=str(entry.get("intent") or ""),
+    )
+
+
+def load_measurement_prompts(
+    path: Path | None = None,
+) -> tuple[MeasurementPrompt, ...]:
+    """Load and validate the fixed generic prompt set.
+
+    Rejects a prompt set outside the configured 10-20 count, and any prompt
+    carrying project brand identity, a domain, an email address, a URL, or a
+    credential-shaped token (invariant 6).
+    """
+    source = path or MEASUREMENT_PROMPTS_PATH
+    seen: set[str] = set()
+    return tuple(
+        _parse_prompt_entry(entry, seen) for entry in _read_prompt_entries(source)
+    )
 
 
 # --- Matrix expansion ----------------------------------------------------

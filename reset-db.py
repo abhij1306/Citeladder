@@ -231,7 +231,7 @@ def provision_dev_login(database_url: str) -> None:
         float(timeout_value) if timeout_value else DEFAULT_PROVISION_TIMEOUT_SECONDS
     )
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 - fixed argv, this interpreter
             [
                 sys.executable,
                 "-m",

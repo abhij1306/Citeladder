@@ -267,7 +267,10 @@ class IntegrationDispatcher:
                         grant.refresh_token_encrypted or grant.access_token_encrypted
                     )
                 except Exception:  # noqa: BLE001 - undecryptable: resolve locally
-                    pass
+                    logger.warning(
+                        "revoke token undecryptable; resolving grant locally",
+                        extra={"grant_id": str(grant_id)},
+                    )
             return RevokeMaterial(
                 workspace_id=grant.workspace_id,
                 transport=grant.transport,

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import io
 import json
 import os
 import pathlib
@@ -65,9 +66,11 @@ from app.domain.projects.onboarding.research import research_brand  # noqa: E402
 from app.domain.projects.onboarding.site_resolution import resolve_site  # noqa: E402
 from app.domain.prompts.portfolio_validation import brand_terms  # noqa: E402
 from evaluations.onboarding_cases import (  # noqa: E402
+    CASES_BY_SLUG,
     COLLISION_PAIR,
     GOLDEN_ONBOARDING_CASES,
 )
+from evaluations.onboarding_corpus import GoldenOnboardingCase  # noqa: E402
 from evaluations.onboarding_golden import (  # noqa: E402
     PortfolioPrompt,
     collision_score,
@@ -376,53 +379,52 @@ def _markdown(results: list[CaseResult], collision: float | None) -> str:
     return "\n".join(lines)
 
 
-async def main() -> int:
+def _parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline", action="store_true", help="run every case")
     parser.add_argument("--case", action="append", default=[], help="run one slug")
     parser.add_argument("--judge-model", default=None)
     parser.add_argument("--out", default=None, help="write JSON results here")
     args = parser.parse_args()
+    args.selected = _select_cases(parser, args)
+    return args
 
+
+def _select_cases(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> list[GoldenOnboardingCase]:
+    """Resolve the requested corpus, or exit with the parser's usage message."""
     if args.case:
         selected = [case for case in GOLDEN_ONBOARDING_CASES if case.slug in args.case]
         unknown = set(args.case) - {case.slug for case in selected}
         if unknown:
             parser.error(f"unknown case slug(s): {', '.join(sorted(unknown))}")
-    elif args.baseline:
-        selected = list(GOLDEN_ONBOARDING_CASES)
-    else:
-        # Every case is a live crawl plus several model calls, so the full run is
-        # opt-in rather than what you get for forgetting an argument.
-        parser.error("pass --baseline for the whole corpus, or --case <slug>")
+        return selected
+    if args.baseline:
+        return list(GOLDEN_ONBOARDING_CASES)
+    # Every case is a live crawl plus several model calls, so the full run is
+    # opt-in rather than what you get for forgetting an argument.
+    parser.error("pass --baseline for the whole corpus, or --case <slug>")
 
-    judge_key = os.environ.get("GROQ_API_KEY", "")
-    if not judge_key:
-        print("! GROQ_API_KEY absent - buyer_realism will be skipped", file=sys.stderr)
 
-    results: list[CaseResult] = []
-    for case in selected:
-        print(f"-> {case.slug} ...", file=sys.stderr, flush=True)
-        result = await _run_case(
-            case, judge_key=judge_key, judge_model=args.judge_model
-        )
-        status = "ok" if result.ok else f"FAILED ({result.detail})"
-        print(f"   {status} in {result.elapsed_ms}ms", file=sys.stderr, flush=True)
-        results.append(result)
-
+def _collision_for(results: list[CaseResult]) -> float | None:
+    """Cross-brand collision, or None when either side of the pair did not pass."""
     by_slug = {result.slug: result for result in results}
-    collision = None
     left, right = COLLISION_PAIR
-    cases_by_slug = {case.slug: case for case in GOLDEN_ONBOARDING_CASES}
-    if left in by_slug and right in by_slug and by_slug[left].ok and by_slug[right].ok:
-        collision = collision_score(
-            by_slug[left].prompts,
-            by_slug[right].prompts,
-            left_market_terms=cases_by_slug[left].market_terms,
-            right_market_terms=cases_by_slug[right].market_terms,
-        )
+    if not (left in by_slug and right in by_slug):
+        return None
+    if not (by_slug[left].ok and by_slug[right].ok):
+        return None
+    return collision_score(
+        by_slug[left].prompts,
+        by_slug[right].prompts,
+        left_market_terms=CASES_BY_SLUG[left].market_terms,
+        right_market_terms=CASES_BY_SLUG[right].market_terms,
+    )
 
-    payload = {
+
+def _payload(results: list[CaseResult], collision: float | None) -> dict[str, object]:
+    return {
         "cases": [
             {
                 "slug": r.slug,
@@ -439,19 +441,49 @@ async def main() -> int:
         ],
         "cross_brand_collision": collision,
     }
-    if args.out:
-        # `--out` is a path from the command line, so it is resolved and pinned
-        # inside the repository before anything is written. A run that fat-
-        # fingers a `../` should fail loudly, not drop a results file somewhere
-        # outside the working tree.
-        destination = pathlib.Path(args.out).expanduser().resolve()
-        if not destination.is_relative_to(REPOSITORY):
-            raise SystemExit(f"--out must stay inside {REPOSITORY}")
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+
+
+def _write_results(raw_destination: str, payload: dict[str, object]) -> None:
+    """Write the JSON results, pinned inside the repository.
+
+    ``--out`` is a path from the command line, so it is resolved and checked
+    before anything is written. A run that fat-fingers a ``../`` should fail
+    loudly, not drop a results file somewhere outside the working tree.
+
+    Synchronous on purpose, and called from a worker thread: blocking file I/O
+    on the event loop would stall every in-flight case.
+    """
+    destination = pathlib.Path(raw_destination).expanduser().resolve()
+    if not destination.is_relative_to(REPOSITORY):
+        raise SystemExit(f"--out must stay inside {REPOSITORY}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+async def main() -> int:
+    args = _parse_arguments()
+
+    judge_key = os.environ.get("GROQ_API_KEY", "")
+    if not judge_key:
+        print("! GROQ_API_KEY absent - buyer_realism will be skipped", file=sys.stderr)
+
+    results: list[CaseResult] = []
+    for case in args.selected:
+        print(f"-> {case.slug} ...", file=sys.stderr, flush=True)
+        result = await _run_case(
+            case, judge_key=judge_key, judge_model=args.judge_model
         )
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        status = "ok" if result.ok else f"FAILED ({result.detail})"
+        print(f"   {status} in {result.elapsed_ms}ms", file=sys.stderr, flush=True)
+        results.append(result)
+
+    collision = _collision_for(results)
+    if args.out:
+        await asyncio.to_thread(_write_results, args.out, _payload(results, collision))
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     print(_markdown(results, collision))
     return 0
 

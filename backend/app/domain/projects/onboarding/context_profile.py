@@ -26,11 +26,12 @@ being invisible to answer engines is a finding, not a failure to paper over.
 
 from __future__ import annotations
 
-from typing import Literal, get_args
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.config.brand_discovery import BUSINESS_TYPES, PRICE_TIERS, SECTORS
+from app.core.literals import lock_literal
 from app.domain.projects.discovery_schemas import (
     BusinessModel,
     BuyerRegister,
@@ -39,7 +40,7 @@ from app.domain.projects.discovery_schemas import (
 )
 
 BuyerType = Literal["b2b", "b2c", "both"]
-assert set(get_args(BuyerType)) == set(BUSINESS_TYPES)
+lock_literal(BuyerType, BUSINESS_TYPES, name="BuyerType")
 
 MAX_CATEGORY_TERMS = 12
 MAX_JOBS = 6

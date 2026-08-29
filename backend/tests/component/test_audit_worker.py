@@ -266,7 +266,7 @@ async def test_worker_refills_slots_while_a_slow_call_is_still_in_flight(
         # The other slot must get through the remaining 5 tasks unaided. With a
         # concurrency of 2, batching could not finish even one.
         async with asyncio.timeout(30):
-            while _BlockingFirstCallAdapter.finished < 5:
+            while _BlockingFirstCallAdapter.finished < 5:  # noqa: ASYNC110 - counter advanced by N tasks; no single event to await
                 await asyncio.sleep(0.01)
     finally:
         _BlockingFirstCallAdapter.release.set()
@@ -354,7 +354,7 @@ async def test_worker_rejects_frozen_retired_task_without_network(
             snapshot.transport_provider = "retired"
         await session.commit()
 
-    def _boom(**_: object):  # noqa: ANN202
+    def _boom(**_: object):
         raise AssertionError("build_adapter must not be called for a retired transport")
 
     monkeypatch.setattr(audit_execution, "build_adapter", _boom)

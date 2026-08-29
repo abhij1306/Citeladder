@@ -465,8 +465,8 @@ class PageKindProfile:
     """
 
     __slots__ = (
-        "page_kind",
         "min_sufficient_words",
+        "page_kind",
         "rule_weight_overrides",
     )
 
@@ -544,12 +544,12 @@ class PageKindSchemaExpectation:
     """
 
     __slots__ = (
-        "page_kind",
         "expected_types",
-        "required_properties",
+        "page_kind",
         "recommended_properties",
-        "required_properties_by_type",
         "recommended_properties_by_type",
+        "required_properties",
+        "required_properties_by_type",
     )
 
     def __init__(

@@ -63,19 +63,29 @@ function Invoke-FrontendPnpm {
 }
 
 function Invoke-BackendChecks {
+    # `.` is the backend tree. The two Python files ABOVE it were linted by
+    # nothing at all, so they are passed explicitly with the backend config;
+    # ruff would otherwise fall back to its defaults for them, there being no
+    # pyproject.toml at the repository root. Keep in step with ci.yml.
+    $rootScripts = @("--config", "pyproject.toml", "../reset-db.py", "../docs/validate_documentation.py")
     if ($CheckOnly) {
-        Invoke-Step "Ruff lint" { Invoke-BackendTool ruff check . }
-        Invoke-Step "Ruff format" { Invoke-BackendTool ruff format --check . }
+        Invoke-Step "Ruff lint" { Invoke-BackendTool ruff check . @rootScripts }
+        Invoke-Step "Ruff format" { Invoke-BackendTool ruff format --check . @rootScripts }
     }
     else {
-        Invoke-Step "Ruff lint fixes" { Invoke-BackendTool ruff check . --fix }
-        Invoke-Step "Ruff format fixes" { Invoke-BackendTool ruff format . }
+        Invoke-Step "Ruff lint fixes" { Invoke-BackendTool ruff check . --fix @rootScripts }
+        Invoke-Step "Ruff format fixes" { Invoke-BackendTool ruff format . @rootScripts }
     }
     Invoke-Step "Mypy" { Invoke-BackendTool mypy }
     # Fixed CC/LOC ceilings plus named exceptions. There is deliberately no
     # baseline-rewrite command: a regression fails here instead of becoming budget.
     Invoke-Step "Complexity policy" { Invoke-BackendPython -m scripts.check_complexity }
-    Invoke-Step "Dead-code policy" { Invoke-BackendTool vulture app evaluations --min-confidence 80 }
+    # Layer contracts (backend/.importlinter): the backend equivalent of the
+    # frontend's design-system/architecture policy.
+    Invoke-Step "Architecture policy" { Invoke-BackendTool lint-imports }
+    Invoke-Step "Dead-code policy" { Invoke-BackendTool vulture app evaluations scripts --min-confidence 80 }
+    # Declared-but-unused, used-but-undeclared, transitively-relied-upon deps.
+    Invoke-Step "Dependency hygiene" { Invoke-BackendTool deptry . }
 }
 
 function Invoke-FrontendChecks {

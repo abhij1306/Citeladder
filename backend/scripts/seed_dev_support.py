@@ -18,6 +18,12 @@ from app.connectors.answer_engines.contracts import (
     NormalizedUsage,
     SearchEventResult,
 )
+from app.connectors.web_evidence.contracts import (
+    AcquisitionTransport,
+    FetchRequest,
+    FetchResult,
+    ResolvedTarget,
+)
 
 _PUBLIC_IP = "93.184.216.34"
 _WANDERLUST_CITATION_LABEL = "Wanderlust Gear"
@@ -395,7 +401,56 @@ def _site_pages() -> dict[str, bytes | tuple[bytes, dict[str, str]]]:
     }
 
 
-def _site_transport() -> httpx.MockTransport:
+class _SeedAcquisitionTransport(AcquisitionTransport):
+    """Adapt the offline page handler to the Site Health acquisition contract.
+
+    ``SiteHealthWorker``/``SecureFetcher`` consume an ``AcquisitionTransport``
+    (``fetch(request, target, ...) -> FetchResult``), not an
+    ``httpx.MockTransport``. The seeder handed over the raw ``MockTransport``,
+    so every seeded crawl fetch raised ``AttributeError`` on the missing
+    ``fetch``. Mirrors ``tests/component/site_health_worker_helpers.py``.
+    """
+
+    def __init__(self, handler) -> None:
+        self._handler = handler
+
+    async def fetch(
+        self,
+        request: FetchRequest,
+        target: ResolvedTarget,
+        *,
+        max_wire_bytes: int,
+        max_decoded_bytes: int,
+        timeout_seconds: float,
+    ) -> FetchResult:
+        del timeout_seconds
+        response = self._handler(
+            httpx.Request(request.method, target.url, headers=request.headers)
+        )
+        body = await response.aread()
+        if len(body) > max_wire_bytes or len(body) > max_decoded_bytes:
+            raise AssertionError("seed response exceeded configured crawl bounds")
+        content_type = response.headers.get("content-type", "").split(";", 1)[0]
+        return FetchResult(
+            requested_url=request.url,
+            final_url=target.url,
+            status_code=response.status_code,
+            redacted_headers=dict(response.headers),
+            content_type=content_type,
+            http_version=response.http_version or "HTTP/1.1",
+            body=body,
+            wire_bytes=len(body),
+            decoded_bytes=len(body),
+            ttfb_ms=1,
+            latency_ms=1,
+            redirect_location=response.headers.get("location", ""),
+        )
+
+    async def aclose(self) -> None:
+        return None
+
+
+def _site_transport() -> AcquisitionTransport:
     pages = _site_pages()
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -413,70 +468,85 @@ def _site_transport() -> httpx.MockTransport:
             body, headers = entry, {"content-type": "text/html"}
         return httpx.Response(200, headers=headers, stream=_ByteStream(body))
 
-    return httpx.MockTransport(handler)
+    return _SeedAcquisitionTransport(handler)
+
+
+def _gsc_rows_response(body: dict, metric_date: date) -> httpx.Response:
+    """One deterministic Search Analytics row, keyed by the requested dimensions."""
+    values = {
+        "query": "best hiking backpack",
+        "page": "https://wanderlustgear.com/backpacks",
+        "searchAppearance": "WEB",
+        "device": "MOBILE",
+        "country": "usa",
+        "date": metric_date.isoformat(),
+    }
+    dimensions = body.get("dimensions") or []
+    return httpx.Response(
+        200,
+        json={
+            "rows": [
+                {
+                    "keys": [values[item] for item in dimensions],
+                    "clicks": 12,
+                    "impressions": 240,
+                    "ctr": 0.05,
+                    "position": 6.0,
+                }
+            ]
+        },
+    )
+
+
+def _ga4_report_response(body: dict, metric_date: date) -> httpx.Response:
+    """One deterministic runReport row, keyed by the requested dimensions."""
+    dimension_values = {
+        "date": metric_date.strftime("%Y%m%d"),
+        "sessionDefaultChannelGroup": "Organic Search",
+        "sessionSource": "google",
+        "sessionMedium": "organic",
+        "fullReferrer": "https://google.com/",
+        "landingPage": "/backpacks",
+        "itemId": "WGC-S40-BLK",
+        "itemName": "Summit 40L Trail Pack",
+    }
+    dimensions = [item["name"] for item in body.get("dimensions") or []]
+    metrics = [item["name"] for item in body.get("metrics") or []]
+    return httpx.Response(
+        200,
+        json={
+            "dimensionHeaders": [{"name": item} for item in dimensions],
+            "metricHeaders": [
+                {"name": item, "type": "TYPE_INTEGER"} for item in metrics
+            ],
+            "rows": [
+                {
+                    "dimensionValues": [
+                        {"value": dimension_values.get(item, "seed")}
+                        for item in dimensions
+                    ],
+                    "metricValues": [{"value": "12"} for _ in metrics],
+                }
+            ],
+            "rowCount": 1,
+        },
+    )
+
+
+#: Provider host -> deterministic response builder for the seeded sync run.
+_INTEGRATION_RESPONSES = {
+    "www.googleapis.com": _gsc_rows_response,
+    "analyticsdata.googleapis.com": _ga4_report_response,
+}
 
 
 def _integration_transport(metric_date: date) -> httpx.MockTransport:
     """Deterministic GSC/GA4 provider fixture used by the real sync worker."""
 
     def handler(request: httpx.Request) -> httpx.Response:
-        body = json.loads(request.content or b"{}")
-        if request.url.host == "www.googleapis.com":
-            dimensions = body.get("dimensions") or []
-            values = {
-                "query": "best hiking backpack",
-                "page": "https://wanderlustgear.com/backpacks",
-                "searchAppearance": "WEB",
-                "device": "MOBILE",
-                "country": "usa",
-                "date": metric_date.isoformat(),
-            }
-            return httpx.Response(
-                200,
-                json={
-                    "rows": [
-                        {
-                            "keys": [values[item] for item in dimensions],
-                            "clicks": 12,
-                            "impressions": 240,
-                            "ctr": 0.05,
-                            "position": 6.0,
-                        }
-                    ]
-                },
-            )
-        if request.url.host == "analyticsdata.googleapis.com":
-            dimensions = [item["name"] for item in body.get("dimensions") or []]
-            metrics = [item["name"] for item in body.get("metrics") or []]
-            dimension_values = {
-                "date": metric_date.strftime("%Y%m%d"),
-                "sessionDefaultChannelGroup": "Organic Search",
-                "sessionSource": "google",
-                "sessionMedium": "organic",
-                "fullReferrer": "https://google.com/",
-                "landingPage": "/backpacks",
-                "itemId": "WGC-S40-BLK",
-                "itemName": "Summit 40L Trail Pack",
-            }
-            return httpx.Response(
-                200,
-                json={
-                    "dimensionHeaders": [{"name": item} for item in dimensions],
-                    "metricHeaders": [
-                        {"name": item, "type": "TYPE_INTEGER"} for item in metrics
-                    ],
-                    "rows": [
-                        {
-                            "dimensionValues": [
-                                {"value": dimension_values.get(item, "seed")}
-                                for item in dimensions
-                            ],
-                            "metricValues": [{"value": "12"} for _ in metrics],
-                        }
-                    ],
-                    "rowCount": 1,
-                },
-            )
-        raise AssertionError(f"unexpected integration request: {request.url.host}")
+        build = _INTEGRATION_RESPONSES.get(request.url.host)
+        if build is None:
+            raise AssertionError(f"unexpected integration request: {request.url.host}")
+        return build(json.loads(request.content or b"{}"), metric_date)
 
     return httpx.MockTransport(handler)

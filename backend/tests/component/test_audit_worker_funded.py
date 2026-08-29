@@ -626,7 +626,7 @@ async def test_platform_auth_failure_pauses_platform_row_without_tenant_exposure
     ``provider.platform.auth_failed`` telemetry), while every tenant-facing
     audit event payload stays free of system-workspace/platform identity.
     """
-    seed, _account, audit = await _make_funded_audit(session_factory, monkeypatch)
+    _seed, _account, audit = await _make_funded_audit(session_factory, monkeypatch)
 
     def _build(**kwargs: object) -> _ClaudeAuthFailureAdapter:
         return _ClaudeAuthFailureAdapter()

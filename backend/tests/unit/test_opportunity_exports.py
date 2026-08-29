@@ -105,7 +105,7 @@ class TestMarkdown:
 
     def test_pipe_and_backslash_escaped(self) -> None:
         output = rows_to_markdown([_item(title="a | b \\ c")])
-        row = [line for line in output.splitlines() if "a " in line][0]
+        row = next(line for line in output.splitlines() if "a " in line)
         assert "a \\| b \\\\ c" in row
 
     def test_newlines_collapsed_to_space(self) -> None:

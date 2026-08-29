@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import inspect
 import uuid
+from typing import ClassVar
 
 import pytest
 from pydantic import ValidationError
@@ -276,7 +277,7 @@ def test_normal_and_page_rerun_creation_share_the_frozen_configuration() -> None
 
 async def test_hard_excluded_candidate_never_reaches_enqueue_or_fetch(monkeypatch):
     class Crawl:
-        configuration = {
+        configuration: ClassVar[dict[str, object]] = {
             "root_registrable_domain": "example.com",
             "include_globs": [],
             "exclude_globs": [],

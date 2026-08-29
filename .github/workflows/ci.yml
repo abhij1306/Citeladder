@@ -54,13 +54,22 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies (frozen lock)
         run: uv sync --frozen --extra dev
+      # `.` is the backend tree. The two Python files ABOVE it
+      # (`reset-db.py`, `docs/validate_documentation.py`) were linted by
+      # nothing at all, so they are passed explicitly with this config -- ruff
+      # would otherwise fall back to its defaults for them, there being no
+      # pyproject.toml at the repository root.
       - name: Ruff
-        run: uv run --frozen --no-sync --no-build ruff check .
+        run: >-
+          uv run --frozen --no-sync --no-build ruff check .
+          --config pyproject.toml ../reset-db.py ../docs/validate_documentation.py
       # Formatting was fixable but never gated, so drift landed silently in
       # seven files and then showed up as noise in unrelated diffs. Gated here
       # to match `scripts/check.ps1`, which applies the same formatter locally.
       - name: Ruff format
-        run: uv run --frozen --no-sync --no-build ruff format --check .
+        run: >-
+          uv run --frozen --no-sync --no-build ruff format --check .
+          --config pyproject.toml ../reset-db.py ../docs/validate_documentation.py
       # Type check. Not previously gated, so 35 real errors had accumulated
       # unnoticed (a Literal[] the checker could not read, two shadowed
       # variables that silently widened a type, an optional the caller
@@ -80,23 +89,50 @@ jobs:
           else
             .venv/bin/python -m scripts.check_complexity
           fi
+      # Architecture policy. The backend had no equivalent of the frontend's
+      # `check:policy`, so nothing stopped `domain` importing `api`, or a model
+      # reaching into a worker. Contracts and their named exceptions live in
+      # backend/.importlinter.
+      - name: Architecture policy
+        run: .venv/bin/lint-imports
       - name: Dead-code policy
-        run: .venv/bin/vulture app evaluations --min-confidence 80
+        run: .venv/bin/vulture app evaluations scripts --min-confidence 80
+      # Declared-but-unused, used-but-undeclared, and transitively-relied-upon
+      # dependencies -- a question nothing else here asks: pip-audit checks
+      # known CVEs, vulture checks unused code.
+      - name: Dependency hygiene
+        run: .venv/bin/deptry .
       - name: Radon advisory report
         run: |
           .venv/bin/radon cc app -s -n C
           .venv/bin/radon mi app -s -n B
-      # Coverage is measured on the same run that gates behaviour, so the floor
-      # cannot drift from what the suite actually executes. The floor lives in
-      # ``[tool.coverage.report] fail_under`` and is the MEASURED number
-      # rounded down — raising it is a deliberate step in
-      # docs/plans/technical-debt-reduction.md, never a guess.
+      # Coverage is measured on the same run that gates behaviour, so the gate
+      # cannot drift from what the suite actually executes. There is no
+      # repository-wide floor; the merge-blocking gate is the changed-line
+      # check below. The previous version of this comment claimed a
+      # ``[tool.coverage.report] fail_under`` that was never set, so coverage
+      # was in fact gating nothing.
       - name: Pytest
         # Verbose node ids make an anomalous runner/database stall attributable;
         # faulthandler prints thread stacks if one test exceeds two minutes.
         run: >-
           .venv/bin/python -m pytest -vv -o faulthandler_timeout=120
           --cov --cov-report=xml --cov-report=term
+      # Changed-line coverage against the PR/push base: existing code is not
+      # force-tested, but an added or edited executable line has to be run by
+      # the suite. Compared against the same base revision as the complexity
+      # policy, so both gates agree on what "changed" means. Files with no
+      # coverage data (scripts, migrations) contribute no lines rather than
+      # counting as zero.
+      - name: Changed-line coverage
+        env:
+          COVERAGE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$COVERAGE_BASE_SHA" ] && ! [[ "$COVERAGE_BASE_SHA" =~ ^0+$ ]]; then
+            .venv/bin/diff-cover coverage.xml --compare-branch "$COVERAGE_BASE_SHA" --fail-under 90
+          else
+            echo "No base revision (bootstrap push); skipping changed-line coverage."
+          fi
 
   frontend:
     name: Frontend (vitest, tsc, policy, build)

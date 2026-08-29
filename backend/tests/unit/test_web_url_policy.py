@@ -386,7 +386,7 @@ async def test_infrastructure_txt_exception_is_purpose_scoped():
         "192.168.1.1",  # private
         "172.16.0.1",  # private
         "169.254.169.254",  # cloud metadata / link-local
-        "0.0.0.0",  # unspecified
+        "0.0.0.0",  # noqa: S104 - asserted to be REFUSED, not bound
         "224.0.0.1",  # multicast
         "::1",  # IPv6 loopback
         "fe80::1",  # IPv6 link-local

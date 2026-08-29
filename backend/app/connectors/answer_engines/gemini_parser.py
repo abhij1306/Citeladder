@@ -347,7 +347,9 @@ def parse_interaction(
     model: str,
     latency_ms: int,
 ) -> AnswerEngineResponse:
-    steps, queries, answer_text, citations, search_calls = _interaction_content(payload)
+    _steps, queries, answer_text, citations, search_calls = _interaction_content(
+        payload
+    )
     search_used = search_calls > 0
     usage = normalize_gemini_usage(payload, web_search_requests=search_calls)
     raw_finish_reason = gemini_raw_finish_reason(payload)

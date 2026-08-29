@@ -219,7 +219,7 @@ async def test_claim_rechecks_eligibility_on_the_locked_relation(
     """
     queue = PostgresTaskQueue(session_factory, AUDIT_QUEUE_SPEC)
     model = AUDIT_QUEUE_SPEC.model
-    statement = queue._claim_statement(  # noqa: SLF001 - shape is the contract
+    statement = queue._claim_statement(
         model=model,
         now=datetime.now(UTC),
         limit=1,

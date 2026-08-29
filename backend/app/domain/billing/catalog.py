@@ -1,6 +1,5 @@
 """Public billing catalog projection."""
 # The DTO projection is intentionally kept close to its source fields.
-# ruff: noqa: E501
 
 from __future__ import annotations
 

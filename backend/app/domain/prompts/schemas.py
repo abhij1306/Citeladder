@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Literal, get_args
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,6 +21,7 @@ from app.core.config.prompts import (
     PROMPT_STATUSES,
     prompt_generation_settings,
 )
+from app.core.literals import lock_literal
 
 PromptIntent = Literal["", "discovery", "comparison", "purchase", "service", "local"]
 # ``Literal`` requires inline literals for static checkers, so the values are
@@ -32,9 +33,9 @@ PromptStatus = Literal["active", "archived"]
 # offered here — CSV import sets its own origin server-side.
 PromptOrigin = Literal["manual", "generated"]
 PromptCohort = Literal["core", "brand_diagnostic", "comparison", "commerce"]
-assert set(get_args(PromptStatus)) == PROMPT_STATUSES
+lock_literal(PromptStatus, PROMPT_STATUSES, name="PromptStatus")
 # Keep the API literal and persisted cohort catalog in lock-step.
-assert set(get_args(PromptCohort)) == PROMPT_COHORTS
+lock_literal(PromptCohort, PROMPT_COHORTS, name="PromptCohort")
 
 
 # --------------------------------------------------------------------------

@@ -172,7 +172,7 @@ async def _process_claimed_task(task, worker_id: str) -> None:
                 await _run_completion(session, discovery, task_id=task.id)
             else:
                 await _run_research(session, discovery, task_id=task.id)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - worker backstop; the fault is recorded on the task, not raised
         error = exc
     finally:
         try:
@@ -243,7 +243,7 @@ async def _attempt_iteration(
     except asyncio.CancelledError:
         shutdown.set()
         raise
-    except Exception:
+    except Exception:  # noqa: BLE001 - loop backstop; CancelledError is re-raised above
         failures = consecutive_failures + 1
         _log_iteration_failure(failures)
         return False, failures

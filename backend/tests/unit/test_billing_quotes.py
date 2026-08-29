@@ -113,7 +113,7 @@ def test_india_quote_applies_configured_gst(monkeypatch) -> None:
     assert (
         quote.total_price.amount_minor
         == quote.base_price.amount_minor + quote.tax.amount_minor
-        == 9_900 * 83 + int(round(9_900 * 83 * 0.18))
+        == 9_900 * 83 + round(9_900 * 83 * 0.18)
     )
 
 

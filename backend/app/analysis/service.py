@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import UTC, datetime
 
 from sqlalchemy import and_, or_, select
@@ -504,7 +504,7 @@ def _cohort_projection(
 def _per_engine_cohort_metrics(
     per_engine: dict[str, list[dict]],
     config: ScoringConfig,
-    cohorts: set[str] | tuple[str, ...],
+    cohorts: Collection[str],
 ) -> dict[str, dict]:
     return {
         engine: aggregate_run(

@@ -367,7 +367,7 @@ class DiscoverPhaseMixin(DiscoverPersistenceMixin):
                         body_text = (result.body or b"").decode(
                             "utf-8", errors="replace"
                         )
-            except Exception:  # defensive: robots must never break a crawl
+            except Exception:  # noqa: BLE001 - robots fetch must never break a crawl
                 body_text = None
                 status = None
             if status is not None and 500 <= status < 600:
@@ -447,6 +447,6 @@ class DiscoverPhaseMixin(DiscoverPersistenceMixin):
         try:
             async with self._new_fetcher() as fetcher:
                 return await fetcher.fetch(request, enforce_scope=False)
-        except Exception:
+        except Exception:  # noqa: BLE001 - not BaseException: cancellation still propagates
             # Not BaseException: cancellation must still propagate.
             return None

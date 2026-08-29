@@ -77,7 +77,7 @@ class WorkspaceContext:
     Handlers read ``workspace_id`` from here to filter every downstream query.
     """
 
-    __slots__ = ("user", "member")
+    __slots__ = ("member", "user")
 
     def __init__(self, user: User, member: WorkspaceMember) -> None:
         self.user = user
@@ -135,7 +135,7 @@ async def require_project_member(
 async def require_active_workspace(
     user: User = Depends(get_current_user),  # noqa: B008 - FastAPI injects.
     session: AsyncSession = Depends(get_db),  # noqa: B008 - FastAPI injects.
-    x_workspace_id: str | None = Header(default=None),  # noqa: B008
+    x_workspace_id: str | None = Header(default=None),
 ) -> WorkspaceContext:
     """Resolve the caller's *active* workspace for flat (non-path) routes.
 

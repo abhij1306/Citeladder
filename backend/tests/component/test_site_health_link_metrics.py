@@ -198,7 +198,7 @@ async def test_metric_composite_foreign_keys_reject_cross_workspace_urls(
             root="https://example.com/one",
             urls=("https://example.com/one",),
         )
-        second, ((second_url_id, _),) = await _seed_analyze_phase_crawl(
+        _second, ((second_url_id, _),) = await _seed_analyze_phase_crawl(
             session,
             root="https://other.example/two",
             urls=("https://other.example/two",),

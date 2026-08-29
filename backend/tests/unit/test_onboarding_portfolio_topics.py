@@ -92,7 +92,9 @@ def test_a_thin_organic_cohort_cannot_be_dominated_by_brand_prompts() -> None:
     that mostly measures the brand answering about itself, which is the one
     thing it must not do.
     """
-    accepted = [_row("core", 0), _row("core", 1)] + [
+    accepted = [
+        _row("core", 0),
+        _row("core", 1),
         _row("brand_diagnostic", 0),
         _row("brand_diagnostic", 1),
         _row("comparison", 0),

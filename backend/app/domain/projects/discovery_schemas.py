@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Annotated, Literal, get_args
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -19,6 +19,7 @@ from app.core.config.brand_discovery import (
     PRICE_TIERS,
 )
 from app.core.config.projects import MAX_PROJECT_COMPETITORS
+from app.core.literals import lock_literal
 from app.domain.projects.normalization import normalize_primary_market
 from app.domain.projects.schemas import CompetitorInput
 
@@ -26,7 +27,7 @@ ConfirmedDomain = Annotated[
     str, Field(min_length=1, max_length=DISCOVERY_CONFIRM_DOMAIN_MAX_CHARS)
 ]
 PriceTier = Literal["budget", "mid_market", "premium", "luxury", "unknown"]
-assert set(get_args(PriceTier)) == set(PRICE_TIERS)
+lock_literal(PriceTier, PRICE_TIERS, name="PriceTier")
 
 # Business-context facets. Declared here rather than in the onboarding package
 # because `onboarding/__init__` pulls in the service, which imports this module.
@@ -50,10 +51,10 @@ BuyerRegister = Literal[
     "advice_seeking",
     "local_urgent",
 ]
-assert set(get_args(BusinessModel)) == set(BUSINESS_MODELS)
-assert set(get_args(MarketScope)) == set(MARKET_SCOPES)
-assert set(get_args(KnowledgeStrength)) == set(KNOWLEDGE_STRENGTHS)
-assert set(get_args(BuyerRegister)) == set(BUYER_REGISTERS)
+lock_literal(BusinessModel, BUSINESS_MODELS, name="BusinessModel")
+lock_literal(MarketScope, MARKET_SCOPES, name="MarketScope")
+lock_literal(KnowledgeStrength, KNOWLEDGE_STRENGTHS, name="KnowledgeStrength")
+lock_literal(BuyerRegister, BUYER_REGISTERS, name="BuyerRegister")
 
 
 class BrandDiscoveryCreate(BaseModel):

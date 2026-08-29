@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from app.domain.commerce.buyer_prompt_validation import (
     admitted_buyer_prompts,
     buyer_prompt_error,
@@ -12,7 +14,7 @@ from app.domain.prompts.topical_binding import binding_tokens
 class TestSurveyFraming:
     """The exact batch that shipped: five questions asked TO the shopper."""
 
-    SHIPPED = [
+    SHIPPED: ClassVar[list[str]] = [
         "What features do you prioritize when comparing different hygrometers "
         "for home use?",
         "How important is accuracy to you when selecting a hygrometer, and what "

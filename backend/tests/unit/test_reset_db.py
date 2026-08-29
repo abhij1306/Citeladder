@@ -23,7 +23,7 @@ def test_development_reset_is_limited_to_loopback_hosts(
     monkeypatch.setattr(module, "_configuration", lambda: {"APP_ENV": "development"})
 
     module.authorize_reset("postgresql+asyncpg://user:secret@127.0.0.1:5432/dev")
-    with pytest.raises(RuntimeError, match="target host is 'shared.example.com'"):
+    with pytest.raises(RuntimeError, match=r"target host is 'shared\.example\.com'"):
         module.authorize_reset(
             "postgresql+asyncpg://user:secret@shared.example.com:5432/dev"
         )

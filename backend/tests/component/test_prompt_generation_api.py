@@ -372,7 +372,7 @@ async def test_generate_rejects_count_over_cap(
 async def test_generate_requires_an_existing_topic(
     client: httpx.AsyncClient, fake_agent: FakeAgent
 ) -> None:
-    project, prompt_set_id = await _make_project_and_set(
+    _project, prompt_set_id = await _make_project_and_set(
         client, "gen-products@example.com", create_default_topic=False
     )
 

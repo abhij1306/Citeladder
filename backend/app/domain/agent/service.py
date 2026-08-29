@@ -240,7 +240,7 @@ async def execute_claimed_task(
                 ),
                 {},
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - tool backstop; every tool fault is recorded as one failed step
             await _record_tool_failure(
                 session,
                 run=run,
@@ -345,7 +345,7 @@ async def execute_claimed_task(
             },
         )
         narrative = _parse_narrative(response.content)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - provider backstop; every model/parse fault is one failed run
         await _handle_provider_failure(
             session,
             run_id=run.id,

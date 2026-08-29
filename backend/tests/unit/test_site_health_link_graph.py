@@ -147,8 +147,8 @@ def test_resolved_aliases_emit_the_target_nodes_stable_url() -> None:
     ]
     expected = _metrics(pages)[_id(1)].top_outbound
 
-    random.Random(13).shuffle(aliases)
-    random.Random(17).shuffle(anchors)
+    random.Random(13).shuffle(aliases)  # noqa: S311 - fixture shuffle, not crypto
+    random.Random(17).shuffle(anchors)  # noqa: S311 - fixture shuffle, not crypto
     shuffled_pages = [
         _page(1, "/", anchors),
         _page(2, "/products/widget", [], aliases=tuple(aliases)),
@@ -167,8 +167,8 @@ def test_graph_is_deterministic_under_shuffled_pages_and_anchors() -> None:
         pages, home_url="https://example.test/", neighbour_limit=10
     )
 
-    random.Random(7).shuffle(pages)
-    random.Random(11).shuffle(anchors)
+    random.Random(7).shuffle(pages)  # noqa: S311 - fixture shuffle, not crypto
+    random.Random(11).shuffle(anchors)  # noqa: S311 - fixture shuffle, not crypto
     actual = build_link_metrics(
         pages, home_url="https://example.test/", neighbour_limit=10
     )

@@ -62,18 +62,18 @@ class SiteHealthRule:
     """
 
     __slots__ = (
-        "rule_id",
-        "rule_version",
-        "dimension",
-        "category",
-        "severity",
-        "finding_class",
-        "weight",
         "applicability_key",
+        "category",
         "description",
-        "remediation",
+        "dimension",
         "display_label",
         "display_label_variants",
+        "finding_class",
+        "remediation",
+        "rule_id",
+        "rule_version",
+        "severity",
+        "weight",
     )
 
     def __init__(

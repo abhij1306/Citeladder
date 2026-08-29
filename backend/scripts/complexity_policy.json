@@ -9,6 +9,8 @@
   },
   "format_version": 1,
   "roots": [
-    "app"
+    "app",
+    "evaluations",
+    "scripts"
   ]
 }

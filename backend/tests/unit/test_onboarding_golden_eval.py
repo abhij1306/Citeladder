@@ -148,8 +148,9 @@ def test_portfolio_requires_the_exact_eight_two_shape() -> None:
     short = _valid_portfolio(FEEDONOMICS)[: PORTFOLIO_MIN - 1]
     assert evaluate_portfolio(FEEDONOMICS, short).issues
 
-    too_many = _valid_portfolio(FEEDONOMICS) + [
-        PortfolioPrompt("one prompt too many for the ceiling", "core")
+    too_many = [
+        *_valid_portfolio(FEEDONOMICS),
+        PortfolioPrompt("one prompt too many for the ceiling", "core"),
     ]
     issues = evaluate_portfolio(FEEDONOMICS, too_many).issues
     assert any(str(PORTFOLIO_MAX) in issue for issue in issues)

@@ -154,7 +154,8 @@ _DELETE_ORDER.sort(key=lambda table: table.name != "consumable_ledger")
 
 _CLEANUP_SQL = "DO $$ BEGIN SET CONSTRAINTS ALL DEFERRED; {deletes} END $$;".format(
     deletes="".join(
-        f'DELETE FROM "{_TEST_SCHEMA}"."{table.name}";' for table in _DELETE_ORDER
+        f'DELETE FROM "{_TEST_SCHEMA}"."{table.name}";'  # noqa: S608 - names come from SQLAlchemy metadata, never a request
+        for table in _DELETE_ORDER
     )
 )
 

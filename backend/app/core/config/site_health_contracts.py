@@ -188,7 +188,7 @@ AEO_READINESS_DIMENSIONS: Final[tuple[str, ...]] = (
     "authority",
     "freshness",
     "crawlability",
-)  # noqa: E501
+)
 
 AEO_READINESS_DIMENSION_LABELS: Final[dict[str, str]] = {
     "answerability": "Answerability",

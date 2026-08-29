@@ -182,7 +182,7 @@ async def test_run_forever_drains_consecutive_work_without_waiting(
         remaining.pop()
         return 1
 
-    async def _wait_for(awaitable: Any, timeout: float) -> None:
+    async def _wait_for(awaitable: Any, timeout: float) -> None:  # noqa: ASYNC109 - must match the `asyncio.wait_for` signature it replaces
         waited.append(timeout)
         awaitable.close()
 
@@ -208,7 +208,7 @@ async def test_run_forever_waits_on_the_reconcile_interval_when_idle(
     async def _run_once() -> int:
         return 0
 
-    async def _wait_for(awaitable: Any, timeout: float) -> None:
+    async def _wait_for(awaitable: Any, timeout: float) -> None:  # noqa: ASYNC109 - must match the `asyncio.wait_for` signature it replaces
         waited.append(timeout)
         awaitable.close()
         if len(waited) >= 2:

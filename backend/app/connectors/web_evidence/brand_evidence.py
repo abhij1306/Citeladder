@@ -29,6 +29,7 @@ from lxml import html as lxml_html
 # public alias for it.
 from lxml.etree import _Element
 
+from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
 from app.connectors.web_evidence.contracts import FetchError, FetchRequest
 from app.connectors.web_evidence.fetcher import SecureFetcher
 from app.core.config.brand_evidence import (
@@ -94,7 +95,8 @@ def _safe_parser_encoding(charset: str) -> str | None:
 def _node_text(node) -> str:
     try:
         return (node.text_content() or "").strip()
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("brand_evidence.node_text", exc)
         return ""
 
 
@@ -105,7 +107,8 @@ def _meta_description(root) -> str:
             "'ABCDEFGHIJKLMNOPQRSTUVWXYZ',"
             "'abcdefghijklmnopqrstuvwxyz')='description']"
         )
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("brand_evidence.meta_description", exc)
         return ""
     for node in nodes:
         content = (node.get("content") or "").strip()
@@ -130,7 +133,8 @@ def _navigation_anchors(root: _Element) -> list[_Element]:
     """
     try:
         anchors = root.xpath("//body//a[@href]")
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("brand_evidence.navigation_anchors", exc)
         return []
     return cast(list[_Element], anchors)
 
@@ -142,7 +146,8 @@ def _navigation_label(anchor: _Element) -> str:
     if not label:
         try:
             label = str(anchor.xpath("string(.//img[1]/@alt)") or "")
-        except Exception:
+        except DOM_ERRORS as exc:
+            dom_failure("brand_evidence.navigation_label_alt", exc)
             label = ""
         label = " ".join(label.split())
     return label
@@ -241,7 +246,8 @@ def extract_brand_page(
         title_node = next(root.iter("title"), None)
         if title_node is not None:
             title = _node_text(title_node)[:BRAND_EVIDENCE_MAX_PAGE_CHARS]
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("brand_evidence.title", exc)
         title = ""
 
     meta_description = _meta_description(root)
@@ -276,7 +282,8 @@ def _visible_text(node) -> str:
             for fragment in node.itertext()
             if fragment and fragment.strip()
         ]
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("brand_evidence.visible_text", exc)
         return " ".join(_node_text(node).split())
     return " ".join(" ".join(parts).split())
 

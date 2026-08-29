@@ -613,8 +613,8 @@ def evaluate_architecture_rules(
 
 
 __all__ = [
-    "ArchitecturePage",
     "ArchetypeAssessment",
+    "ArchitecturePage",
     "ObservedArchitecture",
     "build_observed_architecture",
     "evaluate_architecture_rules",

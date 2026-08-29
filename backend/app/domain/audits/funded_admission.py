@@ -314,7 +314,7 @@ async def _reserve_task_funding(
     """
     if not funded.enabled:
         return None
-    assert funded.account_id is not None  # enabled implies resolved account
+    assert funded.account_id is not None  # noqa: S101 - enabled implies resolved account
     try:
         return await reserve_funded_task(
             session,

@@ -72,7 +72,7 @@ def maybe_gunzip(body: bytes, *, content_type: str = "") -> bytes:
 class SitemapDocument:
     """One parsed sitemap: either URL entries or child sitemap references."""
 
-    __slots__ = ("urls", "sitemap_refs", "is_index")
+    __slots__ = ("is_index", "sitemap_refs", "urls")
 
     def __init__(
         self,

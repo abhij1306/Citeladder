@@ -134,7 +134,7 @@ async def test_redirect_to_private_address_is_blocked_before_second_call() -> No
     )
     request = _request()
 
-    with pytest.raises(FetchError, match="private|blocked") as excinfo:
+    with pytest.raises(FetchError, match=r"private|blocked") as excinfo:
         await fetcher.fetch(request)
 
     assert excinfo.value.error_code == "ssrf_blocked"

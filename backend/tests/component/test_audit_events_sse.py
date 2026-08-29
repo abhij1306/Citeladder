@@ -180,15 +180,21 @@ async def _read_stream(
     audit_id: uuid.UUID,
     *,
     headers: dict[str, str],
-    timeout: float = 10.0,
 ) -> str:
-    """Read an SSE response to completion (bounded, so a hanging loop fails)."""
-    async with client.stream(
-        "GET", f"/api/v1/audits/{audit_id}/events?stream=true", headers=headers
-    ) as resp:
-        assert resp.status_code == 200
-        assert resp.headers["content-type"].startswith("text/event-stream")
-        body = await asyncio.wait_for(resp.aread(), timeout)
+    """Read an SSE response to completion (bounded, so a hanging loop fails).
+
+    The bound is an ``asyncio.timeout`` scope rather than a ``timeout``
+    parameter so a caller that needs a tighter deadline nests its own scope
+    (see the terminal-audit test) instead of this helper re-implementing
+    cancellation.
+    """
+    async with asyncio.timeout(10.0):
+        async with client.stream(
+            "GET", f"/api/v1/audits/{audit_id}/events?stream=true", headers=headers
+        ) as resp:
+            assert resp.status_code == 200
+            assert resp.headers["content-type"].startswith("text/event-stream")
+            body = await resp.aread()
     return body.decode()
 
 
@@ -373,7 +379,8 @@ async def test_terminal_grace_comes_from_config(
     audit_id = await _create_terminal_audit(session_factory, seed)
     rows = await _load_rows(session_factory, audit_id)
 
-    body = await _read_stream(client, audit_id, headers=_headers(seed), timeout=5.0)
+    async with asyncio.timeout(5.0):
+        body = await _read_stream(client, audit_id, headers=_headers(seed))
     frames = _parse_sse(body)
     assert [f["id"] for f in frames] == [str(r.id) for r in rows]
 
@@ -487,7 +494,7 @@ def test_unmapped_event_type_raises_instead_of_streaming_untyped() -> None:
         created_at=datetime.now(UTC),
         payload={},
     )
-    with pytest.raises(ValueError, match="audit.ghost"):
+    with pytest.raises(ValueError, match=r"audit\.ghost"):
         audit_event_response(ghost)
 
 

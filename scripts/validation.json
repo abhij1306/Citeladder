@@ -19,13 +19,32 @@
         "backend/uv.lock",
         "backend/tests/conftest.py",
         "backend/scripts/check_complexity.py",
-        "backend/scripts/complexity_policy.json"
+        "backend/scripts/complexity_policy.json",
+        "backend/.importlinter"
       ],
       "backendTests": [
         "tests/unit/test_check_complexity.py",
         "tests/unit/test_static_analysis_tools.py",
         "tests/component/test_health.py"
       ]
+    },
+    {
+      "sources": [
+        "backend/app/core/literals.py",
+        "backend/app/domain/prompts/schemas.py",
+        "backend/app/domain/projects/discovery_schemas.py",
+        "backend/app/domain/audits/schedule_schemas.py",
+        "backend/app/domain/projects/onboarding/context_profile.py"
+      ],
+      "backendTests": ["tests/unit/test_literal_vocabulary_guards.py"]
+    },
+    {
+      "sources": [
+        "backend/scripts/seed_dev_data.py",
+        "backend/scripts/seed_dev_runs.py",
+        "backend/scripts/seed_dev_support.py"
+      ],
+      "backendTests": ["tests/unit/test_seed_dev_seams.py"]
     },
     {
       "sources": ["migrations/**", "backend/alembic.ini"],
@@ -86,8 +105,7 @@
         "backend/app/core/errors.py",
         "backend/app/core/http_errors.py",
         "backend/app/core/database.py",
-        "backend/app/core/telemetry.py",
-        "backend/app/schemas/**"
+        "backend/app/core/telemetry.py"
       ],
       "backendTests": [
         "tests/unit/test_security.py",

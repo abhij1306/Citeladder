@@ -541,7 +541,7 @@ async def _provider_results(
         return "succeeded", "", await tavily_search(query, locale=locale), False
     except CompetitorProviderUnavailable:
         return await _keenable_results(query, unavailable_code="provider_unavailable")
-    except Exception:
+    except Exception:  # noqa: BLE001 - any Tavily fault falls through to the second provider
         return await _keenable_results(
             query, unavailable_code="provider_failed", retry_when_unavailable=True
         )
@@ -559,7 +559,7 @@ async def _keenable_results(
             max_results=COMMERCE_COMPETITOR_PROVIDER_RESULT_LIMIT,
             snippet_max_length=COMMERCE_COMPETITOR_KEENABLE_SNIPPET_CHARS,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 - any Keenable fault is a failed lookup, never a failed project
         return "failed", "provider_failed", [], True
     return (
         "succeeded",

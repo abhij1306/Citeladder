@@ -17,6 +17,11 @@ dependencies = [
   "logfire[fastapi,httpx,sqlalchemy,system-metrics]>=4.20.0,<5",
   "lxml>=6.1.0,<7",
   "protego>=0.3.1,<1",
+  # Imported directly by ~30 modules but declared nowhere until the `deptry`
+  # gate found it: both arrived only because FastAPI/pydantic-settings happened
+  # to pull them in, so a FastAPI bump narrowing either range would have broken
+  # the build with no line here to point at.
+  "pydantic>=2.13,<3",
   "pydantic-settings>=2.10.0,<3",
   # Required, with no direct import to prove it: FastAPI raises at ROUTE
   # DEFINITION time when a path declares ``UploadFile``, which the products and
@@ -25,6 +30,10 @@ dependencies = [
   "python-multipart>=0.0.31,<1",
   "reportlab>=5.0.0",
   "sqlalchemy[asyncio]>=2.0.43,<3",
+  # See the pydantic note above; `app/main.py` imports StarletteHTTPException.
+  # Range pinned to the version FastAPI already resolved -- a wider floor
+  # silently downgraded it.
+  "starlette>=1.6,<2",
   "structlog>=25.4.0,<27",
   "tldextract>=5.1.0,<6",
   "tzdata>=2025.2,<2027",
@@ -39,6 +48,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "asyncpg-stubs>=0.31.3,<1",
+  "deptry>=0.20,<1",
+  "diff-cover>=9.0,<10",
+  "import-linter>=2.0,<3",
   "lxml-stubs>=0.5.1,<1",
   "mypy>=2.3.0,<3",
   "pytest>=9.0.3,<10",
@@ -65,9 +77,60 @@ line-length = 88
 extend-exclude = ["migrations/versions"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "W"]
-# ``app/analysis/site_health/.ruff.toml`` extends this with BLE001 + S110 for
-# the fact extractors only — see that file for why.
+select = [
+  "E",
+  "F",
+  "I",
+  "UP",
+  "B",
+  "W",
+  # flake8-bandit. Catches insecure hashes, unsafe deserialization, shell
+  # injection, and ``try``/``except``/``pass``. Chosen over a separate Bandit
+  # run so there is one lint process and one suppression syntax.
+  "S",
+  # flake8-async. The runtime is async end to end, so a blocking `open`,
+  # `time.sleep`, or `subprocess.run` inside a coroutine stalls the whole
+  # worker loop; nothing else in this stack detects that.
+  "ASYNC",
+  # flake8-blind-except. Previously enabled for
+  # ``app/analysis/site_health/`` alone, where a swallowed DOM traversal error
+  # emptied the fact bucket with no log and no error outcome, so the rules
+  # scored an extraction bug as "this page has no title / no CTAs / no forms".
+  # It is repo-wide now: a broad handler IS often correct (worker loop
+  # backstops, rollback teardown), but "often correct" is a reason to write a
+  # reviewed ``# noqa: BLE001 - <why>``, not a reason to leave the rule off.
+  # While it was scoped, thirteen handlers outside that package carried a
+  # ``# noqa: BLE001`` that suppressed nothing and read as a reviewed
+  # exception; RUF100 below now fails on that class of decoration.
+  "BLE",
+  # Ruff-native rules. RUF100 is the load-bearing one: it fails the build on a
+  # ``noqa`` that suppresses nothing — a stale code, or a code for a rule this
+  # config never enabled. That is the only gate that stops suppression
+  # comments from accumulating as decoration.
+  "RUF",
+]
+ignore = [
+  # S105/S106/S107 match on the *identifier*, not the value, so every
+  # ``RULE_OUTCOME_PASS`` constant and every OAuth ``token`` local trips them;
+  # all seven occurrences here were false. Credential detection is owned by
+  # the ``detect-secrets`` job in ``.github/workflows/ci.yml``, which compares
+  # actual values against a committed baseline instead of guessing from names.
+  "S105",
+  "S106",
+  "S107",
+  # RUF001-003 flag typographically correct characters (curly quotes, en
+  # dashes, non-breaking spaces) in user-facing copy, prompt templates, and
+  # docstrings. This repo ships that text deliberately.
+  "RUF001",
+  "RUF002",
+  "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Assertions are the assertion mechanism of the test suite and of the offline
+# eval corpus. Every other S rule stays on for both trees.
+"tests/**" = ["S101"]
+"evaluations/**" = ["S101"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -81,15 +144,20 @@ testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 
-# Coverage is MEASURED and reported on every CI run; the floor below is the
-# measured number rounded down, not an aspiration. Raising it is a deliberate
-# step in docs/plans/technical-debt-reduction.md (Slice 2).
+# Coverage is MEASURED on every CI run and gated on CHANGED lines only (see
+# `[tool.diff_cover]` below). There is no whole-repository floor: a single
+# number over 500 modules is satisfiable by testing the easy ones, and the
+# comment that used to sit here claimed a `fail_under` that did not exist.
 [tool.coverage.run]
 source = ["app"]
 branch = true
 omit = [
   # Not runtime code: the offline eval corpus, one-shot scripts, and the
   # single Alembic revision are exercised by their own gates, not by pytest.
+  # `scripts/` is now covered by ruff, mypy, vulture and the CC/LOC policy --
+  # everything except tests. Files absent from the coverage report are skipped
+  # by diff-cover, so a change there is not gated on a suite that cannot run
+  # it; those gates are what stand behind it instead.
   "evaluations/*",
   "scripts/*",
   "migrations/*",
@@ -97,7 +165,10 @@ omit = [
 ]
 
 [tool.coverage.report]
-# Coverage remains measured and published, but is not a merge-blocking gate.
+# No `fail_under`: the merge-blocking gate is diff coverage, not a global
+# percentage. Untested legacy code is a real cost, but a repo-wide floor makes
+# the person who touches it pay that debt down before an unrelated fix can
+# land, and pays for itself in tests written to move a number.
 show_missing = false
 skip_covered = true
 exclude_also = [
@@ -107,13 +178,74 @@ exclude_also = [
   '\.\.\.',
 ]
 
+# Dependency hygiene. Answers the question no other gate here asks: is a
+# declared dependency actually used, is a used package actually declared, and
+# is anything relying on a transitive install? It found that `pydantic` and
+# `starlette` -- imported in ~30 modules between them -- were declared nowhere
+# and arrived only because FastAPI happened to pull them in; both are direct
+# dependencies above now.
+[tool.deptry]
+# The `dev` extra is this project's ONE dev set (see the comment on it above),
+# so its contents are tooling, not runtime imports.
+optional_dependencies_dev_groups = ["dev"]
+extend_exclude = ["migrations", "tests"]
+
+[tool.deptry.per_rule_ignores]
+# DEP002: declared, with no import to prove it. Each of these is loaded by
+# something other than an `import` statement in `app/`, so an import scan
+# cannot see the use. Anything NOT on this list that trips DEP002 is genuinely
+# dead and should be removed rather than added here.
+DEP002 = [
+  # `alembic` is a CLI: alembic.ini + migrations/, run by the migrate service.
+  "alembic",
+  # SQLAlchemy loads the asyncpg driver by URL scheme (postgresql+asyncpg).
+  "asyncpg",
+  # Pydantic imports it lazily to validate `EmailStr`.
+  "email-validator",
+  # FastAPI raises at ROUTE DEFINITION time when a path declares `UploadFile`.
+  # See the long note on the dependency itself.
+  "python-multipart",
+  # Ships the IANA zone database for `zoneinfo` on hosts without a system one.
+  "tzdata",
+  # The ASGI server: `uvicorn app.main:app` is the image CMD.
+  "uvicorn",
+]
+
+# Changed-line coverage. The rule this repo actually wants: existing code is
+# not force-tested, but a line you ADD or EDIT must be executed by the suite.
+# Measured against the PR/push base, so it cannot be satisfied by an unrelated
+# well-covered file the way a global percentage can.
+[tool.diff_cover]
+compare_branch = "origin/main"
+fail_under = 90
+# The diff is what changed; a file with no coverage data (scripts, migrations)
+# contributes no lines to the ratio rather than counting as zero.
+include_untracked = false
+
 [tool.mypy]
 python_version = "3.12"
-# ``evaluations`` is offline fixture/eval code that is deliberately NOT part of
-# the runtime package (setuptools ships ``app*`` only, and the API/worker image
-# copies ``backend/app``). It stays typechecked here so moving it out of
-# ``app/`` did not silently drop it from the gate.
-files = ["app", "evaluations"]
+# ``evaluations`` and ``scripts`` are offline eval code and operational scripts,
+# deliberately NOT part of the runtime package (setuptools ships ``app*`` only,
+# and the API/worker image copies ``backend/app``). They are typechecked here
+# anyway: an operational script that silently rots is a script nobody can run
+# on the day they need it. ``scripts`` joining this list immediately caught two
+# dead seams in ``seed_dev_data`` -- a monkeypatch onto an attribute that had
+# moved packages, and an ``httpx.MockTransport`` passed where the Site Health
+# worker wants an ``AcquisitionTransport``, both of which broke the seeder.
+files = ["app", "evaluations", "scripts"]
 plugins = ["pydantic.mypy"]
 warn_unused_ignores = true
 warn_redundant_casts = true
+# Bodies of unannotated functions are checked too; without this, an untyped
+# helper is a hole the checker walks straight past.
+check_untyped_defs = true
+# ``==``/``!=`` between types that can never be equal is always a bug.
+strict_equality = true
+# NOT enabled: ``warn_unreachable``. Its eleven findings here are two kinds of
+# false signal, not defects. Most are defensive ``if x is None`` guards that a
+# third-party stub declares impossible (lxml's ``document_fromstring``), and
+# ``verification_result`` guards a ``visibility_score`` the ORM maps as
+# non-nullable -- deleting that one would erase the unknown-vs-zero distinction
+# the invariants require, to satisfy a checker. Revisit if the column becomes
+# nullable. ``warn_return_any`` is also off; its 70 findings are a separate,
+# deliberate slice.

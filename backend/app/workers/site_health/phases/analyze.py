@@ -488,7 +488,7 @@ class AnalyzePhaseMixin(PhaseSupport):
                 fetch_purpose=FETCH_PURPOSE_ANALYZE,
                 normalized_facts=outcome.facts,
             )
-        assert artifact_id is not None and outcome.facts is not None
+        assert artifact_id is not None and outcome.facts is not None  # noqa: S101 - narrows for the type checker; not a runtime check
         analysis_id, page_kind = await self._write_page_analysis(
             session,
             crawl=crawl,

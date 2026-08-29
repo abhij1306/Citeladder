@@ -43,7 +43,7 @@ def acquisition_values(
 def _attempt_host(url: str) -> str:
     try:
         host, _port = split_host_port(url)
-    except Exception:
+    except ValueError:
         return ""
     return host[:255]
 

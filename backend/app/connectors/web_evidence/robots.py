@@ -25,7 +25,7 @@ from app.core.config.site_health_runtime import (
 class RobotsPolicy:
     """A parsed robots policy for one host, evaluated for a fixed user-agent."""
 
-    __slots__ = ("_parser", "_user_agent", "_allow_all", "_deny_all")
+    __slots__ = ("_allow_all", "_deny_all", "_parser", "_user_agent")
 
     def __init__(
         self,
@@ -66,7 +66,7 @@ class RobotsPolicy:
             return cls.allow_all(user_agent=user_agent)
         try:
             parser = Protego.parse(text)
-        except Exception:
+        except Exception:  # noqa: BLE001 - third-party Protego parse; a malformed robots.txt fails open (see below)
             # A malformed robots file must not crash discovery: fail open.
             return cls.allow_all(user_agent=user_agent)
         return cls(parser, user_agent=user_agent)
@@ -78,7 +78,7 @@ class RobotsPolicy:
             return True
         try:
             return bool(self._parser.can_fetch(url, self._user_agent))
-        except Exception:
+        except Exception:  # noqa: BLE001 - third-party Protego match; an unparseable rule must not block a fetch
             return True
 
     def crawl_delay(self) -> float:
@@ -93,7 +93,7 @@ class RobotsPolicy:
             try:
                 value = self._parser.crawl_delay(self._user_agent)
                 declared = float(value) if value is not None else None
-            except Exception:
+            except Exception:  # noqa: BLE001 - third-party Protego read; fall back to the configured default delay
                 declared = None
         delay = (
             declared if declared is not None else settings.default_crawl_delay_seconds
@@ -106,5 +106,5 @@ class RobotsPolicy:
             return []
         try:
             return list(self._parser.sitemaps or [])
-        except Exception:
+        except Exception:  # noqa: BLE001 - third-party Protego read; no declared sitemaps is a valid outcome
             return []

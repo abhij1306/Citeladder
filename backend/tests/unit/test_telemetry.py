@@ -85,7 +85,7 @@ class _LogfireSpy:
         self.instrumented: list[str] = []
         self.httpx_calls: list[dict[str, Any]] = []
 
-    def AdvancedOptions(self, **kwargs: Any) -> dict[str, Any]:  # noqa: N802
+    def AdvancedOptions(self, **kwargs: Any) -> dict[str, Any]:
         return kwargs
 
     def configure(self, **kwargs: Any) -> None:

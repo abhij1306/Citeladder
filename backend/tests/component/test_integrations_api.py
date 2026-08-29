@@ -166,7 +166,7 @@ async def test_list_returns_grant_joined_dto_without_tokens(
 ) -> None:
     await _register(client, "mgmt-list@example.com")
     ws = await _workspace_id(db_session)
-    grant, connections = await _seed_grant(db_session, workspace_id=ws)
+    grant, _connections = await _seed_grant(db_session, workspace_id=ws)
 
     resp = await client.get(_BASE)
     assert resp.status_code == 200

@@ -274,8 +274,13 @@ def compare_policies(base: dict[str, Any], current: dict[str, Any]) -> list[str]
     failures: list[str] = []
     if current["format_version"] != base["format_version"]:
         failures.append("format_version changed")
-    if current["roots"] != base["roots"]:
-        failures.append("application roots changed")
+    # Roots may only GROW. The original rule rejected any change at all, which
+    # blocked the relaxations it was aimed at and, equally, blocked widening the
+    # gate onto a tree it did not yet cover: ``backend/scripts`` sat outside the
+    # ceilings for that reason alone. Dropping a root is still a relaxation.
+    removed = sorted(set(base["roots"]) - set(current["roots"]))
+    if removed:
+        failures.append(f"application roots removed: {', '.join(removed)}")
 
     for name in sorted(_DEFAULT_KEYS):
         old = base["defaults"][name]
@@ -305,7 +310,7 @@ def policy_at_revision(base_revision: str) -> dict[str, Any] | None:
     # Keep the OS command itself constant. Object expressions are supplied through
     # Git's documented batch protocol only after the strict validation above.
     revision = subprocess.run(
-        ["git", "cat-file", "--batch-check"],
+        ["git", "cat-file", "--batch-check"],  # noqa: S607 - git resolves via PATH
         cwd=REPOSITORY,
         input=f"{base_revision}^{{commit}}\n".encode(),
         capture_output=True,
@@ -315,7 +320,7 @@ def policy_at_revision(base_revision: str) -> dict[str, Any] | None:
         raise PolicyError(f"unknown base revision: {base_revision}")
 
     result = subprocess.run(
-        ["git", "cat-file", "--batch"],
+        ["git", "cat-file", "--batch"],  # noqa: S607 - git resolves via PATH
         cwd=REPOSITORY,
         input=f"{base_revision}:{POLICY_REPOSITORY_PATH}\n".encode(),
         capture_output=True,

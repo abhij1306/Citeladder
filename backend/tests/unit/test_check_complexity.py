@@ -218,6 +218,9 @@ def test_policy_diff_allows_only_reductions_and_removals() -> None:
     current["exceptions"]["functions"]["app/example.py::Example.run"] = 15
     del current["exceptions"]["functions"]["app/removed.py::run"]
     current["exceptions"]["modules"]["app/example.py"] = 850
+    # Widening the gate onto a tree it did not cover is a tightening, not a
+    # relaxation, so it must pass the diff.
+    current["roots"] = [*base["roots"], "scripts"]
 
     assert not check_complexity.compare_policies(base, current)
 
@@ -229,7 +232,7 @@ def test_policy_diff_allows_only_reductions_and_removals() -> None:
             lambda policy: policy["defaults"].update(max_function_cc=13),
             "default max_function_cc increased",
         ),
-        (lambda policy: policy.update(roots=["app", "other"]), "roots changed"),
+        (lambda policy: policy.update(roots=["other"]), "application roots removed"),
         (
             lambda policy: policy["exceptions"]["functions"].update(
                 {"app/example.py::Example.run": 17}

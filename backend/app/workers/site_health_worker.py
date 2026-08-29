@@ -283,7 +283,7 @@ class SiteHealthWorker(
             return
         try:
             host, _port = split_host_port(task.requested_url)
-        except Exception:
+        except ValueError:
             host = task.requested_url
         async with self._host_gate.slot(
             host,
@@ -672,7 +672,7 @@ class SiteHealthWorker(
         if getattr(outcome, "status_code", None) == 429:
             try:
                 host, _port = split_host_port(requested_url)
-            except Exception:
+            except ValueError:
                 host = requested_url
             self._host_gate.note_rate_limited(
                 host, getattr(outcome, "retry_after_seconds", None)

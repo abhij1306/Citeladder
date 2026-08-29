@@ -31,11 +31,11 @@ async def resolve_site_url_id(
 ) -> uuid.UUID | None:
     try:
         canonical, url_hash_value = canonical_identity(url)
-    except Exception:
+    except (TypeError, ValueError):
         return None
     try:
         host, _port = split_host_port(canonical)
-    except Exception:
+    except ValueError:
         host = ""
     now = _utcnow()
     inserted_id = await session.scalar(

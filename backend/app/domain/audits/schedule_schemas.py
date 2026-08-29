@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Literal, get_args
+from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -22,16 +22,21 @@ from app.core.config.projects import (
     MIN_REPETITIONS,
 )
 from app.core.config.provider_catalog import LOGICAL_ENGINES
+from app.core.literals import lock_literal
 
 AuditScheduleCadence = Literal[
     "one_time", "every_n_minutes", "hourly", "daily", "weekly"
 ]
 BenchmarkMode = Literal["consumer_like", "controlled_localized", "forced_grounded"]
-assert {
-    BENCHMARK_MODE_CONSUMER_LIKE,
-    BENCHMARK_MODE_CONTROLLED_LOCALIZED,
-    BENCHMARK_MODE_FORCED_GROUNDED,
-} == set(get_args(BenchmarkMode))
+lock_literal(
+    BenchmarkMode,
+    {
+        BENCHMARK_MODE_CONSUMER_LIKE,
+        BENCHMARK_MODE_CONTROLLED_LOCALIZED,
+        BENCHMARK_MODE_FORCED_GROUNDED,
+    },
+    name="BenchmarkMode",
+)
 
 
 class AuditScheduleCreate(BaseModel):

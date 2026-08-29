@@ -207,5 +207,5 @@ def _shuffled_slots(
     ]
     # The seed is persisted specifically for reproducible scheduling; this is
     # not a secret, token, identifier, or security decision.
-    random.Random(int(seed)).shuffle(slots)  # NOSONAR - deterministic task order
+    random.Random(int(seed)).shuffle(slots)  # noqa: S311 - deterministic order, not crypto
     return slots
