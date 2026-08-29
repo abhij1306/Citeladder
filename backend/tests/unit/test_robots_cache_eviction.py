@@ -92,7 +92,7 @@ def test_expired_authorities_are_removed_from_all_three_maps(
     assert "https://stale.example" not in cache._fetched_at
     assert "https://stale.example" not in cache._locks
     # The fresh entry survives.
-    assert "https://fresh.example" in cache._entries
+    assert set(cache._entries) == {"https://fresh.example"}
 
 
 def test_size_cap_evicts_oldest_first(monkeypatch: pytest.MonkeyPatch) -> None:
