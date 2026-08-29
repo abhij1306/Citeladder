@@ -25,6 +25,7 @@ import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager
 
+from app.connectors.web_evidence.url_policy import split_host_port
 from app.core.config.site_health_runtime import (
     site_health_settings,
 )
@@ -86,6 +87,19 @@ class HostGate:
     def _delay(self, url: str) -> float:
         """The polite gap before the next start: config floor, robots ceiling."""
         return max(self._base_delay(), self._delay_for(url))
+
+    def slot_for_url(
+        self,
+        url: str,
+        *,
+        on_wait: Callable[[], AbstractAsyncContextManager[None]] | None = None,
+    ) -> AbstractAsyncContextManager[None]:
+        """Adapt one full URL to its scheme-agnostic host gate key."""
+        try:
+            host, _port = split_host_port(url)
+        except ValueError:
+            host = url
+        return self.slot(host, url, on_wait=on_wait)
 
     def _window(self, host: str) -> float:
         """The delay window the host's last start committed to.

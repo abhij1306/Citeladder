@@ -1,4 +1,4 @@
-"""Pure helpers shared by the worker loop and every phase mixin.
+"""Pure helpers shared by the worker loop and explicit phase modules.
 
 Module-level and side-effect free: HTTP-status classification, robots denial
 tokens, URL canonicalization that tolerates junk, and the Free-tier

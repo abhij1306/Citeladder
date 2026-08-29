@@ -15,7 +15,8 @@
 # evidence and successor admission atomically.
 #
 # Discovery and analysis share this one worker so their lifecycle can be
-# terminalized from a single durable queue owner.
+# terminalized from a single durable queue owner. Their explicit phase seam is
+# Site Health-specific; it does not establish or migrate an AuditWorker pattern.
 from __future__ import annotations
 
 import asyncio
@@ -35,7 +36,6 @@ from app.connectors.web_evidence.contracts import (
 )
 from app.connectors.web_evidence.fetcher import SecureFetcher
 from app.connectors.web_evidence.resolver import SystemDnsResolver
-from app.connectors.web_evidence.robots import RobotsPolicy
 from app.connectors.web_evidence.url_policy import (
     split_host_port,
 )
@@ -89,17 +89,35 @@ from app.workers.site_health.helpers import (
     _serialize_redirect_chain,
     _utcnow,
 )
-from app.workers.site_health.observation_rows import write_observation
-from app.workers.site_health.outcomes import AnalyzeOutcome as _AnalyzeOutcome
-from app.workers.site_health.outcomes import DiscoverOutcome as _DiscoverOutcome
-from app.workers.site_health.phases import (
-    AnalyzePhaseMixin,
-    ArchitecturePhaseMixin,
-    ChangeIntelPhaseMixin,
-    DiscoverPhaseMixin,
-    LinkMetricsPhaseMixin,
+from app.workers.site_health.observation_rows import (
+    resolve_site_url_id,
+    write_observation,
 )
-from app.workers.site_health.urls import authority_key as _authority_key
+from app.workers.site_health.phases import (
+    analyze as analyze_phase,
+)
+from app.workers.site_health.phases import (
+    architecture as architecture_phase,
+)
+from app.workers.site_health.phases import (
+    change_intel as change_intel_phase,
+)
+from app.workers.site_health.phases import (
+    discover as discover_phase,
+)
+from app.workers.site_health.phases import (
+    link_metrics as link_metrics_phase,
+)
+from app.workers.site_health.phases.contracts import (
+    AnalyzeOutcome as _AnalyzeOutcome,
+)
+from app.workers.site_health.phases.contracts import (
+    DiscoverOutcome as _DiscoverOutcome,
+)
+from app.workers.site_health.phases.contracts import (
+    PhaseContext,
+)
+from app.workers.site_health.robots_cache import RobotsCache
 
 logger = logging.getLogger("app.workers.site_health_worker")
 
@@ -110,14 +128,7 @@ logger = logging.getLogger("app.workers.site_health_worker")
 _MIN_HEARTBEAT_INTERVAL_SECONDS = 0.05
 
 
-class SiteHealthWorker(
-    DiscoverPhaseMixin,
-    AnalyzePhaseMixin,
-    ChangeIntelPhaseMixin,
-    LinkMetricsPhaseMixin,
-    ArchitecturePhaseMixin,
-    DrainableWorkerMixin,
-):
+class SiteHealthWorker(DrainableWorkerMixin):
     """Owns a claim/lease loop over ``SiteCrawlTask`` discover rows.
 
     Claims a bounded batch from PostgreSQL and executes it concurrently, each
@@ -146,20 +157,25 @@ class SiteHealthWorker(
         # Per-host politeness (concurrency cap + start pacing + eviction). The
         # robots-declared crawl-delay is injected as a lookup so the gate never
         # fetches anything itself.
-        self._host_gate = HostGate(delay_for=self._robots_crawl_delay)
+        self._robots = RobotsCache(new_fetcher=self._new_fetcher)
+        self._host_gate = HostGate(delay_for=self._robots.crawl_delay)
         # Crawl terminalization (reconcile + finalize pass + snapshot).
         self._lifecycle = CrawlLifecycle(self._session_factory)
-        # v2 P2: per-authority robots cache — one (policy, raw body, status)
-        # triple per authority (the raw body feeds the per-bot AI-crawler
-        # stance in site setup) — plus a per-authority lock so concurrent
-        # tasks never duplicate the fetch. Entries expire after
-        # ``robots_cache_ttl_seconds`` (RFC 9309 ~24h guidance) so a
-        # long-lived worker re-reads changed policies; the maps are bounded
-        # by the number of distinct authorities a worker crawls (a crawl is
-        # scoped to one registrable domain), so they stay tiny.
-        self._robots_cache: dict[str, tuple[RobotsPolicy, str | None, int | None]] = {}
-        self._robots_cache_ts: dict[str, float] = {}
-        self._robots_locks: dict[str, asyncio.Lock] = {}
+        self._phase_context = PhaseContext(
+            session_factory=self._session_factory,
+            queue=self._queue,
+            owner=self.owner,
+            new_fetcher=self._new_fetcher,
+            leased=self._leased,
+            host_slot=self._host_gate.slot_for_url,
+            robots=self._robots,
+            lock_owned_running_task=self._lock_owned_running_task,
+            write_artifact=self._write_artifact,
+            write_attempt=self._write_attempt,
+            write_observation=self._write_observation,
+            resolve_site_url_id=resolve_site_url_id,
+            finalize_queue_row=self._finalize_queue_row,
+        )
 
     def _new_fetcher(self) -> SecureFetcher:
         """Build the sole curl fetcher (or the injected offline test transport)."""
@@ -271,36 +287,22 @@ class SiteHealthWorker(
         return completed
 
     async def _execute_claimed(self, task: SiteCrawlTask) -> None:
-        """Heartbeat a claimed lease while it waits for its polite host slot.
+        """Execute local work directly and pace discover acquisition by host.
 
-        The heartbeat here covers ONLY the wait for the host slot; once the
-        slot is secured it stops before ``_execute_task`` runs, because the
-        fetch heartbeats are owned by ``_run_discover`` / ``_run_analyze`` —
-        one loop per active fetch, never two.
+        Analyze normally reuses a discover artifact and the derived phases do
+        no network I/O, so only discover takes the task-wide host slot here.
+        Analyze acquires the same gate inside its fallback acquisition branch.
+        The heartbeat below covers ONLY a discover task's wait for the slot;
+        once secured, the phase owns its fetch heartbeat.
         """
-        if task.task_kind == TASK_KIND_CHANGE_INTEL:
+        if task.task_kind != TASK_KIND_DISCOVER:
             await self._execute_task(task)
             return
-        try:
-            host, _port = split_host_port(task.requested_url)
-        except ValueError:
-            host = task.requested_url
-        async with self._host_gate.slot(
-            host,
+        async with self._host_gate.slot_for_url(
             task.requested_url,
             on_wait=lambda: self._leased(task.id),
         ):
             await self._execute_task(task)
-
-    def _robots_crawl_delay(self, url: str) -> float:
-        """A robots-declared crawl-delay for ``url`` from the CACHE ONLY.
-
-        Never fetches robots.txt: the first request to an authority goes with
-        the config default, and once the fetch path has cached the policy later
-        requests honor the (already config-clamped) declared delay.
-        """
-        cached = self._robots_cache.get(_authority_key(url))
-        return cached[0].crawl_delay() if cached is not None else 0.0
 
     async def _maintenance_forever(self) -> None:  # pragma: no cover
         """Run lease/reconcile maintenance on its own cadence.
@@ -397,21 +399,15 @@ class SiteHealthWorker(
     async def _dispatch_task(self, claimed: SiteCrawlTask) -> None:
         kind = claimed.task_kind
         if kind == TASK_KIND_DISCOVER:
-            await self._run_discover(claimed.id, claimed.crawl_id)
+            await discover_phase.run(self._phase_context, claimed)
         elif kind == TASK_KIND_ANALYZE:
-            await self._run_analyze(claimed.id, claimed.crawl_id, claimed.workspace_id)
+            await analyze_phase.run(self._phase_context, claimed)
         elif kind == TASK_KIND_CHANGE_INTEL:
-            await self._run_change_intel(
-                claimed.id, claimed.crawl_id, claimed.workspace_id
-            )
+            await change_intel_phase.run(self._phase_context, claimed)
         elif kind == TASK_KIND_LINK_METRICS:
-            await self._run_link_metrics(
-                claimed.id, claimed.crawl_id, claimed.workspace_id
-            )
+            await link_metrics_phase.run(self._phase_context, claimed)
         elif kind == TASK_KIND_ARCHITECTURE:
-            await self._run_architecture(
-                claimed.id, claimed.crawl_id, claimed.workspace_id
-            )
+            await architecture_phase.run(self._phase_context, claimed)
         else:
             raise NotImplementedError(f"unknown task kind '{kind}'")
 
@@ -438,10 +434,15 @@ class SiteHealthWorker(
             ):
                 return
 
-            # Mark the queue row running (still owned) before the fetch.
-            if not await self._queue.mark_running(task_id=task_id, owner=self.owner):
-                # Lease lost (sweeper reclaimed it); another worker will retry.
-                return
+            # Analyze resolves local artifact reuse before deciding whether it
+            # needs a host slot, so that phase marks itself running only after
+            # any network wait. Other phases retain the task-boundary mark.
+            if kind != TASK_KIND_ANALYZE:
+                if not await self._queue.mark_running(
+                    task_id=task_id, owner=self.owner
+                ):
+                    # Lease lost; another worker will retry.
+                    return
             await self._dispatch_task(claimed)
         except Exception as exc:  # defensive: never let one task kill the loop
             logger.exception(
@@ -453,7 +454,7 @@ class SiteHealthWorker(
             # Change intelligence runs after terminalization; acquisition and
             # analysis task completion is what reconciles the crawl itself.
             if kind not in POST_TERMINAL_SITE_TASK_KINDS:
-                await self._reconcile_crawl_status(crawl_id)
+                await self._lifecycle.reconcile_after_task(claimed)
 
     def _ensure_running(self, crawl: SiteCrawl) -> None:
         if crawl.status == CRAWL_STATUS_RUNNING:

@@ -6,6 +6,9 @@ in ``site_health_worker_helpers``.
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+from dataclasses import replace
+
 import httpx
 import pytest
 from sqlalchemy import func, select, update
@@ -42,6 +45,7 @@ from app.core.config.site_health_taxonomy import (
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,
     TASK_STATUS_FAILED,
+    TASK_STATUS_LEASED,
     TASK_STATUS_QUEUED,
     TASK_STATUS_RUNNING,
     TASK_STATUS_SUCCEEDED,
@@ -58,6 +62,7 @@ from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
+from app.workers.site_health.phases import analyze as analyze_phase
 from app.workers.site_health_worker import (
     SiteHealthWorker,
 )
@@ -134,10 +139,20 @@ async def test_same_crawl_rerun_gets_a_new_analysis_for_reused_artifact(
         owner="same-crawl-rerun",
     )
 
-    async def keep_crawl_active(_crawl_id) -> None:
+    @asynccontextmanager
+    async def reject_network_slot(_url: str):
+        if _url:
+            raise AssertionError("artifact-reuse analysis must not enter HostGate")
+        yield
+
+    worker._phase_context = replace(
+        worker._phase_context, host_slot=reject_network_slot
+    )
+
+    async def keep_crawl_active(_task) -> None:
         return None
 
-    monkeypatch.setattr(worker, "_reconcile_crawl_status", keep_crawl_active)
+    monkeypatch.setattr(worker._lifecycle, "reconcile_after_task", keep_crawl_active)
     assert await worker.run_until_idle() == 1
 
     async with session_factory() as session:
@@ -172,6 +187,38 @@ async def test_same_crawl_rerun_gets_a_new_analysis_for_reused_artifact(
     assert analyses[0].id != analyses[1].id
     assert analyses[0].artifact_id == analyses[1].artifact_id
     assert [analysis.is_current for analysis in analyses] == [False, True]
+
+
+@pytest.mark.asyncio
+async def test_analyze_fallback_acquisition_uses_host_gate(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    root = "https://example.com/rich"
+    await _seed_analyze_ready(session_factory, root=root)
+    worker = _worker(
+        session_factory,
+        {"/rich": _rich_html()},
+        owner="fallback-host-gate",
+    )
+    entered_urls: list[str] = []
+
+    @asynccontextmanager
+    async def record_network_slot(url: str):
+        entered_urls.append(url)
+        async with session_factory() as session:
+            task = await session.scalar(
+                select(SiteCrawlTask).where(SiteCrawlTask.requested_url == url)
+            )
+            assert task is not None
+            assert task.status == TASK_STATUS_LEASED
+        yield
+
+    worker._phase_context = replace(
+        worker._phase_context, host_slot=record_network_slot
+    )
+
+    assert await worker.run_once() == 1
+    assert entered_urls == [root]
 
 
 @pytest.mark.asyncio
@@ -303,12 +350,12 @@ async def test_analyze_guard_discards_result_when_membership_removed_mid_fetch(
         {"/rich": _rich_html()},
         owner="removed-mid-fetch",
     )
-    original_fetch = worker._fetch_analyze
+    original_fetch = analyze_phase._fetch_analyze
     fetched = False
 
-    async def fetch_then_remove(**kwargs):
+    async def fetch_then_remove(ctx, **kwargs):
         nonlocal fetched
-        outcome = await original_fetch(**kwargs)
+        outcome = await original_fetch(ctx, **kwargs)
         fetched = True
         async with session_factory() as session:
             await session.execute(
@@ -322,7 +369,7 @@ async def test_analyze_guard_discards_result_when_membership_removed_mid_fetch(
             await session.commit()
         return outcome
 
-    monkeypatch.setattr(worker, "_fetch_analyze", fetch_then_remove)
+    monkeypatch.setattr(analyze_phase, "_fetch_analyze", fetch_then_remove)
     await worker.run_until_idle()
 
     async with session_factory() as session:
@@ -351,7 +398,6 @@ async def test_analyze_guard_discards_result_when_membership_removed_mid_fetch(
 @pytest.mark.asyncio
 async def test_reclaimed_analyze_acknowledges_already_persisted_analysis(
     session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     seed, _site_url_id, task_id = await _seed_analyze_ready(session_factory)
     first = _worker(
@@ -363,7 +409,9 @@ async def test_reclaimed_analyze_acknowledges_already_persisted_analysis(
     async def drop_queue_ack(**_kwargs) -> None:
         return None
 
-    monkeypatch.setattr(first, "_finalize_queue_row", drop_queue_ack)
+    first._phase_context = replace(
+        first._phase_context, finalize_queue_row=drop_queue_ack
+    )
     assert await first.run_once() == 1
 
     async with session_factory() as session:

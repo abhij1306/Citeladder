@@ -68,6 +68,9 @@ from app.models.site_health.crawl import SiteCrawl, SiteDiscoveryFrontier
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
+from app.workers.site_health.phases.discover_stages import (
+    _write_sitemap_observations,
+)
 from app.workers.site_health_worker import SiteHealthWorker
 from tests.component.site_health_helpers import seed_site_crawl
 from tests.component.site_health_worker_helpers import (
@@ -206,7 +209,6 @@ async def test_sitemap_observations_use_bounded_bulk_statements(
 ) -> None:
     batch_size = 3
     monkeypatch.setattr(site_health_settings, "admission_batch_size", batch_size)
-    worker = SiteHealthWorker(session_factory=session_factory)
     candidates: list[FrontierCandidate] = []
     site_url_ids: dict[str, str] = {}
     for ordinal in range(batch_size * 2 + 1):
@@ -235,7 +237,7 @@ async def test_sitemap_observations_use_bounded_bulk_statements(
     crawl = SimpleNamespace(
         id=uuid.uuid4(), workspace_id=uuid.uuid4(), project_id=uuid.uuid4()
     )
-    await worker._write_sitemap_observations(
+    await _write_sitemap_observations(
         session,
         crawl=crawl,
         candidates=candidates,
@@ -879,7 +881,7 @@ async def test_robots_cache_honors_ttl_and_4xx_is_allow_all(
     worker = _worker(session_factory, {}, owner="robots-ttl", requests=requests)
     authority = "https://example.com"
 
-    policy, body, status = await worker._ensure_robots_policy(authority)
+    policy, body, status = await worker._robots.ensure(authority)
     assert requests == [("GET", "/robots.txt")]
     # The default mock 404s unknown paths: allow-all, status recorded, no body.
     assert status == 404
@@ -888,20 +890,16 @@ async def test_robots_cache_honors_ttl_and_4xx_is_allow_all(
     assert policy.unavailable is False
 
     # Within the TTL the cached entry is reused (no second fetch).
-    cached_policy, cached_body, cached_status = await worker._ensure_robots_policy(
-        authority
-    )
+    cached_policy, cached_body, cached_status = await worker._robots.ensure(authority)
     assert cached_policy is policy
     assert (cached_body, cached_status) == (body, status)
     assert requests == [("GET", "/robots.txt")]
 
     # Aging the entry past the TTL forces a re-fetch on the next ensure.
-    worker._robots_cache_ts[authority] = (
+    worker._robots._fetched_at[authority] = (
         time.monotonic() - site_health_settings.robots_cache_ttl_seconds - 1.0
     )
-    refreshed_policy, _, refreshed_status = await worker._ensure_robots_policy(
-        authority
-    )
+    refreshed_policy, _, refreshed_status = await worker._robots.ensure(authority)
     assert requests == [("GET", "/robots.txt"), ("GET", "/robots.txt")]
     assert refreshed_status == 404
     assert refreshed_policy.can_fetch(f"{authority}/anything") is True

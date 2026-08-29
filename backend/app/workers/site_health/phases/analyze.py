@@ -5,37 +5,27 @@ page facts, evaluates the per-page rule catalog, and writes ONE immutable
 artifact plus derived evidence in a transaction finalized by locked guard checks.
 The queue row is acknowledged after the durable analysis write.
 
-Split out of SiteHealthWorker for readability only — see the package
-docstring; this is a mixin on the one worker class, not a separate process.
+The worker invokes this module through its explicit ``run(ctx, task)`` seam;
+this remains in-process and does not own claiming or terminalization.
 """
 
 from __future__ import annotations
 
 import time
 import uuid
-from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.analysis.site_health.page_kinds import PageKindAssessment, classify
 from app.analysis.site_health.parser import extract_page_facts
-from app.analysis.site_health.rules import RuleEvaluation, evaluate_all
-from app.analysis.site_health.scoring import AnalysisScores, score_analysis
 from app.connectors.web_evidence.fetcher import FetchError, FetchRequest
 from app.core.config.site_health_acquisition import (
     ERROR_BOT_BLOCKED,
     FETCH_PURPOSE_ANALYZE,
 )
 from app.core.config.site_health_contracts import (
-    ANALYZER_VERSION,
-    DISCOVERY_STATUS_COMPLETED,
     EVENT_ANALYSIS_PROGRESS,
-    EXTRACTOR_VERSION,
-    OBSERVATION_SOURCE_SITEMAP,
     PAGE_ANALYSIS_STATUS_COMPLETED,
-    RULE_OUTCOME_FAIL,
-    SCORING_VERSION,
 )
 from app.core.config.site_health_rules import (
     HTML_CONTENT_TYPES,
@@ -48,26 +38,26 @@ from app.domain.site_health.phase_common import lock_crawl_for_evidence_commit
 from app.domain.site_health.state_events import record_crawl_event
 from app.domain.site_health.task_guards import evaluate_task_guard, lease_is_owned
 from app.models.site_health.analysis import (
-    SiteIssue,
     SitePageAnalysis,
-    SiteRuleEvaluation,
 )
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
-from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
+from app.models.site_health.urls import MonitoredSiteUrl
 from app.workers.site_health.acquisition import reusable_discover_artifact
 from app.workers.site_health.helpers import (
     _classify_http_error,
     _count_disclosure,
     _is_bot_block,
-    _is_crawl_finalize_rule,
     _robots_denial_error,
-    _utcnow,
 )
-from app.workers.site_health.lifecycle_finalize import crawl_root_identity
-from app.workers.site_health.outcomes import AnalyzeOutcome as _AnalyzeOutcome
-from app.workers.site_health.phases.support import PhaseSupport
+from app.workers.site_health.phases.analyze_rows import _write_page_analysis
+from app.workers.site_health.phases.contracts import (
+    AnalyzeOutcome as _AnalyzeOutcome,
+)
+from app.workers.site_health.phases.contracts import (
+    PhaseContext,
+)
 from app.workers.site_health.urls import authority_key as _authority_key
 
 
@@ -77,724 +67,473 @@ def _has_analyzable_outcome(outcome: _AnalyzeOutcome) -> bool:
     )
 
 
-class AnalyzePhaseMixin(PhaseSupport):
-    """TASK_KIND_ANALYZE handling."""
+async def run(ctx: PhaseContext, claimed: SiteCrawlTask) -> None:
+    """Fetch + deep-analyze one monitored URL, persisting evidence atomically.
 
-    async def _run_analyze(
-        self, task_id: uuid.UUID, crawl_id: uuid.UUID, workspace_id: uuid.UUID
-    ) -> None:
-        """Fetch + deep-analyze one monitored URL, persisting evidence atomically.
-
-        Mirrors the discover flow: load config in one short session, fetch the
-        URL through the SSRF-safe fetcher (heartbeating the lease), parse the
-        bounded page facts, then persist ONE immutable artifact + attempt +
-        page analysis + rule evaluations + issues + scores in a single
-        transaction finalized by a ``FOR UPDATE`` owner/liveness re-check. The queue
-        row is succeeded / retried / failed OUTSIDE that transaction.
-        """
-        # If evidence committed but the out-of-transaction queue acknowledgement
-        # failed, a reclaimed task must acknowledge that durable result instead
-        # of fetching and attempting the unique inserts again.
-        persisted_artifact_id = await self._persisted_analysis_artifact_id(
-            task_id, workspace_id
+    Mirrors the discover flow: load config in one short session, fetch the
+    URL through the SSRF-safe fetcher (heartbeating the lease), parse the
+    bounded page facts, then persist ONE immutable artifact + attempt +
+    page analysis + rule evaluations + issues + scores in a single
+    transaction finalized by a ``FOR UPDATE`` owner/liveness re-check. The queue
+    row is succeeded / retried / failed OUTSIDE that transaction.
+    """
+    # If evidence committed but the out-of-transaction queue acknowledgement
+    # failed, a reclaimed task must acknowledge that durable result instead
+    # of fetching and attempting the unique inserts again.
+    task_id = claimed.id
+    crawl_id = claimed.crawl_id
+    workspace_id = claimed.workspace_id
+    persisted_artifact_id = await _persisted_analysis_artifact_id(
+        ctx, task_id, workspace_id
+    )
+    if persisted_artifact_id is not None:
+        await _acknowledge_persisted_analysis(
+            ctx, task_id=task_id, artifact_id=persisted_artifact_id
         )
-        if persisted_artifact_id is not None:
-            await self._queue.succeed(
-                task_id=task_id,
-                owner=self.owner,
-                result_artifact_id=persisted_artifact_id,
-            )
-            return
+        return
 
-        async with self._session_factory() as session:
-            task = await session.get(SiteCrawlTask, task_id)
-            crawl = await session.get(SiteCrawl, crawl_id)
-            if task is None or crawl is None:
-                return
-            guard = await self._evaluate_analyze_guard(
-                session, task=task, crawl=crawl, lock=False
-            )
-            if not guard.ok:
-                await session.rollback()
-                await self._queue.cancel(task_id=task_id)
-                return
-            requested_url = task.requested_url
-            config = dict(crawl.configuration or {})
-            root_registrable_domain = config.get("root_registrable_domain") or ""
-            reusable, discover_pending = await reusable_discover_artifact(
-                session, crawl=crawl, task=task
-            )
-
-        if discover_pending:
-            await self._queue.defer(
-                task_id=task_id,
-                owner=self.owner,
-                delay_seconds=site_health_settings.analysis_dependency_retry_seconds,
-            )
-            return
-
-        # One heartbeat across fetch + persist (see ``_leased``).
-        async with self._leased(task_id):
-            if reusable is not None:
-                artifact_id, facts = reusable
-                outcome = _AnalyzeOutcome(facts=facts, reused_artifact_id=artifact_id)
-            else:
-                outcome = await self._fetch_analyze(
-                    requested_url=requested_url,
-                    root_registrable_domain=root_registrable_domain,
-                )
-            await self._persist_analyze(
-                task_id=task_id,
-                crawl_id=crawl_id,
-                requested_url=requested_url,
-                outcome=outcome,
-            )
-
-    async def _persisted_analysis_artifact_id(
-        self, task_id: uuid.UUID, workspace_id: uuid.UUID
-    ) -> uuid.UUID | None:
-        """Return durable analyze evidence for an idempotently reclaimed task."""
-        async with self._session_factory() as session:
-            return await session.scalar(
-                select(SiteCrawlTask.result_artifact_id)
-                .join(
-                    SitePageAnalysis,
-                    SitePageAnalysis.artifact_id == SiteCrawlTask.result_artifact_id,
-                )
-                .where(
-                    SiteCrawlTask.id == task_id,
-                    SiteCrawlTask.workspace_id == workspace_id,
-                    SitePageAnalysis.workspace_id == workspace_id,
-                    SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
-                )
-                .limit(1)
-            )
-
-    async def _evaluate_analyze_guard(
-        self,
-        session: AsyncSession,
-        *,
-        task: SiteCrawlTask,
-        crawl: SiteCrawl,
-        lock: bool,
-    ):
-        """Evaluate Task 4's live membership/runtime guard from DB rows."""
-        monitored_stmt = select(MonitoredSiteUrl).where(
-            MonitoredSiteUrl.project_id == crawl.project_id,
-            MonitoredSiteUrl.site_url_id == task.site_url_id,
-        )
-        runtime_stmt = select(WorkspaceSiteHealthRuntime).where(
-            WorkspaceSiteHealthRuntime.workspace_id == crawl.workspace_id
-        )
-        if lock:
-            monitored_stmt = monitored_stmt.with_for_update()
-            runtime_stmt = runtime_stmt.with_for_update()
-        monitored = (await session.execute(monitored_stmt)).scalar_one_or_none()
-        runtime = (await session.execute(runtime_stmt)).scalar_one_or_none()
-        return evaluate_task_guard(
-            crawl=crawl,
-            task=task,
-            monitored=monitored,
-            runtime=runtime,
-            owner=self.owner,
-        )
-
-    async def _lock_guarded_analyze_task(
-        self,
-        session: AsyncSession,
-        *,
-        task_id: uuid.UUID,
-        crawl_id: uuid.UUID,
-    ) -> tuple[tuple[SiteCrawlTask, SiteCrawl] | None, bool]:
-        """Lock live runtime/membership and the owned task before writes.
-
-        The runtime row is the selection flow's serialization point, so lock it
-        before membership/task rows to follow that flow's lock order and avoid
-        deadlocks with a concurrent monitored-set replacement.
-
-        Returns ``(locked_rows, guard_denied)``. ``guard_denied`` is true only
-        while this worker still owns the task but live crawl/membership/
-        runtime state blocks analysis; a lost lease is not ours to cancel.
-        """
-        task_hint = await session.get(SiteCrawlTask, task_id)
-        crawl_hint = await session.get(SiteCrawl, crawl_id)
-        if task_hint is None or crawl_hint is None:
-            return None, False
-
-        runtime = (
-            await session.execute(
-                select(WorkspaceSiteHealthRuntime)
-                .where(
-                    WorkspaceSiteHealthRuntime.workspace_id == crawl_hint.workspace_id
-                )
-                .execution_options(populate_existing=True)
-                .with_for_update()
-            )
-        ).scalar_one_or_none()
-        monitored = (
-            await session.execute(
-                select(MonitoredSiteUrl)
-                .where(
-                    MonitoredSiteUrl.project_id == crawl_hint.project_id,
-                    MonitoredSiteUrl.site_url_id == task_hint.site_url_id,
-                )
-                .execution_options(populate_existing=True)
-                .with_for_update()
-            )
-        ).scalar_one_or_none()
-        # Refresh identity-map rows under lock or stale counters lose increments.
-        crawl = await lock_crawl_for_evidence_commit(
-            session, workspace_id=crawl_hint.workspace_id, crawl_id=crawl_id
-        )
-        task = await session.get(
-            SiteCrawlTask, task_id, with_for_update=True, populate_existing=True
-        )
-        decision = evaluate_task_guard(
-            crawl=crawl,
-            task=task,
-            monitored=monitored,
-            runtime=runtime,
-            owner=self.owner,
-        )
-        if not decision.ok:
-            still_owned = lease_is_owned(task, owner=self.owner)
-            return None, still_owned
-        if task is None or crawl is None:  # unreachable: guard checked both
-            return None, False
-        return (task, crawl), False
-
-    async def _fetch_analyze(
-        self,
-        *,
-        requested_url: str,
-        root_registrable_domain: str,
-    ) -> _AnalyzeOutcome:
-        """Fetch + parse one monitored URL into a bounded ``_AnalyzeOutcome``.
-
-        Returns parsed page facts on success (2xx), a classified error token on
-        an HTTP 4xx/5xx or a ``FetchError``. Never raises for an expected fetch
-        failure — the caller records an attempt row either way.
-
-        v2 P2: enforces the per-authority robots.txt policy before fetching —
-        a denied URL short-circuits to ``ERROR_ROBOTS_DENIED`` (non-retryable;
-        presentation maps it to ``blocked`` via POLICY_BLOCKING_ERROR_CODES).
-
-        A response carrying a challenge-platform marker classifies as terminal
-        ``ERROR_BOT_BLOCKED`` (presentation: ``blocked``).
-        """
-        authority = _authority_key(requested_url)
-        if authority:
-            policy, _, _ = await self._ensure_robots_policy(authority)
-            if not policy.can_fetch(requested_url):
-                error_code, error_detail = _robots_denial_error(policy)
-                return _AnalyzeOutcome(
-                    error_code=error_code,
-                    error_detail=error_detail,
-                    retryable=False,
-                )
-        request = FetchRequest(
-            url=requested_url,
-            purpose=FETCH_PURPOSE_ANALYZE,
-            allowed_content_types=HTML_CONTENT_TYPES,
-        )
-        started = time.monotonic()
-        try:
-            async with self._new_fetcher() as fetcher:
-                result = await fetcher.fetch(
-                    request,
-                    root_registrable_domain=root_registrable_domain or None,
-                    enforce_scope=False,
-                )
-        except FetchError as exc:
-            latency = int((time.monotonic() - started) * 1000)
-            return _AnalyzeOutcome(
-                error_code=exc.error_code,
-                error_detail=str(exc),
-                retryable=exc.retryable,
-                latency_ms=latency,
-                status_code=exc.status_code,
-                retry_after_seconds=exc.retry_after_seconds,
-                attempts=exc.attempts,
-            )
-
-        status = result.status_code
-        # A challenge marker -> terminal ERROR_BOT_BLOCKED (see
-        # ``_fetch_discover``); checked before status classification.
-        if _is_bot_block(result):
-            return _AnalyzeOutcome(
-                result=result,
-                error_code=ERROR_BOT_BLOCKED,
-                retryable=False,
-                latency_ms=result.latency_ms,
-                status_code=status,
-                attempts=result.attempts,
-            )
-        classified = _classify_http_error(status)
-        if classified is not None:
-            error_code, retryable = classified
-            return _AnalyzeOutcome(
-                result=result,
-                error_code=error_code,
-                retryable=retryable,
-                latency_ms=result.latency_ms,
-                status_code=status,
-                attempts=result.attempts,
-            )
-
-        facts = extract_page_facts(
-            result.body,
-            final_url=result.final_url or requested_url,
-            content_type=result.content_type,
-            charset=result.charset,
-            status_code=status,
-            redacted_headers=result.redacted_headers,
-            http_version=result.http_version,
-            ttfb_ms=result.ttfb_ms,
-            latency_ms=result.latency_ms,
-            wire_bytes=result.wire_bytes,
-            decoded_bytes=result.decoded_bytes,
-        )
-        return _AnalyzeOutcome(
-            result=result,
-            facts=facts,
-            status_code=status,
-            latency_ms=result.latency_ms,
-            attempts=result.attempts,
-        )
-
-    async def _persist_analyze(
-        self,
-        *,
-        task_id: uuid.UUID,
-        crawl_id: uuid.UUID,
-        requested_url: str,
-        outcome: _AnalyzeOutcome,
-    ) -> None:
-        """Persist the analyze result atomically, then finalize the queue row."""
-        should_retry = False
-        retry_attempt = 0
-        succeeded_artifact_id: uuid.UUID | None = None
-        guard_denied = False
-        abandon = False
-        async with self._session_factory() as session:
-            context, guard_denied = await self._analyze_preflight(
-                session, task_id=task_id, crawl_id=crawl_id
-            )
-            if context is None:
-                await session.rollback()
-                abandon = not guard_denied
-            else:
-                task_hint, crawl_hint = context
-                artifact_id: uuid.UUID | None = None
-                if _has_analyzable_outcome(outcome):
-                    artifact_id = await self._persist_successful_analysis(
-                        session,
-                        crawl=crawl_hint,
-                        task=task_hint,
-                        requested_url=requested_url,
-                        outcome=outcome,
-                    )
-                    succeeded_artifact_id = artifact_id
-
-                # The final guard rolls staged writes back if liveness changed.
-                locked, guard_denied = await self._lock_guarded_analyze_task(
-                    session, task_id=task_id, crawl_id=crawl_id
-                )
-                if locked is None:
-                    await session.rollback()
-                    succeeded_artifact_id = None
-                    abandon = not guard_denied
-                else:
-                    task, crawl = locked
-                    if artifact_id is None:
-                        retry_attempt = task.attempt_count + 1
-                        should_retry = (
-                            outcome.retryable and retry_attempt < task.max_attempts
-                        )
-                    if outcome.reused_artifact_id is None:
-                        self._write_attempt(
-                            session,
-                            crawl=crawl,
-                            task=task,
-                            outcome=outcome,
-                            succeeded=outcome.facts is not None,
-                            requested_url=requested_url,
-                            artifact_id=artifact_id,
-                        )
-                    task.attempt_count += 1
-                    if artifact_id is not None:
-                        task.result_artifact_id = artifact_id
-                        crawl.analyzed_url_count += 1
-                        record_crawl_event(
-                            session,
-                            crawl_id=crawl.id,
-                            event_type=EVENT_ANALYSIS_PROGRESS,
-                            message="analysis progress",
-                            payload={"analyzed": crawl.analyzed_url_count},
-                            count_disclosure=_count_disclosure(crawl),
-                        )
-                    await session.commit()
-
-        if guard_denied:
-            await self._queue.cancel(task_id=task_id)
-        elif not abandon:
-            await self._finalize_queue_row(
-                task_id=task_id,
-                succeeded=succeeded_artifact_id is not None,
-                succeeded_artifact_id=succeeded_artifact_id,
-                should_retry=should_retry,
-                retry_attempt=retry_attempt,
-                error_code=outcome.error_code,
-                error_detail=outcome.error_detail,
-                retry_after_seconds=outcome.retry_after_seconds,
-            )
-
-    async def _analyze_preflight(
-        self,
-        session: AsyncSession,
-        *,
-        task_id: uuid.UUID,
-        crawl_id: uuid.UUID,
-    ) -> tuple[tuple[SiteCrawlTask, SiteCrawl] | None, bool]:
-        """Load an unlocked snapshot and reject work that is already stale."""
+    async with ctx.session_factory() as session:
         task = await session.get(SiteCrawlTask, task_id)
         crawl = await session.get(SiteCrawl, crawl_id)
         if task is None or crawl is None:
-            return None, False
-        guard = await self._evaluate_analyze_guard(
-            session, task=task, crawl=crawl, lock=False
+            return
+        guard = await _evaluate_analyze_guard(
+            ctx, session, task=task, crawl=crawl, lock=False
         )
         if not guard.ok:
-            return None, lease_is_owned(task, owner=self.owner)
-        return (task, crawl), False
+            await session.rollback()
+            await ctx.queue.cancel(task_id=task_id)
+            return
+        requested_url = task.requested_url
+        config = dict(crawl.configuration or {})
+        root_registrable_domain = config.get("root_registrable_domain") or ""
+        reusable, discover_pending = await reusable_discover_artifact(
+            session, crawl=crawl, task=task
+        )
 
-    async def _persist_successful_analysis(
-        self,
-        session: AsyncSession,
-        *,
-        crawl: SiteCrawl,
-        task: SiteCrawlTask,
-        requested_url: str,
-        outcome: _AnalyzeOutcome,
-    ) -> uuid.UUID:
-        """Persist one successful fresh or artifact-reusing analysis."""
-        artifact_id = outcome.reused_artifact_id
-        if artifact_id is None and outcome.result is not None:
-            artifact_id = await self._write_artifact(
-                session,
-                crawl=crawl,
-                task=task,
-                result=outcome.result,
-                fetch_purpose=FETCH_PURPOSE_ANALYZE,
-                normalized_facts=outcome.facts,
+    if discover_pending:
+        await ctx.queue.defer(
+            task_id=task_id,
+            owner=ctx.owner,
+            delay_seconds=site_health_settings.analysis_dependency_retry_seconds,
+        )
+        return
+
+    # One heartbeat across fetch + persist (see ``_leased``).
+    async with ctx.leased(task_id):
+        outcome = await _acquire_analyze_outcome(
+            ctx,
+            task_id=task_id,
+            requested_url=requested_url,
+            root_registrable_domain=root_registrable_domain,
+            reusable=reusable,
+        )
+        if outcome is None:
+            return
+        await _persist_analyze(
+            ctx,
+            task_id=task_id,
+            crawl_id=crawl_id,
+            requested_url=requested_url,
+            outcome=outcome,
+        )
+
+
+async def _acknowledge_persisted_analysis(
+    ctx: PhaseContext, *, task_id: uuid.UUID, artifact_id: uuid.UUID
+) -> None:
+    """Acknowledge durable evidence only while this worker still owns the task."""
+    if not await ctx.queue.mark_running(task_id=task_id, owner=ctx.owner):
+        return
+    await ctx.queue.succeed(
+        task_id=task_id,
+        owner=ctx.owner,
+        result_artifact_id=artifact_id,
+    )
+
+
+async def _acquire_analyze_outcome(
+    ctx: PhaseContext,
+    *,
+    task_id: uuid.UUID,
+    requested_url: str,
+    root_registrable_domain: str,
+    reusable: tuple[uuid.UUID, dict] | None,
+) -> _AnalyzeOutcome | None:
+    """Reuse local evidence or acquire under host pacing after lease ownership."""
+    if reusable is not None:
+        if not await ctx.queue.mark_running(task_id=task_id, owner=ctx.owner):
+            return None
+        artifact_id, facts = reusable
+        return _AnalyzeOutcome(facts=facts, reused_artifact_id=artifact_id)
+    # Host politeness belongs to actual acquisition, not the task kind.
+    async with ctx.host_slot(requested_url):
+        if not await ctx.queue.mark_running(task_id=task_id, owner=ctx.owner):
+            return None
+        return await _fetch_analyze(
+            ctx,
+            requested_url=requested_url,
+            root_registrable_domain=root_registrable_domain,
+        )
+
+
+async def _persisted_analysis_artifact_id(
+    ctx: PhaseContext, task_id: uuid.UUID, workspace_id: uuid.UUID
+) -> uuid.UUID | None:
+    """Return durable analyze evidence for an idempotently reclaimed task."""
+    async with ctx.session_factory() as session:
+        return await session.scalar(
+            select(SiteCrawlTask.result_artifact_id)
+            .join(
+                SitePageAnalysis,
+                SitePageAnalysis.artifact_id == SiteCrawlTask.result_artifact_id,
             )
-        assert artifact_id is not None and outcome.facts is not None  # noqa: S101 - narrows for the type checker; not a runtime check
-        analysis_id, page_kind = await self._write_page_analysis(
+            .where(
+                SiteCrawlTask.id == task_id,
+                SiteCrawlTask.workspace_id == workspace_id,
+                SitePageAnalysis.workspace_id == workspace_id,
+                SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
+            )
+            .limit(1)
+        )
+
+
+async def _evaluate_analyze_guard(
+    ctx: PhaseContext,
+    session: AsyncSession,
+    *,
+    task: SiteCrawlTask,
+    crawl: SiteCrawl,
+    lock: bool,
+):
+    """Evaluate Task 4's live membership/runtime guard from DB rows."""
+    monitored_stmt = select(MonitoredSiteUrl).where(
+        MonitoredSiteUrl.project_id == crawl.project_id,
+        MonitoredSiteUrl.site_url_id == task.site_url_id,
+    )
+    runtime_stmt = select(WorkspaceSiteHealthRuntime).where(
+        WorkspaceSiteHealthRuntime.workspace_id == crawl.workspace_id
+    )
+    if lock:
+        monitored_stmt = monitored_stmt.with_for_update()
+        runtime_stmt = runtime_stmt.with_for_update()
+    monitored = (await session.execute(monitored_stmt)).scalar_one_or_none()
+    runtime = (await session.execute(runtime_stmt)).scalar_one_or_none()
+    return evaluate_task_guard(
+        crawl=crawl,
+        task=task,
+        monitored=monitored,
+        runtime=runtime,
+        owner=ctx.owner,
+    )
+
+
+async def _lock_guarded_analyze_task(
+    ctx: PhaseContext,
+    session: AsyncSession,
+    *,
+    task_id: uuid.UUID,
+    crawl_id: uuid.UUID,
+) -> tuple[tuple[SiteCrawlTask, SiteCrawl] | None, bool]:
+    """Lock live runtime/membership and the owned task before writes.
+
+    The runtime row is the selection flow's serialization point, so lock it
+    before membership/task rows to follow that flow's lock order and avoid
+    deadlocks with a concurrent monitored-set replacement.
+
+    Returns ``(locked_rows, guard_denied)``. ``guard_denied`` is true only
+    while this worker still owns the task but live crawl/membership/
+    runtime state blocks analysis; a lost lease is not ours to cancel.
+    """
+    task_hint = await session.get(SiteCrawlTask, task_id)
+    crawl_hint = await session.get(SiteCrawl, crawl_id)
+    if task_hint is None or crawl_hint is None:
+        return None, False
+
+    runtime = (
+        await session.execute(
+            select(WorkspaceSiteHealthRuntime)
+            .where(WorkspaceSiteHealthRuntime.workspace_id == crawl_hint.workspace_id)
+            .execution_options(populate_existing=True)
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
+    monitored = (
+        await session.execute(
+            select(MonitoredSiteUrl)
+            .where(
+                MonitoredSiteUrl.project_id == crawl_hint.project_id,
+                MonitoredSiteUrl.site_url_id == task_hint.site_url_id,
+            )
+            .execution_options(populate_existing=True)
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
+    # Refresh identity-map rows under lock or stale counters lose increments.
+    crawl = await lock_crawl_for_evidence_commit(
+        session, workspace_id=crawl_hint.workspace_id, crawl_id=crawl_id
+    )
+    task = await session.get(
+        SiteCrawlTask, task_id, with_for_update=True, populate_existing=True
+    )
+    decision = evaluate_task_guard(
+        crawl=crawl,
+        task=task,
+        monitored=monitored,
+        runtime=runtime,
+        owner=ctx.owner,
+    )
+    if not decision.ok:
+        still_owned = lease_is_owned(task, owner=ctx.owner)
+        return None, still_owned
+    if task is None or crawl is None:  # unreachable: guard checked both
+        return None, False
+    return (task, crawl), False
+
+
+async def _fetch_analyze(
+    ctx: PhaseContext,
+    *,
+    requested_url: str,
+    root_registrable_domain: str,
+) -> _AnalyzeOutcome:
+    """Fetch + parse one monitored URL into a bounded ``_AnalyzeOutcome``.
+
+    Returns parsed page facts on success (2xx), a classified error token on
+    an HTTP 4xx/5xx or a ``FetchError``. Never raises for an expected fetch
+    failure — the caller records an attempt row either way.
+
+    v2 P2: enforces the per-authority robots.txt policy before fetching —
+    a denied URL short-circuits to ``ERROR_ROBOTS_DENIED`` (non-retryable;
+    presentation maps it to ``blocked`` via POLICY_BLOCKING_ERROR_CODES).
+
+    A response carrying a challenge-platform marker classifies as terminal
+    ``ERROR_BOT_BLOCKED`` (presentation: ``blocked``).
+    """
+    authority = _authority_key(requested_url)
+    if authority:
+        policy, _, _ = await ctx.robots.ensure(authority)
+        if not policy.can_fetch(requested_url):
+            error_code, error_detail = _robots_denial_error(policy)
+            return _AnalyzeOutcome(
+                error_code=error_code,
+                error_detail=error_detail,
+                retryable=False,
+            )
+    request = FetchRequest(
+        url=requested_url,
+        purpose=FETCH_PURPOSE_ANALYZE,
+        allowed_content_types=HTML_CONTENT_TYPES,
+    )
+    started = time.monotonic()
+    try:
+        async with ctx.new_fetcher() as fetcher:
+            result = await fetcher.fetch(
+                request,
+                root_registrable_domain=root_registrable_domain or None,
+                enforce_scope=False,
+            )
+    except FetchError as exc:
+        latency = int((time.monotonic() - started) * 1000)
+        return _AnalyzeOutcome(
+            error_code=exc.error_code,
+            error_detail=str(exc),
+            retryable=exc.retryable,
+            latency_ms=latency,
+            status_code=exc.status_code,
+            retry_after_seconds=exc.retry_after_seconds,
+            attempts=exc.attempts,
+        )
+
+    status = result.status_code
+    # A challenge marker -> terminal ERROR_BOT_BLOCKED (see
+    # ``_fetch_discover``); checked before status classification.
+    if _is_bot_block(result):
+        return _AnalyzeOutcome(
+            result=result,
+            error_code=ERROR_BOT_BLOCKED,
+            retryable=False,
+            latency_ms=result.latency_ms,
+            status_code=status,
+            attempts=result.attempts,
+        )
+    classified = _classify_http_error(status)
+    if classified is not None:
+        error_code, retryable = classified
+        return _AnalyzeOutcome(
+            result=result,
+            error_code=error_code,
+            retryable=retryable,
+            latency_ms=result.latency_ms,
+            status_code=status,
+            attempts=result.attempts,
+        )
+
+    facts = extract_page_facts(
+        result.body,
+        final_url=result.final_url or requested_url,
+        content_type=result.content_type,
+        charset=result.charset,
+        status_code=status,
+        redacted_headers=result.redacted_headers,
+        http_version=result.http_version,
+        ttfb_ms=result.ttfb_ms,
+        latency_ms=result.latency_ms,
+        wire_bytes=result.wire_bytes,
+        decoded_bytes=result.decoded_bytes,
+    )
+    return _AnalyzeOutcome(
+        result=result,
+        facts=facts,
+        status_code=status,
+        latency_ms=result.latency_ms,
+        attempts=result.attempts,
+    )
+
+
+async def _persist_analyze(
+    ctx: PhaseContext,
+    *,
+    task_id: uuid.UUID,
+    crawl_id: uuid.UUID,
+    requested_url: str,
+    outcome: _AnalyzeOutcome,
+) -> None:
+    """Persist the analyze result atomically, then finalize the queue row."""
+    should_retry = False
+    retry_attempt = 0
+    succeeded_artifact_id: uuid.UUID | None = None
+    guard_denied = False
+    abandon = False
+    async with ctx.session_factory() as session:
+        context, guard_denied = await _analyze_preflight(
+            ctx, session, task_id=task_id, crawl_id=crawl_id
+        )
+        if context is None:
+            await session.rollback()
+            abandon = not guard_denied
+        else:
+            task_hint, crawl_hint = context
+            artifact_id: uuid.UUID | None = None
+            if _has_analyzable_outcome(outcome):
+                artifact_id = await _persist_successful_analysis(
+                    ctx,
+                    session,
+                    crawl=crawl_hint,
+                    task=task_hint,
+                    requested_url=requested_url,
+                    outcome=outcome,
+                )
+                succeeded_artifact_id = artifact_id
+
+            # The final guard rolls staged writes back if liveness changed.
+            locked, guard_denied = await _lock_guarded_analyze_task(
+                ctx, session, task_id=task_id, crawl_id=crawl_id
+            )
+            if locked is None:
+                await session.rollback()
+                succeeded_artifact_id = None
+                abandon = not guard_denied
+            else:
+                task, crawl = locked
+                if artifact_id is None:
+                    retry_attempt = task.attempt_count + 1
+                    should_retry = (
+                        outcome.retryable and retry_attempt < task.max_attempts
+                    )
+                if outcome.reused_artifact_id is None:
+                    ctx.write_attempt(
+                        session,
+                        crawl=crawl,
+                        task=task,
+                        outcome=outcome,
+                        succeeded=outcome.facts is not None,
+                        requested_url=requested_url,
+                        artifact_id=artifact_id,
+                    )
+                task.attempt_count += 1
+                if artifact_id is not None:
+                    task.result_artifact_id = artifact_id
+                    crawl.analyzed_url_count += 1
+                    record_crawl_event(
+                        session,
+                        crawl_id=crawl.id,
+                        event_type=EVENT_ANALYSIS_PROGRESS,
+                        message="analysis progress",
+                        payload={"analyzed": crawl.analyzed_url_count},
+                        count_disclosure=_count_disclosure(crawl),
+                    )
+                await session.commit()
+
+    if guard_denied:
+        await ctx.queue.cancel(task_id=task_id)
+    elif not abandon:
+        await ctx.finalize_queue_row(
+            task_id=task_id,
+            succeeded=succeeded_artifact_id is not None,
+            succeeded_artifact_id=succeeded_artifact_id,
+            should_retry=should_retry,
+            retry_attempt=retry_attempt,
+            error_code=outcome.error_code,
+            error_detail=outcome.error_detail,
+            retry_after_seconds=outcome.retry_after_seconds,
+        )
+
+
+async def _analyze_preflight(
+    ctx: PhaseContext,
+    session: AsyncSession,
+    *,
+    task_id: uuid.UUID,
+    crawl_id: uuid.UUID,
+) -> tuple[tuple[SiteCrawlTask, SiteCrawl] | None, bool]:
+    """Load an unlocked snapshot and reject work that is already stale."""
+    task = await session.get(SiteCrawlTask, task_id)
+    crawl = await session.get(SiteCrawl, crawl_id)
+    if task is None or crawl is None:
+        return None, False
+    guard = await _evaluate_analyze_guard(
+        ctx, session, task=task, crawl=crawl, lock=False
+    )
+    if not guard.ok:
+        return None, lease_is_owned(task, owner=ctx.owner)
+    return (task, crawl), False
+
+
+async def _persist_successful_analysis(
+    ctx: PhaseContext,
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    task: SiteCrawlTask,
+    requested_url: str,
+    outcome: _AnalyzeOutcome,
+) -> uuid.UUID:
+    """Persist one successful fresh or artifact-reusing analysis."""
+    artifact_id = outcome.reused_artifact_id
+    if artifact_id is None and outcome.result is not None:
+        artifact_id = await ctx.write_artifact(
             session,
             crawl=crawl,
             task=task,
-            artifact_id=artifact_id,
-            facts=outcome.facts,
+            result=outcome.result,
+            fetch_purpose=FETCH_PURPOSE_ANALYZE,
+            normalized_facts=outcome.facts,
         )
-        if page_kind in {"category", "product"}:
-            await enqueue_catalog_projection(
-                session,
-                workspace_id=crawl.workspace_id,
-                project_id=crawl.project_id,
-                source_analysis_id=analysis_id,
-            )
-        return artifact_id
-
-    async def _write_page_analysis(
-        self,
-        session: AsyncSession,
-        *,
-        crawl: SiteCrawl,
-        task: SiteCrawlTask,
-        artifact_id: uuid.UUID,
-        facts: dict,
-    ) -> tuple[uuid.UUID, str]:
-        """Create the page analysis + rule evaluations + issues + scores.
-
-        One UUID-identified ``SitePageAnalysis`` (``artifact_id`` is provenance), one
-        ordinary ``SiteRuleEvaluation`` per rule/analysis scope, a
-        ``SiteIssue`` snapshot per FAIL (unique ``evaluation_id``), and the
-        deterministic Technical/AEO/overall scores stamped with the versions.
-        """
-        site_url_id = await self._resolve_analysis_site_url_id(
-            session, crawl=crawl, task=task
-        )
-        sitemap_member = bool(
-            await session.scalar(
-                select(SiteUrlObservation.id)
-                .where(
-                    SiteUrlObservation.crawl_id == crawl.id,
-                    SiteUrlObservation.site_url_id == site_url_id,
-                    SiteUrlObservation.source_kind == OBSERVATION_SOURCE_SITEMAP,
-                )
-                .limit(1)
-            )
-        )
-        assessment, evaluations, scores = self._prepare_page_evaluation(
-            crawl=crawl, task=task, facts=facts, sitemap_member=sitemap_member
-        )
-        await self._refresh_analyzed_url_state(
+    assert artifact_id is not None and outcome.facts is not None  # noqa: S101 - narrows for the type checker; not a runtime check
+    analysis_id, page_kind = await _write_page_analysis(
+        ctx,
+        session,
+        crawl=crawl,
+        task=task,
+        artifact_id=artifact_id,
+        facts=outcome.facts,
+    )
+    if page_kind in {"category", "product"}:
+        await enqueue_catalog_projection(
             session,
-            crawl=crawl,
-            site_url_id=site_url_id,
-            artifact_id=artifact_id,
-            facts=facts,
-        )
-        analysis = self._new_page_analysis(
-            crawl=crawl,
-            site_url_id=site_url_id,
-            artifact_id=artifact_id,
-            assessment=assessment,
-            scores=scores,
-        )
-        await self._supersede_and_store_analysis(session, analysis=analysis)
-        analysis.source_evaluation_ids = await self._persist_evaluations_and_issues(
-            session,
-            crawl=crawl,
-            analysis=analysis,
-            artifact_id=artifact_id,
-            site_url_id=site_url_id,
-            evaluations=evaluations,
-        )
-        return analysis.id, analysis.page_kind
-
-    def _prepare_page_evaluation(
-        self,
-        *,
-        crawl: SiteCrawl,
-        task: SiteCrawlTask,
-        facts: dict[str, Any],
-        sitemap_member: bool = False,
-    ) -> tuple[PageKindAssessment, list[RuleEvaluation], AnalysisScores]:
-        """Classify and score a shallow evaluation-only copy of fetched facts."""
-        # Evaluation-time enrichment goes onto a SHALLOW COPY, never the facts
-        # dict the caller handed ``_write_artifact``: that dict IS the artifact's
-        # ``normalized_facts``, and the persisted evidence must carry only what
-        # the extractor produced (the injected keys below are provenance of this
-        # analysis, not of the fetch). Copying makes that independent of insert
-        # ordering / JSON-mutation tracking rather than relying on the flush
-        # having already serialized the pre-injection value.
-        eval_facts = dict(facts)
-        # v2 P1: classify the page type and inject it into the facts dict
-        # BEFORE rule evaluation, so page_kind applicability tokens, per-type
-        # thin-content minimums, and weight overrides resolve against it
-        # (spec §5.1 pipeline slot; evaluate_all keeps its pure (facts)
-        # signature). The type + classifier version persist on the analysis
-        # row for provenance (invariant 4).
-        assessment = classify(
-            str((facts.get("delivery") or {}).get("final_url") or ""), facts
-        )
-        eval_facts["page_kind"] = assessment.page_kind
-        eval_facts["page_kind_evidence"] = assessment.to_evidence()
-        eval_facts["sitemap_member"] = sitemap_member
-        # v2 P2 (spec §5.3): inside the crawl ROOT's own analysis only, inject
-        # the crawl's site_facts so site_root-scoped rules (AI-crawler access,
-        # llms.txt) evaluate exactly once per crawl, anchored on this analysis.
-        # Injected into the copy only, so the persisted normalized_facts
-        # deliberately do NOT carry it (same as page_kind).
-        if crawl.site_facts:
-            _root_canonical, root_hash = crawl_root_identity(crawl)
-            if root_hash and root_hash == task.url_hash:
-                eval_facts["site"] = crawl.site_facts
-        evaluations: list[RuleEvaluation] = [
-            ev
-            for ev in evaluate_all(eval_facts)
-            # The analyze writer NEVER persists crawl_finalize-scoped
-            # evaluations (no placeholder not_applicable rows): the unique
-            # ordinary analysis/rule scope stays free for the finalize pass,
-            # which solely owns those rules' rows (single-writer per scope).
-            if not _is_crawl_finalize_rule(ev.rule_id)
-        ]
-        scores = score_analysis(evaluations, page_kind=assessment.page_kind)
-        return assessment, evaluations, scores
-
-    async def _refresh_analyzed_url_state(
-        self,
-        session: AsyncSession,
-        *,
-        crawl: SiteCrawl,
-        site_url_id: uuid.UUID,
-        artifact_id: uuid.UUID,
-        facts: dict,
-    ) -> SiteUrl | None:
-        """Refresh mutable URL and admitted-observation fields from one fetch."""
-        # Refresh the lightweight identity/observation state from the analyze
-        # fetch. A Free sample URL is fetched ONLY by its analyze task (no
-        # per-URL discover runs), so its admission-time observation row is
-        # sparse (no title/status) until enriched here; without this the pages
-        # table shows blank titles for 9 of 10 sampled URLs.
-        site_url = await session.get(SiteUrl, site_url_id)
-        if site_url is not None:
-            title = str(facts.get("title") or "")
-            if title:
-                site_url.latest_title = title[:1024]
-            site_url.latest_content_type = str(facts.get("content_type") or "")[:128]
-            site_url.last_seen_crawl_id = crawl.id
-            site_url.discovery_status = DISCOVERY_STATUS_COMPLETED
-        observation = await session.scalar(
-            select(SiteUrlObservation).where(
-                SiteUrlObservation.crawl_id == crawl.id,
-                SiteUrlObservation.site_url_id == site_url_id,
-            )
-        )
-        if observation is not None and observation.status_code is None:
-            # ``status_code``/``final_url`` are nested under ``delivery`` by the
-            # parser (only ``content_type``/``title`` are top level). Reading
-            # them off the root left every observation with a NULL status and a
-            # blank final URL — and because the guard above keys on
-            # ``status_code is None``, the block re-ran forever without ever
-            # filling it. Same accessor the rule-eval path already uses.
-            delivery = facts.get("delivery") or {}
-            observation.status_code = delivery.get("status_code")
-            observation.final_url = str(delivery.get("final_url") or "")[:2048]
-            observation.content_type = str(facts.get("content_type") or "")[:128]
-            observation.title = str(facts.get("title") or "")[:1024]
-            observation.source_artifact_id = artifact_id
-        return site_url
-
-    def _new_page_analysis(
-        self,
-        *,
-        crawl: SiteCrawl,
-        site_url_id: uuid.UUID,
-        artifact_id: uuid.UUID,
-        assessment: PageKindAssessment,
-        scores: AnalysisScores,
-    ) -> SitePageAnalysis:
-        """Build the immutable analysis row before it becomes current."""
-        return SitePageAnalysis(
             workspace_id=crawl.workspace_id,
             project_id=crawl.project_id,
-            crawl_id=crawl.id,
-            site_url_id=site_url_id,
-            artifact_id=artifact_id,
-            status=PAGE_ANALYSIS_STATUS_COMPLETED,
-            technical_score=scores.technical_score,
-            aeo_score=scores.aeo_score,
-            overall_score=scores.overall_score,
-            analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
-            scoring_version=crawl.scoring_version or SCORING_VERSION,
-            page_kind=assessment.page_kind,
-            classifier_version=assessment.classifier_version,
-            # Persist the bounded classifier evidence with the row (the
-            # evaluation-time copy above is never persisted, by design).
-            page_kind_evidence=assessment.to_evidence(),
-            source_artifact_ids=[artifact_id],
-            finalized_at=_utcnow(),
+            source_analysis_id=analysis_id,
         )
-
-    async def _supersede_and_store_analysis(
-        self, session: AsyncSession, *, analysis: SitePageAnalysis
-    ) -> None:
-        """Supersede the page's current analysis, then flush its new identity."""
-        # Append-only: supersede any earlier current understanding of this PAGE
-        # before inserting the new one.
-        #
-        # Matched on the page, not the artifact. A rerun fetches again and gets
-        # a NEW artifact, so the artifact-keyed supersede never found the
-        # previous analysis and left two live rows for one URL — which
-        # ``build_crawl_knowledge`` then folded into one model, manufacturing
-        # exactly the contradictions-out-of-a-rerun its docstring warns about.
-        #
-        await session.execute(
-            update(SitePageAnalysis)
-            .where(
-                SitePageAnalysis.crawl_id == analysis.crawl_id,
-                SitePageAnalysis.site_url_id == analysis.site_url_id,
-                SitePageAnalysis.is_current.is_(True),
-            )
-            .values(is_current=False)
-        )
-        session.add(analysis)
-        await session.flush()
-
-    async def _persist_evaluations_and_issues(
-        self,
-        session: AsyncSession,
-        *,
-        crawl: SiteCrawl,
-        analysis: SitePageAnalysis,
-        artifact_id: uuid.UUID,
-        site_url_id: uuid.UUID,
-        evaluations: list[RuleEvaluation],
-    ) -> list[uuid.UUID]:
-        """Persist each evaluation and its FAIL-only issue snapshot in order."""
-        evaluation_ids: list[uuid.UUID] = []
-        for ev in evaluations:
-            evaluation = SiteRuleEvaluation(
-                workspace_id=crawl.workspace_id,
-                analysis_id=analysis.id,
-                source_artifact_id=artifact_id,
-                rule_id=ev.rule_id,
-                dimension=ev.dimension,
-                category=ev.category,
-                severity=ev.severity,
-                finding_class=ev.finding_class,
-                weight=ev.weight,
-                outcome=ev.outcome,
-                evidence=ev.evidence,
-                supporting_artifact_ids=[artifact_id],
-                extractor_version=crawl.extractor_version or EXTRACTOR_VERSION,
-                analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
-                rule_version=ev.rule_version,
-            )
-            session.add(evaluation)
-            await session.flush()
-            evaluation_ids.append(evaluation.id)
-            if ev.outcome == RULE_OUTCOME_FAIL:
-                session.add(
-                    SiteIssue(
-                        workspace_id=crawl.workspace_id,
-                        project_id=crawl.project_id,
-                        crawl_id=crawl.id,
-                        site_url_id=site_url_id,
-                        analysis_id=analysis.id,
-                        evaluation_id=evaluation.id,
-                        source_artifact_id=artifact_id,
-                        rule_id=ev.rule_id,
-                        dimension=ev.dimension,
-                        category=ev.category,
-                        severity=ev.severity,
-                        finding_class=ev.finding_class,
-                        evidence=ev.evidence,
-                        description=ev.description,
-                        remediation=ev.remediation,
-                        analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
-                        rule_version=ev.rule_version,
-                    )
-                )
-        return evaluation_ids
-
-    async def _resolve_analysis_site_url_id(
-        self,
-        session: AsyncSession,
-        *,
-        crawl: SiteCrawl,
-        task: SiteCrawlTask,
-    ) -> uuid.UUID:
-        """Resolve the SiteUrl identity for an analyze task's URL.
-
-        Prefers the task's own ``site_url_id`` (set at admission for monitored
-        URLs); falls back to a lookup / conflict-safe create keyed on the
-        canonical url hash so an analyze task never fails for a missing row.
-        """
-        if task.site_url_id is not None:
-            return task.site_url_id
-        resolved = await self._resolve_site_url_id(
-            session, crawl=crawl, url=task.requested_url, depth=task.depth
-        )
-        if resolved is None:
-            # Only reachable when the URL cannot be canonicalized at all —
-            # admission already canonicalized it, so treat as a hard bug. A
-            # retry at depth 0 used to sit here, but ``_resolve_site_url_id``
-            # returns None only for an uncanonicalizable URL: depth never
-            # affects that, so the retry could not have changed the outcome.
-            raise RuntimeError(
-                f"could not resolve SiteUrl identity for {task.requested_url!r}"
-            )
-        return resolved
+    return artifact_id

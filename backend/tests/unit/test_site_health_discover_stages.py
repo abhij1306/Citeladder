@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+
 from app.connectors.web_evidence.url_policy import UrlPolicyError
 from app.workers.site_health.phases import discover_stages
 
@@ -30,8 +32,11 @@ def test_sitemap_admission_skips_one_url_when_identity_policy_rejects(
     ) == ("https://example.com/accepted",)
 
 
-def test_discover_persistence_class_has_its_documentation_string() -> None:
+def test_discover_persistence_uses_the_explicit_context_seam() -> None:
+    assert not hasattr(discover_stages, "DiscoverPersistenceMixin")
+    site_setup_parameters = inspect.signature(discover_stages._site_setup).parameters
+    assert next(iter(site_setup_parameters)) == "ctx"
     assert (
-        discover_stages.DiscoverPersistenceMixin.__doc__
-        == "Own site setup, bounded sitemap ingestion, and discover persistence."
+        next(iter(inspect.signature(discover_stages._persist_discover).parameters))
+        == "ctx"
     )

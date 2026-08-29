@@ -1,9 +1,11 @@
 """Site Health crawl terminalization: the paths that bypass a task's finalize.
 
 A crawl goes terminal ONLY inside ``_reconcile_crawl_status``, which normally
-runs in the ``finally`` of ``_execute_task``. Anything that drains a crawl's
-last non-terminal task WITHOUT running a worker's finalize therefore used to
-strand the crawl in an active status forever — no snapshot, no ``crawl.completed``
+runs in the ``finally`` of ``_execute_task``. Intermediate successful analysis
+may now pass a strict read-only gate, but every lifecycle boundary still takes
+the authoritative reconciliation path. Anything that drains a crawl's last
+non-terminal task WITHOUT running a worker's finalize therefore used to strand
+the crawl in an active status forever — no snapshot, no ``crawl.completed``
 event, and clients polling it indefinitely.
 
 These tests pin the two guarantees that close that hole:
@@ -27,6 +29,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.analytics import ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH
 from app.core.config.site_health_contracts import (
+    ANALYSIS_STATUS_PENDING,
+    ANALYSIS_STATUS_RUNNING,
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_PAUSED,
@@ -34,6 +38,7 @@ from app.core.config.site_health_contracts import (
     DISCOVERY_STATUS_RUNNING,
     DISCOVERY_STATUS_STOPPED,
     EVENT_CRAWL_COMPLETED,
+    TASK_KIND_DISCOVER,
 )
 from app.core.config.site_health_crawl_policy import (
     MANUAL_PHASE_LIFECYCLE_KEY,
@@ -52,6 +57,7 @@ from app.core.config.task_queue import (
 )
 from app.domain.site_health.service.lifecycle import load_events
 from app.models.analytics import AnalyticsTask
+from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
 from app.models.site_health.events import SiteCrawlEvent
 from app.models.site_health.queue import SiteCrawlTask
@@ -59,7 +65,8 @@ from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from app.workers.site_health.lifecycle import CrawlLifecycle
 from app.workers.site_health_worker import SiteHealthWorker
-from tests.component.site_health_helpers import seed_site_crawl
+from tests.component.site_health_helpers import SiteSeed, seed_site_crawl
+from tests.component.site_health_worker_helpers import _seed_analyze_phase_crawl
 
 
 def _worker(session_factory: async_sessionmaker[AsyncSession]) -> SiteHealthWorker:
@@ -99,6 +106,150 @@ async def _crawl(
         crawl = await session.get(SiteCrawl, crawl_id)
         assert crawl is not None
         return crawl
+
+
+async def _seed_completed_analyze_task(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    task_count: int,
+) -> tuple[SiteSeed, uuid.UUID]:
+    urls = tuple(f"https://example.com/page-{index}" for index in range(task_count))
+    async with session_factory() as session:
+        seed, task_ids = await _seed_analyze_phase_crawl(
+            session,
+            root=urls[0],
+            urls=urls,
+        )
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        task = await session.get(SiteCrawlTask, task_ids[0][1])
+        assert crawl is not None
+        assert task is not None
+        crawl.analysis_status = ANALYSIS_STATUS_RUNNING
+        task.status = TASK_STATUS_SUCCEEDED
+        task.completed_at = datetime.now(UTC)
+        artifact = SiteFetchArtifact(
+            task_id=task.id,
+            crawl_id=seed.crawl_id,
+            workspace_id=seed.workspace_id,
+            fetch_purpose="analyze",
+            requested_url=task.requested_url,
+            final_url=task.requested_url,
+            status_code=200,
+            content_type="text/html",
+        )
+        session.add(artifact)
+        await session.flush()
+        task.result_artifact_id = artifact.id
+        await session.commit()
+        return seed, task.id
+
+
+def _task_reference(
+    seed: SiteSeed,
+    task_id: uuid.UUID,
+    *,
+    workspace_id: uuid.UUID | None = None,
+) -> SiteCrawlTask:
+    return SiteCrawlTask(
+        id=task_id,
+        crawl_id=seed.crawl_id,
+        workspace_id=workspace_id or seed.workspace_id,
+    )
+
+
+@pytest.mark.asyncio
+async def test_intermediate_analyze_success_skips_full_reconciliation(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed, task_id = await _seed_completed_analyze_task(session_factory, task_count=2)
+    lifecycle = CrawlLifecycle(session_factory)
+
+    async def reject_full_reconcile(_crawl_id: uuid.UUID) -> None:
+        raise AssertionError("intermediate analyze success took the aggregate path")
+
+    monkeypatch.setattr(lifecycle, "reconcile", reject_full_reconcile)
+
+    await lifecycle.reconcile_after_task(_task_reference(seed, task_id))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "unsafe_state",
+    ["missing_artifact", "failed", "pending", "sample", "manual", "discover"],
+)
+async def test_intermediate_analyze_uses_full_reconcile_for_unsafe_states(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+    unsafe_state: str,
+) -> None:
+    seed, task_id = await _seed_completed_analyze_task(session_factory, task_count=2)
+    async with session_factory() as session:
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        task = await session.get(SiteCrawlTask, task_id)
+        assert crawl is not None
+        assert task is not None
+        if unsafe_state == "missing_artifact":
+            task.result_artifact_id = None
+        elif unsafe_state == "failed":
+            task.status = TASK_STATUS_FAILED
+        elif unsafe_state == "pending":
+            crawl.analysis_status = ANALYSIS_STATUS_PENDING
+        elif unsafe_state == "sample":
+            crawl.sample_mode = True
+        elif unsafe_state == "manual":
+            crawl.configuration = {
+                **(crawl.configuration or {}),
+                MANUAL_PHASE_LIFECYCLE_KEY: True,
+            }
+        elif unsafe_state == "discover":
+            task.task_kind = TASK_KIND_DISCOVER
+        await session.commit()
+
+    reconciled: list[uuid.UUID] = []
+    lifecycle = CrawlLifecycle(session_factory)
+
+    async def record_full_reconcile(crawl_id: uuid.UUID) -> None:
+        reconciled.append(crawl_id)
+
+    monkeypatch.setattr(lifecycle, "reconcile", record_full_reconcile)
+    await lifecycle.reconcile_after_task(_task_reference(seed, task_id))
+
+    assert reconciled == [seed.crawl_id]
+
+
+@pytest.mark.asyncio
+async def test_last_analyze_success_runs_authoritative_reconciliation(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    seed, task_id = await _seed_completed_analyze_task(session_factory, task_count=1)
+
+    await CrawlLifecycle(session_factory).reconcile_after_task(
+        _task_reference(seed, task_id)
+    )
+
+    crawl = await _crawl(session_factory, seed.crawl_id)
+    assert crawl.status == CRAWL_STATUS_COMPLETED
+    assert crawl.completed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_task_reconcile_does_not_cross_workspace_boundary(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed, task_id = await _seed_completed_analyze_task(session_factory, task_count=2)
+    lifecycle = CrawlLifecycle(session_factory)
+
+    async def reject_full_reconcile(_crawl_id: uuid.UUID) -> None:
+        raise AssertionError("workspace mismatch reached unscoped reconciliation")
+
+    monkeypatch.setattr(lifecycle, "reconcile", reject_full_reconcile)
+    await lifecycle.reconcile_after_task(
+        _task_reference(seed, task_id, workspace_id=uuid.uuid4())
+    )
+
+    assert (await _crawl(session_factory, seed.crawl_id)).status == CRAWL_STATUS_RUNNING
 
 
 @pytest.mark.asyncio
@@ -478,7 +629,7 @@ async def test_leased_heartbeats_across_the_whole_body(
     # exercises real beats without spending real seconds of wall clock.
     monkeypatch.setattr(site_health_settings, "heartbeat_interval_seconds", 0.1)
 
-    async with worker._leased(task_id):
+    async with worker._phase_context.leased(task_id):
         # Stand in for the fetch + the persist that follows it.
         await asyncio.sleep(0.35)
 

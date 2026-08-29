@@ -13,7 +13,7 @@ from app.core.config.site_health_acquisition import (
 from app.models.site_health.acquisition import SiteFetchAttempt
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
-from app.workers.site_health.outcomes import AnalyzeOutcome, DiscoverOutcome
+from app.workers.site_health.phases.contracts import AnalyzeOutcome, DiscoverOutcome
 
 
 def acquisition_values(

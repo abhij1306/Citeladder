@@ -3,11 +3,12 @@
 Extracted from ``SiteHealthWorker`` because this is the subsystem's most
 load-bearing invariant and it was buried at the bottom of a 3,100-line class.
 
-A crawl goes terminal HERE and nowhere else. ``reconcile`` is called from every
-task's finalize, from the lease sweeper's terminal reclaims, and from the
-stalled-crawl backstop, so it must be idempotent and safe to call
-concurrently. It achieves that by holding the crawl row ``FOR UPDATE`` and
-short-circuiting on an already-terminal crawl.
+A crawl goes terminal HERE and nowhere else. ``reconcile_after_task`` filters
+only intermediate, successful analysis work through a read-only durable-state
+check; every other task finalize, the lease sweeper's terminal reclaims, and
+the stalled-crawl backstop reach ``reconcile``. It must therefore remain
+idempotent and safe to call concurrently. It achieves that by holding the
+crawl row ``FOR UPDATE`` and short-circuiting on an already-terminal crawl.
 
 Note what is deliberately INSIDE that lock: the crawl_finalize evaluation pass
 and the aggregate snapshot. Their atomicity with the status transition IS the
@@ -27,6 +28,7 @@ from typing import Final
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import aliased
 
 from app.core.config.site_health_acquisition import (
     CORPUS_EXCLUSION_ERROR_CODES,
@@ -296,6 +298,91 @@ class CrawlLifecycle(CrawlFinalizeMixin):
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
+
+    async def reconcile_after_task(
+        self,
+        task: SiteCrawlTask,
+    ) -> None:
+        """Reconcile a task finalize unless it is safely intermediate analysis.
+
+        Successful analysis pages dominate crawl volume. While sibling discover
+        or analyze work remains, their persisted evidence cannot change any
+        lifecycle boundary, so taking the crawl lock and recomputing all
+        aggregates is pure overhead. The single query below is deliberately
+        strict: unknown rows and workspace mismatches touch nothing, and every
+        known state outside the narrow standard-crawl case falls through to the
+        authoritative locked reconciliation.
+        """
+        can_skip = await self._can_skip_intermediate_analyze_reconcile(
+            crawl_id=task.crawl_id,
+            task_id=task.id,
+            workspace_id=task.workspace_id,
+        )
+        if can_skip is None or can_skip:
+            return
+        await self.reconcile(task.crawl_id)
+
+    async def _can_skip_intermediate_analyze_reconcile(
+        self,
+        *,
+        crawl_id: uuid.UUID,
+        task_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+    ) -> bool | None:
+        """Return true only for a durable, non-boundary analyze success.
+
+        ``None`` means the task/crawl pair was not found in the supplied
+        workspace. It is not safe to reconcile an unscoped crawl id in that
+        case, so the caller intentionally performs no mutation.
+        """
+        remaining_task = aliased(SiteCrawlTask)
+        has_outstanding_work = (
+            select(remaining_task.id)
+            .where(
+                remaining_task.crawl_id == crawl_id,
+                remaining_task.workspace_id == workspace_id,
+                remaining_task.task_kind.in_([TASK_KIND_DISCOVER, TASK_KIND_ANALYZE]),
+                remaining_task.status.not_in(list(TASK_TERMINAL_STATUSES)),
+            )
+            .exists()
+        )
+        async with self._session_factory() as session:
+            row = (
+                await session.execute(
+                    select(
+                        SiteCrawlTask.task_kind.label("task_kind"),
+                        SiteCrawlTask.status.label("task_status"),
+                        SiteCrawlTask.result_artifact_id.label("artifact_id"),
+                        SiteCrawl.status.label("crawl_status"),
+                        SiteCrawl.analysis_status.label("analysis_status"),
+                        SiteCrawl.sample_mode.label("sample_mode"),
+                        SiteCrawl.configuration.label("crawl_configuration"),
+                        has_outstanding_work.label("has_outstanding_work"),
+                    )
+                    .join(SiteCrawl, SiteCrawl.id == SiteCrawlTask.crawl_id)
+                    .where(
+                        SiteCrawlTask.id == task_id,
+                        SiteCrawlTask.crawl_id == crawl_id,
+                        SiteCrawlTask.workspace_id == workspace_id,
+                        SiteCrawl.workspace_id == workspace_id,
+                    )
+                )
+            ).one_or_none()
+        if row is None:
+            return None
+        configuration = (
+            row.crawl_configuration if isinstance(row.crawl_configuration, dict) else {}
+        )
+        return bool(
+            row.task_kind == TASK_KIND_ANALYZE
+            and row.task_status == TASK_STATUS_SUCCEEDED
+            and row.artifact_id is not None
+            and row.crawl_status == CRAWL_STATUS_RUNNING
+            and row.analysis_status == ANALYSIS_STATUS_RUNNING
+            and not row.sample_mode
+            and not configuration.get(MANUAL_PHASE_LIFECYCLE_KEY)
+            and row.has_outstanding_work
+        )
 
     async def reconcile(self, crawl_id: uuid.UUID) -> None:
         """Reconcile the crawl's overall status from discovery AND analysis.

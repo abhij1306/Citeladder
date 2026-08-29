@@ -1,4 +1,4 @@
-"""URL helpers shared by the worker loop and its phase mixins.
+"""URL helpers shared by the worker loop and its explicit phases.
 
 Lives here rather than in ``site_health_worker`` because the phase modules
 import it and the worker imports them — the other direction would be a cycle.
