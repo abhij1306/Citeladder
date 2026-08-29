@@ -89,6 +89,9 @@ class _SufficiencyLike(Protocol):
     @property
     def outcome(self) -> str: ...
 
+    @property
+    def finding_class(self) -> str: ...
+
 
 @dataclass(frozen=True)
 class _Scored:
@@ -120,6 +123,7 @@ def assess_aeo_evidence(
         evaluation.rule_id
         for evaluation in evaluations
         if evaluation.outcome in (RULE_OUTCOME_PASS, RULE_OUTCOME_FAIL)
+        and evaluation.finding_class == FINDING_CLASS_DEFECT
         and evaluation.rule_id in AEO_READINESS_RULE_DIMENSIONS
     }
     dimensions = {AEO_READINESS_RULE_DIMENSIONS[rule_id] for rule_id in checkpoint_ids}

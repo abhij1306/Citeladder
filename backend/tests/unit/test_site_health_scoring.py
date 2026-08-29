@@ -209,6 +209,31 @@ def test_pr1_aeo_guard_opens_at_four_checkpoints_across_three_dimensions() -> No
     assert scores.aeo_score == pytest.approx(100.0)
 
 
+def test_pr1_aeo_guard_excludes_advisory_checkpoints() -> None:
+    scores = score_analysis(
+        [
+            _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.question_headings"),
+            _s(
+                RULE_OUTCOME_PASS,
+                1.0,
+                DIMENSION_AEO,
+                "aeo.schema_required_valid",
+            ),
+            _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.author_present"),
+            _Scored(
+                dimension=DIMENSION_AEO,
+                outcome=RULE_OUTCOME_PASS,
+                weight=1.0,
+                finding_class=FINDING_CLASS_ADVISORY,
+                rule_id="aeo.answer_first",
+            ),
+        ],
+        page_kind="faq",
+    )
+
+    assert scores.aeo_score is None
+
+
 # --- aggregation ----------------------------------------------------------
 
 

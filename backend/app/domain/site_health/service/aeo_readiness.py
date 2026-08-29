@@ -181,6 +181,7 @@ async def get_aeo_readiness(
                 normalized_url=urls[row.analysis_id].normalized_url,
                 rule_id=row.rule_id,
                 outcome=row.outcome,
+                finding_class=row.finding_class,
                 title=rule_copy[row.rule_id][0],
                 remediation=rule_copy[row.rule_id][1],
                 reason=str((row.evidence or {}).get("reason") or ""),

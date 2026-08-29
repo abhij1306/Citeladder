@@ -34,6 +34,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
 )
+from app.core.config.site_health_rule_types import FINDING_CLASS_DEFECT
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class ReadinessEvaluationInput:
     normalized_url: str
     rule_id: str
     outcome: str
+    finding_class: str = FINDING_CLASS_DEFECT
     # Current catalog copy, resolved by the caller. Kept out of this pure module
     # so the projection never reaches into the rule catalog itself.
     title: str = ""
