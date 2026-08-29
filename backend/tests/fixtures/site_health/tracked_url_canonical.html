@@ -1,0 +1,53 @@
+<!doctype html>
+<!--
+  An ordinary article reached through a newsletter link, so its FINAL URL
+  carries ?utm_source=newsletter while its canonical is the clean address.
+
+  ``normalized_url_for_compare`` keeps the query string verbatim, so the two
+  never match and every tracked visit reports a canonical conflict --
+  even though ``TRACKING_QUERY_PARAMS`` already exists in config, unused here.
+-->
+<html lang="en">
+  <head>
+    <title>Choosing between oiled and lacquered oak</title>
+    <meta name="description" content="How the two finishes differ in wear, repairability and everyday upkeep." />
+    <link rel="canonical" href="https://northgate.example/blog/oiled-or-lacquered-oak" />
+  </head>
+  <body>
+    <main>
+      <article>
+        <h1>Choosing between oiled and lacquered oak</h1>
+        <p class="byline">By Ruth Ellery, 14 March 2026</p>
+        <p>
+          The finish on an oak table decides how it ages, how it is repaired and
+          how much attention it wants from you. Oiled oak and lacquered oak both
+          protect the timber, but they do it in opposite ways, and the right
+          answer depends far more on the room than on the wood.
+        </p>
+        <h2>How an oil finish behaves</h2>
+        <p>
+          A hardwax oil soaks into the grain rather than sitting on top of it.
+          The surface stays open, so the timber keeps its texture and a mark can
+          usually be sanded back and re-oiled in place without refinishing the
+          whole top. The trade-off is upkeep: a working kitchen table wants
+          re-oiling once or twice a year.
+        </p>
+        <h2>How a lacquer finish behaves</h2>
+        <p>
+          Lacquer cures into a film across the surface. It resists spills and
+          heat far better and asks for nothing beyond ordinary cleaning, but the
+          film is the thing being protected. Once it is scratched through, the
+          repair is a full re-coat rather than a local touch-up.
+        </p>
+        <h2>Which to choose</h2>
+        <p>
+          Choose oil for a table you expect to live with and maintain, and
+          lacquer for one that has to survive a household without ceremony.
+          Neither is more durable in the abstract; they simply fail differently.
+          Our own workshop finishes are described in the
+          <a href="https://www.woodworkinstitute.example/finishes">Institute finish guide</a>.
+        </p>
+      </article>
+    </main>
+  </body>
+</html>

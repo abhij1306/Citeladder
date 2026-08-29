@@ -1,0 +1,46 @@
+<!doctype html>
+<!--
+  A support LANDING page at /support/getting-started. Nothing about the page is
+  an FAQ: it is a short orientation page with links into the help centre.
+
+  The route tier matches ``support`` and hands it page_kind=faq at MEDIUM
+  confidence with no structural corroboration whatsoever. Today that weak guess
+  admits the full FAQ checklist -- FAQPage schema, question headings,
+  answer-first structure -- and scores the page against all of it.
+
+  This fixture is the direct proof of the confidence gate: it must produce ZERO
+  FAQ expectation defects.
+-->
+<html lang="en">
+  <head>
+    <title>Getting started with Northgate support</title>
+    <meta name="description" content="How to reach the workshop, what to have ready, and where to find order and delivery help." />
+    <link rel="canonical" href="https://northgate.example/support/getting-started" />
+  </head>
+  <body>
+    <main>
+      <h1>Getting started with support</h1>
+      <p>
+        The fastest route to an answer depends on what you need. Order and
+        delivery questions are handled by the workshop office during opening
+        hours; specification and finish questions go to the maker who built your
+        piece, which can take a little longer.
+      </p>
+      <p>
+        Before you get in touch, have your order number to hand. It appears on
+        your confirmation email and on the delivery note, and it lets us pull the
+        exact specification you approved rather than working from a description.
+      </p>
+      <ul>
+        <li><a href="/support/orders">Order status and changes</a></li>
+        <li><a href="/support/delivery">Delivery windows and rescheduling</a></li>
+        <li><a href="/support/care">Caring for an oiled finish</a></li>
+        <li><a href="/support/warranty">Warranty and repairs</a></li>
+      </ul>
+      <p>
+        If none of those cover it, the <a href="/contact-us">contact page</a> has
+        the workshop phone number, address and opening hours.
+      </p>
+    </main>
+  </body>
+</html>
