@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import SplitResult, urlsplit
+from urllib.parse import SplitResult, parse_qsl, urlencode, urljoin, urlsplit
 
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
 )
+from app.core.config.site_health_rules import TRACKING_QUERY_PARAMS
 
 
 def _split_compare_url(raw: str) -> tuple[SplitResult, int | None] | None:
@@ -41,6 +42,70 @@ def _compare_path(path: str) -> str:
     return normalized or "/"
 
 
+def _compare_query(query: str) -> str:
+    """Drop campaign/click parameters before comparing two URLs.
+
+    A page reached from a newsletter or an ad arrives with the tracking
+    parameters still on its final URL while its canonical is, correctly, the
+    clean address. Comparing the query verbatim made every one of those visits
+    a canonical conflict -- a finding about how the crawler arrived, not about
+    the page.
+
+    Only the config-owned tracking set is dropped. Every other parameter is
+    preserved, because a parameter that genuinely selects different content is
+    exactly what a canonical is resolving.
+    """
+    if not query:
+        return ""
+    pairs = [
+        (key, value)
+        for key, value in parse_qsl(query, keep_blank_values=True)
+        if key.casefold() not in TRACKING_QUERY_PARAMS
+    ]
+    return urlencode(pairs)
+
+
+def resolve_canonical(canonical: str, final_url: str) -> str:
+    """Absolute form of a declared canonical, resolved against the page URL.
+
+    ``_canonical_href`` deliberately records what the page DECLARED, and a
+    relative ``<link rel="canonical" href="/contact-us">`` is both legal and
+    common. Comparing that raw value against an absolute final URL could never
+    match, so every page using a relative canonical looked like a conflict --
+    and, worse, ``_canonical_intent`` read the same non-match as evidence that
+    the page was deliberately excluded from indexing, which suppressed a real
+    noindex defect.
+
+    Resolution happens here, at the comparison boundary, rather than in the
+    extractor: the declared value stays the persisted fact, and both consumers
+    of that fact resolve it identically. Mirrors ``_hreflang_alternates``,
+    which already resolves against ``final_url``.
+    """
+    raw = str(canonical or "").strip()
+    if not raw:
+        return ""
+    try:
+        return urljoin(str(final_url or ""), raw)
+    except ValueError:
+        # Same narrow contract as ``_split_compare_url``: an unresolvable
+        # value is returned as declared rather than silently becoming "no
+        # canonical".
+        return raw
+
+
+def canonical_origin(url: str) -> str:
+    """``scheme://host`` for origin comparison, or "" when unparseable."""
+    parsed = _split_compare_url(str(url or "").strip())
+    if parsed is None:
+        return ""
+    parts, _port = parsed
+    scheme = (parts.scheme or "").lower()
+    host = (parts.hostname or "").lower()
+    if scheme not in {"http", "https"} or not host:
+        return ""
+    return f"{scheme}://{host}"
+
+
 def normalized_url_for_compare(url: str) -> str:
     """Canonical-vs-final comparison form; never crawler identity."""
     raw = str(url or "").strip()
@@ -53,18 +118,20 @@ def normalized_url_for_compare(url: str) -> str:
     if not scheme or not host:
         return raw.lower()
     out = f"{scheme}://{_compare_netloc(scheme, host, port)}{_compare_path(parts.path)}"
-    if parts.query:
-        return f"{out}?{parts.query}"
+    query = _compare_query(parts.query)
+    if query:
+        return f"{out}?{query}"
     return out
 
 
 def _canonical_intent(
     facts: dict[str, Any], evidence: dict[str, Any]
 ) -> tuple[str, str] | None:
-    canonical = str(facts.get("canonical_url") or "").strip()
-    if not canonical:
+    declared = str(facts.get("canonical_url") or "").strip()
+    if not declared:
         return None
     final_url = str((facts.get("delivery") or {}).get("final_url") or "")
+    canonical = resolve_canonical(declared, final_url)
     same = normalized_url_for_compare(canonical) == normalized_url_for_compare(
         final_url
     )

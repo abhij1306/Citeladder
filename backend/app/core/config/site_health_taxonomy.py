@@ -280,10 +280,16 @@ PAGE_KIND_ARTICLE_SCAN_CHARS: Final = 2000
 
 PAGE_KIND_BYLINE_PATTERN: Final = r"\b[Bb]y\s+[A-Z][\w'’-]+(?:\s+[A-Z][\w'’-]+){1,2}\b"
 
+# ISO, month-first ("March 14, 2026") and day-first ("14 March 2026"). The
+# day-first alternative was missing, so every British and European article --
+# where day-first is the ordinary written form -- read as carrying no date at
+# all, both to the classifier's article heuristic and to the visible-date fact.
 PAGE_KIND_DATE_PATTERN: Final = (
     r"(?:\b\d{4}-\d{2}-\d{2}\b"
     r"|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)"
-    r"[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b)"
+    r"[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b"
+    r"|\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)"
+    r"[a-z]*\.?,?\s+\d{4}\b)"
 )
 
 PAGE_KIND_SCHEMA_TYPE_MAP: Final[dict[str, str]] = {
@@ -602,8 +608,15 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
     PAGE_KIND_ARTICLE: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_ARTICLE,
         expected_types=("Article", "BlogPosting", "NewsArticle"),
-        required_properties=("headline", "author", "datePublished"),
-        recommended_properties=("image", "dateModified"),
+        # ``headline`` alone. ``author`` and ``datePublished`` moved to
+        # recommendations: an Article block carrying a headline and nothing
+        # else is valid markup, so treating those two as REQUIRED reported a
+        # correct block as a malformed one. They remain worth adding, which is
+        # exactly what a recommendation says -- and the visible byline/date
+        # rules (``aeo.author_present`` / ``aeo.date_present``) already own the
+        # separate question of whether the page attributes itself at all.
+        required_properties=("headline",),
+        recommended_properties=("author", "datePublished", "image", "dateModified"),
     ),
     PAGE_KIND_PRODUCT: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_PRODUCT,
@@ -642,8 +655,16 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
     PAGE_KIND_FAQ: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_FAQ,
         expected_types=("FAQPage",),
-        required_properties=("mainEntity",),
-        recommended_properties=(),
+        # No required properties. FAQ markup is optional vocabulary whose
+        # rich-result feature has been retired, so its absence cannot be a page
+        # defect and its shape cannot be a scored contract. ``mainEntity`` is
+        # still what makes the block useful, so it is recommended.
+        #
+        # A present-but-contradictory FAQPage block is a different matter and
+        # stays reportable through ``aeo.schema_matches_content``: this
+        # loosens what we DEMAND, not what we VALIDATE.
+        required_properties=(),
+        recommended_properties=("mainEntity",),
     ),
     PAGE_KIND_ABOUT_CONTACT: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_ABOUT_CONTACT,
@@ -670,8 +691,13 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
     PAGE_KIND_GUIDE: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_GUIDE,
         expected_types=("HowTo", "Article"),
-        required_properties=("name",),
-        recommended_properties=("step", "image"),
+        # HowTo is deprecated vocabulary: a genuine step-by-step guide that
+        # never declares it is not defective, so nothing about a HowTo block is
+        # required. ``name`` and ``step`` remain recommendations for a page
+        # that does choose to use it. The Article alternative keeps
+        # ``headline`` required, which is a real property of a real block.
+        required_properties=(),
+        recommended_properties=("name", "step", "image"),
         required_properties_by_type={"Article": ("headline",)},
         recommended_properties_by_type={
             "Article": ("image", "dateModified"),

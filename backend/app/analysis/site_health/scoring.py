@@ -9,15 +9,26 @@
 # FORMULA (verbatim scope):
 #   dimension_score = 100 × passed_weight
 #                     / (passed_weight + failed_weight + error_weight)
-#   over APPLICABLE evaluations only (``not_applicable`` excluded); ``error``
-#   is given ZERO credit but its weight stays in the denominator (it is a
-#   distinct outcome, never silently dropped and never coerced to a pass).
+#   over APPLICABLE DEFECT evaluations only (``not_applicable`` excluded, and
+#   ``finding_class == advisory`` excluded entirely); ``error`` is given ZERO
+#   credit but its weight stays in the denominator (it is a distinct outcome,
+#   never silently dropped and never coerced to a pass).
 #   Round ONCE to ``SCORE_ROUNDING_DECIMALS``.
 #   overall_score = weighted mean of the AVAILABLE Technical/AEO dimension
 #   scores using ``DIMENSION_WEIGHT_TECHNICAL`` / ``DIMENSION_WEIGHT_AEO``.
 #
-# A dimension with no applicable (pass/fail/error) evaluations has NO score
-# (None) — it is excluded from the overall mean rather than counted as zero.
+# ONLY DEFECTS SCORE. ``finding_class`` distinguishes a reproducible problem
+# from deterministic-but-opinionated guidance, and the product tells users the
+# two are different: advisories have their own view, are excluded from severity
+# filters, and never become Opportunities. Scoring did not read the field at
+# all, so a "gentle advisory" lowered the customer's health score by exactly as
+# much as a defect of the same weight. Advisory PASSES are dropped too, not
+# only failures: leaving them in would let a page lift its score by satisfying
+# opinionated guidance, which is the same credibility problem inverted.
+#
+# A dimension with no applicable (pass/fail/error) DEFECT evaluations has NO
+# score (None) — it is excluded from the overall mean rather than counted as
+# zero.
 # Aggregation likewise ignores missing/error URLs: a URL with no completed
 # analysis (or a None dimension score) never becomes a zero.
 from __future__ import annotations
@@ -38,6 +49,7 @@ from app.core.config.site_health_contracts import (
 from app.core.config.site_health_rules import (
     DIMENSION_WEIGHT_AEO,
     DIMENSION_WEIGHT_TECHNICAL,
+    FINDING_CLASS_DEFECT,
     SCORE_ROUNDING_DECIMALS,
 )
 from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER
@@ -46,7 +58,12 @@ from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER
 class _ScoredLike(Protocol):
     """Structural view of anything scoring can read: the ``_Scored`` value
     type, ``rules.RuleEvaluation``, or a persisted ``SiteRuleEvaluation`` row —
-    anything exposing these three attributes.
+    anything exposing these four attributes.
+
+    ``finding_class`` is read from the EVALUATION, not from the catalog rule,
+    because it can be narrowed at evaluation time: ``technical.indexable``
+    downgrades itself to an advisory when the indexing intent is unknown, and
+    that downgrade only means anything if scoring reads the downgraded value.
     """
 
     @property
@@ -55,6 +72,8 @@ class _ScoredLike(Protocol):
     def outcome(self) -> str: ...
     @property
     def weight(self) -> float: ...
+    @property
+    def finding_class(self) -> str: ...
 
 
 @dataclass(frozen=True)
@@ -68,6 +87,7 @@ class _Scored:
     dimension: str
     outcome: str
     weight: float
+    finding_class: str = FINDING_CLASS_DEFECT
 
 
 @dataclass(frozen=True)
@@ -100,9 +120,14 @@ def score_dimension(
 ) -> DimensionScore:
     """Score a single dimension, filtering ``evaluations`` to it first.
 
+    ADVISORIES ARE EXCLUDED ENTIRELY — pass, fail and error alike — so
+    opinionated guidance can neither lower nor raise the score. ``weight`` is
+    therefore only meaningful on a defect; an advisory keeps its catalog weight
+    as provenance and it is simply never read here.
+
     ``not_applicable`` is excluded entirely. ``error`` contributes its weight
     to the denominator but ZERO to the numerator (distinct, zero-credit). A
-    dimension with no applicable (pass/fail/error) evaluation has ``score=None``
+    dimension with no applicable (pass/fail/error) defect has ``score=None``
     (not zero). Tracks the exact applicable row count so callers can tell
     "no applicable rules" from "all not_applicable".
     """
@@ -112,6 +137,8 @@ def score_dimension(
     applicable = 0
     for ev in evaluations:
         if ev.dimension != dimension:
+            continue
+        if ev.finding_class != FINDING_CLASS_DEFECT:
             continue
         outcome = ev.outcome
         weight = max(0.0, float(ev.weight))
@@ -169,8 +196,9 @@ def score_analysis(
 ) -> AnalysisScores:
     """Score a whole page analysis: per-dimension scores + the overall score.
 
-    ``evaluations`` is the full set for one analysis (both dimensions). Returns
-    an ``AnalysisScores`` with each dimension's score (None when N/A) and the
+    ``evaluations`` is the full set for one analysis (both dimensions),
+    advisories included — ``score_dimension`` drops those itself. Returns an
+    ``AnalysisScores`` with each dimension's score (None when N/A) and the
     config-weighted overall (None when no dimension scored).
 
     An UNCLASSIFIABLE page has NO AEO score. Almost every AEO rule is

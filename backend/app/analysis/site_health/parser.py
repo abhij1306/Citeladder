@@ -22,6 +22,7 @@ from lxml import etree
 from lxml import html as lxml_html
 
 from app.analysis.site_health.commerce_facts import extract_commerce_facts
+from app.analysis.site_health.content_heuristics import visible_byline, visible_date
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
 from app.analysis.site_health.dom import node_text as _text
 from app.analysis.site_health.fact_entity import (
@@ -51,6 +52,7 @@ from app.core.config.site_health_rules import (
 from app.core.config.site_health_runtime import (
     site_health_settings,
 )
+from app.core.config.site_health_taxonomy import PAGE_KIND_ARTICLE_SCAN_CHARS
 
 # Bounded per-field caps so a single hostile attribute can never bloat the
 # persisted facts dict.
@@ -452,21 +454,43 @@ def _first_declared_time(root: Any) -> str:
 
 
 def _author_and_dates(
-    root: Any, structured_data: dict[str, Any], article_meta: dict[str, str]
+    root: Any,
+    structured_data: dict[str, Any],
+    article_meta: dict[str, str],
+    body_text: str = "",
 ) -> tuple[str, dict[str, str]]:
-    """Author byline + published/modified dates (bounded, precedence-ordered)."""
+    """Author byline + published/modified dates (bounded, precedence-ordered).
+
+    Precedence runs strongest to weakest: declared structured data, then
+    declared metadata, then the VISIBLE byline and date printed on the page.
+
+    That last step is the point of this function. Every source above it is
+    markup, so a properly attributed article -- "By Ruth Ellery, 2 February
+    2026" in the byline, exactly where a reader looks for it -- reported no
+    author and no date, and ``aeo.author_present`` / ``aeo.date_present``
+    failed it. Those rules are about whether the page tells a reader who wrote
+    this and when; answering that question only from markup asked something
+    else entirely.
+
+    The visible scan reuses the classifier's own byline/date patterns
+    (``content_heuristics``) so the two cannot disagree about what a byline
+    looks like, and reads the same bounded prefix the article heuristic does.
+    """
     structured_author, structured_published, structured_modified = (
         _structured_author_and_dates(structured_data)
     )
+    prefix = str(body_text or "")[:PAGE_KIND_ARTICLE_SCAN_CHARS]
     author = (
         structured_author
         or _meta_content(root, name="author").strip()
         or (article_meta.get("article:author") or "").strip()
+        or visible_byline(prefix)
     )
     published = (
         structured_published
         or (article_meta.get("article:published_time") or "").strip()
         or _first_declared_time(root)
+        or visible_date(prefix)
     )
     modified = (
         structured_modified or (article_meta.get("article:modified_time") or "").strip()
@@ -707,9 +731,6 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
     facts["form_fields"] = form_fields(root)
     facts["link_context"] = _link_context(facts["links"].get("anchors") or [])
     facts["contact_points"] = _contact_points(root)
-    facts["author"], facts["dates"] = _author_and_dates(
-        root, facts["structured_data"], article_meta
-    )
     facts["outbound_domains"] = outbound_domains(
         facts["links"]["anchors"], base_host=base_host
     )
@@ -726,6 +747,13 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
         "total": blocking_scripts + blocking_styles,
     }
     facts["body"] = _body_text(root, max_chars=settings.max_text_chars)
+    # AFTER the body text exists: the visible byline/date fallback reads it.
+    # ``_body_text`` strips script/style/noscript/template, which this needs
+    # anyway -- a date inside a JSON-LD block is declared markup, already
+    # covered by the structured-data branch, and is not a VISIBLE date.
+    facts["author"], facts["dates"] = _author_and_dates(
+        root, facts["structured_data"], article_meta, facts["body"]["text"]
+    )
     try:
         facts["commerce"] = extract_commerce_facts(
             root, final_url=final_url, text_of=_text

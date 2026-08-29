@@ -16,6 +16,22 @@ _BYLINE_RE = re.compile(_config.PAGE_KIND_BYLINE_PATTERN)
 _DATE_RE = re.compile(_config.PAGE_KIND_DATE_PATTERN, re.IGNORECASE)
 
 
+def visible_byline(text: str) -> str:
+    """The first visible "By <Name>" byline in ``text``, or "".
+
+    Shared with the extractor's author fact so the classifier's notion of a
+    byline and the analyzer's notion of one cannot drift apart.
+    """
+    match = _BYLINE_RE.search(str(text or ""))
+    return match.group(0).strip() if match else ""
+
+
+def visible_date(text: str) -> str:
+    """The first visible publication-shaped date in ``text``, or ""."""
+    match = _DATE_RE.search(str(text or ""))
+    return match.group(0).strip() if match else ""
+
+
 def _mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 

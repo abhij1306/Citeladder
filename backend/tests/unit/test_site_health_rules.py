@@ -287,9 +287,19 @@ def test_has_html_rules_not_applicable_without_html():
     assert evals["aeo.structured_data_present"].outcome == RULE_OUTCOME_NOT_APPLICABLE
     assert evals["aeo.open_graph_present"].outcome == RULE_OUTCOME_NOT_APPLICABLE
     assert evals["technical.thin_content"].outcome == RULE_OUTCOME_NOT_APPLICABLE
-    # "always" rules still evaluate (https passes; title fails).
+    # A supported document is successful inventory evidence, not a broken page.
+    # These three were "always" rules, so a PDF was reported as missing a
+    # <title>, a meta description and a canonical -- three metadata defects
+    # about markup the format does not have.
+    assert evals["technical.title_present"].outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert evals["technical.meta_description_present"].outcome == (
+        RULE_OUTCOME_NOT_APPLICABLE
+    )
+    assert evals["technical.canonical_present"].outcome == RULE_OUTCOME_NOT_APPLICABLE
+    # Delivery-level "always" rules still evaluate: they read the response,
+    # not the markup.
     assert evals["technical.https"].outcome == RULE_OUTCOME_PASS
-    assert evals["technical.title_present"].outcome == RULE_OUTCOME_FAIL
+    assert evals["technical.indexable"].outcome == RULE_OUTCOME_PASS
 
 
 def _js_shell_facts():
@@ -328,7 +338,6 @@ def test_js_shell_reports_one_finding_not_a_cascade():
     for rule_id in (
         "technical.single_h1",
         "technical.thin_content",
-        "aeo.question_headings",
         "aeo.outbound_citations",
         "aeo.author_present",
         "aeo.date_present",
@@ -342,6 +351,9 @@ def test_js_shell_reports_one_finding_not_a_cascade():
     assert evals["aeo.structured_data_present"].outcome != RULE_OUTCOME_NOT_APPLICABLE
     assert evals["technical.title_present"].outcome == RULE_OUTCOME_PASS
     assert evals["technical.https"].outcome == RULE_OUTCOME_PASS
+    # Skipped too, but for a different reason: the shell fixture is an article
+    # and question headings are asked of FAQ pages only.
+    assert evals["aeo.question_headings"].outcome == RULE_OUTCOME_NOT_APPLICABLE
 
 
 def test_product_parity_is_not_applicable_to_a_js_shell():
@@ -521,7 +533,7 @@ def test_weight_override_applies_for_configured_page_type():
 def test_canonical_conflict_passes_when_canonical_matches_final_url():
     ev = _outcome(_html_facts(), "technical.canonical_conflict")
     assert ev.outcome == RULE_OUTCOME_PASS
-    assert ev.evidence["matches_final_url"] is True
+    assert ev.evidence["self_canonical"] is True
 
 
 def test_canonical_conflict_normalization_variants_still_match():
@@ -536,13 +548,78 @@ def test_canonical_conflict_normalization_variants_still_match():
     )
 
 
-def test_canonical_conflict_fails_on_mismatch():
+def test_a_same_origin_cross_canonical_is_not_a_conflict():
+    """Consolidating one URL onto another is what rel=canonical is FOR.
+
+    The old rule failed every canonical that was not the page own final URL,
+    so a sorted listing pointing at its parent -- the textbook use -- became a
+    defect. It also contradicted ``_canonical_intent``, which reads the very
+    same condition as evidence the page is deliberately excluded: one module
+    called it a mistake while the other called it an intention.
+    """
     facts = _html_facts(canonical_url="https://x.example/other-page")
     ev = _outcome(facts, "technical.canonical_conflict")
-    assert ev.outcome == RULE_OUTCOME_FAIL
-    assert ev.evidence["matches_final_url"] is False
+    assert ev.outcome == RULE_OUTCOME_PASS
+    assert ev.evidence["self_canonical"] is False
+    assert ev.evidence["reason"] == "intentional_consolidation"
     assert ev.evidence["canonical_url"] == "https://x.example/other-page"
     assert ev.evidence["final_url"] == "https://x.example/"
+
+
+def test_tracking_parameters_are_not_a_canonical_conflict():
+    # Reached from a newsletter: the tracking parameter describes how the
+    # crawler arrived, not the page.
+    facts = _html_facts(
+        canonical_url="https://x.example/post",
+        delivery={
+            **_html_facts()["delivery"],
+            "final_url": "https://x.example/post?utm_source=newsletter",
+        },
+    )
+    ev = _outcome(facts, "technical.canonical_conflict")
+    assert ev.outcome == RULE_OUTCOME_PASS
+    assert ev.evidence["self_canonical"] is True
+
+
+def test_a_relative_canonical_resolves_before_comparing():
+    # A relative canonical href is legal and common. The declared value is
+    # recorded raw, so comparing it against an absolute final URL could never
+    # match and every such page looked like a conflict.
+    facts = _html_facts(canonical_url="/")
+    ev = _outcome(facts, "technical.canonical_conflict")
+    assert ev.outcome == RULE_OUTCOME_PASS
+    assert ev.evidence["self_canonical"] is True
+    assert ev.evidence["declared_canonical"] == "/"
+    assert ev.evidence["canonical_url"] == "https://x.example/"
+
+
+def test_canonical_to_another_origin_fails():
+    facts = _html_facts(canonical_url="https://other.example/page")
+    ev = _outcome(facts, "technical.canonical_conflict")
+    assert ev.outcome == RULE_OUTCOME_FAIL
+    assert ev.evidence["problem"] == "cross_origin_canonical"
+
+
+def test_unresolvable_canonical_fails():
+    facts = _html_facts(canonical_url="javascript:void(0)")
+    ev = _outcome(facts, "technical.canonical_conflict")
+    assert ev.outcome == RULE_OUTCOME_FAIL
+    assert ev.evidence["problem"] == "invalid_canonical"
+
+
+def test_canonical_to_a_different_hreflang_alternate_fails():
+    # A page in an hreflang cluster must canonicalise to ITSELF; pointing at a
+    # sibling language tells the two systems opposite things.
+    facts = _html_facts(
+        canonical_url="https://x.example/fr/",
+        hreflang_alternates=[
+            {"hreflang": "en", "url": "https://x.example/"},
+            {"hreflang": "fr", "url": "https://x.example/fr/"},
+        ],
+    )
+    ev = _outcome(facts, "technical.canonical_conflict")
+    assert ev.outcome == RULE_OUTCOME_FAIL
+    assert ev.evidence["problem"] == "hreflang_canonical_conflict"
 
 
 def test_canonical_conflict_not_applicable_without_canonical():
@@ -1145,22 +1222,52 @@ def test_organization_identity():
 # --- v2 P2: extractability rules ---------------------------------------------
 
 
+def _answer_page_facts(**overrides):
+    """The healthy fixture as a DOCS page: answer_first still applies there."""
+    return _html_facts(page_kind="docs", **overrides)
+
+
 def test_answer_first():
-    assert _outcome(_article_facts(), "aeo.answer_first").outcome == RULE_OUTCOME_PASS
-    short = _outcome(_article_facts(first_answer_text="Too short."), "aeo.answer_first")
+    assert (
+        _outcome(_answer_page_facts(), "aeo.answer_first").outcome == RULE_OUTCOME_PASS
+    )
+    short = _outcome(
+        _answer_page_facts(first_answer_text="Too short."), "aeo.answer_first"
+    )
     assert short.outcome == RULE_OUTCOME_FAIL
     assert short.evidence["answer_word_count"] == 2
     assert short.evidence["minimum_words"] == ANSWER_FIRST_MIN_WORDS
     # Exactly at the minimum passes.
     exactly = " ".join(f"w{i}" for i in range(ANSWER_FIRST_MIN_WORDS))
     assert (
-        _outcome(_article_facts(first_answer_text=exactly), "aeo.answer_first").outcome
+        _outcome(
+            _answer_page_facts(first_answer_text=exactly), "aeo.answer_first"
+        ).outcome
         == RULE_OUTCOME_PASS
     )
 
 
+def test_answer_first_does_not_apply_to_narrative_or_commercial_pages():
+    """A style recommendation, not a defect, and not for every page.
+
+    A service page has no obligation to open like a reference answer, a case
+    study may deliberately open with context, and a narrative article is not
+    worse for building to its point. Kept only where the reader arrived with a
+    question -- and advisory even there.
+    """
+    for page_kind in ("article", "service", "comparison", "case_study_review"):
+        ev = _outcome(
+            _html_facts(page_kind=page_kind, first_answer_text="Too short."),
+            "aeo.answer_first",
+        )
+        assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE, page_kind
+    rule = rule_for("aeo.answer_first")
+    assert rule is not None
+    assert rule.finding_class == FINDING_CLASS_ADVISORY
+
+
 def test_answer_first_not_applicable_without_headings():
-    facts = _article_facts(
+    facts = _answer_page_facts(
         headings={"h1_count": 0, "counts": {}, "h1_texts": [], "h2_texts": []}
     )
     ev = _outcome(facts, "aeo.answer_first")
@@ -1168,14 +1275,41 @@ def test_answer_first_not_applicable_without_headings():
     assert ev.evidence["reason"] == "no_headings"
 
 
+def _faq_facts(**overrides):
+    """The healthy fixture as an FAQ: question_headings scope after Phase 2."""
+    return _html_facts(page_kind="faq", **overrides)
+
+
 def test_question_headings():
-    assert _outcome(_article_facts(), "aeo.question_headings").outcome == (
-        RULE_OUTCOME_PASS
-    )
-    ev = _outcome(_article_facts(question_heading_ratio=0.0), "aeo.question_headings")
+    assert _outcome(_faq_facts(), "aeo.question_headings").outcome == RULE_OUTCOME_PASS
+    ev = _outcome(_faq_facts(question_heading_ratio=0.0), "aeo.question_headings")
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert ev.evidence["question_heading_ratio"] == 0.0
     assert ev.evidence["minimum_ratio"] == QUESTION_HEADINGS_MIN_RATIO
+
+
+def test_question_headings_not_applicable_without_subheadings():
+    """No sections is not the same as badly phrased sections.
+
+    The ratio is questions / subheadings, and it is 0.0 both when every
+    heading is declarative AND when there are no h2/h3 headings at all. API
+    reference documentation, which routinely has neither, was failed for the
+    second case as though it were the first.
+    """
+    ev = _outcome(
+        _faq_facts(
+            question_heading_ratio=0.0,
+            headings={
+                "h1_count": 1,
+                "counts": {"h1": 1},
+                "h2_texts": [],
+                "h3_texts": [],
+            },
+        ),
+        "aeo.question_headings",
+    )
+    assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert ev.evidence["reason"] == "no_subheadings"
 
 
 def test_server_rendered_content():
@@ -1274,13 +1408,20 @@ def test_published_date_applies_to_docs_but_not_to_a_product_page():
     )
 
 
-def test_question_headings_apply_to_answer_pages_only():
+def test_question_headings_apply_to_faq_pages_only():
+    # An FAQ whose sections are not questions is not really an FAQ, so the
+    # finding survives there. A guide, a reference page or an essay carries no
+    # such obligation and was being failed for prose style.
     facts = _html_facts(question_heading_ratio=0.0)
-    for page_kind in ("faq", "guide", "docs", "article"):
+    assert (
+        _outcome({**facts, "page_kind": "faq"}, "aeo.question_headings").outcome
+        == RULE_OUTCOME_FAIL
+    )
+    for page_kind in ("guide", "docs", "article"):
         assert (
             _outcome({**facts, "page_kind": page_kind}, "aeo.question_headings").outcome
-            == RULE_OUTCOME_FAIL
-        )
+            == RULE_OUTCOME_NOT_APPLICABLE
+        ), page_kind
     for page_kind in ("homepage", "product", "category"):
         assert (
             _outcome({**facts, "page_kind": page_kind}, "aeo.question_headings").outcome

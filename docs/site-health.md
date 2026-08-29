@@ -342,6 +342,19 @@ schema type used, not once for the whole page kind. For example:
   `BreadcrumbList.itemListElement`;
 - Article and ItemList alternatives on comparison pages use their own fields.
 
+Schema handling is validation-first, not presence-first. Absent markup is an
+opportunity, never a page defect: structured data helps a search engine
+understand a page and can unlock specific features, but it has never been
+required, and no special markup is needed to be read by an answer engine.
+Markup that is present and contradicts the visible page is a real defect, and
+`aeo.schema_matches_content` owns that finding.
+
+Required properties are therefore only those a present block genuinely needs.
+`Article` requires `headline` alone, with `author` and `datePublished` as
+recommendations. `FAQPage` and `HowTo` require nothing at all — both describe
+retired rich-result features, so their absence cannot be scored and their shape
+cannot be a contract, while a present-but-contradictory block stays reportable.
+
 Schema rules require both a classified non-`other` page kind and an HTML
 response. Content-parity rules additionally require visible server-rendered
 body content.
@@ -350,14 +363,27 @@ body content.
 
 Not-applicable is different from pass and is excluded from scoring.
 
-- Technical delivery, indexability, metadata, and rendering rules remain
-  broadly applicable where their source evidence exists.
+- Technical delivery and indexability rules read the response and remain
+  applicable to any successful fetch.
+- Title, meta-description, and canonical rules require an HTML response. A
+  supported office/PDF/Markdown document is successful inventory evidence and
+  is not reported as missing markup its format does not have.
 - Schema presence/type/property rules apply only to classified page kinds.
 - Author and citation rules apply only to authored editorial types.
 - Date rules also include documentation.
-- Question-heading rules apply to FAQ, guide, docs, and article pages.
-- Answer-first structure applies to article, FAQ, guide, docs, service,
-  comparison, and case-study/review pages.
+- Question-heading rules apply to FAQ pages only, and are not applicable to a
+  page with no h2/h3 subheadings at all: no sections is a different fact from
+  badly phrased sections.
+- Answer-first structure applies to FAQ, guide, and docs pages, as an advisory.
+  A service page, a comparison, a case study, or a narrative article carries no
+  obligation to open with a direct answer.
+- A canonical declaration that points away from the page is not a conflict —
+  consolidating a sorted, filtered, or tracked URL onto its parent is what the
+  element is for. Only positive evidence of a broken target fails: a canonical
+  that is unresolvable, points to another origin, or points at a different
+  hreflang alternate of the same page. Campaign and click parameters are
+  removed before the comparison, and a relative canonical is resolved against
+  the page URL first.
 - Product offer and visible/schema parity rules apply only to product pages.
 - Architecture depth, breadcrumb-conflict, and duplicate-family-metadata rules
   report positive observations at any coverage. Orphan, parentless-detail,
@@ -388,9 +414,19 @@ plain-language title, frozen description, an affected-page evidence chip, and
 page-kind scope; remediation appears when the row expands.
 
 Every rule also owns a versioned `finding_class`: `defect` for a reproducible
-problem and `advisory` for deterministic but opinionated guidance. Title- and
-meta-description length bands are advisories. Defects and advisories have
-separate server-filtered views. The headline is the number of distinct defect
+problem and `advisory` for deterministic but opinionated guidance.
+
+**Only defects score.** Advisory evaluations are excluded from scoring
+entirely — pass, fail, and error alike — so guidance can neither lower nor
+raise a health score. Excluding advisory passes matters as much as excluding
+advisory failures: a page must not be able to lift its score by satisfying an
+opinion. `weight` is therefore only meaningful on a defect.
+
+Advisories are: title and meta-description length bands, meta-description and
+canonical presence, structured-data and Open Graph presence, expected-schema
+and recommended-schema properties, answer-first structure, collapsed-content
+gating, and an indexability finding whose intent could not be established.
+Defects and advisories have separate server-filtered views. The headline is the number of distinct defect
 issue types by default and distinct advisory issue types in the advisory view;
 supporting metrics explicitly name the selected class's occurrences and
 affected URLs. Only defects feed severity filters and Opportunities. The
@@ -406,14 +442,28 @@ current per-page evidence is retained, and no dormant scope configuration or
 placeholder identity owner is introduced.
 
 Current versions are owned in the focused `backend/app/core/config/site_health_*`
-modules. The observed-architecture slice ships extractor `sh-extractor-12`,
-classifier `sh-classifier-8`, analyzer `sh-analyzer-7`, rule catalog
-`sh-rules-6`, and scoring `sh-scoring-4`. An unclassified `other` page retains
+modules. The false-positive hardening slice ships extractor `sh-extractor-13`,
+classifier `sh-classifier-9`, analyzer `sh-analyzer-8`, rule catalog
+`sh-rules-7`, and scoring `sh-scoring-5`. Scores are not comparable across the
+scoring-version boundary, and Change Intelligence correctly reports pairs that
+straddle it as `non_comparable` rather than as regressions. An unclassified `other` page retains
 its Technical score but has no AEO score; its count remains visible in the
 page-kind rollup. Coverage uses `sh-coverage-1`,
 internal-link metrics use `sh-link-metrics-1`, architecture uses
 `sh-architecture-1`, and the archetype policy uses `sh-archetypes-1`; tests pin
 persistence and replay behavior.
+
+## False-positive contract
+
+`backend/tests/unit/test_site_health_fixture_contracts.py` holds a fixture per
+page shape, each stating both the findings it must produce and the findings it
+must never produce. Most fixtures are correctly built pages; one is
+deliberately broken so no rule can be neutralised into silence and still pass.
+
+`KNOWN_FALSE_POSITIVES` in that module lists the defects a valid page still
+produces, and the suite asserts the list is exact in both directions — it
+cannot grow to cover new breakage, and a stale entry fails once its fix lands.
+Any new page-kind check belongs here before it ships.
 
 ## Known boundary
 
@@ -427,9 +477,11 @@ Health analysis must not invent durable facts merely to fill it.
 From `backend/`:
 
 ```bash
-uv run pytest tests/unit/test_site_health_page_kinds.py \
+uv run pytest tests/unit/test_site_health_fixture_contracts.py \
+  tests/unit/test_site_health_page_kinds.py \
   tests/unit/test_site_health_parser.py \
   tests/unit/test_site_health_rules.py \
+  tests/unit/test_site_health_scoring.py \
   tests/component/test_site_health_analyze.py \
   tests/component/test_site_health_discover.py -q
 uv run ruff check app/analysis/site_health app/core/config/site_health_*.py

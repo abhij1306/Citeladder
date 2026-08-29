@@ -217,90 +217,19 @@ _CONTRACTS_BY_FIXTURE = {contract.fixture: contract for contract in _CONTRACTS}
 # the phase that removes it. Deleting entries is the point; adding one requires
 # explaining why a new false positive is acceptable, which it is not.
 KNOWN_FALSE_POSITIVES: dict[str, frozenset[str]] = {
-    "flat_category_listing.html": frozenset(
-        {
-            "aeo.structured_data_present",  # phase 2 - absent optional markup
-            "aeo.open_graph_present",  # phase 2 - absent optional markup
-            "technical.canonical_present",  # phase 2 - recommended, not mandatory
-            "technical.meta_description_present",  # phase 2 - snippets are generated
-            "technical.thin_content",  # phase 5 - 38 words over a real grid
-        }
-    ),
-    "contact_page.html": frozenset(
-        {
-            "aeo.structured_data_present",  # phase 2
-            "aeo.open_graph_present",  # phase 2
-            "technical.thin_content",  # phase 5 - complete in 27 words
-        }
-    ),
-    "faq_accordion.html": frozenset(
-        {
-            "aeo.structured_data_present",  # phase 2
-            "aeo.open_graph_present",  # phase 2
-            "aeo.no_expand_gating",  # phase 2 - the text IS in the DOM
-        }
-    ),
-    "category_faceted_canonical.html": frozenset(
-        {
-            "aeo.structured_data_present",  # phase 2
-            "aeo.open_graph_present",  # phase 2
-            "technical.canonical_conflict",  # phase 2 - a legitimate cross-canonical
-            "technical.thin_content",  # phase 5
-        }
-    ),
-    "tracked_url_canonical.html": frozenset(
-        {
-            "aeo.structured_data_present",  # phase 2
-            "aeo.open_graph_present",  # phase 2
-            "aeo.answer_first",  # phase 2 - the byline is read as the answer
-            "aeo.author_present",  # phase 2 - visible byline never read
-            "aeo.date_present",  # phase 2 - visible date never read
-            "technical.canonical_conflict",  # phase 2 - a tracking parameter
-            "technical.thin_content",  # phase 5 - 225 words against a 300 floor
-        }
-    ),
-    "article_no_schema.html": frozenset(
-        {
-            "aeo.structured_data_present",  # phase 2
-            "aeo.answer_first",  # phase 2
-            "aeo.author_present",  # phase 2
-            "aeo.date_present",  # phase 2
-            "technical.thin_content",  # phase 5
-        }
-    ),
-    "docs_reference.html": frozenset(
-        {
-            "aeo.structured_data_present",  # phase 2
-            "aeo.open_graph_present",  # phase 2
-            "aeo.question_headings",  # phase 2 - the page has no subheadings at all
-            "aeo.date_present",  # phase 2 - "Last updated 11 March 2026" is visible
-            "technical.thin_content",  # phase 5
-        }
-    ),
-    "support_index.html": frozenset(
-        {
-            "aeo.structured_data_present",  # phase 2
-            "aeo.open_graph_present",  # phase 2
-            "aeo.question_headings",  # phase 3 - a route-tier FAQ guess
-            "technical.thin_content",  # phase 5 - 118 words against a 120 floor
-        }
-    ),
-    "guide_no_howto.html": frozenset(
-        {
-            "aeo.structured_data_present",  # phase 2
-            "aeo.open_graph_present",  # phase 2
-            "aeo.answer_first",  # phase 2
-            "aeo.author_present",  # phase 2
-            "aeo.date_present",  # phase 2
-            "aeo.question_headings",  # phase 2 - a guide is not an FAQ
-        }
-    ),
-    "broken_pdp_schema_mismatch.html": frozenset(
-        {
-            "aeo.open_graph_present",  # phase 2
-            "technical.thin_content",  # phase 5 - a PDP with a visible price
-        }
-    ),
+    # Phase 2 emptied every other entry here. What remains is one rule:
+    # ``technical.thin_content`` still asserts quality from length, so a
+    # category grid, a complete contact page, an article and a PDP with a
+    # visible price are all still called thin. Phase 5 replaces the word-count
+    # ladder with kind-specific content sufficiency and empties the rest.
+    "flat_category_listing.html": frozenset({"technical.thin_content"}),
+    "contact_page.html": frozenset({"technical.thin_content"}),
+    "category_faceted_canonical.html": frozenset({"technical.thin_content"}),
+    "tracked_url_canonical.html": frozenset({"technical.thin_content"}),
+    "article_no_schema.html": frozenset({"technical.thin_content"}),
+    "docs_reference.html": frozenset({"technical.thin_content"}),
+    "support_index.html": frozenset({"technical.thin_content"}),
+    "broken_pdp_schema_mismatch.html": frozenset({"technical.thin_content"}),
 }
 
 

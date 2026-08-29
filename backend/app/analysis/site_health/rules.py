@@ -25,8 +25,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.analysis.site_health.indexing import (
+    canonical_origin,
     evaluate_indexability,
     normalized_url_for_compare,
+    resolve_canonical,
 )
 from app.analysis.site_health.product_rules import (
     check_product_offer_details,
@@ -207,21 +209,78 @@ def _check_thin_content(facts: dict) -> tuple[str, dict]:
 # --- v2 P2: hygiene checks -------------------------------------------------
 
 
+def _hreflang_alternate_urls(facts: dict) -> list[str]:
+    alternates = facts.get("hreflang_alternates") or []
+    return [
+        str(entry.get("url") or "")
+        for entry in alternates
+        if isinstance(entry, dict) and entry.get("url")
+    ]
+
+
 def _check_canonical_conflict(facts: dict) -> tuple[str, dict]:
-    canonical = (facts.get("canonical_url") or "").strip()
-    if not canonical:
-        # No canonical declared: the v1 presence rule owns that finding.
+    """Fail on a canonical that is BROKEN, not on one that merely points away.
+
+    The old check failed whenever the canonical was not the page's own final
+    URL. That is the ordinary, intended use of the element: consolidating a
+    sorted, filtered or paginated view onto its parent is what rel=canonical
+    exists to do, and a canonical declaration is not even mandatory.
+
+    Worse, it contradicted this package's own indexing logic, which reads the
+    identical condition as evidence that the page is DELIBERATELY excluded
+    (``_canonical_intent``). One module treated a cross-canonical as a mistake
+    while the other treated it as an intention.
+
+    So a plain cross-canonical passes, and only positive evidence of a broken
+    target fails. Evidence needing crawl-wide state -- a canonical pointing at
+    a 404 or at a noindex page -- is not available in the per-page pass and is
+    not guessed at here.
+    """
+    declared = (facts.get("canonical_url") or "").strip()
+    if not declared:
+        # No canonical declared: the presence rule owns that finding.
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_canonical"}
     delivery = facts.get("delivery") or {}
     final_url = str(delivery.get("final_url") or "")
-    match = normalized_url_for_compare(canonical) == normalized_url_for_compare(
-        final_url
-    )
-    return _pass_fail(match), {
+    canonical = resolve_canonical(declared, final_url)
+    evidence: dict[str, Any] = {
+        "declared_canonical": declared[:2048],
         "canonical_url": canonical[:2048],
         "final_url": final_url[:2048],
-        "matches_final_url": match,
     }
+    self_canonical = normalized_url_for_compare(
+        canonical
+    ) == normalized_url_for_compare(final_url)
+    evidence["self_canonical"] = self_canonical
+    if self_canonical:
+        return RULE_OUTCOME_PASS, evidence
+
+    origin = canonical_origin(canonical)
+    if not origin:
+        # Not an absolute http(s) URL even after resolution: this cannot
+        # consolidate anything.
+        evidence["problem"] = "invalid_canonical"
+        return RULE_OUTCOME_FAIL, evidence
+
+    final_origin = canonical_origin(final_url)
+    if final_origin and origin != final_origin:
+        # Handing indexing authority to another origin is almost never what a
+        # site owner meant, and it is not something consolidation requires.
+        evidence["problem"] = "cross_origin_canonical"
+        return RULE_OUTCOME_FAIL, evidence
+
+    alternates = {
+        normalized_url_for_compare(url) for url in _hreflang_alternate_urls(facts)
+    }
+    if alternates and normalized_url_for_compare(canonical) in alternates:
+        # A page in an hreflang cluster must canonicalise to ITSELF. Pointing
+        # at a sibling language tells the two systems opposite things about
+        # which URL represents this content.
+        evidence["problem"] = "hreflang_canonical_conflict"
+        return RULE_OUTCOME_FAIL, evidence
+
+    evidence["reason"] = "intentional_consolidation"
+    return RULE_OUTCOME_PASS, evidence
 
 
 def _length_band_check(
@@ -419,9 +478,21 @@ def _check_answer_first(facts: dict) -> tuple[str, dict]:
 
 
 def _check_question_headings(facts: dict) -> tuple[str, dict]:
+    headings = facts.get("headings") or {}
+    subheadings = len(headings.get("h2_texts") or []) + len(
+        headings.get("h3_texts") or []
+    )
+    if not subheadings:
+        # ``question_heading_ratio`` is questions / subheadings and is 0.0 when
+        # there are NO subheadings at all -- indistinguishable, to the ratio
+        # alone, from subheadings that are all badly phrased. A page with no
+        # sections is not a page with poorly written sections, so there is
+        # nothing here to judge.
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_subheadings"}
     ratio = float(facts.get("question_heading_ratio", 0.0) or 0.0)
     return _pass_fail(ratio > QUESTION_HEADINGS_MIN_RATIO), {
         "question_heading_ratio": ratio,
+        "subheading_count": subheadings,
         "minimum_ratio": QUESTION_HEADINGS_MIN_RATIO,
     }
 

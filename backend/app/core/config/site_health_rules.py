@@ -33,7 +33,6 @@ from app.core.config.site_health_taxonomy import (
     PAGE_KIND_GUIDE,
     PAGE_KIND_HOMEPAGE,
     PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
-    PAGE_KIND_SERVICE,
     _page_kinds,
 )
 
@@ -126,7 +125,10 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_METADATA,
         severity=SEVERITY_HIGH,
         weight=3.0,
-        applicability_key="always",
+        # HTML only. "always" also ran this on PDFs and other documents, which
+        # have no <title> to be missing and are successful inventory evidence,
+        # not broken pages.
+        applicability_key="has_html",
         description="Page has a non-empty <title>.",
         remediation="Add a concise, descriptive <title> element to the page.",
         display_label="Missing page title",
@@ -138,10 +140,15 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_METADATA,
         severity=SEVERITY_MEDIUM,
         weight=2.0,
-        applicability_key="always",
+        applicability_key="has_html",
         description="Page has a non-empty meta description.",
         remediation="Add a meta description summarizing the page content.",
         display_label="Missing meta description",
+        # A search engine generates a snippet from the page when the author
+        # supplies none, so an absent description costs a measure of control
+        # over the snippet -- it does not make the page defective. Worth
+        # recommending, never worth scoring against.
+        finding_class=FINDING_CLASS_ADVISORY,
     ),
     SiteHealthRule(
         rule_id="technical.canonical_present",
@@ -150,10 +157,14 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_INDEXABILITY,
         severity=SEVERITY_MEDIUM,
         weight=2.0,
-        applicability_key="always",
+        applicability_key="has_html",
         description="Page declares a canonical URL.",
         remediation='Add a <link rel="canonical"> pointing at the preferred URL.',
         display_label="Missing canonical URL",
+        # A canonical declaration is a strong consolidation SIGNAL, not a
+        # requirement: a page with no duplicates and no parameter variants is
+        # complete without one. Recommend it; do not score its absence.
+        finding_class=FINDING_CLASS_ADVISORY,
     ),
     SiteHealthRule(
         rule_id="technical.indexable",
@@ -209,6 +220,17 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description="Page includes JSON-LD or microdata structured data.",
         remediation="Add schema.org structured data (JSON-LD preferred).",
         display_label="Missing structured data",
+        # Structured data helps a search engine understand a page and can
+        # unlock specific features; it has never been a requirement, and no
+        # special markup is needed to be read by an answer engine. Absence is
+        # an opportunity.
+        #
+        # It also duplicated ``aeo.schema_expected_for_type``, which is already
+        # an advisory for the SAME condition. Together they spent 3.5 weight of
+        # the AEO denominator on one fact: this page carries no markup. The
+        # rule id is kept so the AEO Readiness machine-readability dimension
+        # keeps its signal (AEO_READINESS_RULE_DIMENSIONS drops unmapped ids).
+        finding_class=FINDING_CLASS_ADVISORY,
     ),
     SiteHealthRule(
         rule_id="aeo.open_graph_present",
@@ -221,6 +243,11 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description="Page declares Open Graph title/description metadata.",
         remediation="Add og:title and og:description meta tags.",
         display_label="Missing Open Graph metadata",
+        # Open Graph controls how a link previews when it is SHARED. It is
+        # optional social metadata whose absence changes nothing about the
+        # page itself -- the same class of finding as the two above, and it
+        # fired on nearly every valid fixture in the contract suite.
+        finding_class=FINDING_CLASS_ADVISORY,
     ),
     # --- v2 P2: hygiene (per-page) ----------------------------------------
     SiteHealthRule(
@@ -245,10 +272,13 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         severity=SEVERITY_MEDIUM,
         weight=1.5,
         applicability_key="has_html",
-        description="Declared canonical URL differs from the final fetched URL.",
+        description=(
+            "Declared canonical URL is a usable consolidation target "
+            "(absolute, same-origin, and not a different hreflang alternate)."
+        ),
         remediation=(
-            "Point the canonical at the page's final URL (or redirect the "
-            "canonical target consistently)."
+            "Point the canonical at an absolute same-origin URL. A page that "
+            "declares hreflang alternates must canonicalise to itself."
         ),
         display_label="Canonical URL conflict",
     ),
@@ -545,14 +575,16 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CONTENT,
         severity=SEVERITY_MEDIUM,
         weight=2.0,
+        # A writing STYLE, not a defect. A service page has no obligation to
+        # open like a reference answer, a case study may deliberately open with
+        # context, and a narrative article is not worse for building to its
+        # point. Kept where the reader genuinely arrived with a question --
+        # and kept as an advisory even there, because "answer first" is a
+        # recommendation about prose, not a reproducible fault.
         applicability_key=_page_kinds(
-            PAGE_KIND_ARTICLE,
             PAGE_KIND_FAQ,
             PAGE_KIND_GUIDE,
             PAGE_KIND_DOCS,
-            PAGE_KIND_SERVICE,
-            PAGE_KIND_COMPARISON,
-            PAGE_KIND_CASE_STUDY_REVIEW,
             reads_content=True,
         ),
         description=(
@@ -561,6 +593,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         ),
         remediation=("Open each section with a direct answer before elaborating."),
         display_label="No answer-first content structure",
+        finding_class=FINDING_CLASS_ADVISORY,
     ),
     SiteHealthRule(
         rule_id="aeo.question_headings",
@@ -572,11 +605,14 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         # Question-form headings are the SHAPE of an answer page. A homepage,
         # product or category page is not written as questions and should not
         # be scored as though it failed to be.
+        #
+        # Narrowed further to FAQ alone. An FAQ whose sections are not
+        # questions genuinely is not an FAQ, so the finding survives there as a
+        # defect. A guide, a reference page or an essay has no such obligation:
+        # API reference documentation has no subheadings at all, and demanding
+        # question headings of it was inventing a fault.
         applicability_key=_page_kinds(
             PAGE_KIND_FAQ,
-            PAGE_KIND_GUIDE,
-            PAGE_KIND_DOCS,
-            PAGE_KIND_ARTICLE,
             reads_content=True,
         ),
         description="Page uses question-form h2/h3 headings.",
@@ -609,14 +645,26 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         weight=1.0,
         applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description=(
-            "Most body text is not hidden behind click-to-expand elements "
+            "Most body text is not behind click-to-expand elements "
             "(collapsed details / aria-expanded=false)."
         ),
         remediation=(
             "Keep primary content visible without interaction; avoid gating "
             "answers behind expandable sections."
         ),
-        display_label="Content hidden behind expand controls",
+        display_label="Content behind expand controls",
+        # This measures the OPPOSITE of what it claims. ``expand_gated_ratio``
+        # counts words inside closed <details> and aria-expanded=false nodes --
+        # text that is present in the DOM and extractable without executing or
+        # clicking anything. A correctly built FAQ accordion, whose every
+        # answer is server-rendered and readable, scored as though its content
+        # were hidden.
+        #
+        # Collapsed-but-present is at most a presentation preference, so the
+        # finding is demoted rather than deleted. Detecting content that is
+        # genuinely unreachable without interaction needs a different extractor
+        # signal; until that exists this cannot honestly be a defect.
+        finding_class=FINDING_CLASS_ADVISORY,
     ),
     # --- v2 P2: crawl_finalize scope (weight 0; finalize-writer owned) ------
     SiteHealthRule(

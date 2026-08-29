@@ -1,9 +1,10 @@
 """Unit tests for the EXACT Site Health scoring formula (Task 5).
 
 Verifies: passed/failed/error weighting, not_applicable exclusion, error
-zero-credit (distinct outcome, weight stays in the denominator), single
-rounding, config-weighted overall, dimensions with no applicable rules excluded
-(not zero), and aggregation ignoring missing/error URLs. Pure, offline.
+zero-credit (distinct outcome, weight stays in the denominator), advisory
+exclusion in BOTH directions, single rounding, config-weighted overall,
+dimensions with no applicable rules excluded (not zero), and aggregation
+ignoring missing/error URLs. Pure, offline.
 """
 
 from __future__ import annotations
@@ -29,10 +30,23 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_PASS,
     SCORING_VERSION,
 )
+from app.core.config.site_health_rules import (
+    FINDING_CLASS_ADVISORY,
+    FINDING_CLASS_DEFECT,
+)
 
 
 def _s(outcome, weight, dimension=DIMENSION_TECHNICAL):
     return _Scored(dimension=dimension, outcome=outcome, weight=weight)
+
+
+def _advisory(outcome, weight, dimension=DIMENSION_TECHNICAL):
+    return _Scored(
+        dimension=dimension,
+        outcome=outcome,
+        weight=weight,
+        finding_class=FINDING_CLASS_ADVISORY,
+    )
 
 
 def test_all_pass_is_100():
@@ -274,3 +288,66 @@ def test_zero_weight_contributes_neither_numerator_nor_denominator():
     ds = score_dimension(evals, dimension=DIMENSION_TECHNICAL)
     assert ds.score == pytest.approx(100.0)
     assert ds.applicable_count == 2
+
+
+# --- advisories never move the score ----------------------------------------
+#
+# The product tells users a defect and an advisory are different things, and
+# gives them separate views. Scoring did not read ``finding_class`` at all, so
+# an advisory lowered the health score exactly like a defect of equal weight.
+
+
+def test_advisory_failure_does_not_lower_the_score():
+    passing = [_s(RULE_OUTCOME_PASS, 3.0)]
+    baseline = score_dimension(passing, dimension=DIMENSION_TECHNICAL)
+    with_advisory = score_dimension(
+        [_s(RULE_OUTCOME_PASS, 3.0), _advisory(RULE_OUTCOME_FAIL, 9.0)],
+        dimension=DIMENSION_TECHNICAL,
+    )
+    assert with_advisory.score == baseline.score == pytest.approx(100.0)
+    assert with_advisory.applicable_count == baseline.applicable_count == 1
+
+
+def test_advisory_pass_does_not_raise_the_score():
+    # The inverse of the same credibility problem: a page must not be able to
+    # lift its score by satisfying opinionated guidance.
+    failing = [_s(RULE_OUTCOME_FAIL, 2.0)]
+    baseline = score_dimension(failing, dimension=DIMENSION_TECHNICAL)
+    with_advisory = score_dimension(
+        [_s(RULE_OUTCOME_FAIL, 2.0), _advisory(RULE_OUTCOME_PASS, 9.0)],
+        dimension=DIMENSION_TECHNICAL,
+    )
+    assert baseline.score == pytest.approx(0.0)
+    assert with_advisory.score == pytest.approx(0.0)
+    assert with_advisory.applicable_count == 1
+
+
+def test_advisory_error_does_not_enter_the_denominator():
+    with_advisory = score_dimension(
+        [_s(RULE_OUTCOME_PASS, 3.0), _advisory(RULE_OUTCOME_ERROR, 5.0)],
+        dimension=DIMENSION_TECHNICAL,
+    )
+    assert with_advisory.score == pytest.approx(100.0)
+    assert with_advisory.error_weight == pytest.approx(0.0)
+
+
+def test_a_dimension_of_only_advisories_has_no_score():
+    # Not zero. "Nothing objectively bad was checked here" is not "this page
+    # failed everything", and the overall mean already knows how to skip None.
+    ds = score_dimension(
+        [_advisory(RULE_OUTCOME_FAIL, 2.0), _advisory(RULE_OUTCOME_PASS, 3.0)],
+        dimension=DIMENSION_TECHNICAL,
+    )
+    assert ds.score is None
+    assert ds.applicable_count == 0
+
+
+def test_scored_defaults_to_defect():
+    # Defect is the catalog default, so an adapter that forgets the field
+    # keeps scoring the row rather than silently dropping it.
+    assert (
+        _Scored(
+            dimension=DIMENSION_TECHNICAL, outcome=RULE_OUTCOME_PASS, weight=1.0
+        ).finding_class
+        == FINDING_CLASS_DEFECT
+    )
