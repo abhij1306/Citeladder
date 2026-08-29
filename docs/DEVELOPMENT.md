@@ -135,6 +135,7 @@ cd frontend
 pnpm test             # Vitest (network mocked with MSW)
 pnpm lint             # Oxlint (React/Next/TypeScript/a11y rules)
 pnpm check:policy     # architecture + design-token guards
+pnpm check:dead-code  # Knip module-graph/dependency gate
 pnpm exec tsc --noEmit # type check
 pnpm build            # next build
 pnpm test:e2e         # Playwright (needs a browser + a running stack)
@@ -142,14 +143,16 @@ pnpm test:e2e         # Playwright (needs a browser + a running stack)
 
 ### Repository validation harness
 
-Two scripts own completion. Run them from the repository root, in this order,
-once the planned implementation is finished — not after every step.
+`scripts/quality.mjs` owns the static sequence used by both local development
+and CI. `check.ps1` remains the PowerShell compatibility shim. Run the two
+completion commands from the repository root, in this order, once the planned
+implementation is finished — not after every step.
 
 ```powershell
 .\scripts\check.ps1     # static + fix gate: ruff, mypy, complexity,
                         # import-linter, vulture, deptry, oxfmt, oxlint,
-                        # tsc, frontend policies, docs index
-.\scripts	test.ps1      # affected backend, frontend, and mapped E2E tests
+                        # tsc, Knip, frontend policies, contract, docs index
+.\scripts\test.ps1      # affected backend, frontend, and mapped E2E tests
 ```
 
 Useful variants:
@@ -157,8 +160,11 @@ Useful variants:
 ```powershell
 .\scripts\check.ps1 -CheckOnly              # never mutates files
 .\scripts\check.ps1 -Scope Backend          # or Frontend, Docs
-.\scripts	est.ps1 -ChangedFiles a.py,b.py  # retry delta after a failed run
+.\scripts\test.ps1 -ChangedFiles a.py,b.py  # retry delta after a failed run
 ```
+
+The direct cross-platform entry points are available from `frontend/` as
+`pnpm quality:fix` and the non-mutating `pnpm quality:check`.
 
 `test.ps1` compares the working tree against `origin/main`, maps every changed
 production file through `scripts/validation.json`, and fails if a changed file
@@ -178,9 +184,10 @@ uv run deptry .              # declared-but-unused / used-but-undeclared deps
 uv run radon cc app -s -n C
 uv run radon mi app -s -n B
 
-# From frontend/. Both production checks are CI ratchets; the test scan is advisory.
+# From frontend/. These production checks are CI ratchets; the test scan is advisory.
 pnpm check:complexity
 pnpm check:duplicates
+pnpm check:dead-code
 pnpm report:duplicates:tests
 ```
 

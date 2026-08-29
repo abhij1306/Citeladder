@@ -147,6 +147,7 @@ export function ActionRow({
 }>) {
   const [dragging, setDragging] = useState(false);
   return (
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Pointer drag is progressive enhancement; adjacent buttons provide the complete keyboard reorder path.
     <li
       draggable={!reorderPending}
       onDragStart={(event) => {

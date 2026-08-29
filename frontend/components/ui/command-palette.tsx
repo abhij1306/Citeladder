@@ -289,6 +289,7 @@ export function CommandPalette() {
             <div
               ref={listRef}
               id={listboxId}
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Command results are an active-descendant popup; native select/datalist cannot contain grouped action buttons.
               role="listbox"
               aria-label="Commands"
               className="content-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-1"
@@ -307,6 +308,7 @@ export function CommandPalette() {
                           key={command.id}
                           id={`${listboxId}-${command.id}`}
                           type="button"
+                          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Focus stays on the palette input while these action options are active descendants.
                           role="option"
                           aria-selected={isActive}
                           data-active={isActive}

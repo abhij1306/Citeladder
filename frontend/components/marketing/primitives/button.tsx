@@ -58,8 +58,8 @@ export function TextLink({
   );
 }
 
-export type IconButtonVariant = 'default' | 'dark' | 'nav';
-export type IconButtonSide = 'left' | 'right';
+type IconButtonVariant = 'default' | 'dark' | 'nav';
+type IconButtonSide = 'left' | 'right';
 
 type IconButtonProps = Readonly<{
   title: string;

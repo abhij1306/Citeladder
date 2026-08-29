@@ -8,7 +8,7 @@
  * and never invent numbers, customers, or certainty.
  */
 
-export type FaqItem = {
+type FaqItem = {
   q: string;
   a: string;
 };

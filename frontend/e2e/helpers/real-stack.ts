@@ -25,17 +25,17 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import path from 'node:path';
 
-export const API_PORT = 8177;
-export const MOCK_PORT = 8178;
-export const FRONTEND_PORT = 3177;
-export const API_ORIGIN = `http://127.0.0.1:${API_PORT}`;
-export const MOCK_ORIGIN = `http://127.0.0.1:${MOCK_PORT}`;
+const API_PORT = 8177;
+const MOCK_PORT = 8178;
+const FRONTEND_PORT = 3177;
+const API_ORIGIN = `http://127.0.0.1:${API_PORT}`;
+const MOCK_ORIGIN = `http://127.0.0.1:${MOCK_PORT}`;
 export const FRONTEND_ORIGIN = `http://127.0.0.1:${FRONTEND_PORT}`;
 
 export const MOCK_API_KEY = 'dummy-e2e-key';
 export const MOCK_RETURNED_MODEL = 'mistral-small-2506';
 /** Deterministic output with hostile bits so sanitisation is proven end to end. */
-export const MOCK_MARKDOWN = [
+const MOCK_MARKDOWN = [
   '# Acme Launch Page',
   '',
   'Welcome to **Acme** — we make excellent things.',
@@ -71,10 +71,6 @@ export const mockProvider: MockProviderState = {
 
 export function setProviderDelay(ms: number): void {
   mockProvider.delayMs = ms;
-}
-
-export function failNextProviderCallWith(status: number): void {
-  mockProvider.failNextWithStatus = status;
 }
 
 export interface RealStack {

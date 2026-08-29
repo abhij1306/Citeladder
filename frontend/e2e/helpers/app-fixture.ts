@@ -9,7 +9,7 @@ import type { Page } from '@playwright/test';
  * arrangement — no token needs seeding. The ids are the canonical ones the
  * existing specs already use (shell.spec.ts, content.spec.ts, …).
  */
-export const FIXTURE_USER = {
+const FIXTURE_USER = {
   id: '22222222-2222-4222-8222-222222222222',
   email: 'shell@example.com',
   role: 'owner',

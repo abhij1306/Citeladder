@@ -60,6 +60,7 @@ function BulkActions({
 function PaneResizer({ pane }: Readonly<{ pane: ResizablePane }>) {
   return (
     <div
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Native hr cannot expose value or support pointer and keyboard pane resizing.
       role="separator"
       tabIndex={0}
       aria-orientation="vertical"

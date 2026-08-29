@@ -216,10 +216,10 @@ export function GeneratingPanel({
       className="border-border bg-panel shadow-card rounded-sm border p-[var(--card-padding)]"
     >
       <CardContent className="flex items-center gap-4 p-0">
-        <div role="status" aria-label="Generating content" className="flex items-center gap-3">
+        <output aria-label="Generating content" className="flex items-center gap-3">
           <ICONS.spinner className="text-accent size-5 animate-spin" aria-hidden />
           <span className="text-foreground text-sm font-medium">Generating your content…</span>
-        </div>
+        </output>
         <div className="ml-auto">
           <Button
             variant="secondary"

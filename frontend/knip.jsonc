@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  // Keep caching off initially: `check:dead-code` deliberately omits --cache
+  // while the Next App Router warm-cache behavior remains unreliable.
+  "entry": [
+    // Invoked explicitly as the real-stack content-integration Playwright entry point.
+    "e2e/content-integration.config.ts",
+    // Type declaration for the imported check-frontend-complexity.mjs policy module.
+    "scripts/check-frontend-complexity.d.mts",
+    // Type declaration for the imported check-jscpd.mjs policy module.
+    "scripts/check-jscpd.d.mts",
+    // Type declaration for the imported design-system-source-checks.mjs policy module.
+    "scripts/design-system-source-checks.d.mts",
+  ],
+  "ignoreDependencies": [
+    // Resolved through a computed path in check-jscpd.mjs, which static analysis cannot follow.
+    "jscpd",
+  ],
+  "ignoreBinaries": [
+    // External Python package manager used by the real-stack helper, not an npm dependency.
+    "uv",
+  ],
+}

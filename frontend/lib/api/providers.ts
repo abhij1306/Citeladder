@@ -25,10 +25,8 @@ const connectionListSchema = z.array(providerConnectionSchema);
 
 type ConnectionTestResult = z.infer<typeof connectionTestResultSchema>;
 
-export type { ProviderConnectionStates, ProviderConnectionStateEntry } from './types';
-
 /** A route entry sent on create/update (B4 `ProviderRouteInput`). */
-export type ProviderRouteInput = {
+type ProviderRouteInput = {
   logical_engine: LogicalEngine;
   is_default?: boolean;
 };
@@ -90,4 +88,3 @@ export const providersApi = {
 
 // Re-export so the logical-engine literal union is importable without
 // reaching into `schemas`.
-export type { LogicalEngine };

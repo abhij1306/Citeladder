@@ -275,9 +275,7 @@ export function AeoReadinessPanel({
 
   if (readiness.isLoading) {
     return (
-      <p role="status" className="text-secondary text-sm">
-        Loading persisted AEO evaluations…
-      </p>
+      <output className="text-secondary block text-sm">Loading persisted AEO evaluations…</output>
     );
   }
   if (readiness.isError) {

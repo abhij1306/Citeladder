@@ -46,6 +46,7 @@ export function DesktopNavigation({
   clearLens,
 }: Readonly<DesktopNavigationProps>) {
   return (
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- Escape and blur are delegated from the focusable links inside this navigation boundary.
     <div
       ref={linksRef}
       className="relative mx-auto hidden items-center lg:flex"

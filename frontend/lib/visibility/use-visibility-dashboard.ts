@@ -20,7 +20,7 @@ import { shouldPollAudit } from '@/lib/runs/status';
 import { ACTIVE_RUN_POLL_MS, EVIDENCE_LIMIT } from '@/lib/config/operational';
 
 /** Compatibility exports for existing visibility consumers and tests. */
-export { ACTIVE_RUN_POLL_MS, EVIDENCE_LIMIT } from '@/lib/config/operational';
+export { EVIDENCE_LIMIT } from '@/lib/config/operational';
 import { rangeToFrom, type TrendGranularity, type TrendRange } from '@/lib/visibility/trends';
 
 /**

@@ -19,7 +19,7 @@ import { titleCaseStatus } from '@/lib/utils';
 export const PAGE_KINDS: readonly PageKind[] = pageKindSchema.options;
 
 /** Humanized label per page type — the one shared mapping. */
-export const PAGE_KIND_LABELS: Record<PageKind, string> = {
+const PAGE_KIND_LABELS: Record<PageKind, string> = {
   homepage: 'Homepage',
   article: 'Article',
   product: 'Product',
@@ -92,7 +92,7 @@ export function pageKindConfidenceLabel(confidence: string, tier: string): strin
  * `PageKindAssessment.to_evidence()` emits it (detail already truncated
  * server-side).
  */
-export type PageKindEvidenceSignal = {
+type PageKindEvidenceSignal = {
   signal: string;
   pageKind: string;
   /** Evidence tier the signal belongs to: structural, route or semantic. */
@@ -140,14 +140,14 @@ export type PageKindEvidenceView = {
 };
 
 /** One non-winning candidate kind. */
-export type PageKindEvidenceCandidate = {
+type PageKindEvidenceCandidate = {
   pageKind: string;
   tier: string;
   signals: string[];
 };
 
 /** One signal that disagreed with the winning kind. */
-export type PageKindEvidenceConflict = {
+type PageKindEvidenceConflict = {
   winnerPageKind: string;
   conflictingPageKind: string;
   signal: string;

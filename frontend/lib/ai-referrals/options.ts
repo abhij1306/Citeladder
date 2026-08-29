@@ -63,7 +63,7 @@ export function rangeToWindow(range: AiReferralsRange, now: Date = new Date()): 
 
 // The granularity options + adjective form are OWNED by `@/lib/format`
 // (shared with the traffic surface, invariant 2) — re-exported here.
-export { bucketAdjective, GRANULARITY_OPTIONS } from '@/lib/format';
+export { GRANULARITY_OPTIONS } from '@/lib/format';
 
 /** Snapshot bucket granularity — mirrors the backend contract vocabulary. */
 export type AiReferralsGranularity = z.infer<typeof snapshotGranularitySchema>;

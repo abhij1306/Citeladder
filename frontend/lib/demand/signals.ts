@@ -7,7 +7,7 @@
  */
 import type { DemandSignal } from '@/lib/api/demand';
 
-export type SignalType =
+type SignalType =
   | 'striking_distance'
   | 'query_cannibalization'
   | 'property_relative_ctr_gap'
@@ -25,7 +25,7 @@ export type FilterTab =
   | 'branded';
 
 /** Which signal types each filter tab admits. `all` admits everything. */
-export const SIGNAL_GROUPS: Readonly<Record<Exclude<FilterTab, 'all'>, readonly SignalType[]>> = {
+const SIGNAL_GROUPS: Readonly<Record<Exclude<FilterTab, 'all'>, readonly SignalType[]>> = {
   striking_distance: ['striking_distance'],
   cannibalization: ['query_cannibalization'],
   ctr_gap: ['property_relative_ctr_gap', 'high_impression_low_ctr'],

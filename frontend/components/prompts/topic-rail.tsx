@@ -115,6 +115,7 @@ export function TopicRail({
             }}
           >
             <Input
+              // oxlint-disable-next-line jsx-a11y/no-autofocus -- Add topic explicitly opens this form; focus follows the invoking action.
               autoFocus
               value={name}
               onChange={(event) => setName(event.target.value)}

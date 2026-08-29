@@ -19,17 +19,12 @@ import type {
   auditStatusSchema,
   authResponseSchema,
   registrationResponseSchema,
-  connectionTestResultSchema,
   competitorSchema,
   modelProvenanceSchema,
   providerConnectionStateEntrySchema,
   providerConnectionStateSchema,
-  providerConnectionStatesSchema,
-  providerProbeSchema,
   brandProfileDraftSchema,
   brandProfileSchema,
-  brandProfileSourceSchema,
-  benchmarkModeSchema,
   citationClassificationSchema,
   executionEvidenceSchema,
   executionSchema,
@@ -66,32 +61,24 @@ import type {
   changeSummarySchema,
   changesPageSchema,
   crawlDiscoveryStatusSchema,
-  crawlFailureSummarySchema,
   crawlOverallStatusSchema,
-  crawlCountersSchema,
   deliveryFactsSchema,
   inventoryPageSchema,
-  inventoryRowSchema,
   issueDimensionSchema,
   issueHistoryPageSchema,
   issueSeveritySchema,
   issuesSummarySchema,
-  monitoredUrlSchema,
   monitoredUrlsResponseSchema,
   pageAnalysisStatusSchema,
   coverageStateSchema,
-  internalLinksSchema,
   pageDetailSchema,
   pageSummarySchema,
   pagesPageSchema,
   pageKindSchema,
   pageKindScoreSummarySchema,
-  phaseMutationResponseSchema,
-  phaseRunSchema,
   rerunPageResponseSchema,
   readinessCheckSchema,
   readinessDimensionSchema,
-  readinessEvidencePageSchema,
   rootErrorSchema,
   siteCrawlListPageSchema,
   siteCrawlSchema,
@@ -106,16 +93,11 @@ import type {
   contentGenerationDetailSchema,
   contentGenerationListItemSchema,
   contentGenerationStatusSchema,
-  contentOutputTypeSchema,
-  groundingStatusSchema,
-  contentContextSummarySchema,
   contentContextPreviewSchema,
   contentFeedbackReasonSchema,
   // Opportunities
   opportunitiesPageSchema,
   implementationEventSchema,
-  implementationEventsPageSchema,
-  implementationStateSchema,
   opportunityDetailSchema,
   opportunitySchema,
   opportunitySeveritySchema,
@@ -136,7 +118,6 @@ export type Workspace = z.infer<typeof workspaceSchema>;
 export type ProductTourStatus = z.infer<typeof productTourStatusSchema>;
 export type ProductTour = z.infer<typeof productTourSchema>;
 export type CommandCenter = z.infer<typeof commandCenterSchema>;
-export type BrandProfileSource = z.infer<typeof brandProfileSourceSchema>;
 export type BrandProfileDraft = z.infer<typeof brandProfileDraftSchema>;
 export type BrandProfile = z.infer<typeof brandProfileSchema>;
 export type PromptIntent = z.infer<typeof promptIntentSchema>;
@@ -145,19 +126,15 @@ export type PromptStatus = z.infer<typeof promptStatusSchema>;
 export type PromptSet = z.infer<typeof promptSetSchema>;
 export type Topic = z.infer<typeof topicSchema>;
 export type PromptGenerateResponse = z.infer<typeof promptGenerateResponseSchema>;
-export type BenchmarkMode = z.infer<typeof benchmarkModeSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type Competitor = z.infer<typeof competitorSchema>;
 export type TransportProvider = z.infer<typeof transportProviderSchema>;
 export type LogicalEngine = z.infer<typeof logicalEngineSchema>;
 export type ProviderConnection = z.infer<typeof providerConnectionSchema>;
 export type ProviderCatalog = z.infer<typeof providerCatalogSchema>;
-export type ConnectionTestResult = z.infer<typeof connectionTestResultSchema>;
 // The authenticated workspace projection — distinct from public availability.
 export type ProviderConnectionState = z.infer<typeof providerConnectionStateSchema>;
 export type ProviderConnectionStateEntry = z.infer<typeof providerConnectionStateEntrySchema>;
-export type ProviderConnectionStates = z.infer<typeof providerConnectionStatesSchema>;
-export type ProviderProbe = z.infer<typeof providerProbeSchema>;
 export type ModelProvenance = z.infer<typeof modelProvenanceSchema>;
 export type AuditEvent = z.infer<typeof auditEventSchema>;
 export type AuditStatus = z.infer<typeof auditStatusSchema>;
@@ -177,23 +154,17 @@ export type Visibility = z.infer<typeof visibilitySchema>;
 // --- Site Health ---
 export type SiteHealthEntitlement = z.infer<typeof siteHealthEntitlementSchema>;
 export type CrawlOverallStatus = z.infer<typeof crawlOverallStatusSchema>;
-export type CrawlCounters = z.infer<typeof crawlCountersSchema>;
 export type CrawlDiscoveryStatus = z.infer<typeof crawlDiscoveryStatusSchema>;
 export type CrawlAnalysisStatus = z.infer<typeof crawlAnalysisStatusSchema>;
 export type PageAnalysisStatus = z.infer<typeof pageAnalysisStatusSchema>;
 export type PageKind = z.infer<typeof pageKindSchema>;
 export type PageKindScoreSummary = z.infer<typeof pageKindScoreSummarySchema>;
 export type SiteScoreSummary = z.infer<typeof siteScoreSummarySchema>;
-export type CrawlFailureSummary = z.infer<typeof crawlFailureSummarySchema>;
 export type RootError = z.infer<typeof rootErrorSchema>;
 export type SiteCrawl = z.infer<typeof siteCrawlSchema>;
-export type PhaseRun = z.infer<typeof phaseRunSchema>;
-export type PhaseMutationResponse = z.infer<typeof phaseMutationResponseSchema>;
 export type UrlPreviewResponse = z.infer<typeof urlPreviewResponseSchema>;
-export type InventoryRow = z.infer<typeof inventoryRowSchema>;
 export type InventoryPage = z.infer<typeof inventoryPageSchema>;
 export type SiteCrawlListPage = z.infer<typeof siteCrawlListPageSchema>;
-export type MonitoredUrl = z.infer<typeof monitoredUrlSchema>;
 export type MonitoredUrlsResponse = z.infer<typeof monitoredUrlsResponseSchema>;
 export type DeliveryFacts = z.infer<typeof deliveryFactsSchema>;
 export type IssueSeverity = z.infer<typeof issueSeveritySchema>;
@@ -209,14 +180,12 @@ export type PageDetail = z.infer<typeof pageDetailSchema>;
 export type RerunPageResponse = z.infer<typeof rerunPageResponseSchema>;
 export type SiteHealthDashboard = z.infer<typeof siteHealthDashboardSchema>;
 export type AeoReadiness = z.infer<typeof aeoReadinessSchema>;
-export type InternalLinks = z.infer<typeof internalLinksSchema>;
 export type CoverageState = z.infer<typeof coverageStateSchema>;
 export type ArchitectureFamily = z.infer<typeof architectureFamilySchema>;
 export type ArchitectureNode = z.infer<typeof architectureNodeSchema>;
 export type SiteArchitecture = z.infer<typeof architectureSchema>;
 export type ReadinessDimension = z.infer<typeof readinessDimensionSchema>;
 export type ReadinessCheck = z.infer<typeof readinessCheckSchema>;
-export type ReadinessEvidencePage = z.infer<typeof readinessEvidencePageSchema>;
 export type ChangeSummary = z.infer<typeof changeSummarySchema>;
 export type ChangeObservation = z.infer<typeof changeObservationSchema>;
 export type ChangesPage = z.infer<typeof changesPageSchema>;
@@ -227,9 +196,6 @@ export type VisibilityEvidenceResponse = z.infer<typeof visibilityEvidenceRespon
 
 // --- Content ---
 export type ContentGenerationStatus = z.infer<typeof contentGenerationStatusSchema>;
-export type ContentOutputType = z.infer<typeof contentOutputTypeSchema>;
-export type GroundingStatus = z.infer<typeof groundingStatusSchema>;
-export type ContentContextSummary = z.infer<typeof contentContextSummarySchema>;
 export type ContentContextPreview = z.infer<typeof contentContextPreviewSchema>;
 export type ContentFeedbackReason = z.infer<typeof contentFeedbackReasonSchema>;
 export type ContentGenerationListItem = z.infer<typeof contentGenerationListItemSchema>;
@@ -245,5 +211,3 @@ export type OpportunitiesPage = z.infer<typeof opportunitiesPageSchema>;
 export type OpportunitySummary = z.infer<typeof opportunitySummarySchema>;
 export type RecomputeResponse = z.infer<typeof recomputeResponseSchema>;
 export type ImplementationEvent = z.infer<typeof implementationEventSchema>;
-export type ImplementationEventsPage = z.infer<typeof implementationEventsPageSchema>;
-export type ImplementationState = z.infer<typeof implementationStateSchema>;

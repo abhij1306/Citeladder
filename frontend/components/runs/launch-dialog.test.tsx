@@ -30,7 +30,7 @@ function stubApis() {
 
 /** Pick one engine, which is what makes the selection launchable. */
 async function selectEngineAndLaunch() {
-  fireEvent.click(await screen.findByRole('checkbox', { name: 'ChatGPT' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'ChatGPT' }));
   fireEvent.click(screen.getByRole('button', { name: 'Launch audit' }));
 }
 
@@ -171,7 +171,7 @@ describe('LaunchDialog prompt batching', () => {
       <LaunchDialog open onOpenChange={() => undefined} projectId={PROJECT_ID} />,
     );
 
-    await screen.findByRole('checkbox', { name: 'ChatGPT' });
+    await screen.findByRole('button', { name: 'ChatGPT' });
     // Seven prompts is one batch: "All 7" and "Prompts 1-7" are the same run.
     expect(screen.queryByLabelText(/Prompts to run/)).not.toBeInTheDocument();
     await selectEngineAndLaunch();
@@ -192,7 +192,7 @@ describe('LaunchDialog prompt batching', () => {
     );
 
     fireEvent.change(await screen.findByLabelText(/Prompts to run/), { target: { value: '2' } });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'ChatGPT' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ChatGPT' }));
     expect(screen.getByRole('button', { name: 'Launch audit' })).toBeEnabled();
 
     act(() => {

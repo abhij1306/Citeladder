@@ -149,6 +149,7 @@ export function PagesTable({
             // operable from the keyboard too — the trailing `View` link is a
             // shortcut, not a substitute for the row.
             tabIndex={0}
+            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- A table row cannot be wrapped by an anchor; the row implements the link keyboard contract.
             role="link"
             aria-label={pageDisplayTitle(page.title, page.display_url)}
             onClick={() => openPage(page.site_url_id)}

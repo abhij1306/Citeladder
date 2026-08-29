@@ -49,6 +49,7 @@ function CompetitorChip({
     return (
       <span className="flex items-center gap-1.5">
         <Input
+          // oxlint-disable-next-line jsx-a11y/no-autofocus -- Edit is an explicit action and focus must enter the newly mounted inline editor.
           autoFocus
           value={draft}
           onChange={(event) => setDraft(event.target.value)}

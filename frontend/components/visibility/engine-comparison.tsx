@@ -122,7 +122,12 @@ function ShareOfVoiceCard({ visibility }: Readonly<{ visibility: Visibility }>) 
         {rows.length === 0 ? (
           <p className="text-secondary text-sm">{PLACEHOLDER} No mentions recorded for this run.</p>
         ) : (
-          <div role="img" aria-label={`Share of voice: ${summary}`} className="grid gap-4">
+          <div
+            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- The labelled multi-row visualization is one composite image, not a replaceable img resource.
+            role="img"
+            aria-label={`Share of voice: ${summary}`}
+            className="grid gap-4"
+          >
             {rows.map((row) => (
               <ShareOfVoiceRow
                 key={`${row.is_brand ? 'brand' : 'competitor'}-${row.name}`}

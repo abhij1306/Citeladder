@@ -73,6 +73,7 @@ export function SegmentedControl<T extends string>({
               buttonsRef.current[index] = node;
             }}
             type="button"
+            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Button-based radio keeps roving focus and the segmented-control visual contract.
             role="radio"
             aria-checked={selected}
             disabled={disabled}

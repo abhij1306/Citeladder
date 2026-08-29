@@ -47,8 +47,6 @@ export type OpportunitiesParams = {
   action_path?: 'owned' | 'earned';
 };
 
-/** `PATCH /opportunities/{id}` body — status is the ONLY mutable field. */
-export type OpportunityStatusPatch = { status: OpportunityStatus };
 export type OpportunityOrderUpdate = {
   ordered_opportunity_ids: string[];
   expected_version: number;
@@ -56,7 +54,7 @@ export type OpportunityOrderUpdate = {
 
 /** Optional recompute scope; omit both for the latest dashboard sources. */
 export type RecomputeScope = { audit_id?: string; site_crawl_id?: string };
-export type ExpectedCheck =
+type ExpectedCheck =
   | {
       kind: 'site_rule';
       target_site_url_id?: string;

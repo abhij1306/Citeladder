@@ -12,7 +12,7 @@ import { cva } from 'class-variance-authority';
  * can add the semantic border utilities at its owning call site. Interactive
  * cards add `hover:shadow-card-hover`; the transition is retained for them.
  */
-export const cardVariants = cva(
+const cardVariants = cva(
   'bg-panel border border-border shadow-card rounded-[var(--radius-card)] transition-all duration-[180ms] ease-out',
 );
 

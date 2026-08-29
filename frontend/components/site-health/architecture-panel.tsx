@@ -51,7 +51,12 @@ export function ArchitecturePanel({
 
   if (architecture.isLoading) {
     return (
-      <div className="grid gap-4" role="status" aria-label="Loading the observed architecture">
+      <div
+        className="grid gap-4"
+        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- output only permits phrasing content; this live region contains block skeletons.
+        role="status"
+        aria-label="Loading the observed architecture"
+      >
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-64 w-full" />
       </div>

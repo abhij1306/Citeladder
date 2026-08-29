@@ -182,7 +182,6 @@ export function YourPrompts() {
         />
         <Input
           type="search"
-          role="searchbox"
           aria-label="Search prompts"
           placeholder="Search prompts…"
           value={search}

@@ -384,10 +384,4 @@ function pluralize(n: number, word: string): string {
 // Run-outcome copy (failure reasons, partial reasons, the dashboard notice)
 // lives in its own module. It is re-exported here because every caller has
 // always reached it through `status`.
-export {
-  crawlFailureCopy,
-  dashboardRunNotice,
-  partialCrawlMessage,
-  type CrawlFailureCopy,
-  type DashboardRunNotice,
-} from './run-notice';
+export { crawlFailureCopy, dashboardRunNotice } from './run-notice';

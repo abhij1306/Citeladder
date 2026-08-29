@@ -35,7 +35,7 @@ export {
 } from '@/lib/config/operational';
 
 /** A skill id. The catalog is server-owned — never hardcode the set. */
-export type ContentSkill = string;
+type ContentSkill = string;
 export type ContentSkillView = z.infer<typeof contentSkillViewSchema>;
 export type ContentSkillCatalog = z.infer<typeof contentSkillCatalogSchema>;
 

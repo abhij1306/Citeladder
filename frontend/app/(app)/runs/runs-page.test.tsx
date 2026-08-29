@@ -214,9 +214,9 @@ describe('RunsPage', () => {
     await user.click((await screen.findAllByRole('button', { name: /launch/i }))[0]);
 
     // The dialog loads the prompt set + configured engines.
-    const geminiToggle = await screen.findByRole('checkbox', { name: 'Gemini' });
+    const geminiToggle = await screen.findByRole('button', { name: 'Gemini' });
     await user.click(geminiToggle);
-    expect(geminiToggle).toHaveAttribute('aria-checked', 'true');
+    expect(geminiToggle).toHaveAttribute('aria-pressed', 'true');
 
     await user.click(screen.getByRole('button', { name: 'Launch audit' }));
 
@@ -255,7 +255,7 @@ describe('RunsPage', () => {
     await user.click((await screen.findAllByRole('button', { name: /launch/i }))[0]);
 
     expect(await screen.findByText(/has not passed a connection test yet/i)).toBeInTheDocument();
-    expect(screen.queryByRole('checkbox', { name: 'Gemini' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Gemini' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Launch audit' })).toBeDisabled();
   });
 });

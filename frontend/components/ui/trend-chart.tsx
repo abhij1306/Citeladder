@@ -85,6 +85,7 @@ export function TrendChart({
 
   return (
     <svg
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- SVG is the semantic image; an img cannot render this generated chart.
       role="img"
       aria-label={ariaLabel}
       width={width}

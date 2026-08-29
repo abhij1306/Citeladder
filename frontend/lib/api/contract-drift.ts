@@ -224,7 +224,7 @@ export function declaredKeysFor(name: ContractSchemaName): DeclaredKeys | null {
 // OpenAPI component property extraction
 // ---------------------------------------------------------------------------
 
-export type OpenApiSchemaObject = {
+type OpenApiSchemaObject = {
   type?: string;
   properties?: Record<string, unknown>;
   required?: string[];
@@ -264,7 +264,7 @@ export function componentProperties(spec: OpenApiSpec, componentName: string): S
 // The diff
 // ---------------------------------------------------------------------------
 
-export type ContractDrift = {
+type ContractDrift = {
   schema: ContractSchemaName;
   component: string;
   /** Required declared keys absent from the backend model — FAIL. */
@@ -333,7 +333,7 @@ export function diffContract(spec: OpenApiSpec): ContractDiffResult {
 // OpenAPI acquisition (deterministic: file → offline codegen → live fetch)
 // ---------------------------------------------------------------------------
 
-export type OpenApiSource = 'env-file' | 'backend-codegen' | 'live-fetch';
+type OpenApiSource = 'env-file' | 'backend-codegen' | 'live-fetch';
 
 export type AcquiredSpec = { spec: OpenApiSpec; source: OpenApiSource; detail: string };
 

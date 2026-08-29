@@ -27,7 +27,11 @@ export function ScreenSkeleton({ label = 'Loading Site Health…' }: Readonly<{ 
       aria-busy="true"
       data-testid="site-health-skeleton"
     >
-      <div role="status" className="flex min-h-8 items-center gap-3">
+      <div
+        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- output cannot contain the block skeleton used by this loading live region.
+        role="status"
+        className="flex min-h-8 items-center gap-3"
+      >
         <Skeleton className="size-2 shrink-0 rounded-full" />
         <p className="text-secondary text-sm font-medium">{label}</p>
       </div>

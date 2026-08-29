@@ -234,8 +234,7 @@ export function LaunchDialogView({
                   <button
                     key={engine}
                     type="button"
-                    role="checkbox"
-                    aria-checked={selected.has(engine)}
+                    aria-pressed={selected.has(engine)}
                     onClick={() => setEngines((current) => toggleEngine(current, engine))}
                     className={filterChipClasses(selected.has(engine))}
                   >

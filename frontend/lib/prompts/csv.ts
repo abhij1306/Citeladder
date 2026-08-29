@@ -25,7 +25,7 @@ const FALSE_VALUES = new Set(['0', 'false', 'no', 'n', 'f']);
 
 const VALID_INTENTS = new Set<string>(promptIntentSchema.options);
 
-export type ParsedPromptRow = {
+type ParsedPromptRow = {
   /** 1-based source row number (excludes the header) for user feedback. */
   line: number;
   input: PromptInput;

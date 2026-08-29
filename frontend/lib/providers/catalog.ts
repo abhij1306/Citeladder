@@ -64,7 +64,7 @@ export function transportLabel(key: string): string {
 }
 
 /** The single fixed direct route on an engine card. */
-export type EngineRouteOption = {
+type EngineRouteOption = {
   transport_provider: TransportProvider;
   model: string;
   /** Toggle-free label, e.g. "Direct (OpenAI)". */
@@ -101,7 +101,7 @@ export type EngineCardModel = {
  * resolve one to another provider. Keeping them visible is the approved
  * marketing exception; keeping them route-less is what makes it safe.
  */
-export const PLANNED_ENGINES = [
+const PLANNED_ENGINES = [
   { key: 'grok', label: 'Grok' },
   { key: 'perplexity', label: 'Perplexity' },
   { key: 'copilot', label: 'Copilot' },

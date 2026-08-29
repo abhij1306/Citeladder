@@ -100,6 +100,7 @@ export function MarketSelect({
     <div ref={containerRef} className="relative">
       <Input
         id={id}
+        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- This is the semantic input in an editable ARIA combobox; a native select is not editable.
         role="combobox"
         aria-expanded={showList}
         aria-controls={listId}
@@ -151,6 +152,7 @@ export function MarketSelect({
       {showList ? (
         <ul
           id={listId}
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/no-noninteractive-element-to-interactive-role -- Editable combobox popup; native select/datalist cannot preserve the active-descendant interaction.
           role="listbox"
           aria-label={ariaLabel}
           data-open="true"
@@ -160,6 +162,7 @@ export function MarketSelect({
             <li
               key={option.value}
               id={`${listId}-${option.value}`}
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/no-noninteractive-element-to-interactive-role -- ARIA listbox options keep focus on the editable input.
               role="option"
               aria-selected={option.value === value}
               onMouseDown={(event) => {

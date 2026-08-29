@@ -20,7 +20,7 @@ export type SourceClass =
   | 'video'
   | 'other_third_party';
 
-export type SourcePatternCitation = {
+type SourcePatternCitation = {
   domain: string;
   url: string;
   title: string;

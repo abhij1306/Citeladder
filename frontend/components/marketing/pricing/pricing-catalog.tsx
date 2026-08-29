@@ -212,17 +212,13 @@ export function PricingCatalog() {
           </p>
         </div>
 
-        {notice && (
-          <p role="status" className="website-body text-warning-text mb-8">
-            {notice}
-          </p>
-        )}
+        {notice && <output className="website-body text-warning-text mb-8 block">{notice}</output>}
         {activation.isError && (
-          <p role="status" className="website-body text-warning-text mb-8">
+          <output className="website-body text-warning-text mb-8 block">
             {activation.error instanceof Error
               ? activation.error.message
               : 'That purchase could not be started. Please try again.'}
-          </p>
+          </output>
         )}
 
         {catalogQuery.isError ? (

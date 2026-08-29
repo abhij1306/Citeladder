@@ -4,8 +4,6 @@ import { eyebrowClasses } from '@/components/ui/eyebrow';
 import { cn } from '@/lib/utils';
 import { cardClasses } from './card-variants';
 
-export { cardClasses } from './card-variants';
-
 /**
  * Card (§8) — bg-panel, --radius-card, --card-padding, and the shared Image-2
  * reference `shadow-card` elevation rung owned by globals.css.

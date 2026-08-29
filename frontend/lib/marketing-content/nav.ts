@@ -9,7 +9,7 @@ export type NavDropItem =
   | { title: string; desc: string; href: string; external?: boolean }
   | { num: string; title: string; desc: string; href: string };
 
-export type NavDropGroup = { label?: string; items: readonly NavDropItem[] };
+type NavDropGroup = { label?: string; items: readonly NavDropItem[] };
 
 export type NavDrop = {
   key: NavDropKey;

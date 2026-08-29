@@ -143,7 +143,10 @@ response objects use `responseObject` (zod `.strip()`), so an **additive** backe
 can never break a screen, while a **declared** field that goes missing still fails loud.
 Tolerance is prevented from becoming silent divergence by the contract-drift guard
 (`lib/api/contract-drift.ts`; `pnpm check:contract`), which FAILs on missing declared
-fields and WARNs on undeclared additive ones.
+fields and WARNs on undeclared additive ones. In CI, the backend job exports its
+FastAPI OpenAPI JSON as an artifact and the dedicated cross-stack contract job supplies
+that exact file through `CITELADDER_OPENAPI_JSON`; the strict guard therefore cannot
+silently skip for lack of a backend virtual environment.
 
 ## 5. Adding a new error code
 

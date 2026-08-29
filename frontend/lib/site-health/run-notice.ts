@@ -95,7 +95,7 @@ const PARTIAL_MESSAGES: Record<string, string> = {
 const PARTIAL_FALLBACK =
   'This crawl finished with partial results — showing everything it did analyze.';
 
-export function partialCrawlMessage(partialReason: string): string {
+function partialCrawlMessage(partialReason: string): string {
   return PARTIAL_MESSAGES[partialReason] ?? PARTIAL_FALLBACK;
 }
 

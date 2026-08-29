@@ -16,17 +16,16 @@
 //   - `react/jsx-uses-react`, `react/jsx-uses-vars` and `react/no-deprecated`
 //     are subsumed by `no-unused-vars` and the modern JSX transform.
 //
-// `categories.correctness` is deliberately OFF so this gate is exactly the set
-// ESLint enforced. Turning it on additionally activates every correctness rule
-// of each enabled plugin -- about twenty further jsx-a11y findings that deserve
-// their own decision rather than arriving as a side effect of a linter swap.
+// Correctness is intentionally enabled across Oxlint and every configured
+// plugin. This includes the broader jsx-a11y correctness set that was not part
+// of eslint-config-next; those findings are now part of the required gate.
 // `no-unsafe-optional-chaining` is the one rule adopted from outside the port:
 // it found three real cases where `?.` promised a safety a cast then discarded.
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["nextjs", "typescript"],
   "categories": {
-    "correctness": "off"
+    "correctness": "error"
   },
   "env": {
     "builtin": true,

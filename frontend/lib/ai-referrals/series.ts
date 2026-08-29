@@ -37,7 +37,7 @@ export function formatPercent(fraction: number | null, decimals = 0): string {
   return `${(fraction * 100).toFixed(decimals)}%`;
 }
 
-export const AI_SOURCE_LABELS: Record<AiSource, string> = {
+const AI_SOURCE_LABELS: Record<AiSource, string> = {
   chatgpt: 'ChatGPT',
   gemini: 'Gemini',
   claude: 'Claude',

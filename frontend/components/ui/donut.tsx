@@ -68,6 +68,7 @@ export function Donut({
         style={{ width: size, height: size }}
       >
         <svg
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- SVG is the semantic image; img cannot render this generated donut.
           role="img"
           aria-label={ariaLabel}
           width={size}

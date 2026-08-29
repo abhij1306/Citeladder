@@ -54,10 +54,10 @@ export type SiteFactsStance = 'allow' | 'block' | 'unknown';
  *   - `fetch_failed`: network error / 5xx — robots.txt could not be read, so
  *                     the real stance is unknown.
  */
-export type RobotsFetchStatus = 'fetched' | 'not_found' | 'fetch_failed';
+type RobotsFetchStatus = 'fetched' | 'not_found' | 'fetch_failed';
 
 /** One bot's stance row, in `AI_CRAWLER_BOTS` order. */
-export type SiteFactsBotStance = { bot: string; stance: SiteFactsStance };
+type SiteFactsBotStance = { bot: string; stance: SiteFactsStance };
 
 /**
  * The parsed, display-ready view of one crawl's `site_facts` blob. The URL

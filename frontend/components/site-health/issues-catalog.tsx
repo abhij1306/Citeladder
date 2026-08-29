@@ -11,7 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { siteHealthQueries, type IssuesParams } from '@/lib/api/site-health';
-import type { IssueDimension, SiteIssue, SiteIssueDetail } from '@/lib/api/types';
+import type { IssueDimension, IssuesSummary, SiteIssue, SiteIssueDetail } from '@/lib/api/types';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import { PageKindSelect } from '@/components/site-health/page-kind-select';
 import {
@@ -57,11 +57,7 @@ function filterParams(filter: FilterKey): Pick<IssuesParams, 'severity' | 'dimen
  * Per-chip occurrence count from the chip-independent summary. `high` folds in
  * `critical` so the chip agrees with the "High Severity" tile above it.
  */
-function filterCount(
-  filter: FilterKey,
-  summary: import('@/lib/api/types').IssuesSummary,
-  findingView: FindingView,
-): number {
+function filterCount(filter: FilterKey, summary: IssuesSummary, findingView: FindingView): number {
   switch (filter) {
     case 'high':
       return (summary.severity_counts.high ?? 0) + (summary.severity_counts.critical ?? 0);

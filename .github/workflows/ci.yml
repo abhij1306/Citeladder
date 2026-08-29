@@ -5,17 +5,12 @@ on:
     branches: [main]
   pull_request:
 
-# Least privilege for GITHUB_TOKEN across every job below: each one only ever
-# checks out the repo and runs tests/linters, so read access to contents is
-# the whole requirement. Declared at workflow level so a new job cannot silently
-# inherit the permissive repository default; a job needing more (e.g. posting a
-# comment) must opt in with its own narrower block.
 permissions:
   contents: read
 
 jobs:
   backend:
-    name: Backend (ruff, pytest)
+    name: Backend (quality, pytest)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -39,14 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Complexity policy compares ceilings with the PR/push base so a
-          # branch cannot make its own complexity budget larger.
           fetch-depth: 0
-      # Pinned to backend/.python-version (3.12), which is also the floor in
-      # `requires-python` and the interpreter ./Dockerfile ships. Unpinned, uv
-      # resolved the newest interpreter it could find, so the gate and the
-      # declared floor disagreed about which Python the code has to work on.
-      # All four move together; do not silently widen the pin here.
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -54,75 +42,32 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies (frozen lock)
         run: uv sync --frozen --extra dev
-      # `.` is the backend tree. The two Python files ABOVE it
-      # (`reset-db.py`, `docs/validate_documentation.py`) were linted by
-      # nothing at all, so they are passed explicitly with this config -- ruff
-      # would otherwise fall back to its defaults for them, there being no
-      # pyproject.toml at the repository root.
-      - name: Ruff
-        run: >-
-          uv run --frozen --no-sync --no-build ruff check .
-          --config pyproject.toml ../reset-db.py ../docs/validate_documentation.py
-      # Formatting was fixable but never gated, so drift landed silently in
-      # seven files and then showed up as noise in unrelated diffs. Gated here
-      # to match `scripts/check.ps1`, which applies the same formatter locally.
-      - name: Ruff format
-        run: >-
-          uv run --frozen --no-sync --no-build ruff format --check .
-          --config pyproject.toml ../reset-db.py ../docs/validate_documentation.py
-      # Type check. Not previously gated, so 35 real errors had accumulated
-      # unnoticed (a Literal[] the checker could not read, two shadowed
-      # variables that silently widened a type, an optional the caller
-      # treated as proven). Cleared to zero, and gated here so the next one
-      # fails the build instead of joining a backlog.
-      - name: Mypy
-        run: uv run --frozen --no-sync --no-build mypy
-      # Fixed CC/LOC defaults plus narrow legacy exceptions. The base-revision
-      # comparison rejects higher defaults, higher exceptions, and new
-      # exceptions; there is deliberately no baseline rewrite command.
-      - name: Complexity policy
+      - name: Backend and documentation quality
         env:
           COMPLEXITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          if [ -n "$COMPLEXITY_BASE_SHA" ] && ! [[ "$COMPLEXITY_BASE_SHA" =~ ^0+$ ]]; then
-            .venv/bin/python -m scripts.check_complexity --check-policy-diff "$COMPLEXITY_BASE_SHA"
-          else
-            .venv/bin/python -m scripts.check_complexity
-          fi
-      # Architecture policy. The backend had no equivalent of the frontend's
-      # `check:policy`, so nothing stopped `domain` importing `api`, or a model
-      # reaching into a worker. Contracts and their named exceptions live in
-      # backend/.importlinter.
-      - name: Architecture policy
-        run: .venv/bin/lint-imports
-      - name: Dead-code policy
-        run: .venv/bin/vulture app evaluations scripts --min-confidence 80
-      # Declared-but-unused, used-but-undeclared, and transitively-relied-upon
-      # dependencies -- a question nothing else here asks: pip-audit checks
-      # known CVEs, vulture checks unused code.
-      - name: Dependency hygiene
-        run: .venv/bin/deptry .
+        run: node ../scripts/quality.mjs --mode check --scope backend,docs
+      - name: Export OpenAPI contract
+        run: .venv/bin/python -m scripts.export_openapi --output .artifacts/openapi.json
+      - name: Publish OpenAPI contract
+        uses: actions/upload-artifact@v5
+        with:
+          name: backend-openapi
+          path: backend/.artifacts/openapi.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Radon advisory report
         run: |
           .venv/bin/radon cc app -s -n C
           .venv/bin/radon mi app -s -n B
-      # Coverage is measured and published here, and is deliberately NOT a
-      # gate -- see the note above ``[tool.coverage.run]`` in pyproject.toml
-      # for why. An earlier version of this comment claimed a
-      # ``[tool.coverage.report] fail_under`` that was never set, describing a
-      # gate that did not exist. What must be tested is decided by
-      # ``scripts/validation.json``, which maps production files to the tests
-      # that have to run for them.
-      - name: Pytest
-        # Verbose node ids make an anomalous runner/database stall attributable;
-        # faulthandler prints thread stacks if one test exceeds two minutes.
+      - name: Pytest with measured coverage
         run: >-
           .venv/bin/python -m pytest -vv -o faulthandler_timeout=120
           --cov --cov-report=xml --cov-report=term
 
   frontend:
-    name: Frontend (vitest, oxlint, tsc, policy, build)
+    name: Frontend (quality, coverage, build)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
@@ -140,48 +85,56 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Vitest
-        run: pnpm test
-      # Oxlint replaced ESLint: same rule set (migrated with @oxlint/migrate),
-      # ~20x faster, and `--deny-warnings` plus unused-directive reporting mean
-      # neither a warning nor a stale suppression can accumulate quietly. The
-      # two rules oxlint does not implement moved to the policy scripts:
-      # the design-token restriction to `check:policy`'s design-system guard,
-      # and the hard-navigation guard to its architecture guard.
-      - name: Lint
-        run: pnpm lint
-      # Formatting was enforceable (`format:check` has always existed) but not
-      # enforced, so formatter drift could land silently and then show up as
-      # noise in an unrelated diff. Gated here; `pnpm format` fixes it. Oxfmt
-      # replaced Prettier and prettier-plugin-tailwindcss: identical output
-      # apart from wrapped union types, identical Tailwind class ordering, and
-      # it always writes LF -- which is what ../.gitattributes now declares.
-      - name: Format check
-        run: pnpm format:check
-      - name: Type check
-        run: pnpm exec tsc --noEmit
-      - name: Complexity and duplication policies
+      - name: Frontend quality
         env:
           COMPLEXITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          if [ -n "$COMPLEXITY_BASE_SHA" ] && ! [[ "$COMPLEXITY_BASE_SHA" =~ ^0+$ ]]; then
-            pnpm check:complexity -- --check-policy-diff "$COMPLEXITY_BASE_SHA"
-            pnpm check:duplicates -- --check-policy-diff "$COMPLEXITY_BASE_SHA"
-          else
-            pnpm check:complexity
-            pnpm check:duplicates
-          fi
+        run: pnpm quality:check -- --scope frontend
+      - name: Vitest with measured coverage
+        run: pnpm test:coverage
+      - name: Publish frontend coverage
+        uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          if-no-files-found: error
+          retention-days: 7
       - name: Test duplication advisory
         run: pnpm report:duplicates:tests
-      - name: Architecture / token policy
-        run: pnpm check:policy
       - name: Build
         env:
-          # next.config.ts fails closed for production builds. CI verifies the
-          # bundle only, so use an RFC-reserved, unreachable origin here; real
-          # deployments must provide the backend service origin themselves.
           BACKEND_ORIGIN: https://backend.ci.invalid
         run: pnpm build
+
+  contract:
+    name: API contract (backend to frontend)
+    needs: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Download OpenAPI contract
+        uses: actions/download-artifact@v6
+        with:
+          name: backend-openapi
+          path: backend-openapi
+      - name: Strict contract validation
+        env:
+          CITELADDER_OPENAPI_JSON: ../backend-openapi/openapi.json
+        run: pnpm quality:check -- --scope contract
 
   e2e:
     name: E2E (playwright)
@@ -202,19 +155,8 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
-      # Chromium only: playwright.config.ts declares no projects, so the run
-      # uses the default chromium browser. Installing the other two engines
-      # would cost download time for browsers nothing here launches.
       - name: Install Playwright browser
         run: ./node_modules/.bin/playwright install --with-deps chromium
-      # `scripts/validation.json` maps production paths to E2E specs, so those
-      # mappings were previously a local-only gate: nothing re-ran them on a
-      # pull request. The specs in `playwright.config.ts` stub every
-      # `/api/v1/` route (e2e/helpers/app-fixture.ts) and need no backend, so
-      # this job runs the whole mapped suite rather than a subset. The
-      # real-stack spec and the visual suite own separate configs and stay out
-      # (testIgnore), because both need a vertical or committed screenshots
-      # that this job does not provision.
       - name: Playwright
         run: pnpm test:e2e
       - uses: actions/upload-artifact@v5
@@ -227,10 +169,9 @@ jobs:
   security:
     name: Security (pip-audit, detect-secrets)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # Same pin as the backend job: the audited requirements must be the set
-      # resolved for the interpreter that actually ships.
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -244,3 +185,17 @@ jobs:
         run: |
           uvx detect-secrets scan --baseline .secrets.baseline \
             --exclude-files 'uv\.lock|pnpm-lock\.yaml|\.secrets\.baseline'
+
+  required-quality:
+    name: Required quality
+    if: always()
+    needs: [backend, frontend, contract, e2e, security]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every quality owner
+        run: |
+          test "${{ needs.backend.result }}" = "success"
+          test "${{ needs.frontend.result }}" = "success"
+          test "${{ needs.contract.result }}" = "success"
+          test "${{ needs.e2e.result }}" = "success"
+          test "${{ needs.security.result }}" = "success"

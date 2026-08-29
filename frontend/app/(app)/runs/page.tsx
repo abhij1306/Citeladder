@@ -77,11 +77,7 @@ export default function RunsPage() {
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div
-          className="flex flex-wrap items-center gap-2"
-          role="group"
-          aria-label="Filter by status"
-        >
+        <fieldset className="flex flex-wrap items-center gap-2" aria-label="Filter by status">
           {STATUS_FILTERS.map((filter) => (
             <FilterChip
               key={filter.id}
@@ -92,7 +88,7 @@ export default function RunsPage() {
               {filter.label}
             </FilterChip>
           ))}
-        </div>
+        </fieldset>
         <Button className="ml-auto" onClick={() => setLaunchOpen(true)} disabled={!projectId}>
           Launch audit
         </Button>

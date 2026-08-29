@@ -148,11 +148,12 @@ these once, in this order, from the repository root:
 .\scripts\test.ps1
 ```
 
-`check.ps1` is the canonical static/fix gate. It applies Ruff fixes and
-formatting, runs mypy, the backend complexity policy, and the dead-code policy;
-then Oxfmt fixes, Oxlint, `tsc --noEmit`, the frontend complexity,
-duplication, design-system, architecture, and API-contract policies; then the
-documentation-index check. `test.ps1` separately selects and runs the affected
+`scripts/quality.mjs` is the cross-platform static-gate owner;
+`check.ps1` is its release-compatible PowerShell shim. The fix mode applies
+Ruff and Oxfmt fixes; check mode never writes. Both run mypy, backend
+complexity/dead-code/dependency policies, Oxlint, `tsc --noEmit`, frontend
+complexity/duplication/design/architecture/dead-code policies, the strict
+API-contract guard, and the documentation-index check. `test.ps1` separately selects and runs the affected
 backend, frontend, and mapped E2E tests from the working diff against
 `origin/main`. Fix every failure. Review and include any formatter changes.
 

@@ -112,6 +112,7 @@ export function RotatingEngineLogos({ className }: Readonly<{ className?: string
   return (
     <div
       className={cn('engine-roster', className)}
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- This animated composite is one labelled image; img cannot contain its rendered logos.
       role="img"
       aria-label="ChatGPT, Grok, Gemini, Copilot, Claude and Perplexity."
     >

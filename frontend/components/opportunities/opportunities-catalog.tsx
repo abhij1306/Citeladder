@@ -330,11 +330,7 @@ function RecommendationsHeader({
           Ordered by expected impact using your latest visibility and site evidence.
         </p>
       </div>
-      <div
-        className="flex flex-wrap items-center gap-2"
-        role="group"
-        aria-label="Recommendation filters"
-      >
+      <fieldset className="flex flex-wrap items-center gap-2" aria-label="Recommendation filters">
         <FilterMenu
           label="Path"
           value={filters.pathFilter}
@@ -359,7 +355,7 @@ function RecommendationsHeader({
           options={STATUS_FILTERS}
           onChange={filters.setStatusFilter}
         />
-      </div>
+      </fieldset>
     </div>
   );
 }

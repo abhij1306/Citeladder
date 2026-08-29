@@ -136,7 +136,7 @@ describe('PromptsPage (Your Prompts)', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Launch audit' }));
     const dialog = await screen.findByRole('dialog', { name: 'Launch an audit' });
-    await user.click(within(dialog).getByRole('checkbox', { name: 'ChatGPT' }));
+    await user.click(within(dialog).getByRole('button', { name: 'ChatGPT' }));
     await user.click(within(dialog).getByRole('button', { name: 'Launch audit' }));
 
     await waitFor(() => expect(posted).not.toBeNull());

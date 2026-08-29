@@ -31,7 +31,6 @@ export type ProjectInput = {
   competitors: Array<{ name: string; aliases: string[]; domains: string[] }>;
 };
 
-export type BrandProfileField = keyof BrandProfileDraft;
 export type BrandProfileUpdateInput = Partial<BrandProfileDraft>;
 
 export const projectsApi = {

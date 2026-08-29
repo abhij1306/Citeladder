@@ -83,8 +83,9 @@ Before review, the repository harness decides scope. From the repository root:
 .\scripts\test.ps1
 ```
 
-`check.ps1` runs and fixes every static gate; `test.ps1` selects the affected
-backend, frontend, and mapped E2E tests from your diff against `origin/main`.
+`scripts/quality.mjs` owns the shared local/CI gate list; `check.ps1` is its
+PowerShell compatibility shim and runs the mutating fix mode. `test.ps1`
+selects the affected backend, frontend, and mapped E2E tests from your diff against `origin/main`.
 A change is not ready for review until both pass. See
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the variants and
 [`AGENTS.md`](AGENTS.md) for the rules on not weakening a gate to pass it.

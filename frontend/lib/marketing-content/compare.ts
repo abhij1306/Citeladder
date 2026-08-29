@@ -9,7 +9,7 @@
  * Copy rule: one short claim per cell. Detail lives in the product, not here.
  */
 
-export type ComparisonRow = {
+type ComparisonRow = {
   dimension: string;
   citeladder: string;
   competitor: string;

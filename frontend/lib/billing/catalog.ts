@@ -129,7 +129,7 @@ export type ProviderMarketingState = {
  * are catalog entries with no route, so they project as coming-soon and can
  * never resolve to a connectable transport.
  */
-export function providerMarketingState(provider: CatalogProvider): ProviderMarketingState {
+function providerMarketingState(provider: CatalogProvider): ProviderMarketingState {
   const shipped =
     provider.availability === 'available' && provider.adapter_shipped && provider.routes.length > 0;
   return {

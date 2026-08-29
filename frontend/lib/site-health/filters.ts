@@ -11,7 +11,7 @@
 import type { InventoryParams, IssuesParams } from '@/lib/api/site-health';
 
 /** The `monitored=` tri-state as it appears in the inventory URL. */
-export type MonitoredFilter = 'all' | 'monitored' | 'unmonitored';
+type MonitoredFilter = 'all' | 'monitored' | 'unmonitored';
 
 /** Inventory filter model (drives the inventory query + URL state). */
 export type InventoryFilters = {

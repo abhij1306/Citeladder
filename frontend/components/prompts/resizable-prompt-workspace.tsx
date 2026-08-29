@@ -137,6 +137,7 @@ export function ResizablePromptWorkspace({
       <button
         ref={handleRef}
         type="button"
+        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Native hr cannot expose value or implement this keyboard-operable splitter.
         role="separator"
         aria-label="Resize topics panel"
         aria-orientation="vertical"

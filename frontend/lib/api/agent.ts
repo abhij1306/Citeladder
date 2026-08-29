@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { apiClient, type ApiRequestOptions } from './client';
 
-export const agentTaskTypeSchema = z.enum(['explain', 'build_roadmap']);
+const agentTaskTypeSchema = z.enum(['explain', 'build_roadmap']);
 
 const artifactReferenceSchema = z.object({
   kind: z.string(),

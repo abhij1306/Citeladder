@@ -9,8 +9,6 @@
  */
 
 /** Where the contact-only tier sends people when the catalog gives no URL. */
-export { DEMO_HREF as ENTERPRISE_FALLBACK_HREF } from './nav';
-
 /** The backend's plan keys, as the presentation layer refers to them. */
 export type PlanKey = 'tier_1' | 'tier_2' | 'tier_3' | 'enterprise';
 
@@ -59,7 +57,7 @@ export const FUNDED_UNAVAILABLE_LABEL = 'Not yet priced';
 export const CONTACT_LABEL = 'Contact us';
 
 /** Human labels for the capability keys the comparison grid renders. */
-export const CAPABILITY_LABELS: Readonly<Record<string, string>> = {
+const CAPABILITY_LABELS: Readonly<Record<string, string>> = {
   project_slots: 'Projects',
   prompt_slots: 'Prompts',
   monitored_urls: 'Monitored URLs',

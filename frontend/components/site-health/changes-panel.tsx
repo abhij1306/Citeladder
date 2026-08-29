@@ -118,9 +118,7 @@ function changesState(
   const loading = summary.isLoading || (pairAvailable && changes.isLoading);
   if (loading)
     return (
-      <p role="status" className="text-secondary text-sm">
-        Loading persisted website changes…
-      </p>
+      <output className="text-secondary block text-sm">Loading persisted website changes…</output>
     );
   if (summary.isError || changes.isError)
     return <Alert tone="danger">Could not load Website Changes.</Alert>;

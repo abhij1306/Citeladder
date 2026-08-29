@@ -5,7 +5,7 @@ import { ContentPreview } from './product-preview/content-preview';
 import { DemandPreview } from './product-preview/demand-preview';
 import { SitePreview } from './product-preview/site-preview';
 
-export type ProductLayerId = 'site' | 'content' | 'demand' | 'agent';
+type ProductLayerId = 'site' | 'content' | 'demand' | 'agent';
 
 type ProductPreviewPanelProps = Readonly<{
   layer: ProductLayerId;

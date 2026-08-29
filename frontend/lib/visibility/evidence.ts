@@ -77,7 +77,7 @@ export function provenanceSummary(item: VisibilityExecutionEvidence): string {
 }
 
 /** A short, stable id fragment for compact provenance display. */
-export function shortId(id: string): string {
+function shortId(id: string): string {
   return id.slice(0, 8);
 }
 

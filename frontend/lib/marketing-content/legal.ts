@@ -45,11 +45,11 @@ export function legalDisplayName(): string {
   return LEGAL_ENTITY.legalName.trim() || LEGAL_ENTITY.tradingName;
 }
 
-export function legalContactEmail(): string {
+function legalContactEmail(): string {
   return LEGAL_ENTITY.privacyEmail.trim() || LEGAL_ENTITY.supportEmail.trim();
 }
 
-export type LegalSection = {
+type LegalSection = {
   id: string;
   title: string;
   paragraphs?: readonly string[];

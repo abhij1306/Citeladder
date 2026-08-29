@@ -90,6 +90,7 @@ export function SkillPicker({
               <Tooltip key={skill.id} content={<SkillDetail skill={skill} />}>
                 <button
                   type="button"
+                  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Button-based radio preserves tooltip wrapping and the compact format-picker interaction.
                   role="radio"
                   aria-checked={selected}
                   disabled={disabled}

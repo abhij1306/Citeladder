@@ -45,8 +45,6 @@ const recomputeResponseSchema = z.strictObject({
   status: z.string(),
 });
 
-export type DemandRecomputeResponse = z.infer<typeof recomputeResponseSchema>;
-
 export const demandApi = {
   getLatest: async (projectId: string, options?: ApiRequestOptions) =>
     snapshotSchema.parse(

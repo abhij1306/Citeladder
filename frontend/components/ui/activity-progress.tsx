@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import { cn } from '@/lib/utils';
 
-export type ActivityStepState = 'complete' | 'active' | 'pending' | 'attention';
+type ActivityStepState = 'complete' | 'active' | 'pending' | 'attention';
 
 export type ActivityStep = {
   id: string;

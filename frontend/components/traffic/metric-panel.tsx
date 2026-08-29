@@ -16,7 +16,7 @@ const PLOT = {
 const INNER_HEIGHT = PLOT.height - PLOT.top - PLOT.bottom;
 const TICK_RATIOS = [1, 0.75, 0.5, 0.25, 0] as const;
 
-export type MetricPanelSeries = {
+type MetricPanelSeries = {
   /** Tailwind classes bridged off the --chart-N tokens (never a raw hex). */
   strokeClass: string;
   fillClass: string;
@@ -154,7 +154,9 @@ export function MetricPanel({
       </figcaption>
 
       <div ref={ref} className="relative">
+        {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Pointer handlers reveal a visual tooltip; the SVG label exposes the full summary without interaction. */}
         <svg
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- SVG is the semantic image; img cannot render this generated interactive chart.
           role="img"
           aria-label={summary}
           viewBox={`0 0 ${chart.plotWidth} ${PLOT.height}`}
@@ -346,13 +348,12 @@ function HoverTooltip({
   formatValue: (value: number) => string;
 }>) {
   return (
-    <div
-      role="status"
+    <output
       className="border-border-subtle bg-elevated text-foreground text-2xs shadow-card pointer-events-none absolute top-0 rounded-sm border px-2 py-1"
       style={{ left: `${(point.x / plotWidth) * 100}%` }}
     >
       <span className="text-muted">{point.label}</span>{' '}
       <span className="font-mono font-medium tabular-nums">{formatValue(point.value)}</span>
-    </div>
+    </output>
   );
 }

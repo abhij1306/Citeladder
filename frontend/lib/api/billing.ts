@@ -27,12 +27,9 @@ export type CatalogPlan = BillingCatalog['plans'][number];
 export type CatalogAddon = BillingCatalog['addons'][number];
 export type CatalogTopup = BillingCatalog['topups'][number];
 export type CatalogProvider = BillingCatalog['providers'][number];
-export type Money = CatalogPlan['base_price'];
 export type BillingEntitlement = z.infer<typeof billingEntitlementSchema>;
-export type BillingUsage = z.infer<typeof billingUsageSchema>;
+type BillingUsage = z.infer<typeof billingUsageSchema>;
 export type UsageItem = BillingUsage['items'][number];
-export type Activation = z.infer<typeof activationSchema>;
-export type SubscriptionChange = z.infer<typeof subscriptionChangeSchema>;
 export type CredentialMode = 'byok' | 'funded';
 export type SelfServePlanKey = 'tier_1' | 'tier_2' | 'tier_3';
 

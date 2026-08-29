@@ -208,38 +208,29 @@ function metricState(stat: Stat, activeMetrics: Set<MetricKey>) {
 
 function StatCard(props: StatCardProps) {
   const state = metricState(props.stat, props.activeMetrics);
+  if (!state.chartable) {
+    return (
+      <div data-testid={`stat-${props.stat.key}`} className={statClassName(props.stat, state)}>
+        <StaticStat stat={props.stat} />
+      </div>
+    );
+  }
   return (
-    <div
+    <button
+      type="button"
       data-testid={`stat-${props.stat.key}`}
-      onClick={() => state.chartable && props.toggleMetric(state.key)}
-      role={state.chartable ? 'checkbox' : undefined}
-      aria-checked={state.chartable ? state.checked : undefined}
-      tabIndex={state.chartable ? 0 : undefined}
-      onKeyDown={(event) => handleStatKey(event, state, props.toggleMetric)}
+      onClick={() => props.toggleMetric(state.key)}
+      aria-pressed={state.checked}
       className={statClassName(props.stat, state)}
     >
-      {state.chartable ? (
-        <ChartableStat
-          stat={props.stat}
-          state={state}
-          granularity={props.granularity}
-          impressionMax={props.impressionMax}
-        />
-      ) : (
-        <StaticStat stat={props.stat} />
-      )}
-    </div>
+      <ChartableStat
+        stat={props.stat}
+        state={state}
+        granularity={props.granularity}
+        impressionMax={props.impressionMax}
+      />
+    </button>
   );
-}
-
-function handleStatKey(
-  event: React.KeyboardEvent<HTMLDivElement>,
-  state: ReturnType<typeof metricState>,
-  toggleMetric: (key: MetricKey) => void,
-) {
-  if (!state.chartable || (event.key !== ' ' && event.key !== 'Enter')) return;
-  event.preventDefault();
-  toggleMetric(state.key);
 }
 
 function statClassName(stat: Stat, state: ReturnType<typeof metricState>) {
@@ -249,7 +240,8 @@ function statClassName(stat: Stat, state: ReturnType<typeof metricState>) {
       : 'border-t-2 border-t-muted/20'
     : (STAT_ACCENT_CLASSES[stat.key] ?? 'border-t-2 border-t-accent');
   return cn(
-    'border-border grid cursor-pointer gap-1 p-4 transition-[background-color,border-color] select-none',
+    'border-border grid gap-1 p-4 text-left transition-[background-color,border-color] select-none',
+    state.chartable && 'cursor-pointer',
     accent,
     state.chartable && state.checked
       ? METRIC_CONFIGS[state.key].bgActive

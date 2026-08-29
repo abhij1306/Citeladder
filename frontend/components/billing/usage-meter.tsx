@@ -68,6 +68,7 @@ export function UsageMeter({ item }: Readonly<{ item: UsageItem }>) {
         </span>
       </div>
       <div
+        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Native progress cannot preserve the token-driven inner fill and reserved-credit presentation.
         role="progressbar"
         aria-label={`${label} usage`}
         aria-valuemin={0}

@@ -169,13 +169,7 @@ export const NULL_PLACEHOLDER = availabilityLabel('not_measured');
 // Headline stat cards
 // ---------------------------------------------------------------------------
 
-export type TrafficStatKey =
-  | 'impressions'
-  | 'clicks'
-  | 'ctr'
-  | 'position'
-  | 'sessions'
-  | 'conversions';
+type TrafficStatKey = 'impressions' | 'clicks' | 'ctr' | 'position' | 'sessions' | 'conversions';
 
 export type TrafficStat = {
   key: TrafficStatKey;
