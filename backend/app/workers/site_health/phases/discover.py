@@ -109,7 +109,6 @@ async def run(ctx: PhaseContext, claimed: SiteCrawlTask) -> None:
             root_registrable_domain=root_registrable_domain,
             include_globs=include_globs,
             exclude_globs=exclude_globs,
-            depth=depth,
         )
         await _persist_discover(
             ctx,
@@ -128,7 +127,6 @@ async def _fetch_discover(
     root_registrable_domain: str,
     include_globs: list[str] | None,
     exclude_globs: list[str] | None,
-    depth: int,
 ) -> _DiscoverOutcome:
     """Fetch + parse one target into a bounded ``_DiscoverOutcome``.
 
