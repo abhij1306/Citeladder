@@ -209,7 +209,10 @@ def _shuffled_slots(
     # not a secret, token, identifier, or security decision.
     #
     # Two markers, because two analysers with two syntaxes both flag `random`
-    # here: `noqa: S311` is Ruff's, `NOSONAR` is SonarCloud's (python:S2245).
-    # Dropping either one fails a different gate.
-    random.Random(int(seed)).shuffle(slots)  # noqa: S311 - NOSONAR, not crypto
+    # here: `NOSONAR` is SonarCloud's (python:S2245), `noqa: S311` is Ruff's.
+    # ORDER MATTERS and is not interchangeable -- SonarCloud only honours
+    # NOSONAR when it opens the comment, so it has to come first, while Ruff
+    # finds its directive anywhere in the line. Dropping or reordering either
+    # marker fails a different gate.
+    random.Random(int(seed)).shuffle(slots)  # NOSONAR deterministic  # noqa: S311
     return slots
