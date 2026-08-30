@@ -5,9 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from app.analysis.site_health.page_analysis import analyze_page
-
 from app.analysis.opportunities.detectors import _site_opportunity_rule_id
+from app.analysis.site_health.page_analysis import analyze_page
 from app.analysis.site_health.page_kinds import classify
 from app.analysis.site_health.page_traits import derive_traits
 from app.analysis.site_health.parser import extract_page_facts

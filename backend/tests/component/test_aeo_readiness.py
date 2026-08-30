@@ -4,10 +4,6 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
-from app.domain.site_health.aeo_readiness_projection import (
-    ReadinessPage,
-    build_aeo_readiness_descriptor,
-)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -24,6 +20,10 @@ from app.core.config.site_health_measurement import (
     SCHEMA_CONTRACT_VERSION,
 )
 from app.core.config.site_health_rules import SITE_HEALTH_RULES_BY_ID
+from app.domain.site_health.aeo_readiness_projection import (
+    ReadinessPage,
+    build_aeo_readiness_descriptor,
+)
 from app.domain.site_health.overview_snapshot import build_overview_history
 from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.analysis import SitePageAnalysis, SiteRuleEvaluation
