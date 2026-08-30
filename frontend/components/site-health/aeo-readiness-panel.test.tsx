@@ -57,6 +57,7 @@ function dimension(key: string, label: string, failing: boolean) {
     checks: [
       {
         rule_id: ruleId,
+        scope: 'page',
         title: failing ? 'Answer is not stated first' : 'Headings are unique',
         remediation: 'Move the direct answer into the first paragraph.',
         satisfied_count: failing ? 3 : 4,
@@ -67,7 +68,7 @@ function dimension(key: string, label: string, failing: boolean) {
         conflicting_count: 0,
         not_applicable_count: 1,
         error_count: 0,
-        failing_page_count: failing ? 2 : 0,
+        failing_entity_count: failing ? 2 : 0,
         checkpoint_family: key,
         readiness_weight: 1,
         content_addressable: true,
