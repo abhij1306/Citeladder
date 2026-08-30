@@ -16,7 +16,6 @@ from app.core.config.site_health_crawl_policy import (
     AUTOMATIC_MONITOR_LIMIT_KEY,
     DISCOVERY_MODE_SAMPLE,
     INPUT_MODE_AUTO,
-    MANUAL_PHASE_LIFECYCLE_KEY,
     URL_ADMISSION_POLICY_VERSION,
 )
 from app.core.config.site_health_runtime import site_health_settings
@@ -24,10 +23,6 @@ from app.core.config.site_health_runtime import site_health_settings
 
 def is_sample_mode(runtime) -> bool:
     return runtime.discovery_mode == DISCOVERY_MODE_SAMPLE
-
-
-def manual_phase_configuration(enabled: bool) -> dict[str, bool]:
-    return {MANUAL_PHASE_LIFECYCLE_KEY: True} if enabled else {}
 
 
 def frozen_configuration(
@@ -40,7 +35,6 @@ def frozen_configuration(
     requested_page_limit: int | None = None,
     seed_urls: list[str] | None = None,
     page_kinds: list[str] | None = None,
-    manual_phase_lifecycle: bool = False,
 ) -> dict:
     settings = site_health_settings
     configuration = {
@@ -62,7 +56,6 @@ def frozen_configuration(
         "page_profile_rule_version": RULE_CATALOG_VERSION,
         "input_mode": input_mode,
         "requested_page_limit": requested_page_limit,
-        **manual_phase_configuration(manual_phase_lifecycle),
         "max_discovery_urls": settings.max_discovery_urls,
         "max_analysis_urls": settings.max_analysis_urls,
         "seed_urls": list(seed_urls or []),

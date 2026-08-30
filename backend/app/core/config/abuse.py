@@ -40,10 +40,6 @@ class AbuseSettings(BaseSettings):
     property_discovery_window_seconds: int = Field(default=3600, ge=1)
     crawl_create_limit: int = Field(default=10, ge=1)
     crawl_create_window_seconds: int = Field(default=86400, ge=1)
-    discovery_phase_mutation_limit: int = Field(default=60, ge=1)
-    discovery_phase_mutation_window_seconds: int = Field(default=3600, ge=1)
-    analysis_phase_mutation_limit: int = Field(default=60, ge=1)
-    analysis_phase_mutation_window_seconds: int = Field(default=3600, ge=1)
     brand_logo_refresh_limit: int = Field(default=10, ge=1)
     brand_logo_refresh_window_seconds: int = Field(default=3600, ge=1)
 

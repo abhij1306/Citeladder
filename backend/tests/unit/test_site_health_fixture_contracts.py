@@ -25,13 +25,14 @@ from pathlib import Path
 
 import pytest
 
+from app.analysis.site_health.page_analysis import analyze_page
 from app.analysis.site_health.page_kinds import classify
-from app.analysis.site_health.page_traits import derive_traits
 from app.analysis.site_health.parser import extract_page_facts
-from app.analysis.site_health.rules import evaluate_all
 from app.core.config.site_health_contracts import (
+    RULE_OUTCOME_CONFLICTING,
     RULE_OUTCOME_ERROR,
-    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_MISSING,
+    RULE_OUTCOME_PARTIAL,
 )
 from app.core.config.site_health_rule_types import FINDING_CLASS_DEFECT
 
@@ -118,9 +119,9 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
     FixtureContract(
         fixture="support_index.html",
         url="https://northgate.example/support/getting-started",
-        page_kind="faq",
+        page_kind="docs",
         confidence="medium",
-        why="a /support/ route guess must not admit the whole FAQ checklist",
+        why="a support landing is documentation, not an FAQ without FAQ structure",
     ),
     FixtureContract(
         fixture="guide_no_howto.html",
@@ -137,9 +138,8 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         why="the counter-example: schema and noindex both contradict the page",
         must_fail=frozenset(
             {
-                "aeo.product_visible_schema_parity",
                 "aeo.schema_matches_content",
-                "aeo.product_offer_details",
+                "aeo.product_brand_identity",
                 "technical.indexable",
             }
         ),
@@ -176,18 +176,15 @@ def _defect_failures(contract: FixtureContract) -> tuple[set[str], set[str]]:
         wire_bytes=len(body) // 3,
         decoded_bytes=len(body),
     )
-    assessment = classify(contract.url, facts)
-    # Mirrors the worker's evaluation-copy enrichment exactly
-    # (``analyze_rows._prepare_page_evaluation``).
-    facts["page_kind"] = assessment.page_kind
-    facts["page_kind_evidence"] = assessment.to_evidence()
-    facts["page_traits"] = list(derive_traits(contract.url, facts))
-    facts["sitemap_member"] = contract.sitemap_member
-    evaluations = evaluate_all(facts)
+    evaluations = analyze_page(
+        facts, sitemap_member=contract.sitemap_member
+    ).evaluations
     defects = {
         ev.rule_id
         for ev in evaluations
-        if ev.outcome == RULE_OUTCOME_FAIL and ev.finding_class == FINDING_CLASS_DEFECT
+        if ev.outcome
+        in {RULE_OUTCOME_MISSING, RULE_OUTCOME_PARTIAL, RULE_OUTCOME_CONFLICTING}
+        and ev.finding_class == FINDING_CLASS_DEFECT
     }
     errors = {ev.rule_id for ev in evaluations if ev.outcome == RULE_OUTCOME_ERROR}
     return defects, errors

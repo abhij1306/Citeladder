@@ -46,7 +46,6 @@ from app.core.config.site_health_contracts import (
     CODE_CRAWL_ALREADY_ACTIVE,
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_DRAFT,
-    CRAWL_STATUS_PAUSED,
     CRAWL_STATUS_QUEUED,
     CRAWL_STATUS_VALIDATING,
     DISCOVERY_STATUS_COMPLETED,
@@ -65,9 +64,6 @@ from app.core.config.site_health_crawl_policy import (
     INPUT_MODE_AUTO,
     INPUT_MODE_EXACT_URLS,
     INVENTORY_SOURCE_CRAWL_IDS_KEY,
-    MANUAL_PHASE_LIFECYCLE_KEY,
-    PHASE_DISCOVERY,
-    PHASE_RUN_RUNNING,
     URL_ADMISSION_POLICY_VERSION,
     URL_EXCLUSION_DUPLICATE,
     URL_EXCLUSION_INVALID,
@@ -85,10 +81,7 @@ from app.domain.site_health.entitlements import lock_runtime
 from app.domain.site_health.inventory_scope import freeze_inventory_lineage
 from app.domain.site_health.monitored_seeding import seed_monitored_targets
 from app.domain.site_health.normalization import canonical_identity
-from app.domain.site_health.planner_controls import (
-    advanced_controls_requested,
-    resolve_controls,
-)
+from app.domain.site_health.planner_controls import resolve_controls
 from app.domain.site_health.planner_policy import (
     admit_seed_urls,
     frozen_configuration,
@@ -101,7 +94,7 @@ from app.domain.site_health.state_events import (
     record_crawl_event,
 )
 from app.models.project import Project
-from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
+from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.runtime import SiteHealthProfile, WorkspaceSiteHealthRuntime
 from app.models.site_health.urls import SiteUrl, SiteUrlObservation
@@ -195,15 +188,11 @@ async def _load_project(
 
 
 async def _has_active_crawl(session: AsyncSession, *, project_id: uuid.UUID) -> bool:
-    # A paused advanced-control crawl has no live tasks, so the product may
-    # start a fresh crawl from that parked record. Running/queued work still
-    # remains single-crawl-per-project.
-    conflicting_statuses = CRAWL_ACTIVE_STATUSES - {CRAWL_STATUS_PAUSED}
     existing = await session.scalar(
         select(func.count())
         .select_from(SiteCrawl)
         .where(SiteCrawl.project_id == project_id)
-        .where(SiteCrawl.status.in_(list(conflicting_statuses)))
+        .where(SiteCrawl.status.in_(list(CRAWL_ACTIVE_STATUSES)))
     )
     return bool(existing and existing > 0)
 
@@ -319,28 +308,6 @@ async def preview_crawl_urls(
     }
 
 
-async def _initial_discovery_phase_run_id(
-    session: AsyncSession,
-    *,
-    crawl: SiteCrawl,
-    requested_count: int,
-    enabled: bool,
-) -> uuid.UUID | None:
-    if not enabled:
-        return None
-    run = SiteCrawlPhaseRun(
-        workspace_id=crawl.workspace_id,
-        crawl_id=crawl.id,
-        phase=PHASE_DISCOVERY,
-        ordinal=1,
-        status=PHASE_RUN_RUNNING,
-        requested_count=requested_count,
-    )
-    session.add(run)
-    await session.flush()
-    return run.id
-
-
 async def _locked_runtime(
     session: AsyncSession, *, workspace_id: uuid.UUID, mode: str
 ) -> tuple[WorkspaceSiteHealthRuntime, bool]:
@@ -359,7 +326,6 @@ def _add_initial_discovery_tasks(
     *,
     crawl: SiteCrawl,
     workspace_id: uuid.UUID,
-    phase_run_id: uuid.UUID | None,
     mode: str,
     root_url: str,
     accepted_seeds: list[str],
@@ -378,7 +344,6 @@ def _add_initial_discovery_tasks(
             SiteCrawlTask(
                 crawl_id=crawl.id,
                 workspace_id=workspace_id,
-                phase_run_id=phase_run_id,
                 task_kind=TASK_KIND_DISCOVER,
                 requested_url=initial_url,
                 url_hash=url_hash,
@@ -394,7 +359,6 @@ def _add_initial_discovery_tasks(
         SiteCrawlTask(
             crawl_id=crawl.id,
             workspace_id=workspace_id,
-            phase_run_id=phase_run_id,
             task_kind=TASK_KIND_SITE_SETUP,
             requested_url=root_url,
             url_hash=root_hash,
@@ -475,9 +439,6 @@ async def create_crawl(
         page_kinds=page_kinds,
         error=lambda message, code: CrawlPlanError(message, code=code),
     )
-    manual_phase_lifecycle = advanced_controls_requested(
-        mode, raw_seeds, selected_types
-    )
     accepted_seeds = admit_seed_urls(
         raw_seeds,
         root_domain=root_registrable_domain,
@@ -516,7 +477,6 @@ async def create_crawl(
         requested_page_limit=page_limit,
         seed_urls=accepted_seeds,
         page_kinds=selected_types,
-        manual_phase_lifecycle=manual_phase_lifecycle,
     )
 
     # Freeze the EXACT industry pack once, here. Resolving it per page (or at
@@ -563,18 +523,10 @@ async def create_crawl(
     session.add(crawl)
     await session.flush()  # assign crawl.id
 
-    discovery_phase_run_id = await _initial_discovery_phase_run_id(
-        session,
-        crawl=crawl,
-        requested_count=page_limit,
-        enabled=bool(configuration.get(MANUAL_PHASE_LIFECYCLE_KEY)),
-    )
-
     _add_initial_discovery_tasks(
         session,
         crawl=crawl,
         workspace_id=workspace_id,
-        phase_run_id=discovery_phase_run_id,
         mode=mode,
         root_url=root_url,
         accepted_seeds=accepted_seeds,

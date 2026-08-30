@@ -159,7 +159,6 @@ async def _enqueue_task(
     randomized_position: int = 0,
     parent_site_url_id: uuid.UUID | None = None,
     priority: int = 0,
-    phase_run_id: uuid.UUID | None = None,
 ) -> uuid.UUID | None:
     """Enqueue one active-crawl task conflict-safely."""
     still_active = await session.scalar(
@@ -176,7 +175,6 @@ async def _enqueue_task(
         .values(
             crawl_id=crawl.id,
             workspace_id=crawl.workspace_id,
-            phase_run_id=phase_run_id,
             site_url_id=site_url_id,
             task_kind=task_kind,
             requested_url=url,
@@ -246,7 +244,6 @@ async def _add_free_sample(
     analyze: bool = True,
     analyze_after_discovery: bool = False,
     selection_source: str = SELECTION_SOURCE_FREE_SAMPLE,
-    phase_run_id: uuid.UUID | None = None,
     value_kind: str = "other",
     value_priority: int = 0,
     rewrite_reason: str = "",
@@ -273,7 +270,6 @@ async def _add_free_sample(
             crawl_id=crawl.id,
             site_url_id=site_url_id,
             source_kind=source_kind,
-            phase_run_id=phase_run_id,
             value_kind=value_kind,
             value_priority=value_priority,
             rewrite_reason=rewrite_reason,
@@ -307,7 +303,6 @@ async def _add_free_sample(
             task_kind=TASK_KIND_ANALYZE,
             depth=depth,
             priority=value_priority + ANALYZE_PRIORITY_BOOST,
-            phase_run_id=phase_run_id,
         )
     return activated_id is not None, observation_id is not None
 
@@ -460,7 +455,6 @@ async def enqueue_analysis_for_discovered_url(
     url_hash_value: str,
     depth: int,
     value_priority: int,
-    phase_run_id: uuid.UUID | None = None,
 ) -> uuid.UUID | None:
     """Queue the analyze task for a URL whose discover artifact now exists.
 
@@ -497,7 +491,6 @@ async def enqueue_analysis_for_discovered_url(
         task_kind=TASK_KIND_ANALYZE,
         depth=depth,
         priority=value_priority + ANALYZE_PRIORITY_BOOST,
-        phase_run_id=phase_run_id,
     )
 
 

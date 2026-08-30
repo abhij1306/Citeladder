@@ -12,6 +12,7 @@ const CRAWL = '22222222-2222-4222-8222-222222222222';
 const variantA = {
   robots: {
     fetched: true,
+    status: 'fetched',
     url: 'https://acme.com/robots.txt',
     status_code: 200,
     ai_crawlers: {
@@ -31,6 +32,7 @@ const robotsUnfetched = {
   robots: {
     ...variantA.robots,
     fetched: false,
+    status: 'fetch_failed',
     status_code: null,
     // Recorded fail-open server-side; the panel must still show Unknown.
     ai_crawlers: {

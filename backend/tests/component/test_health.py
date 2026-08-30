@@ -6,6 +6,7 @@ import httpx
 import pytest
 from fastapi.middleware.cors import CORSMiddleware
 from httpx import ASGITransport
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app import main
 from app.main import app
@@ -23,8 +24,12 @@ async def test_health_returns_200() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ready_returns_200_when_the_database_answers() -> None:
+async def test_ready_returns_200_when_the_database_answers(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Readiness is a real dependency check, not a second liveness route."""
+    monkeypatch.setattr(main, "SessionLocal", session_factory)
     transport = ASGITransport(app=app)
     async with httpx.AsyncClient(
         transport=transport, base_url="http://testserver"

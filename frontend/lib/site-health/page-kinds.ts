@@ -190,16 +190,10 @@ function readAlternatives(value: unknown): PageKindEvidenceCandidate[] {
   for (const raw of value) {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) continue;
     const entry = raw as Record<string, unknown>;
-    const tier =
-      typeof entry.tier === 'string'
-        ? entry.tier
-        : typeof entry.confidence === 'number'
-          ? 'legacy'
-          : null;
-    if (typeof entry.page_kind !== 'string' || tier === null) continue;
+    if (typeof entry.page_kind !== 'string' || typeof entry.tier !== 'string') continue;
     out.push({
       pageKind: entry.page_kind,
-      tier,
+      tier: entry.tier,
       signals: Array.isArray(entry.signals)
         ? entry.signals.filter((item): item is string => typeof item === 'string')
         : [],
@@ -242,17 +236,11 @@ function readSignals(value: unknown): PageKindEvidenceSignal[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((raw) => {
     const entry = recordFrom(raw);
-    const tier =
-      typeof entry?.tier === 'string'
-        ? entry.tier
-        : typeof entry?.weight === 'number'
-          ? 'legacy'
-          : null;
     if (
       !entry ||
       typeof entry.signal !== 'string' ||
       typeof entry.page_kind !== 'string' ||
-      !tier
+      typeof entry.tier !== 'string'
     ) {
       return [];
     }
@@ -260,7 +248,7 @@ function readSignals(value: unknown): PageKindEvidenceSignal[] {
       {
         signal: entry.signal,
         pageKind: entry.page_kind,
-        tier,
+        tier: entry.tier,
         detail: typeof entry.detail === 'string' ? entry.detail : '',
       },
     ];
@@ -273,18 +261,11 @@ function evidenceBasics(record: Record<string, unknown>): {
   tier: string;
 } | null {
   const { classified_by: classifiedBy, confidence, tier } = record;
-  if (typeof classifiedBy !== 'string') return null;
-  if (typeof confidence === 'string' && typeof tier === 'string') {
-    return { classifiedBy, confidence, tier };
-  }
-  if (
-    typeof confidence === 'number' &&
-    typeof record.confidence_threshold === 'number' &&
-    tier === undefined
-  ) {
-    return { classifiedBy, confidence: String(confidence), tier: 'legacy' };
-  }
-  return null;
+  return typeof classifiedBy === 'string' &&
+    typeof confidence === 'string' &&
+    typeof tier === 'string'
+    ? { classifiedBy, confidence, tier }
+    : null;
 }
 
 /**

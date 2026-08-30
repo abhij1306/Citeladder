@@ -18,7 +18,6 @@ def _signals(**overrides: object) -> CoverageSignals:
     values: dict[str, object] = {
         "sample_mode": False,
         "input_mode": "auto",
-        "manual_phase_lifecycle": False,
         "cancelled": False,
         "discovery_status": DISCOVERY_STATUS_COMPLETED,
         "requested_page_limit": 500,

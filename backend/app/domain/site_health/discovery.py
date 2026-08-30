@@ -31,9 +31,6 @@ from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.domain.site_health.frontier import admit_candidates as admit_candidates
-from app.domain.site_health.frontier import (
-    drain_discovery_frontier as drain_discovery_frontier,
-)
 from app.domain.site_health.frontier_support import (
     _add_free_sample,
     _automatic_remaining,

@@ -20,12 +20,6 @@ from app.core.config.site_health_acquisition import (
     ERROR_ROBOTS_DENIED,
     ERROR_ROBOTS_UNAVAILABLE,
 )
-from app.core.config.site_health_contracts import (
-    APPLICABILITY_CRAWL_FINALIZE,
-)
-from app.core.config.site_health_rules import (
-    SITE_HEALTH_RULES_BY_ID,
-)
 from app.domain.site_health.normalization import canonical_identity
 from app.models.site_health.crawl import SiteCrawl
 
@@ -62,12 +56,6 @@ def _is_bot_block(result: FetchResult) -> bool:
 def _count_disclosure(crawl: SiteCrawl) -> bool:
     """Whether this crawl opted into exact-count disclosure in its config."""
     return bool((crawl.configuration or {}).get("count_disclosure", False))
-
-
-def _is_crawl_finalize_rule(rule_id: str) -> bool:
-    """Whether a catalog rule is scoped ``crawl_finalize`` (finalize-owned)."""
-    rule = SITE_HEALTH_RULES_BY_ID.get(rule_id)
-    return rule is not None and rule.applicability_key == APPLICABILITY_CRAWL_FINALIZE
 
 
 def _serialize_redirect_chain(result: FetchResult) -> list[dict]:

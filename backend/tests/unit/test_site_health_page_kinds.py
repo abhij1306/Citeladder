@@ -182,7 +182,9 @@ def test_homepage_outranks_conflicting_schema_and_records_suggestion() -> None:
         ("https://example.com/docs/getting-started", "docs"),
         ("https://example.com/reference/api", "docs"),
         ("https://example.com/faq", "faq"),
-        ("https://example.com/help/article", "faq"),
+        # Help/support paths are documentation. FAQ requires the explicit FAQ
+        # route or independent structural classification evidence.
+        ("https://example.com/help/article", "docs"),
         ("https://example.com/about", "about_contact"),
         ("https://example.com/contact", "about_contact"),
     ],

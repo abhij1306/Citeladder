@@ -109,7 +109,6 @@ async def _persist_site_setup(
                 session,
                 crawl=crawl_hint,
                 candidates=candidates,
-                phase_run_id=task_hint.phase_run_id,
                 runtime=runtime,
             )
             await write_sitemap_observations(
@@ -117,7 +116,6 @@ async def _persist_site_setup(
                 crawl=crawl_hint,
                 candidates=candidates,
                 admission=admission,
-                phase_run_id=task_hint.phase_run_id,
             )
             admitted_delta = int(crawl_hint.admitted_url_count or 0) - admitted_before
 

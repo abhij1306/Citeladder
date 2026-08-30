@@ -8,23 +8,18 @@ from app.core.config.site_health_contracts import (
     APPLICABILITY_CRAWL_FINALIZE,
     APPLICABILITY_OBSERVED_CONTENT,
     APPLICABILITY_SITE_ROOT,
-    SKIP_REASON_LOW_CONFIDENCE_KIND,
 )
-from app.core.config.site_health_rule_types import (
-    FINDING_CLASS_ADVISORY,
-    KIND_EVIDENCE_EXPECTATION,
-    SiteHealthRule,
-)
+from app.core.config.site_health_rule_types import SiteHealthRule
 from app.core.config.site_health_rules import SERVER_RENDERED_MIN_WORDS
 from app.core.config.site_health_taxonomy import (
     PAGE_KIND_APPLICABILITY_PREFIX,
     PAGE_KIND_CONTENT_APPLICABILITY_PREFIX,
     PAGE_KIND_HTML_APPLICABILITY_PREFIX,
     PAGE_KIND_PROFILES,
-    PAGE_KIND_TIER_STRUCTURAL,
     PageKindProfile,
 )
 from app.core.config.site_health_traits import (
+    PAGE_KIND_OR_TRAIT_CONTENT_APPLICABILITY_PREFIX,
     PAGE_TRAIT_APPLICABILITY_PREFIX,
     PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX,
 )
@@ -77,21 +72,7 @@ def _page_kind_scope(key: str, prefix: str, facts: dict) -> tuple[bool, str]:
     return profile.page_kind in _tokens(key, prefix), "other_page_kind"
 
 
-def _kind_expectation_allowed(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
-    if (
-        rule.kind_evidence != KIND_EVIDENCE_EXPECTATION
-        or rule.finding_class == FINDING_CLASS_ADVISORY
-    ):
-        return True, ""
-    evidence = facts.get("page_kind_evidence")
-    tier = str(evidence.get("tier") or "") if isinstance(evidence, dict) else ""
-    if not tier or tier == PAGE_KIND_TIER_STRUCTURAL:
-        return True, ""
-    return False, SKIP_REASON_LOW_CONFIDENCE_KIND
-
-
 def _kind_scoped(
-    rule: SiteHealthRule,
     key: str,
     prefix: str,
     facts: dict,
@@ -100,9 +81,6 @@ def _kind_scoped(
     applies, reason = _page_kind_scope(key, prefix, facts)
     if not applies:
         return False, reason
-    allowed, reason = _kind_expectation_allowed(rule, facts)
-    if not allowed:
-        return False, reason
     if requirement == "content":
         return _observed_content(facts)
     if requirement == "html":
@@ -110,9 +88,15 @@ def _kind_scoped(
     return True, ""
 
 
-def _prefixed_scope(
-    rule: SiteHealthRule, key: str, facts: dict
-) -> tuple[bool, str] | None:
+def _prefixed_scope(key: str, facts: dict) -> tuple[bool, str] | None:
+    if key.startswith(PAGE_KIND_OR_TRAIT_CONTENT_APPLICABILITY_PREFIX):
+        tokens = _tokens(key, PAGE_KIND_OR_TRAIT_CONTENT_APPLICABILITY_PREFIX)
+        profile = profile_for(facts)
+        applies = bool(
+            (profile is not None and profile.page_kind in tokens)
+            or observed_traits(facts) & tokens
+        )
+        return _observed_content(facts) if applies else (False, "trait_not_observed")
     kind_scopes = (
         (PAGE_KIND_CONTENT_APPLICABILITY_PREFIX, "content"),
         (PAGE_KIND_HTML_APPLICABILITY_PREFIX, "html"),
@@ -120,7 +104,7 @@ def _prefixed_scope(
     )
     for prefix, requirement in kind_scopes:
         if key.startswith(prefix):
-            return _kind_scoped(rule, key, prefix, facts, requirement)
+            return _kind_scoped(key, prefix, facts, requirement)
     trait_scopes = (
         (PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX, "content"),
         (PAGE_TRAIT_APPLICABILITY_PREFIX, ""),
@@ -146,7 +130,7 @@ def applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
         return bool(facts.get("has_html")), "no_html"
     if key == APPLICABILITY_OBSERVED_CONTENT:
         return _observed_content(facts)
-    if scoped := _prefixed_scope(rule, key, facts):
+    if scoped := _prefixed_scope(key, facts):
         return scoped
     if key == APPLICABILITY_SITE_ROOT:
         return facts.get("site") is not None, "not_site_root"

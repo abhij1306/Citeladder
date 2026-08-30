@@ -15,8 +15,8 @@ from app.core.config.site_change_intel import (
 )
 from app.core.config.site_health_contracts import (
     RULE_FAILING_OUTCOMES,
-    RULE_OUTCOME_FAIL,
-    RULE_OUTCOME_PASS,
+    RULE_OUTCOME_MISSING,
+    RULE_OUTCOME_SATISFIED,
 )
 
 
@@ -65,9 +65,15 @@ class ChangeObservation:
 def _rule_class(before: RuleState | None, after: RuleState | None) -> str | None:
     if before is None or after is None or before.outcome == after.outcome:
         return None
-    if before.outcome in RULE_FAILING_OUTCOMES and after.outcome == RULE_OUTCOME_PASS:
+    if (
+        before.outcome in RULE_FAILING_OUTCOMES
+        and after.outcome == RULE_OUTCOME_SATISFIED
+    ):
         return CHANGE_CLASS_IMPROVEMENT
-    if before.outcome == RULE_OUTCOME_PASS and after.outcome in RULE_FAILING_OUTCOMES:
+    if (
+        before.outcome == RULE_OUTCOME_SATISFIED
+        and after.outcome in RULE_FAILING_OUTCOMES
+    ):
         return (
             CHANGE_CLASS_CRITICAL
             if after.severity == "critical"
@@ -117,9 +123,9 @@ def _expected_link(
         return False, None
     expected_value = item.expected_value
     if expected_value == "pass":
-        expected_value = RULE_OUTCOME_PASS
+        expected_value = RULE_OUTCOME_SATISFIED
     elif expected_value == "fail":
-        expected_value = RULE_OUTCOME_FAIL
+        expected_value = RULE_OUTCOME_MISSING
     matches_value = expected_value == after_value
     matches_rule = after_rule is not None and expected_value == after_rule.outcome
     if not matches_value and not matches_rule:

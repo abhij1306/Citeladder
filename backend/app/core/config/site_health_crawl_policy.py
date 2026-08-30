@@ -13,7 +13,6 @@ DISCOVERY_MODE_SAMPLE: Final = "sample"
 DISCOVERY_MODE_FULL: Final = "full"
 INVENTORY_SOURCE_CRAWL_IDS_KEY: Final = "inventory_source_crawl_ids"
 AUTOMATIC_MONITOR_LIMIT_KEY: Final = "automatic_monitor_limit"
-MANUAL_PHASE_LIFECYCLE_KEY: Final = "manual_phase_lifecycle"
 SAMPLE_URL_LIMIT: Final = 10
 SAMPLE_DISCOVERY_URL_CAP: Final = 200
 
@@ -218,16 +217,6 @@ URL_VALUE_PRIORITIES: Final[dict[str, int]] = {
     "other": 20,
 }
 
-PHASE_DISCOVERY: Final = "discovery"
-PHASE_ANALYSIS: Final = "analysis"
-PHASES: Final[frozenset[str]] = frozenset({PHASE_DISCOVERY, PHASE_ANALYSIS})
-PHASE_RUN_RUNNING: Final = "running"
-PHASE_RUN_STOPPED: Final = "stopped"
-PHASE_RUN_COMPLETED: Final = "completed"
-PHASE_RUN_FAILED: Final = "failed"
-PHASE_RUN_STATUSES: Final[frozenset[str]] = frozenset(
-    {PHASE_RUN_RUNNING, PHASE_RUN_STOPPED, PHASE_RUN_COMPLETED, PHASE_RUN_FAILED}
-)
 FRONTIER_PENDING: Final = "pending"
 FRONTIER_ADMITTED: Final = "admitted"
 SELECTION_SOURCE_USER: Final = "user"

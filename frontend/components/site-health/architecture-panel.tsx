@@ -233,7 +233,7 @@ function PageKindTable({
                     className="inline-flex min-h-11 items-center gap-2 text-left md:min-h-9"
                   >
                     <Chevron className="text-muted size-4 shrink-0" aria-hidden />
-                    <PageKindBadge pageKind={pageKind.page_kind} />
+                    <PageKindBadge pageKind={pageKind.page_kind} className="text-xs" />
                   </button>
                 </TableCell>
                 <TableRecordMetricCell label="Pages">{pageKind.page_count}</TableRecordMetricCell>
@@ -402,15 +402,15 @@ function ArchitectureEvidence({ data }: Readonly<{ data: SiteArchitecture }>) {
             value={formatPercentage(linking.pages_with_incoming_percentage)}
             supporting={`${linking.pages_with_incoming_count} pages`}
           />
-          <Button asChild variant="secondary" size="sm" className="col-span-3 justify-self-start">
-            <Link href="/site?tab=pages&sort=inbound">View pages by inbound links</Link>
-          </Button>
           <EvidenceMetric
             label="Orphaned pages"
             value={
               linking.orphan_page_count === null ? PLACEHOLDER : String(linking.orphan_page_count)
             }
           />
+          <Button asChild variant="secondary" size="sm" className="col-span-3 justify-self-start">
+            <Link href="/site?tab=pages&sort=inbound">View pages by inbound links</Link>
+          </Button>
         </CardContent>
       </Card>
       <Card>

@@ -34,9 +34,12 @@ from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.domain.commerce.service import enqueue_catalog_projection
-from app.domain.site_health.phase_common import lock_crawl_for_evidence_commit
 from app.domain.site_health.state_events import record_crawl_event
-from app.domain.site_health.task_guards import evaluate_task_guard, lease_is_owned
+from app.domain.site_health.task_guards import (
+    evaluate_task_guard,
+    lease_is_owned,
+    lock_crawl_for_evidence_commit,
+)
 from app.models.site_health.analysis import (
     SitePageAnalysis,
 )

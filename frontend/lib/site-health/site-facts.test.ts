@@ -6,6 +6,7 @@ import { AI_CRAWLER_BOTS, AI_CRAWLER_ENGINE_LABELS, readSiteFacts } from './site
 const variantA = {
   robots: {
     fetched: true,
+    status: 'fetched',
     url: 'https://acme.com/robots.txt',
     status_code: 200,
     ai_crawlers: {
@@ -64,7 +65,12 @@ describe('readSiteFacts', () => {
     // fetch; the view must NOT present that as a real allow.
     const view = readSiteFacts({
       ...variantA,
-      robots: { ...variantA.robots, fetched: false, status_code: null },
+      robots: {
+        ...variantA.robots,
+        fetched: false,
+        status: 'fetch_failed',
+        status_code: null,
+      },
     });
     expect(view?.robotsFetched).toBe(false);
     expect(view?.robotsFetchStatus).toBe('fetch_failed');
@@ -93,28 +99,7 @@ describe('readSiteFacts', () => {
     expect(view?.bots.every(({ stance }) => stance === 'allow')).toBe(true);
   });
 
-  it('derives the classification for a pre-token blob (legacy fallback, B2)', () => {
-    // Blobs written before `robots.status` existed derive the same way the
-    // worker classifies: fetched bool, then the HTTP 404 probe, else failed.
-    const notFound = readSiteFacts({
-      ...variantA,
-      robots: { ...variantA.robots, fetched: false, status_code: 404 },
-    });
-    expect(notFound?.robotsFetchStatus).toBe('not_found');
-    expect(notFound?.bots.every(({ stance }) => stance === 'allow')).toBe(true);
-
-    const fetched = readSiteFacts(variantA);
-    expect(fetched?.robotsFetchStatus).toBe('fetched');
-
-    const failed = readSiteFacts({
-      ...variantA,
-      robots: { ...variantA.robots, fetched: false, status_code: 503 },
-    });
-    expect(failed?.robotsFetchStatus).toBe('fetch_failed');
-    expect(failed?.bots.every(({ stance }) => stance === 'unknown')).toBe(true);
-  });
-
-  it('prefers the explicit status token over the derived fallback', () => {
+  it('uses the explicit status token when the HTTP code differs', () => {
     // A fetch_failed token with a 404 status (a drifted blob) follows the
     // token — the worker's classification is authoritative.
     const view = readSiteFacts({
@@ -152,6 +137,7 @@ describe('readSiteFacts', () => {
     const view = readSiteFacts({
       robots: {
         fetched: true,
+        status: 'fetched',
         url: '',
         status_code: '200',
         ai_crawlers: { GPTBot: 'disallow', ClaudeBot: 'allow' },
@@ -174,7 +160,12 @@ describe('readSiteFacts', () => {
 
   it('treats a missing/non-record ai_crawlers map as all-unknown (when fetched)', () => {
     const view = readSiteFacts({
-      robots: { fetched: true, url: 'https://acme.com/robots.txt', status_code: 200 },
+      robots: {
+        fetched: true,
+        status: 'fetched',
+        url: 'https://acme.com/robots.txt',
+        status_code: 200,
+      },
       llms_txt: { fetched: false, url: '', status_code: null, present: false },
     });
     expect(view?.bots.every(({ stance }) => stance === 'unknown')).toBe(true);

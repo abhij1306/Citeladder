@@ -1279,38 +1279,18 @@ reconcile to the inventory; PageRank is stable across runs.
 
 ## Workstream 5 — AEO Readiness surface
 
-**Problem:** Site Health already runs every AEO check (schema, author, dates, outbound
-citations, answer-first, question-headings, server-rendered, AI-crawler access, llms.txt,
-schema-matches-visible) — but there is no dimension-level readiness view.
+**Current authority:** this surface is now a scored, coverage-qualified projection governed by
+[the Site Health measurement contract](../site-health.md#target-score-and-coverage-formula) and
+[the active cutover plan](site-health-measurement-cutover.md). The seven dimensions remain
+Answerability, Structure, Evidence, Machine readability, Authority, Freshness, and
+Crawlability, but rule membership, page-kind expression, scope normalization, and weights live
+on the canonical rule catalog rather than a presentation-only mapping. Non-null scores are
+shown with coverage and confidence; N/A leaves both denominators, while unknown evidence remains
+expected and lowers coverage.
 
-- **Backend:** a pure projection (invariant 6) over existing `site_rule_evaluations` (705 rows)
-  + `site_page_analyses` (22) that groups **current** evaluations into AEO dimensions
-  (Answerability, Structure, Evidence, Machine-readability, Authority, Freshness, Crawlability).
-- **This mapping is a config-owned presentation taxonomy, not existing scoring.** Persisted
-  evaluations carry `dimension` (technical/aeo) + `category` (citability, content, structured
-  data…), so the seven buckets are a **new taxonomy** and must be declared in
-  `core/config/site_health_taxonomy.py` (invariant 2).
-- **The v1 mapping is fixed, one rule ID to one presentation dimension:**
-  - **Answerability:** `technical.thin_content`, `aeo.answer_first`,
-    `aeo.question_headings`, `aeo.no_expand_gating`.
-  - **Structure:** `technical.single_h1`, `aeo.schema_expected_for_type`,
-    `aeo.schema_required_valid`, `aeo.schema_recommended_present`,
-    `aeo.schema_matches_content`.
-  - **Evidence:** `aeo.outbound_citations`.
-  - **Machine-readability:** `aeo.structured_data_present`, `aeo.open_graph_present`,
-    `aeo.llms_txt_present`.
-  - **Authority:** `aeo.author_present`, `aeo.organization_identity`.
-  - **Freshness:** `aeo.date_present`.
-  - **Crawlability:** `aeo.server_rendered_content`, `technical.ai_crawler_access`,
-    `technical.indexable`, `technical.https`.
-
-  Unmapped technical rules remain in Site Health but outside AEO Readiness. Not-applicable rules
-  stay in the denominator disclosure/coverage and never become failures. A new or renamed rule
-  requires an explicit config mapping and taxonomy version bump; it never falls into a guessed
-  bucket.
-- **No new scores.** Show **pass / fail / not-applicable / coverage** per dimension with links
-  to the underlying evaluations. Per `design.md`, dimension-level evidence — never one mystery
-  "AEO 84."
+- **Backend:** one snapshot-backed projection over immutable rule evaluations. Page, site,
+  cluster, and graph observations normalize to one rule result before role-specific Technical
+  or AEO aggregation; page counts and repeated site-wide evidence never become weight.
 - Expose the read-only projection over persisted evaluations at
   `GET /api/v1/projects/{project_id}/site-health/aeo-readiness`; optional `crawl_id` selects an
   exact crawl and omission selects the latest usable crawl. It performs no network/model work and
@@ -1318,10 +1298,9 @@ schema-matches-visible) — but there is no dimension-level readiness view.
   bounded evaluation links.
 - Surface: **AEO Readiness** tab under Website.
 
-**Documentation update:** update `site-health.md` with the seven config-owned presentation
-dimensions and explicit statement that no score is added; update `frontend-architecture.md` and
-`design.md` with the tab, evidence drill-down, coverage, and not-applicable states; record exact
-reconciliation tests in the E01 completion note.
+**Documentation update:** keep `site-health.md`, `frontend-architecture.md`, and `design.md`
+aligned with the scored dimension ledger, evidence drill-down, coverage, confidence, and
+not-applicable states.
 
 **Gate:** each dimension reconciles exactly to its underlying rule evaluations (e.g. the
 low-AEO `case_study_review` page traces to specific failing rules).

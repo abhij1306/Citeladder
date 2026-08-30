@@ -15,9 +15,6 @@
  * `robots.status` is the B2 fetch classification (`ROBOTS_FETCH_STATUS_*`
  * tokens): `fetched` / `not_found` (HTTP 404 — the site simply HAS no
  * robots.txt) / `fetch_failed` (network error / 5xx — genuinely unreadable).
- * Blobs written before the classification existed carry no `status`; it is
- * then derived from `fetched` + `status_code` (see `readRobotsFetchStatus`).
- *
  * No transport, no React.
  */
 
@@ -95,17 +92,13 @@ function readStance(value: unknown): SiteFactsStance {
 }
 
 /**
- * The robots.txt fetch classification. Reads the B2 `status` token when the
- * blob carries one; for a pre-classification blob derives it the same way the
- * worker does (`fetched` bool first, then the HTTP 404 probe, else failed).
+ * Read the persisted robots.txt fetch classification without reconstructing it.
  */
 function readRobotsFetchStatus(robots: Record<string, unknown>): RobotsFetchStatus {
   const token = robots.status;
   if (token === 'fetched' || token === 'not_found' || token === 'fetch_failed') {
     return token;
   }
-  if (robots.fetched === true) return 'fetched';
-  if (readStatusCode(robots.status_code) === 404) return 'not_found';
   return 'fetch_failed';
 }
 

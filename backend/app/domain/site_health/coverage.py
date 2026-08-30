@@ -18,7 +18,6 @@ from app.core.config.site_health_contracts import (
 from app.core.config.site_health_crawl_policy import (
     FRONTIER_PENDING,
     INPUT_MODE_AUTO,
-    MANUAL_PHASE_LIFECYCLE_KEY,
 )
 from app.core.config.site_health_link_metrics import (
     COVERAGE_STATE_COMPLETE,
@@ -35,7 +34,6 @@ from app.models.site_health.urls import SiteUrlObservation
 class CoverageSignals:
     sample_mode: bool
     input_mode: str
-    manual_phase_lifecycle: bool
     cancelled: bool
     discovery_status: str
     requested_page_limit: int
@@ -65,7 +63,6 @@ def _partial_reasons(signals: CoverageSignals) -> list[str]:
     explicitly_bounded = (
         signals.sample_mode
         or signals.input_mode != INPUT_MODE_AUTO
-        or signals.manual_phase_lifecycle
         or signals.cancelled
         or signals.discovery_status
         in {
@@ -179,7 +176,6 @@ async def crawl_coverage(
         CoverageSignals(
             sample_mode=bool(crawl.sample_mode),
             input_mode=str(configuration.get("input_mode") or INPUT_MODE_AUTO),
-            manual_phase_lifecycle=bool(configuration.get(MANUAL_PHASE_LIFECYCLE_KEY)),
             cancelled=crawl.status == CRAWL_STATUS_CANCELLED,
             discovery_status=crawl.discovery_status,
             requested_page_limit=requested_page_limit,

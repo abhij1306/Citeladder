@@ -16,6 +16,7 @@ from app.analysis.site_health.architecture import (
     build_observed_architecture,
     evaluate_architecture_rules,
 )
+from app.analysis.site_health.rules import creates_issue
 from app.core.config.site_health_archetypes import (
     ARCHETYPE_POLICY_VERSION,
     ARCHITECTURE_FORMULA_VERSION,
@@ -25,9 +26,8 @@ from app.core.config.site_health_contracts import (
     EXTRACTOR_VERSION,
     PAGE_ANALYSIS_STATUS_COMPLETED,
     RULE_CATALOG_VERSION,
-    RULE_FAILING_OUTCOMES,
-    RULE_OUTCOME_FAIL,
-    RULE_OUTCOME_PASS,
+    RULE_OUTCOME_MISSING,
+    RULE_OUTCOME_SATISFIED,
 )
 from app.core.config.site_health_link_metrics import LINK_METRIC_FORMULA_VERSION
 from app.core.config.site_health_taxonomy import PAGE_KIND_HOMEPAGE
@@ -172,9 +172,9 @@ async def _architecture_pages(
 
 
 def _indexability_outcome(outcome: str) -> bool | None:
-    if outcome == RULE_OUTCOME_PASS:
+    if outcome == RULE_OUTCOME_SATISFIED:
         return True
-    if outcome == RULE_OUTCOME_FAIL:
+    if outcome == RULE_OUTCOME_MISSING:
         return False
     return None
 
@@ -208,6 +208,7 @@ async def _persist_rule_evaluations(
                 category=evaluation.category,
                 severity=evaluation.severity,
                 finding_class=evaluation.finding_class,
+                scope=evaluation.scope,
                 weight=evaluation.weight,
                 outcome=evaluation.outcome,
                 display_applicability=evaluation.display_applicability,
@@ -227,7 +228,7 @@ async def _persist_rule_evaluations(
             .on_conflict_do_nothing(constraint="uq_site_rule_evaluation")
             .returning(SiteRuleEvaluation.id)
         )
-        if evaluation_id is None or evaluation.outcome not in RULE_FAILING_OUTCOMES:
+        if evaluation_id is None or not creates_issue(evaluation):
             continue
         session.add(
             SiteIssue(

@@ -8,12 +8,15 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { siteHealthQueries, type IssuesParams } from '@/lib/api/site-health';
 import type { IssueDimension, IssuesSummary, SiteIssue, SiteIssueDetail } from '@/lib/api/types';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import { PageKindSelect } from '@/components/site-health/page-kind-select';
+import {
+  IssueSearch,
+  useIssuesCatalogUrlState,
+} from '@/components/site-health/issues-catalog-url-state';
 import {
   dimensionLabel,
   issueTitle,
@@ -21,6 +24,7 @@ import {
   severityLabel,
 } from '@/lib/site-health/issues';
 import { pageDisplayTitle } from '@/lib/site-health/status';
+import { changeIssueFilters, toIssueParams, type IssueFilters } from '@/lib/site-health/filters';
 import { cn } from '@/lib/utils';
 const ISSUE_LIMIT = 25;
 const AFFECTED_URL_LIMIT = 25;
@@ -51,6 +55,24 @@ function filterParams(filter: FilterKey): Pick<IssuesParams, 'severity' | 'dimen
     default:
       return {};
   }
+}
+
+function selectedFilter(filters: IssueFilters): FilterKey {
+  if (filters.severity === 'high' || filters.severity === 'medium' || filters.severity === 'low') {
+    return filters.severity;
+  }
+  if (filters.dimension === 'technical' || filters.dimension === 'aeo') {
+    return filters.dimension;
+  }
+  return 'all';
+}
+
+function filterChange(filter: FilterKey): Partial<IssueFilters> {
+  const params = filterParams(filter);
+  return {
+    severity: params.severity ?? '',
+    dimension: params.dimension ?? '',
+  };
 }
 
 /**
@@ -86,56 +108,43 @@ function filterCount(filter: FilterKey, summary: IssuesSummary, findingView: Fin
  * persistence — the backend has no such state.
  */
 export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
-  const [search, setSearch] = useState('');
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<FilterKey>('all');
-  const [findingView, setFindingView] = useState<FindingView>('defect');
-  const [pageKind, setPageKind] = useState('');
-  const [cursorStack, setCursorStack] = useState<string[]>([]);
-
-  const cursor = cursorStack.at(-1);
-  const params: IssuesParams = useMemo(
-    () => ({
-      ...filterParams(filter),
-      finding_class: findingView,
-      query: query.trim() || undefined,
-      page_kind: pageKind || undefined,
-      cursor,
-      limit: ISSUE_LIMIT,
-    }),
-    [filter, findingView, query, pageKind, cursor],
-  );
+  const { cursor, filters, navigate } = useIssuesCatalogUrlState();
+  const filter = selectedFilter(filters);
+  const findingView: FindingView = filters.finding_class;
+  const params = useMemo(() => toIssueParams(filters, cursor, ISSUE_LIMIT), [filters, cursor]);
 
   const issuesQuery = useQuery(siteHealthQueries.issues(crawlId, params));
   const summary = issuesQuery.data?.summary ?? null;
   const rows = issuesQuery.data?.items ?? [];
   const nextCursor = issuesQuery.data?.next_cursor ?? null;
-  const canPrev = cursorStack.length > 0;
+  const canPrev = Boolean(cursor);
 
-  const applySearch = (event: React.FormEvent) => {
-    event.preventDefault();
-    setQuery(search);
-    setCursorStack([]);
+  const applySearch = (query: string) => {
+    const changed = changeIssueFilters(filters, { query });
+    navigate(changed.filters, changed.cursor);
   };
   const selectFilter = (next: FilterKey) => {
-    setFilter(next);
-    setCursorStack([]);
+    const changed = changeIssueFilters(filters, filterChange(next));
+    navigate(changed.filters, changed.cursor);
   };
   const selectFindingView = (next: FindingView) => {
-    setFindingView(next);
-    setFilter('all');
-    setCursorStack([]);
+    const changed = changeIssueFilters(filters, {
+      finding_class: next,
+      severity: '',
+      dimension: '',
+    });
+    navigate(changed.filters, changed.cursor);
   };
   // Same server-backed reset behavior as the chips: a filter edit restarts
   // from the first page (filter-bound cursors are rejected server-side).
   const selectPageKind = (next: string) => {
-    setPageKind(next);
-    setCursorStack([]);
+    const changed = changeIssueFilters(filters, { page_kind: next });
+    navigate(changed.filters, changed.cursor);
   };
   const goNext = () => {
-    if (nextCursor) setCursorStack((prev) => [...prev, nextCursor]);
+    if (nextCursor) navigate(filters, nextCursor);
   };
-  const goPrev = () => setCursorStack((prev) => prev.slice(0, -1));
+  const goPrev = () => navigate(filters, null);
 
   return (
     <div className="grid gap-[var(--workspace-gap)]">
@@ -155,16 +164,9 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
           <span className="text-secondary">{summary.affected_url_count} affected URLs</span>
         </div>
       ) : null}
-      <form onSubmit={applySearch} className="flex flex-wrap items-center gap-2">
-        <Input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search issues…"
-          aria-label="Search issues"
-          className="max-w-xs"
-        />
-        <PageKindSelect value={pageKind} onChange={selectPageKind} />
+      <div className="flex flex-wrap items-center gap-2">
+        <IssueSearch key={filters.query} query={filters.query} onApply={applySearch} />
+        <PageKindSelect value={filters.page_kind} onChange={selectPageKind} />
         <div className="flex items-center gap-1" aria-label="Finding class">
           {(['defect', 'advisory'] as const).map((view) => (
             <button
@@ -207,7 +209,7 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
             </button>
           ))}
         </div>
-      </form>
+      </div>
 
       {issuesQuery.isError ? (
         <Alert tone="danger">Could not load issues for this crawl. Please refresh.</Alert>
@@ -231,7 +233,7 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
       {rows.length > 0 ? (
         <div className="flex items-center justify-end gap-2">
           <Button variant="secondary" size="sm" onClick={goPrev} disabled={!canPrev}>
-            Previous
+            First page
           </Button>
           <Button variant="secondary" size="sm" onClick={goNext} disabled={!nextCursor}>
             Next

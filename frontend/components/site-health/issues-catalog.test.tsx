@@ -1,12 +1,63 @@
 import { http, HttpResponse } from 'msw';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { mswServer } from '@/test/msw-server';
 import { renderWithProviders } from '@/test/render';
 import type { SiteIssue } from '@/lib/api/types';
 import { IssuesCatalog } from './issues-catalog';
+
+const navigation = vi.hoisted(() => {
+  let entries = [''];
+  let index = 0;
+  const listeners = new Set<() => void>();
+  const notify = () => listeners.forEach((listener) => listener());
+  const set = (search: string) => {
+    entries = [search.replace(/^\?/, '')];
+    index = 0;
+    notify();
+  };
+  const push = vi.fn((href: string) => {
+    const search = href.split('?')[1] ?? '';
+    entries = [...entries.slice(0, index + 1), search];
+    index += 1;
+    notify();
+  });
+  return {
+    back: () => {
+      if (index > 0) index -= 1;
+      notify();
+    },
+    forward: () => {
+      if (index < entries.length - 1) index += 1;
+      notify();
+    },
+    get: () => entries[index] ?? '',
+    listeners,
+    push,
+    set,
+  };
+});
+
+vi.mock('next/navigation', async () => {
+  const { useSyncExternalStore } = await import('react');
+  return {
+    usePathname: () => '/issues',
+    useRouter: () => ({ push: navigation.push }),
+    useSearchParams: () => {
+      const search = useSyncExternalStore(
+        (listener) => {
+          navigation.listeners.add(listener);
+          return () => navigation.listeners.delete(listener);
+        },
+        navigation.get,
+        navigation.get,
+      );
+      return new URLSearchParams(search);
+    },
+  };
+});
 
 const CRAWL = '44444444-4444-4444-8444-444444444444';
 const ISSUE_A = 'aaaaaaaa-1111-4111-8111-111111111111';
@@ -45,10 +96,95 @@ const summary = {
 };
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
+beforeEach(() => {
+  navigation.set('');
+  navigation.push.mockClear();
+});
 afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
 describe('IssuesCatalog', () => {
+  it('seeds the server query from an Overview rule deep link', async () => {
+    const seen: URLSearchParams[] = [];
+    navigation.set(
+      'rule=aeo.website_schema&dimension=aeo&query=schema&page_kind=article&cursor=page-two&campaign=overview',
+    );
+    mswServer.use(
+      http.get(`/api/v1/site-crawls/${CRAWL}/issues`, ({ request }) => {
+        seen.push(new URL(request.url).searchParams);
+        return HttpResponse.json({ items: [issue()], next_cursor: null, summary });
+      }),
+    );
+
+    renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
+
+    expect(await screen.findByText('WebSite schema is missing')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'First page' })).not.toBeDisabled();
+    expect(seen.at(-1)?.get('rule')).toBe('aeo.website_schema');
+    expect(seen.at(-1)?.get('dimension')).toBe('aeo');
+    expect(seen.at(-1)?.get('query')).toBe('schema');
+    expect(seen.at(-1)?.get('page_kind')).toBe('article');
+    expect(seen.at(-1)?.get('cursor')).toBe('page-two');
+    expect(screen.getByRole('searchbox', { name: 'Search issues' })).toHaveValue('schema');
+    expect(screen.getByRole('button', { name: 'AEO (17)' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  it('writes filters to history and reflects back/forward navigation', async () => {
+    navigation.set('rule=aeo.website_schema&campaign=overview');
+    mswServer.use(
+      http.get(`/api/v1/site-crawls/${CRAWL}/issues`, () =>
+        HttpResponse.json({ items: [issue()], next_cursor: null, summary }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
+    await screen.findByText('WebSite schema is missing');
+
+    await user.click(screen.getByRole('button', { name: 'Medium (23)' }));
+    await waitFor(() => expect(navigation.get()).toContain('severity=medium'));
+    expect(navigation.get()).toContain('rule=aeo.website_schema');
+    expect(navigation.get()).toContain('campaign=overview');
+
+    act(() => navigation.back());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'All (47)' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      ),
+    );
+    expect(navigation.get()).not.toContain('severity=medium');
+
+    act(() => navigation.forward());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Medium (23)' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      ),
+    );
+  });
+
+  it('drops a filter-bound cursor while preserving unknown URL params', async () => {
+    navigation.set('cursor=page-two&campaign=overview');
+    mswServer.use(
+      http.get(`/api/v1/site-crawls/${CRAWL}/issues`, () =>
+        HttpResponse.json({ items: [issue()], next_cursor: null, summary }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
+    const trigger = await screen.findByRole('button', { name: 'Filter by page kind' });
+
+    await user.click(trigger);
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Article' }));
+
+    await waitFor(() => expect(navigation.get()).toContain('page_kind=article'));
+    expect(navigation.get()).not.toContain('cursor=');
+    expect(navigation.get()).toContain('campaign=overview');
+  });
+
   it('renders the API-owned summary and grouped issue rows', async () => {
     mswServer.use(
       http.get(`/api/v1/site-crawls/${CRAWL}/issues`, () =>

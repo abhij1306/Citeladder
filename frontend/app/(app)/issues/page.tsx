@@ -1,6 +1,7 @@
-'use client';
+import { Suspense } from 'react';
 
 import { IssuesScreen } from '@/components/site-health/issues-screen';
+import { Skeleton } from '@/components/ui/skeleton';
 
 /**
  * Issues catalog (Slice 8, mockup 710).
@@ -12,5 +13,16 @@ import { IssuesScreen } from '@/components/site-health/issues-screen';
  * "mark reviewed/resolved" persistence.
  */
 export default function IssuesPage() {
-  return <IssuesScreen />;
+  return (
+    <Suspense
+      fallback={
+        <div className="grid gap-4">
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      }
+    >
+      <IssuesScreen />
+    </Suspense>
+  );
 }

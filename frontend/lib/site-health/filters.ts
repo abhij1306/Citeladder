@@ -31,21 +31,25 @@ export const emptyInventoryFilters: InventoryFilters = {
 
 /** Issue filter model (drives the issues query + URL state). */
 export type IssueFilters = {
+  query: string;
   severity: string;
   category: string;
   dimension: string;
   rule_id: string;
   site_url_id: string;
+  finding_class: 'defect' | 'advisory';
   /** v2 P1 page-kind filter ('' = all types). */
   page_kind: string;
 };
 
 export const emptyIssueFilters: IssueFilters = {
+  query: '',
   severity: '',
   category: '',
   dimension: '',
   rule_id: '',
   site_url_id: '',
+  finding_class: 'defect',
   page_kind: '',
 };
 
@@ -140,6 +144,7 @@ export function toIssueParams(
   return {
     cursor: cursor ?? undefined,
     limit,
+    query: filters.query.trim() || undefined,
     severity: filters.severity || undefined,
     category: filters.category || undefined,
     dimension: filters.dimension || undefined,
@@ -147,6 +152,7 @@ export function toIssueParams(
     // the `IssueFilters` model keeps `rule_id` as its internal URL-state key.
     rule: filters.rule_id || undefined,
     site_url_id: filters.site_url_id || undefined,
+    finding_class: filters.finding_class,
     page_kind: filters.page_kind || undefined,
   };
 }
@@ -155,13 +161,31 @@ export function toIssueParams(
 export function serializeIssueFilters(
   filters: IssueFilters,
   cursor?: string | null,
+  base?: URLSearchParams,
 ): URLSearchParams {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams(base);
+  for (const key of [
+    'query',
+    'severity',
+    'category',
+    'dimension',
+    'rule',
+    'rule_id',
+    'site_url_id',
+    'finding_class',
+    'page_kind',
+    'cursor',
+  ]) {
+    params.delete(key);
+  }
+  const query = filters.query.trim();
+  if (query) params.set('query', query);
   if (filters.severity) params.set('severity', filters.severity);
   if (filters.category) params.set('category', filters.category);
   if (filters.dimension) params.set('dimension', filters.dimension);
-  if (filters.rule_id) params.set('rule_id', filters.rule_id);
+  if (filters.rule_id) params.set('rule', filters.rule_id);
   if (filters.site_url_id) params.set('site_url_id', filters.site_url_id);
+  if (filters.finding_class !== 'defect') params.set('finding_class', filters.finding_class);
   if (filters.page_kind) params.set('page_kind', filters.page_kind);
   if (cursor) params.set('cursor', cursor);
   return params;
@@ -170,11 +194,13 @@ export function serializeIssueFilters(
 /** Parse issue filters back from URL query state. */
 export function parseIssueFilters(params: URLSearchParams): IssueFilters {
   return {
+    query: params.get('query') ?? '',
     severity: params.get('severity') ?? '',
     category: params.get('category') ?? '',
     dimension: params.get('dimension') ?? '',
-    rule_id: params.get('rule_id') ?? '',
+    rule_id: params.get('rule') ?? params.get('rule_id') ?? '',
     site_url_id: params.get('site_url_id') ?? '',
+    finding_class: params.get('finding_class') === 'advisory' ? 'advisory' : 'defect',
     page_kind: params.get('page_kind') ?? '',
   };
 }
@@ -191,10 +217,12 @@ export function changeIssueFilters(
 export function issueFiltersEqual(a: IssueFilters, b: IssueFilters): boolean {
   return (
     a.severity === b.severity &&
+    a.query.trim() === b.query.trim() &&
     a.category === b.category &&
     a.dimension === b.dimension &&
     a.rule_id === b.rule_id &&
     a.site_url_id === b.site_url_id &&
+    a.finding_class === b.finding_class &&
     a.page_kind === b.page_kind
   );
 }

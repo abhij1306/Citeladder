@@ -114,7 +114,6 @@ async def write_observation(
             ),
             parent_site_url_id=task.parent_site_url_id,
             source_artifact_id=artifact_id,
-            phase_run_id=task.phase_run_id,
             value_kind=value.value_kind,
             value_priority=value.priority,
             rewrite_reason=rewrite[0] if rewrite else "",

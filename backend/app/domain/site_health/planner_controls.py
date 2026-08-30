@@ -13,12 +13,6 @@ def _advanced_requested(mode: str, seeds: list[str], page_kinds: list[str]) -> b
     return mode != INPUT_MODE_AUTO or bool(seeds) or bool(page_kinds)
 
 
-def advanced_controls_requested(
-    mode: str, seeds: list[str], page_kinds: list[str]
-) -> bool:
-    return _advanced_requested(mode, seeds, page_kinds)
-
-
 def _page_limit(
     requested: int | None,
     *,

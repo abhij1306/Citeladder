@@ -140,15 +140,19 @@ describe('inventoryFiltersEqual (cursor validity check)', () => {
 describe('issue filter serialization', () => {
   it('round-trips issue filters + cursor', () => {
     const filters: IssueFilters = {
+      query: 'schema',
       severity: 'high',
       category: 'metadata',
       dimension: 'aeo',
       rule_id: 'meta.title',
       site_url_id: 'u1',
+      finding_class: 'advisory',
       page_kind: 'product',
     };
     const params = serializeIssueFilters(filters, 'IC==');
     expect(params.get('page_kind')).toBe('product');
+    expect(params.get('rule')).toBe('meta.title');
+    expect(params.has('rule_id')).toBe(false);
     expect(parseIssueFilters(params)).toEqual(filters);
     expect(parseCursor(params)).toBe('IC==');
   });
@@ -161,11 +165,13 @@ describe('issue filter serialization', () => {
     expect(toIssueParams({ ...emptyIssueFilters, severity: 'low' }, 'C', 50)).toEqual({
       cursor: 'C',
       limit: 50,
+      query: undefined,
       severity: 'low',
       category: undefined,
       dimension: undefined,
       rule: undefined,
       site_url_id: undefined,
+      finding_class: 'defect',
       page_kind: undefined,
     });
   });
@@ -174,6 +180,17 @@ describe('issue filter serialization', () => {
     const params = toIssueParams({ ...emptyIssueFilters, rule_id: 'meta.title' });
     expect(params.rule).toBe('meta.title');
     expect('rule_id' in params).toBe(false);
+  });
+
+  it('parses the canonical rule key and preserves unrelated params when updating', () => {
+    const current = new URLSearchParams('rule=meta.title&campaign=overview&cursor=old');
+    const filters = parseIssueFilters(current);
+    const params = serializeIssueFilters({ ...filters, severity: 'high' }, null, current);
+
+    expect(filters.rule_id).toBe('meta.title');
+    expect(params.get('rule')).toBe('meta.title');
+    expect(params.get('campaign')).toBe('overview');
+    expect(params.has('cursor')).toBe(false);
   });
 
   it('maps the page_kind filter onto the wire param', () => {

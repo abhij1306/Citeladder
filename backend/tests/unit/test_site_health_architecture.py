@@ -12,7 +12,7 @@ from app.analysis.site_health.architecture import (
     resolve_archetype,
 )
 from app.core.config.site_health_contracts import (
-    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_MISSING,
     RULE_OUTCOME_UNAVAILABLE,
 )
 from app.core.config.site_health_link_metrics import (
@@ -288,8 +288,10 @@ def test_structural_rules_fire_positive_observations_and_abstain_on_absence() ->
             coverage_state=COVERAGE_STATE_PARTIAL,
         )
     }
-    assert outcomes["architecture.excessive_depth"] == RULE_OUTCOME_FAIL
-    assert outcomes["architecture.duplicate_metadata_in_page_kind"] == RULE_OUTCOME_FAIL
+    assert outcomes["architecture.excessive_depth"] == RULE_OUTCOME_MISSING
+    assert (
+        outcomes["architecture.duplicate_metadata_in_page_kind"] == RULE_OUTCOME_MISSING
+    )
     assert outcomes["architecture.orphan_pages"] == RULE_OUTCOME_UNAVAILABLE
     assert outcomes["architecture.parentless_detail_pages"] == RULE_OUTCOME_UNAVAILABLE
     assert outcomes["architecture.unhubbed_page_kind"] == RULE_OUTCOME_UNAVAILABLE
@@ -307,9 +309,9 @@ def test_structural_rules_fire_positive_observations_and_abstain_on_absence() ->
             coverage_state=COVERAGE_STATE_COMPLETE,
         )
     }
-    assert outcomes["architecture.orphan_pages"] == RULE_OUTCOME_FAIL
-    assert outcomes["architecture.parentless_detail_pages"] == RULE_OUTCOME_FAIL
-    assert outcomes["architecture.unhubbed_page_kind"] == RULE_OUTCOME_FAIL
+    assert outcomes["architecture.orphan_pages"] == RULE_OUTCOME_MISSING
+    assert outcomes["architecture.parentless_detail_pages"] == RULE_OUTCOME_MISSING
+    assert outcomes["architecture.unhubbed_page_kind"] == RULE_OUTCOME_MISSING
 
 
 def _structure_keys(result: tuple[list[dict], list[dict]]) -> set[str]:

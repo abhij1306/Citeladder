@@ -61,7 +61,6 @@ from app.core.config.task_queue import TASK_STATUS_RUNNING
 from app.core.database import SessionLocal
 from app.core.db_conflicts import is_transient_db_conflict
 from app.core.telemetry import configure_logging, instrument_worker
-from app.domain.site_health.phase_common import lock_crawl_for_evidence_commit
 from app.domain.site_health.schemas import (
     DiscoveryOutput,
 )
@@ -71,6 +70,7 @@ from app.domain.site_health.state_events import (
 from app.domain.site_health.task_guards import (
     crawl_is_active,
     lease_is_owned,
+    lock_crawl_for_evidence_commit,
 )
 from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.crawl import SiteCrawl

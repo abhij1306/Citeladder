@@ -9,6 +9,7 @@ import { Card, CardContent, CardEyebrow, CardHeader, CardTitle } from './card';
 import { Donut } from './donut';
 import { Field } from './field';
 import { Input } from './input';
+import { ScoreBar } from './score-bar';
 import { ScoreRing } from './score-ring';
 import { Skeleton } from './skeleton';
 import {
@@ -348,6 +349,15 @@ describe('ScoreRing', () => {
   it('defaults to the text-heading-sm numeral', () => {
     render(<ScoreRing value={82} />);
     expect(screen.getByText('82').className).toContain('text-heading-sm');
+  });
+});
+
+describe('ScoreBar', () => {
+  it('renders a token-coloured, clamped accessible meter', () => {
+    render(<ScoreBar value={140} label="Readiness score" />);
+    const meter = screen.getByRole('meter', { name: 'Readiness score' });
+    expect(meter).toHaveAttribute('value', '100');
+    expect(meter.nextElementSibling?.querySelector('.bg-score-high-ring')).not.toBeNull();
   });
 });
 

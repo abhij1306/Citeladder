@@ -339,7 +339,7 @@ function analysisNarration(crawl: SiteCrawl, cancelPending: boolean): string {
     return 'Worker lease expired — recovery is pending';
   return !crawl.sample_mode && !isDiscoveryTerminal(crawl.discovery_status)
     ? 'Auditing monitored pages while discovery re-scans the site in the background'
-    : 'Auditing monitored pages for Web Fundamentals and AEO health issues';
+    : 'Auditing monitored pages for Web Fundamentals and AEO issues';
 }
 
 function analysisCounts(crawl: SiteCrawl, selected: number): ProgressCount[] {
