@@ -716,8 +716,8 @@ async def test_partial_analysis_failure_partially_completes(
             )
         ).scalar_one()
         assert snapshot.analyzed_url_count == 1
-        assert snapshot.overall_score is not None
-        assert snapshot.overall_score > 0
+        assert snapshot.technical_integrity_score is not None
+        assert snapshot.technical_integrity_score > 0
 
 
 @pytest.mark.asyncio

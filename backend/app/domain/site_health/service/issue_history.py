@@ -9,6 +9,7 @@ from datetime import datetime
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.site_health_contracts import RULE_FAILING_OUTCOMES
 from app.core.config.site_health_page_profiles import ISSUE_HISTORY_TIMELINE_MAX_CRAWLS
 from app.domain.site_health.normalization import (
     decode_keyset_cursor,
@@ -165,7 +166,8 @@ def _group_issue_history(
 
     Only evaluations from the selected URL's latest analysis in each crawl are
     supplied.  A pass/not-applicable after a prior fail is therefore a real,
-    persisted resolution — never an inferred repair.
+    satisfied or non-scoring result after a prior missing result is therefore
+    a real, persisted resolution — never an inferred repair.
     """
     by_rule = _observations_by_rule(observations)
     groups = [
@@ -201,7 +203,7 @@ def _history_timeline(rows: list[_HistoryObservation]) -> list[dict]:
     timeline: list[dict] = []
     previous_failed = False
     for row in rows:
-        failed = row.outcome == "fail"
+        failed = row.outcome in RULE_FAILING_OUTCOMES
         transition = "continuing" if failed and previous_failed else "new"
         if not failed:
             transition = "resolved" if previous_failed else "unchanged"
@@ -219,7 +221,7 @@ def _history_timeline(rows: list[_HistoryObservation]) -> list[dict]:
 
 def _rule_history_group(rule_id: str, rows: list[_HistoryObservation]) -> dict | None:
     rows.sort(key=lambda row: (row.observed_at, str(row.crawl_id)))
-    failures = [row for row in rows if row.outcome == "fail"]
+    failures = [row for row in rows if row.outcome in RULE_FAILING_OUTCOMES]
     if not failures:
         return None
     timeline = _history_timeline(rows)
@@ -234,7 +236,9 @@ def _rule_history_group(rule_id: str, rows: list[_HistoryObservation]) -> dict |
         "title": display_label_for(rule_id),
         "description": last_failure.description,
         "remediation": last_failure.remediation,
-        "current_state": "open" if latest.outcome == "fail" else "resolved",
+        "current_state": (
+            "open" if latest.outcome in RULE_FAILING_OUTCOMES else "resolved"
+        ),
         "current_transition": timeline[-1]["transition"],
         "occurrence_count": len(failures),
         "first_seen_at": _iso(failures[0].observed_at),

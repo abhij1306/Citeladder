@@ -28,7 +28,7 @@ from app.core.config.brand_discovery import (
 )
 from app.core.config.observed_competitors import EXCLUDED_RESEARCH_DOMAINS
 from app.domain.projects.brand_evidence import BrandEvidence
-from app.domain.projects.discovery_schemas import DiscoveryProfile
+from app.domain.projects.discovery_schemas import PersistableDiscoveryProfile
 from app.domain.projects.onboarding.research_evidence import (
     CompetitiveSignature,
     ResearchCallBudget,
@@ -42,7 +42,9 @@ from app.domain.projects.onboarding.structured_repair import (
 
 class IdentityResearchEnvelope(BaseModel):
     status: str = Field(pattern="^(ready|insufficient_evidence|conflicting_evidence)$")
-    profile: DiscoveryProfile = Field(default_factory=DiscoveryProfile)
+    profile: PersistableDiscoveryProfile = Field(
+        default_factory=PersistableDiscoveryProfile
+    )
     signature: CompetitiveSignature = Field(default_factory=CompetitiveSignature)
     field_evidence_refs: dict[str, list[str]] = Field(default_factory=dict)
 

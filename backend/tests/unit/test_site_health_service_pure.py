@@ -242,9 +242,13 @@ def _crawl_with_summary(summary: dict | None) -> SimpleNamespace:
 def test_score_summary_projects_by_page_kind() -> None:
     crawl = _crawl_with_summary(
         {
-            "overall_score": 75.0,
-            "technical_score": 80.0,
-            "aeo_score": 70.0,
+            "technical_integrity_score": 80.0,
+            "technical_integrity_coverage": 1.0,
+            "technical_integrity_state": "measured",
+            "aeo_readiness_score": 70.0,
+            "aeo_measurement_coverage": 0.8,
+            "aeo_measurement_state": "measured",
+            "search_eligibility": "eligible",
             "selected_count": 4,
             "analyzed_count": 3,
             "issue_count": 2,
@@ -252,15 +256,21 @@ def test_score_summary_projects_by_page_kind() -> None:
             "by_page_kind": {
                 "article": {
                     "analyzed_count": 2,
-                    "technical_score": 85.0,
-                    "aeo_score": 70.0,
-                    "overall_score": 77.5,
+                    "technical_integrity_score": 85.0,
+                    "technical_integrity_coverage": 1.0,
+                    "technical_integrity_state": "measured",
+                    "aeo_readiness_score": 70.0,
+                    "aeo_measurement_coverage": 0.8,
+                    "aeo_measurement_state": "measured",
                 },
                 "product": {
                     "analyzed_count": 1,
-                    "technical_score": None,
-                    "aeo_score": 70.0,
-                    "overall_score": 70.0,
+                    "technical_integrity_score": None,
+                    "technical_integrity_coverage": 0.5,
+                    "technical_integrity_state": "limited_evidence",
+                    "aeo_readiness_score": 70.0,
+                    "aeo_measurement_coverage": 0.8,
+                    "aeo_measurement_state": "measured",
                 },
             },
         }
@@ -271,12 +281,15 @@ def test_score_summary_projects_by_page_kind() -> None:
     assert set(by_page_kind) == {"article", "product"}
     assert by_page_kind["article"] == {
         "analyzed_count": 2,
-        "technical_score": 85.0,
-        "aeo_score": 70.0,
-        "overall_score": 77.5,
+        "technical_integrity_score": 85.0,
+        "technical_integrity_coverage": 1.0,
+        "technical_integrity_state": "measured",
+        "aeo_readiness_score": 70.0,
+        "aeo_measurement_coverage": 0.8,
+        "aeo_measurement_state": "measured",
     }
     # A None mean is projected as None, never fabricated as zero.
-    assert by_page_kind["product"]["technical_score"] is None
+    assert by_page_kind["product"]["technical_integrity_score"] is None
 
 
 def test_score_summary_without_breakdown_projects_empty_map() -> None:
@@ -284,9 +297,12 @@ def test_score_summary_without_breakdown_projects_empty_map() -> None:
     # an empty map rather than a missing key.
     crawl = _crawl_with_summary(
         {
-            "overall_score": 50.0,
-            "technical_score": 50.0,
-            "aeo_score": 50.0,
+            "technical_integrity_score": 50.0,
+            "technical_integrity_coverage": 1.0,
+            "technical_integrity_state": "measured",
+            "aeo_readiness_score": 50.0,
+            "aeo_measurement_coverage": 0.8,
+            "aeo_measurement_state": "measured",
             "selected_count": 1,
             "analyzed_count": 1,
             "issue_count": 0,

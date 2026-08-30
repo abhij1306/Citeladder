@@ -145,6 +145,7 @@ async def enqueue_generation_endpoint(
             idempotency_key=(idempotency_key or "").strip(),
             skill_id=payload.skill_id,
             opportunity_id=payload.opportunity_id,
+            site_health_reference=payload.site_health_reference,
         )
     except ContentGenerationNotFoundError as exc:
         raise _not_found(exc) from exc

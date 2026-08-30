@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from app.core.config.content import (
     CONTENT_DEFAULT_OUTPUT_TYPE,
@@ -69,6 +70,22 @@ def skill_catalog() -> ContentSkillCatalog:
     )
 
 
+class SiteHealthReference(BaseModel):
+    project_id: uuid.UUID
+    crawl_id: uuid.UUID
+    site_url_id: uuid.UUID
+    source_analysis_id: uuid.UUID
+    dimension: str = Field(min_length=1, max_length=32)
+    checkpoint_ids: list[Annotated[str, StringConstraints(max_length=64)]] = Field(
+        min_length=1, max_length=16
+    )
+
+    @field_validator("checkpoint_ids")
+    @classmethod
+    def normalize_checkpoint_ids(cls, value: list[str]) -> list[str]:
+        return sorted(set(value))
+
+
 class ContentGenerationCreate(BaseModel):
     """`POST /content/generations` body (workspace resolved from session)."""
 
@@ -77,6 +94,7 @@ class ContentGenerationCreate(BaseModel):
     skill_id: str = CONTENT_DEFAULT_SKILL
     opportunity_id: uuid.UUID | None = None
     output_type: str = CONTENT_DEFAULT_OUTPUT_TYPE
+    site_health_reference: SiteHealthReference | None = None
 
     @field_validator("prompt")
     @classmethod

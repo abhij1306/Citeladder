@@ -33,8 +33,8 @@ from app.core.config.site_health_archetypes import (
 )
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
-    RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
+    RULE_OUTCOME_UNAVAILABLE,
 )
 from app.core.config.site_health_link_metrics import COVERAGE_STATE_COMPLETE
 from app.core.config.site_health_taxonomy import PAGE_KIND_HOMEPAGE
@@ -496,6 +496,7 @@ def _evaluation(rule_id: str, outcome: str, evidence: dict) -> RuleEvaluation:
         evidence=evidence,
         description=rule.description,
         remediation=rule.remediation,
+        reason_code=str(evidence.get("reason") or ""),
     )
 
 
@@ -505,7 +506,7 @@ def _coverage_evaluation(
     if coverage_state != COVERAGE_STATE_COMPLETE:
         return _evaluation(
             rule_id,
-            RULE_OUTCOME_NOT_APPLICABLE,
+            RULE_OUTCOME_UNAVAILABLE,
             {"reason": "coverage_not_complete", "coverage_state": coverage_state},
         )
     return _evaluation(

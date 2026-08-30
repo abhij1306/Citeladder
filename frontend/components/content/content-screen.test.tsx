@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { screen, waitFor, within } from '@testing-library/react';
 
 import { ProjectProvider } from '@/lib/project/project-context';
+import type { EnqueueGenerationInput } from '@/lib/api/content';
 import { mswServer } from '@/test/msw-server';
 import { renderWithProviders } from '@/test/render';
 
@@ -211,10 +212,20 @@ function mockBase(listItems: Record<string, unknown>[] = []) {
   );
 }
 
-function renderScreen(props: { demandSignalId?: string; opportunityId?: string } = {}) {
+function renderScreen(
+  props: {
+    demandSignalId?: string;
+    opportunityId?: string;
+    siteHealthReference?: EnqueueGenerationInput['site_health_reference'];
+  } = {},
+) {
   return renderWithProviders(
     <ProjectProvider>
-      <ContentScreen demandSignalId={props.demandSignalId} opportunityId={props.opportunityId} />
+      <ContentScreen
+        demandSignalId={props.demandSignalId}
+        opportunityId={props.opportunityId}
+        siteHealthReference={props.siteHealthReference}
+      />
     </ProjectProvider>,
   );
 }
@@ -259,6 +270,76 @@ const demandSnapshot = {
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
+
+describe('ContentScreen — Site Health handoff', () => {
+  it('loads the authorized gap, seeds the task, and sends the stable reference', async () => {
+    const reference = {
+      project_id: PROJECT,
+      crawl_id: '22222222-2222-4222-8222-222222222222',
+      site_url_id: '33333333-3333-4333-8333-333333333333',
+      source_analysis_id: '44444444-4444-4444-8444-444444444444',
+      dimension: 'answerability',
+      checkpoint_ids: ['aeo.answer_first'],
+    };
+    const sent: Record<string, unknown>[] = [];
+    mockBase();
+    mswServer.use(
+      http.get(`/api/v1/projects/${PROJECT}/site-health/content-handoff`, () =>
+        HttpResponse.json({
+          ...reference,
+          finding_class: 'advisory',
+          observed_evidence: [{ opening: 'Background only' }],
+          expected_capability: ['Answer the primary question directly.'],
+          remediation: ['Lead with a concise answer.'],
+          page_kind: 'faq',
+          page_traits: ['has_faq'],
+          normalized_url: 'https://acme.com/faq',
+          scoring_policy_version: '1',
+          limitations: [],
+        }),
+      ),
+      http.post('/api/v1/content/generations', async ({ request }) => {
+        sent.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json(generation(), { status: 201 });
+      }),
+      http.get(`/api/v1/content/generations/${GEN}`, () => HttpResponse.json(generation())),
+    );
+
+    renderScreen({ siteHealthReference: reference });
+    const box = (await screen.findByRole('textbox', {
+      name: /describe the website content/i,
+    })) as HTMLTextAreaElement;
+    await waitFor(() => expect(box.value).toContain('Answer the primary question directly.'));
+    expect(screen.getByText(/persisted answerability readiness gap/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].site_health_reference).toEqual(reference);
+  });
+
+  it('drops a reference that belongs to a different active project', async () => {
+    const handoffRequest = vi.fn(() => HttpResponse.json({}));
+    mockBase();
+    mswServer.use(
+      http.get('/api/v1/projects/:projectId/site-health/content-handoff', handoffRequest),
+    );
+
+    renderScreen({
+      siteHealthReference: {
+        project_id: '99999999-9999-4999-8999-999999999999',
+        crawl_id: '22222222-2222-4222-8222-222222222222',
+        site_url_id: '33333333-3333-4333-8333-333333333333',
+        source_analysis_id: '44444444-4444-4444-8444-444444444444',
+        dimension: 'answerability',
+        checkpoint_ids: ['aeo.answer_first'],
+      },
+    });
+
+    await screen.findByRole('textbox', { name: /describe the website content/i });
+    expect(handoffRequest).not.toHaveBeenCalled();
+  });
+});
 
 describe('ContentScreen — search demand handoff', () => {
   it('arrives from a demand signal with a written brief instead of an empty box', async () => {

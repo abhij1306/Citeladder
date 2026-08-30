@@ -74,13 +74,7 @@ export function SiteHealthDashboardLayout({
             selectedError={projectSelectedError}
           />
 
-          <ScoreSection
-            crawl={crawl}
-            dashboard={dashboardQuery.data}
-            pages={pagesQuery.data?.items ?? []}
-            analyzing={phase === 'analyzing' || (phase === 'dashboard' && active)}
-            selectedTotal={projectSelectedTotal}
-          />
+          <ScoreSection crawl={crawl} dashboard={dashboardQuery.data} />
 
           <InventorySection mode={inventoryMode} crawl={crawl} active={active} />
 

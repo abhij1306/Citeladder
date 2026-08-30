@@ -161,14 +161,27 @@ def _score_summary(crawl: SiteCrawl) -> dict | None:
         values = values or {}
         by_page_kind[str(page_kind)] = {
             "analyzed_count": int(values.get("analyzed_count", 0) or 0),
-            "technical_score": values.get("technical_score"),
-            "aeo_score": values.get("aeo_score"),
-            "overall_score": values.get("overall_score"),
+            "technical_integrity_score": values.get("technical_integrity_score"),
+            "technical_integrity_coverage": values.get("technical_integrity_coverage"),
+            "technical_integrity_state": values.get(
+                "technical_integrity_state", "not_measured"
+            ),
+            "aeo_readiness_score": values.get("aeo_readiness_score"),
+            "aeo_measurement_coverage": values.get("aeo_measurement_coverage"),
+            "aeo_measurement_state": values.get(
+                "aeo_measurement_state", "not_measured"
+            ),
         }
     return {
-        "overall_score": summary.get("overall_score"),
-        "technical_score": summary.get("technical_score"),
-        "aeo_score": summary.get("aeo_score"),
+        "technical_integrity_score": summary.get("technical_integrity_score"),
+        "technical_integrity_coverage": summary.get("technical_integrity_coverage"),
+        "technical_integrity_state": summary.get(
+            "technical_integrity_state", "not_measured"
+        ),
+        "aeo_readiness_score": summary.get("aeo_readiness_score"),
+        "aeo_measurement_coverage": summary.get("aeo_measurement_coverage"),
+        "aeo_measurement_state": summary.get("aeo_measurement_state", "not_measured"),
+        "search_eligibility": summary.get("search_eligibility", "unknown"),
         "selected_count": int(summary.get("selected_count", 0) or 0),
         "analyzed_count": int(
             summary.get("analyzed_count", summary.get("analyzed_url_count", 0)) or 0
@@ -453,6 +466,14 @@ def _evaluation_row(evaluation: SiteRuleEvaluation) -> dict:
         "severity": evaluation.severity,
         "finding_class": evaluation.finding_class,
         "outcome": evaluation.outcome,
+        "display_applicability": evaluation.display_applicability,
+        "score_applicability": evaluation.score_applicability,
+        "expected_profile_membership": evaluation.expected_profile_membership,
+        "reason_code": evaluation.reason_code,
+        "score_roles": evaluation.score_roles or [],
+        "checkpoint_family": evaluation.checkpoint_family,
+        "readiness_dimension": evaluation.readiness_dimension,
+        "readiness_weight": evaluation.readiness_weight,
         "weight": evaluation.weight,
         "evidence": evaluation.evidence or {},
         "analyzer_version": evaluation.analyzer_version,

@@ -117,18 +117,25 @@ export const pageKindSchema = z.enum([
 // score — never a fabricated zero.
 export const pageKindScoreSummarySchema = responseObject({
   analyzed_count: z.number().int(),
-  technical_score: z.number().nullable(),
-  aeo_score: z.number().nullable(),
-  overall_score: z.number().nullable(),
+  technical_integrity_score: z.number().nullable(),
+  technical_integrity_coverage: z.number().nullable(),
+  technical_integrity_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  aeo_readiness_score: z.number().nullable(),
+  aeo_measurement_coverage: z.number().nullable(),
+  aeo_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
 });
 
 // Crawl score/coverage summary (nullable scores until analysis produces them).
 // `by_page_kind` breaks the means down per classified page type (empty until
 // at least one analyzed page has been classified).
 export const siteScoreSummarySchema = responseObject({
-  overall_score: z.number().nullable(),
-  technical_score: z.number().nullable(),
-  aeo_score: z.number().nullable(),
+  technical_integrity_score: z.number().nullable(),
+  technical_integrity_coverage: z.number().nullable(),
+  technical_integrity_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  aeo_readiness_score: z.number().nullable(),
+  aeo_measurement_coverage: z.number().nullable(),
+  aeo_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  search_eligibility: z.enum(['eligible', 'blocked', 'unknown', 'excluded']),
   selected_count: z.number().int(),
   analyzed_count: z.number().int(),
   issue_count: z.number().int(),

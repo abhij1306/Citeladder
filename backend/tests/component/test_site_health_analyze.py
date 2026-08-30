@@ -390,7 +390,7 @@ async def test_cancelled_user_analysis_does_not_penalize_applicable_free_sample(
         assert crawl.analysis_status == ANALYSIS_STATUS_COMPLETED
         assert crawl.status == CRAWL_STATUS_COMPLETED
         assert snapshot.analyzed_url_count == 1
-        assert snapshot.overall_score is not None
+        assert snapshot.technical_integrity_score is not None
 
 
 @pytest.mark.asyncio
@@ -537,12 +537,11 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
             )
         ).scalar_one()
         assert analysis.status == PAGE_ANALYSIS_STATUS_COMPLETED
-        assert analysis.overall_score is not None
-        assert analysis.technical_score is not None
+        assert analysis.technical_integrity_score is not None
         # `other` is classifier abstention, so AEO is unmeasured rather than a
         # perfect score from the few universal rules that remain applicable.
         assert analysis.page_kind == "other"
-        assert analysis.aeo_score is None
+        assert analysis.aeo_measurement_state == "limited_evidence"
         assert analysis.site_url_id == site_url_id
 
         eval_count = await session.scalar(
@@ -585,7 +584,7 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
             )
         ).scalar_one()
         assert snapshot.analyzed_url_count == 1
-        assert snapshot.overall_score is not None
+        assert snapshot.technical_integrity_score is not None
         assert snapshot.issue_count == issue_count
 
 
@@ -665,7 +664,7 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
         by_page_kind = summary.get("by_page_kind") or {}
         assert set(by_page_kind) == {"article"}
         assert by_page_kind["article"]["analyzed_count"] == 1
-        assert by_page_kind["article"]["overall_score"] is not None
+        assert by_page_kind["article"]["technical_integrity_score"] is not None
 
 
 @pytest.mark.asyncio

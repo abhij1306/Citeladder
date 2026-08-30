@@ -102,9 +102,32 @@ class SitePageAnalysis(Base):
     status: Mapped[str] = mapped_column(
         String(24), default=PAGE_ANALYSIS_STATUS_PENDING
     )
-    technical_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    aeo_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    overall_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    technical_integrity_score: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+    technical_integrity_coverage: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+    technical_integrity_state: Mapped[str] = mapped_column(
+        String(24), default="not_measured"
+    )
+    technical_earned_weight: Mapped[float] = mapped_column(Float, default=0.0)
+    technical_determinate_weight: Mapped[float] = mapped_column(Float, default=0.0)
+    technical_expected_weight: Mapped[float] = mapped_column(Float, default=0.0)
+    technical_critical_complete: Mapped[bool] = mapped_column(Boolean, default=False)
+    aeo_readiness_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    aeo_measurement_coverage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    aeo_measurement_state: Mapped[str] = mapped_column(
+        String(24), default="not_measured"
+    )
+    expected_checkpoint_profile: Mapped[list | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    readiness_dimensions: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    profile_version: Mapped[str] = mapped_column(String(32), default="")
+    schema_contract_version: Mapped[str] = mapped_column(String(32), default="")
+    presentation_version: Mapped[str] = mapped_column(String(32), default="")
+    main_content_indexable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     analyzer_version: Mapped[str] = mapped_column(String(32), default="")
     scoring_version: Mapped[str] = mapped_column(String(32), default="")
     # v2 P1: the deterministic page-type classification + its version
@@ -163,7 +186,8 @@ class SiteRuleEvaluation(Base):
             postgresql_nulls_not_distinct=True,
         ),
         CheckConstraint(
-            "outcome IN ('pass', 'fail', 'not_applicable', 'error')",
+            "outcome IN ('satisfied', 'partial', 'missing', 'unknown', "
+            "'unavailable', 'conflicting', 'error', 'not_applicable', 'excluded')",
             name="ck_site_rule_evaluations_outcome",
         ),
     )
@@ -199,6 +223,14 @@ class SiteRuleEvaluation(Base):
     finding_class: Mapped[str] = mapped_column(String(16), default="defect")
     weight: Mapped[float] = mapped_column(Float, default=0.0)
     outcome: Mapped[str] = mapped_column(String(16), default="")
+    display_applicability: Mapped[bool] = mapped_column(Boolean, default=True)
+    score_applicability: Mapped[bool] = mapped_column(Boolean, default=False)
+    expected_profile_membership: Mapped[bool] = mapped_column(Boolean, default=False)
+    reason_code: Mapped[str] = mapped_column(String(64), default="")
+    score_roles: Mapped[list | None] = mapped_column(ARRAY(String(32)), nullable=True)
+    checkpoint_family: Mapped[str] = mapped_column(String(48), default="")
+    readiness_dimension: Mapped[str] = mapped_column(String(32), default="")
+    readiness_weight: Mapped[float] = mapped_column(Float, default=0.0)
     evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     supporting_artifact_ids: Mapped[list | None] = mapped_column(
         ARRAY(PGUUID(as_uuid=True)), nullable=True
@@ -212,9 +244,9 @@ class SiteRuleEvaluation(Base):
 
 
 class SiteIssue(Base):
-    """Failure projection of one failed rule evaluation (unique per evaluation).
+    """Actionable projection of one missing rule evaluation.
 
-    Unique ``evaluation_id``: one issue per ``fail`` evaluation. Snapshots the
+    Unique ``evaluation_id``: one issue per actionable evaluation. Snapshots the
     rule's dimension/category/severity, exact evidence, description, and
     remediation text at evaluation time so a later rule-catalog change never rewrites
     history. Indexed for issue filtering (``crawl_id, severity, category,

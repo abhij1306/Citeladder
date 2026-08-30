@@ -43,9 +43,13 @@ const crawl = {
   total_url_count: 2,
   has_more_site_urls: false,
   score_summary: {
-    overall_score: 82,
-    technical_score: 85,
-    aeo_score: 79,
+    technical_integrity_score: 85,
+    technical_integrity_coverage: 1,
+    technical_integrity_state: 'measured',
+    aeo_readiness_score: 79,
+    aeo_measurement_coverage: 0.8,
+    aeo_measurement_state: 'measured',
+    search_eligibility: 'eligible',
     selected_count: 2,
     analyzed_count: 2,
     issue_count: 2,
@@ -111,57 +115,91 @@ async function stubWebsite(page: Page) {
     [
       new RegExp(`/api/v1/projects/${FIXTURE_PROJECT.id}/site-health/aeo-readiness(?:\\?.*)?$`),
       {
-        state: 'available',
+        state: 'measured',
         crawl_id: CRAWL,
-        taxonomy_version: 'aeo-readiness-v1',
+        score: 79,
+        coverage: 1,
+        profile_version: 'site-health-profile-1',
+        schema_contract_version: 'site-health-schema-contract-1',
+        scoring_version: 'score-v1',
+        presentation_version: 'site-health-presentation-1',
         analyzer_version: 'page-v1',
         source_analysis_ids: [SOURCE, TARGET],
         analysis_count: 2,
-        observed_evaluation_count: 40,
-        expected_evaluation_count: 40,
-        coverage: 1,
+        affected_page_count: 1,
         limitations: [],
-        dimensions: dimensions.map(([key, label], index) => ({
-          key,
-          label,
-          description: `What ${label.toLowerCase()} means, in one plain sentence.`,
-          rule_ids: Array.from({ length: ruleCounts[index] }, (_, ruleIndex) =>
+        dimensions: dimensions.map(([key, label], index) => {
+          const ruleIds = Array.from({ length: ruleCounts[index] }, (_, ruleIndex) =>
             index === 0 && ruleIndex === 0 ? 'aeo.answer_first' : `aeo.rule_${index}_${ruleIndex}`,
-          ),
-          pass_count: ruleCounts[index] * 2 - (index === 0 ? 1 : 0) - (index === 1 ? 1 : 0),
-          fail_count: index ? 0 : 1,
-          not_applicable_count: index === 1 ? 1 : 0,
-          error_count: 0,
-          observed_evaluation_count: ruleCounts[index] * 2,
-          expected_evaluation_count: ruleCounts[index] * 2,
-          coverage: 1,
-          checked_page_count: 2,
-          failing_page_count: index ? 0 : 1,
-          checks: [
-            {
-              rule_id: index ? `aeo.rule_${index}_0` : 'aeo.answer_first',
-              title: index ? `${label} check` : 'Answer is not stated first',
-              remediation: 'Move the direct answer into the opening paragraph.',
-              pass_count: index ? 2 : 1,
-              fail_count: index ? 0 : 1,
-              not_applicable_count: index === 1 ? 1 : 0,
-              error_count: 0,
-              failing_page_count: index ? 0 : 1,
-            },
-          ],
-          evidence_pages: index
-            ? []
-            : [
-                {
-                  site_url_id: TARGET,
-                  normalized_url: 'https://acme.example/case-study',
-                  failed_checks: [
-                    { rule_id: 'aeo.answer_first', title: 'Answer is not stated first' },
-                  ],
-                },
-              ],
-          evidence_truncated: false,
-        })),
+          );
+          const ruleId = ruleIds[0];
+          const missingCount = index ? 0 : 1;
+          return {
+            key,
+            label,
+            description: `What ${label.toLowerCase()} means, in one plain sentence.`,
+            dimension_applicability: 'applicable',
+            dimension_measurement_state: 'measured',
+            score: index ? 100 : 50,
+            reason: '',
+            checkpoint_ids: ruleIds,
+            determinate_checkpoint_ids: ruleIds,
+            checkpoint_families: [key],
+            earned_points: index ? ruleCounts[index] : ruleCounts[index] - 1,
+            determinate_points: ruleCounts[index],
+            expected_points: ruleCounts[index],
+            satisfied_count: ruleCounts[index] * 2 - missingCount,
+            partial_count: 0,
+            missing_count: missingCount,
+            unknown_count: 0,
+            unavailable_count: 0,
+            conflicting_count: 0,
+            not_applicable_count: index === 1 ? 1 : 0,
+            error_count: 0,
+            coverage: 1,
+            checked_page_count: 2,
+            failing_page_count: missingCount,
+            checks: [
+              {
+                rule_id: ruleId,
+                title: index ? `${label} check` : 'Answer is not stated first',
+                remediation: 'Move the direct answer into the opening paragraph.',
+                satisfied_count: index ? 2 : 1,
+                partial_count: 0,
+                missing_count: missingCount,
+                unknown_count: 0,
+                unavailable_count: 0,
+                conflicting_count: 0,
+                not_applicable_count: index === 1 ? 1 : 0,
+                error_count: 0,
+                failing_page_count: missingCount,
+                checkpoint_family: key,
+                readiness_weight: 1,
+                content_addressable: true,
+              },
+            ],
+            evidence_pages: index
+              ? []
+              : [
+                  {
+                    site_url_id: TARGET,
+                    source_analysis_id: TARGET,
+                    normalized_url: 'https://acme.example/case-study',
+                    failed_checks: [
+                      {
+                        rule_id: 'aeo.answer_first',
+                        title: 'Answer is not stated first',
+                        observed_evidence: { observed: 'missing' },
+                        expected_capability: 'State the answer first.',
+                        remediation: 'Move the direct answer into the opening paragraph.',
+                        content_addressable: true,
+                      },
+                    ],
+                  },
+                ],
+            evidence_truncated: false,
+          };
+        }),
       },
     ],
     [

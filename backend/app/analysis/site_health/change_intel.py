@@ -13,6 +13,7 @@ from app.core.config.site_change_intel import (
     CHANGE_CLASS_REGRESSION,
     CHANGE_FIELDS,
 )
+from app.core.config.site_health_contracts import RULE_OUTCOME_FAIL, RULE_OUTCOME_PASS
 
 
 @dataclass(frozen=True)
@@ -60,9 +61,9 @@ class ChangeObservation:
 def _rule_class(before: RuleState | None, after: RuleState | None) -> str | None:
     if before is None or after is None or before.outcome == after.outcome:
         return None
-    if before.outcome == "fail" and after.outcome == "pass":
+    if before.outcome == RULE_OUTCOME_FAIL and after.outcome == RULE_OUTCOME_PASS:
         return CHANGE_CLASS_IMPROVEMENT
-    if before.outcome == "pass" and after.outcome == "fail":
+    if before.outcome == RULE_OUTCOME_PASS and after.outcome == RULE_OUTCOME_FAIL:
         return (
             CHANGE_CLASS_CRITICAL
             if after.severity == "critical"

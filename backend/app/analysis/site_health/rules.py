@@ -2,9 +2,8 @@
 #
 # Evaluates the config-owned ``SITE_HEALTH_RULES`` catalog against a page-facts
 # dict (produced by ``parser.extract_page_facts``) into one ``RuleEvaluation``
-# per rule. Each evaluation carries an outcome
-# (pass / fail / not_applicable / error), a bounded exact ``evidence`` dict, and
-# the rule's dimension/category/severity/weight/version for provenance.
+# per rule. Each evaluation carries the explicit measurement outcome, a bounded
+# exact ``evidence`` dict, and rule/measurement metadata for provenance.
 #
 # PURE + deterministic (no I/O, no ORM). Applicability is driven by the rule's
 # ``applicability_key`` ("always" | "has_html" | "page_kind:<type>" (v2 P1) |
@@ -55,6 +54,15 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
+    RULE_OUTCOME_UNAVAILABLE,
+    RULE_OUTCOME_UNKNOWN,
+)
+from app.core.config.site_health_measurement import (
+    READINESS_CHECKPOINTS,
+    SCORE_ROLE_AEO,
+    SCORE_ROLE_TECHNICAL,
+    UNAVAILABLE_REASONS,
+    UNKNOWN_REASONS,
 )
 from app.core.config.site_health_page_profiles import (
     PRODUCT_ANALYSIS_RULES,
@@ -62,7 +70,7 @@ from app.core.config.site_health_page_profiles import (
     PRODUCT_SCHEMA_EXPECTATION,
 )
 from app.core.config.site_health_rule_types import (
-    FINDING_CLASS_ADVISORY,
+    KIND_EVIDENCE_TRIGGERED,
     SiteHealthRule,
 )
 from app.core.config.site_health_rules import (
@@ -133,6 +141,14 @@ class RuleEvaluation:
     evidence: dict[str, Any] = field(default_factory=dict)
     description: str = ""
     remediation: str = ""
+    display_applicability: bool = True
+    score_applicability: bool = False
+    expected_profile_membership: bool = False
+    reason_code: str = ""
+    score_roles: tuple[str, ...] = ()
+    checkpoint_family: str = ""
+    readiness_dimension: str = ""
+    readiness_weight: float = 0.0
 
 
 def _pass_fail(condition: bool) -> str:
@@ -600,6 +616,64 @@ def _weight_for(rule: SiteHealthRule, facts: dict) -> float:
     return float(rule.weight)
 
 
+def _normalized_outcome(
+    rule: SiteHealthRule, outcome: str, evidence: dict
+) -> tuple[str, str]:
+    if (
+        rule.rule_id == "technical.indexable"
+        and outcome == RULE_OUTCOME_FAIL
+        and evidence.get("indexing_intent") == "unknown"
+    ):
+        evidence["reason"] = "insufficient_evidence"
+        return RULE_OUTCOME_UNKNOWN, "insufficient_evidence"
+    reason = str(evidence.get("reason") or "")
+    if outcome != RULE_OUTCOME_NOT_APPLICABLE:
+        return outcome, reason
+    if reason in UNAVAILABLE_REASONS:
+        return RULE_OUTCOME_UNAVAILABLE, reason
+    if reason in UNKNOWN_REASONS:
+        return RULE_OUTCOME_UNKNOWN, reason
+    return outcome, reason
+
+
+def _profile_membership(
+    rule: SiteHealthRule, facts: dict, outcome: str, reason: str
+) -> bool:
+    tier = str((facts.get("page_kind_evidence") or {}).get("tier") or "")
+    profile_member = outcome != RULE_OUTCOME_NOT_APPLICABLE
+    checkpoint = READINESS_CHECKPOINTS.get(rule.rule_id)
+    if checkpoint is not None and rule.kind_evidence != KIND_EVIDENCE_TRIGGERED:
+        profile_member = profile_member and tier in ("", "structural")
+    if checkpoint is not None and rule.kind_evidence == KIND_EVIDENCE_TRIGGERED:
+        profile_member = profile_member and not reason.startswith("no_")
+    return profile_member
+
+
+def _score_roles(rule: SiteHealthRule, profile_member: bool) -> tuple[str, ...]:
+    score_roles: list[str] = []
+    if rule.finding_class == "defect" and profile_member:
+        score_roles.append(SCORE_ROLE_TECHNICAL)
+    if rule.rule_id in READINESS_CHECKPOINTS and profile_member:
+        score_roles.append(SCORE_ROLE_AEO)
+    return tuple(score_roles)
+
+
+def _measurement_metadata(
+    rule: SiteHealthRule, facts: dict, outcome: str, reason: str
+) -> dict[str, Any]:
+    checkpoint = READINESS_CHECKPOINTS.get(rule.rule_id)
+    profile_member = _profile_membership(rule, facts, outcome, reason)
+    score_roles = _score_roles(rule, profile_member)
+    return {
+        "score_applicability": bool(score_roles),
+        "expected_profile_membership": profile_member,
+        "score_roles": score_roles,
+        "checkpoint_family": checkpoint.family if checkpoint else "",
+        "readiness_dimension": checkpoint.dimension if checkpoint else "",
+        "readiness_weight": checkpoint.weight if checkpoint else 0.0,
+    }
+
+
 def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
     """Evaluate one rule against ``facts`` into a ``RuleEvaluation``.
 
@@ -623,6 +697,8 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
         return RuleEvaluation(
             outcome=RULE_OUTCOME_NOT_APPLICABLE,
             evidence={"reason": skip_reason or "not_applicable"},
+            display_applicability=False,
+            reason_code=skip_reason or "not_applicable",
             **base,
         )
     check = _CHECKS.get(rule.rule_id)
@@ -645,16 +721,15 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
             evidence={"error": f"{type(exc).__name__}: {exc}"[:512]},
             **base,
         )
-    if (
-        rule.rule_id == "technical.indexable"
-        and outcome == RULE_OUTCOME_FAIL
-        and evidence.get("indexing_intent") == "unknown"
-    ):
-        # Unknown intent is an advisory observation, never a critical defect.
-        base["finding_class"] = FINDING_CLASS_ADVISORY
-        base["severity"] = "low"
-        evidence["uncertain"] = True
-    return RuleEvaluation(outcome=outcome, evidence=evidence, **base)
+    outcome, reason = _normalized_outcome(rule, outcome, evidence)
+    return RuleEvaluation(
+        outcome=outcome,
+        evidence=evidence,
+        display_applicability=True,
+        reason_code=reason,
+        **_measurement_metadata(rule, facts, outcome, reason),
+        **base,
+    )
 
 
 def evaluate_all(facts: dict) -> list[RuleEvaluation]:

@@ -170,15 +170,22 @@ class ScoreSummaryByType(_Model):
     """One page type's rollup inside ``score_summary.by_page_kind`` (v2 P1)."""
 
     analyzed_count: int
-    technical_score: float | None
-    aeo_score: float | None
-    overall_score: float | None
+    technical_integrity_score: float | None
+    technical_integrity_coverage: float | None
+    technical_integrity_state: str
+    aeo_readiness_score: float | None
+    aeo_measurement_coverage: float | None
+    aeo_measurement_state: str
 
 
 class ScoreSummary(_Model):
-    overall_score: float | None
-    technical_score: float | None
-    aeo_score: float | None
+    technical_integrity_score: float | None
+    technical_integrity_coverage: float | None
+    technical_integrity_state: str
+    aeo_readiness_score: float | None
+    aeo_measurement_coverage: float | None
+    aeo_measurement_state: str
+    search_eligibility: Literal["eligible", "blocked", "unknown", "excluded"]
     selected_count: int
     analyzed_count: int
     issue_count: int
@@ -321,9 +328,13 @@ class InventoryRow(_Model):
     # Same bounded role projection PageSummary carries. Inventory rows are
     # built by the same row builder, so without these the extra keys would fail
     # ``_Model`` validation for any packed analysis.
-    technical_score: float | None
-    aeo_score: float | None
-    overall_score: float | None
+    technical_integrity_score: float | None
+    technical_integrity_coverage: float | None
+    technical_integrity_state: str
+    aeo_readiness_score: float | None
+    aeo_measurement_coverage: float | None
+    aeo_measurement_state: str
+    main_content_indexable: bool | None
     last_audited: str | None
 
 
@@ -376,9 +387,13 @@ class PageSummary(_Model):
     # Bounded role projection for list rows: the id, why it abstained, and the
     # corpus disposition. Full evidence/alternatives/conflicts stay on the
     # detail projection so a page of rows never carries kilobytes of evidence.
-    technical_score: float | None
-    aeo_score: float | None
-    overall_score: float | None
+    technical_integrity_score: float | None
+    technical_integrity_coverage: float | None
+    technical_integrity_state: str
+    aeo_readiness_score: float | None
+    aeo_measurement_coverage: float | None
+    aeo_measurement_state: str
+    main_content_indexable: bool | None
     last_audited: str | None
     # Persisted internal-link projection (PR2). None means UNMEASURED — this
     # crawl wrote no metric row for the URL — never "nothing links here".
@@ -459,7 +474,17 @@ class SiteIssue(_Model):
     created_at: str
 
 
-RuleOutcome = Literal["pass", "fail", "not_applicable", "error"]
+RuleOutcome = Literal[
+    "satisfied",
+    "partial",
+    "missing",
+    "unknown",
+    "unavailable",
+    "conflicting",
+    "error",
+    "not_applicable",
+    "excluded",
+]
 
 
 class RuleEvaluation(_Model):
@@ -471,6 +496,14 @@ class RuleEvaluation(_Model):
     severity: IssueSeverity
     finding_class: FindingClass
     outcome: RuleOutcome
+    display_applicability: bool
+    score_applicability: bool
+    expected_profile_membership: bool
+    reason_code: str
+    score_roles: list[str]
+    checkpoint_family: str
+    readiness_dimension: str
+    readiness_weight: float
     weight: float
     evidence: dict[str, object]
     analyzer_version: str
@@ -531,9 +564,13 @@ class PageDetail(_Model):
     page_traits: list[str] | None = None
     # Pack-governed industry role. None when the pack classifier never ran
     # (unpacked project, or an analysis written before the pack was frozen).
-    technical_score: float | None
-    aeo_score: float | None
-    overall_score: float | None
+    technical_integrity_score: float | None
+    technical_integrity_coverage: float | None
+    technical_integrity_state: str
+    aeo_readiness_score: float | None
+    aeo_measurement_coverage: float | None
+    aeo_measurement_state: str
+    main_content_indexable: bool | None
     issue_count: int | None
     last_audited: str | None
     facts: PageFacts
@@ -688,85 +725,6 @@ class DashboardResponse(_Model):
     # crawl's dashboard can render the failure block without a second fetch.
     root_errors: list[RootError] = []
     phase_runs: dict[Literal["discovery", "analysis"], PhaseRunResponse | None] = {}
-
-
-# =========================================================================
-# Read-only AEO Readiness presentation taxonomy
-# =========================================================================
-ReadinessState = Literal["available", "incomplete", "unavailable"]
-
-
-class ReadinessFailingCheckResponse(_Model):
-    """One failed check on a page, named the way the catalog names it."""
-
-    rule_id: str
-    title: str
-
-
-class ReadinessEvidencePageResponse(_Model):
-    """One failing page and every check of this dimension it failed.
-
-    Evidence is grouped by PAGE. The previous one-row-per-evaluation shape
-    repeated the same URL once per rule, which read as duplicate links.
-    """
-
-    site_url_id: uuid.UUID
-    normalized_url: str
-    failed_checks: list[ReadinessFailingCheckResponse]
-
-
-class ReadinessCheckResponse(_Model):
-    """One mapped rule rolled up, carrying its catalog title and fix."""
-
-    rule_id: str
-    title: str
-    remediation: str
-    pass_count: int
-    fail_count: int
-    not_applicable_count: int
-    error_count: int
-    failing_page_count: int
-
-
-class ReadinessDimensionResponse(_Model):
-    key: str
-    label: str
-    # One plain sentence saying what the dimension means.
-    description: str
-    rule_ids: list[str]
-    pass_count: int
-    fail_count: int
-    not_applicable_count: int
-    error_count: int
-    # Compatibility field name: PR1 defines this count as determinate
-    # pass/fail evaluations. Renaming waits for the PR2 contract cutover.
-    observed_evaluation_count: int
-    expected_evaluation_count: int
-    coverage: float | None
-    # Distinct pages where a check of this dimension actually applied, and how
-    # many of those failed at least one. These are the human-scale quantities;
-    # the evaluation counts above remain the provenance.
-    checked_page_count: int
-    failing_page_count: int
-    checks: list[ReadinessCheckResponse]
-    # Bounded — always read beside ``failing_page_count``, never as the total.
-    evidence_pages: list[ReadinessEvidencePageResponse]
-    evidence_truncated: bool
-
-
-class AeoReadinessResponse(_Model):
-    state: ReadinessState
-    crawl_id: uuid.UUID | None = None
-    taxonomy_version: str
-    analyzer_version: str
-    source_analysis_ids: list[uuid.UUID]
-    analysis_count: int
-    # Compatibility field name; the value is the determinate check count.
-    observed_evaluation_count: int
-    expected_evaluation_count: int
-    coverage: float | None
-    dimensions: list[ReadinessDimensionResponse]
-    limitations: list[str]
 
 
 class SiteHealthError(_Model):

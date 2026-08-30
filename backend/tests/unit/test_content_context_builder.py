@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.domain.content.context_builder import (
     ContentContext,
+    _selection_inputs,
     build_content_context,
     content_context_availability,
 )
@@ -150,6 +151,50 @@ async def test_opportunity_text_reaches_the_task_block(
         assert "Create stronger sizing guidance" in context.task_block
         assert "School uniform sizing" in context.task_block
         assert context.summary["opportunity_id"] == str(opportunity.id)
+
+
+async def test_site_health_handoff_freezes_task_and_untrusted_evidence_separately(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        workspace_id, project_id = await _seed(session)
+        await session.commit()
+        handoff = {
+            "crawl_id": uuid.uuid4(),
+            "site_url_id": uuid.uuid4(),
+            "source_analysis_id": uuid.uuid4(),
+            "dimension": "answerability",
+            "checkpoint_ids": ["aeo.answer_first"],
+            "expected_capability": ["Answer the primary question directly."],
+            "remediation": ["Lead with a concise answer."],
+            "observed_evidence": [{"opening": "background only"}],
+            "page_kind": "faq",
+            "page_traits": ["has_faq"],
+            "normalized_url": f"{_ROOT}faq",
+        }
+
+        context = await build_content_context(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            prompt="Improve this FAQ",
+            site_health_handoff=handoff,
+        )
+
+        assert "Answer the primary question directly" in context.task_block
+        assert "background only" not in context.task_block
+        assert "SITE HEALTH OBSERVED EVIDENCE" in context.website_block
+        assert "background only" in context.website_block
+        assert context.summary["site_health_reference"] == {
+            "crawl_id": str(handoff["crawl_id"]),
+            "site_url_id": str(handoff["site_url_id"]),
+            "source_analysis_id": str(handoff["source_analysis_id"]),
+            "dimension": "answerability",
+            "checkpoint_ids": ["aeo.answer_first"],
+        }
+        target_url, query_text = _selection_inputs("Improve this FAQ", None, handoff)
+        assert target_url == f"{_ROOT}faq"
+        assert "Lead with a concise answer" in query_text
 
 
 async def test_snapshot_round_trips(

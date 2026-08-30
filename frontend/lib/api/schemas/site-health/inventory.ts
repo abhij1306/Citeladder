@@ -13,9 +13,13 @@ import { cursorPageSchema } from './pagination';
 // has no classification yet (null — the UI renders `Not measured`, never a guessed type).
 export const analysisSummaryFields = {
   issue_count: z.number().int().nullable(),
-  technical_score: z.number().nullable(),
-  aeo_score: z.number().nullable(),
-  overall_score: z.number().nullable(),
+  technical_integrity_score: z.number().nullable(),
+  technical_integrity_coverage: z.number().nullable(),
+  technical_integrity_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  aeo_readiness_score: z.number().nullable(),
+  aeo_measurement_coverage: z.number().nullable(),
+  aeo_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  main_content_indexable: z.boolean().nullable(),
   last_audited: z.string().nullable(),
   page_kind: pageKindSchema.nullable(),
   // Bounded industry-role fields on list rows. These are pack-defined IDs, not
@@ -25,8 +29,8 @@ export const analysisSummaryFields = {
 };
 
 // One lightweight inventory row. Ordering is URL-only. The analysis summary
-// fields (`issue_count`, `technical_score`, `aeo_score`, `overall_score`,
-// `last_audited`) are null until analysis completes for that URL.
+// measurement fields and `last_audited` are null/unmeasured until analysis
+// completes for that URL.
 export const inventoryRowSchema = responseObject({
   site_url_id: uuid(),
   normalized_url: z.string(),

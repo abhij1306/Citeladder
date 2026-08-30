@@ -1,361 +1,584 @@
-# Deterministic Site Health scoring (Task 5).
-#
-# PURE scoring per the EXACT approved formula (no I/O, no ORM). One owner for
-# the per-dimension score, the overall weighted score, and the crawl-level
-# aggregation across analyses. Determinism is preserved so the same evaluations
-# always produce the same scores (invariant 9), and every score is stamped with
-# ``SCORING_VERSION``.
-#
-# FORMULA (verbatim scope):
-#   dimension_score = 100 × passed_weight
-#                     / (passed_weight + failed_weight + error_weight)
-#   over APPLICABLE DEFECT evaluations only (``not_applicable`` excluded, and
-#   every non-defect finding class excluded entirely); ``error`` is given ZERO
-#   credit but its weight stays in the denominator (it is a distinct outcome,
-#   never silently dropped and never coerced to a pass).
-#   Round ONCE to ``SCORE_ROUNDING_DECIMALS``.
-#   overall_score = weighted mean of the AVAILABLE Technical/AEO dimension
-#   scores using ``DIMENSION_WEIGHT_TECHNICAL`` / ``DIMENSION_WEIGHT_AEO``.
-#
-# ONLY DEFECTS SCORE. ``finding_class`` distinguishes a reproducible problem
-# from guidance and diagnostics, and the product tells users those states are
-# different: non-defects are excluded from severity filters and never become
-# Opportunities. Scoring did not read the field at
-# all, so a "gentle advisory" lowered the customer's health score by exactly as
-# much as a defect of the same weight. Advisory PASSES are dropped too, not
-# only failures: leaving them in would let a page lift its score by satisfying
-# opinionated guidance, which is the same credibility problem inverted.
-#
-# A dimension with no applicable (pass/fail/error) DEFECT evaluations has NO
-# score (None) — it is excluded from the overall mean rather than counted as
-# zero.
-# Aggregation likewise ignores missing/error URLs: a URL with no completed
-# analysis (or a None dimension score) never becomes a zero.
+"""Deterministic PR2 Technical Integrity and AEO Readiness measurement."""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Protocol
 
+from app.analysis.site_health.rules import RuleEvaluation
 from app.core.config.site_health_contracts import (
-    AEO_READINESS_RULE_DIMENSIONS,
-    DIMENSION_AEO,
-    DIMENSION_TECHNICAL,
-    PR1_AEO_MIN_DETERMINATE_CHECKPOINTS,
-    PR1_AEO_MIN_DETERMINATE_DIMENSIONS,
-    RULE_OUTCOME_ERROR,
+    AEO_READINESS_DIMENSIONS,
     RULE_OUTCOME_FAIL,
-    RULE_OUTCOME_NOT_APPLICABLE,
+    RULE_OUTCOME_PARTIAL,
     RULE_OUTCOME_PASS,
     SCORING_VERSION,
 )
-from app.core.config.site_health_rule_types import FINDING_CLASS_DEFECT
-from app.core.config.site_health_rules import (
-    DIMENSION_WEIGHT_AEO,
-    DIMENSION_WEIGHT_TECHNICAL,
-    SCORE_ROUNDING_DECIMALS,
+from app.core.config.site_health_measurement import (
+    AEO_MEASURED_MIN_CHECKPOINTS,
+    AEO_MEASURED_MIN_COVERAGE,
+    AEO_MEASURED_MIN_DIMENSIONS,
+    AEO_MEASURED_MIN_FAMILIES,
+    DIMENSION_APPLICABLE,
+    DIMENSION_NOT_APPLICABLE,
+    DIMENSION_UNRESOLVED,
+    MEASUREMENT_STATE_LIMITED,
+    MEASUREMENT_STATE_MEASURED,
+    MEASUREMENT_STATE_NOT_MEASURED,
+    READINESS_DIMENSION_WEIGHTS,
+    SCORE_ROLE_AEO,
+    SCORE_ROLE_TECHNICAL,
+    TECHNICAL_MEASURED_MIN_COVERAGE,
 )
 from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER
 
-
-class _ScoredLike(Protocol):
-    """Structural view of anything scoring can read: the ``_Scored`` value
-    type, ``rules.RuleEvaluation``, or a persisted ``SiteRuleEvaluation`` row —
-    anything exposing these four attributes.
-
-    ``finding_class`` is read from the EVALUATION, not from the catalog rule,
-    because it can be narrowed at evaluation time: ``technical.indexable``
-    downgrades itself to an advisory when the indexing intent is unknown, and
-    that downgrade only means anything if scoring reads the downgraded value.
-    """
-
-    @property
-    def dimension(self) -> str: ...
-    @property
-    def outcome(self) -> str: ...
-    @property
-    def weight(self) -> float: ...
-    @property
-    def finding_class(self) -> str: ...
-
-    @property
-    def rule_id(self) -> str: ...
-
-
-class _SufficiencyLike(Protocol):
-    @property
-    def rule_id(self) -> str: ...
-
-    @property
-    def outcome(self) -> str: ...
-
-    @property
-    def finding_class(self) -> str: ...
+_DETERMINATE = frozenset({RULE_OUTCOME_PASS, RULE_OUTCOME_PARTIAL, RULE_OUTCOME_FAIL})
+_EDITORIAL_KINDS = frozenset({"article", "guide", "comparison"})
 
 
 @dataclass(frozen=True)
-class _Scored:
-    """A minimal (outcome, weight, dimension) triple scoring reads.
+class DimensionMeasurement:
+    key: str
+    applicability: str
+    measurement_state: str
+    score: float | None
+    coverage: float | None
+    earned_points: float
+    determinate_points: float
+    expected_points: float
+    determinate_checkpoint_ids: tuple[str, ...]
+    checkpoint_families: tuple[str, ...]
+    reason: str
 
-    Decouples scoring from the ORM: the worker adapts either
-    ``rules.RuleEvaluation`` or a persisted ``SiteRuleEvaluation`` into this.
-    """
-
-    dimension: str
-    outcome: str
-    weight: float
-    finding_class: str = FINDING_CLASS_DEFECT
-    rule_id: str = ""
+    def to_dict(self) -> dict:
+        return {
+            "key": self.key,
+            "dimension_applicability": self.applicability,
+            "dimension_measurement_state": self.measurement_state,
+            "score": self.score,
+            "coverage": self.coverage,
+            "earned_points": self.earned_points,
+            "determinate_points": self.determinate_points,
+            "expected_points": self.expected_points,
+            "determinate_checkpoint_ids": list(self.determinate_checkpoint_ids),
+            "checkpoint_families": list(self.checkpoint_families),
+            "reason": self.reason,
+        }
 
 
 @dataclass(frozen=True)
-class AeoEvidenceSufficiency:
-    determinate_checkpoint_count: int
-    determinate_dimension_count: int
-    sufficient: bool
+class AnalysisScores:
+    technical_integrity_score: float | None
+    technical_integrity_coverage: float | None
+    technical_integrity_state: str
+    technical_earned_weight: float
+    technical_determinate_weight: float
+    technical_expected_weight: float
+    technical_critical_complete: bool
+    aeo_readiness_score: float | None
+    aeo_measurement_coverage: float | None
+    aeo_measurement_state: str
+    expected_checkpoint_profile: tuple[dict, ...]
+    readiness_dimensions: tuple[DimensionMeasurement, ...]
+    main_content_indexable: bool | None
+    scoring_version: str = SCORING_VERSION
 
 
-def assess_aeo_evidence(
-    evaluations: Iterable[_SufficiencyLike],
-) -> AeoEvidenceSufficiency:
-    """Qualify the current AEO score with temporary PR1 breadth policy."""
-    checkpoint_ids = {
-        evaluation.rule_id
-        for evaluation in evaluations
-        if evaluation.outcome in (RULE_OUTCOME_PASS, RULE_OUTCOME_FAIL)
-        and evaluation.finding_class == FINDING_CLASS_DEFECT
-        and evaluation.rule_id in AEO_READINESS_RULE_DIMENSIONS
+def _round_score(value: float) -> float:
+    return round(value, 1)
+
+
+def _round_coverage(value: float) -> float:
+    return round(value, 4)
+
+
+def _credit(outcome: str) -> float:
+    if outcome == RULE_OUTCOME_PASS:
+        return 1.0
+    if outcome == RULE_OUTCOME_PARTIAL:
+        return 0.5
+    return 0.0
+
+
+def _profile_rows(evaluations: list[RuleEvaluation], role: str) -> list[RuleEvaluation]:
+    return [
+        row
+        for row in evaluations
+        if row.expected_profile_membership and role in row.score_roles
+    ]
+
+
+def _determinate_rows(rows: list[RuleEvaluation]) -> list[RuleEvaluation]:
+    return [row for row in rows if row.outcome in _DETERMINATE]
+
+
+def _rule_weight(rows: list[RuleEvaluation]) -> float:
+    return sum(max(0.0, float(row.weight)) for row in rows)
+
+
+def _technical_earned(rows: list[RuleEvaluation]) -> float:
+    return _rule_weight([row for row in rows if row.outcome == RULE_OUTCOME_PASS])
+
+
+def _ratio(numerator: float, denominator: float, *, score: bool) -> float | None:
+    if denominator <= 0:
+        return None
+    value = numerator / denominator
+    return _round_score(100.0 * value) if score else _round_coverage(value)
+
+
+def _technical_state(
+    *, has_expected: bool, has_determinate: bool, coverage: float | None, complete: bool
+) -> str:
+    if not has_expected or not has_determinate:
+        return MEASUREMENT_STATE_NOT_MEASURED
+    if (
+        coverage is not None
+        and coverage >= TECHNICAL_MEASURED_MIN_COVERAGE
+        and complete
+    ):
+        return MEASUREMENT_STATE_MEASURED
+    return MEASUREMENT_STATE_LIMITED
+
+
+def _technical_measurement(
+    evaluations: list[RuleEvaluation],
+) -> tuple[float | None, float | None, str, float, float, float, bool]:
+    expected = _profile_rows(evaluations, SCORE_ROLE_TECHNICAL)
+    determinate = _determinate_rows(expected)
+    expected_weight = _rule_weight(expected)
+    determinate_weight = _rule_weight(determinate)
+    earned = _technical_earned(determinate)
+    score = _ratio(earned, determinate_weight, score=True)
+    coverage = _ratio(determinate_weight, expected_weight, score=False)
+    critical_complete = all(
+        row.outcome in _DETERMINATE for row in expected if row.severity == "critical"
+    )
+    state = _technical_state(
+        has_expected=bool(expected),
+        has_determinate=bool(determinate),
+        coverage=coverage,
+        complete=critical_complete,
+    )
+    return (
+        score,
+        coverage,
+        state,
+        round(earned, 4),
+        round(determinate_weight, 4),
+        round(expected_weight, 4),
+        critical_complete,
+    )
+
+
+def _dimension_applicability(
+    key: str, *, page_kind: str, page_traits: frozenset[str], structural: bool
+) -> tuple[str, str]:
+    if key in {"evidence", "freshness"}:
+        return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
+    if key in {"answerability", "structure"}:
+        return _answer_structure_applicability(page_kind, page_traits, structural)
+    if key == "machine-readability":
+        return _machine_applicability(page_kind, structural)
+    if key == "authority":
+        return _authority_applicability(page_kind, structural)
+    return DIMENSION_APPLICABLE, ""
+
+
+def _answer_structure_applicability(
+    page_kind: str, page_traits: frozenset[str], structural: bool
+) -> tuple[str, str]:
+    if not structural:
+        return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
+    if page_kind == "faq" or "has_faq" in page_traits:
+        return DIMENSION_APPLICABLE, ""
+    return DIMENSION_NOT_APPLICABLE, "dimension_determinately_irrelevant"
+
+
+def _machine_applicability(page_kind: str, structural: bool) -> tuple[str, str]:
+    if structural and page_kind != PAGE_KIND_OTHER:
+        return DIMENSION_APPLICABLE, ""
+    return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
+
+
+def _authority_applicability(page_kind: str, structural: bool) -> tuple[str, str]:
+    if not structural:
+        return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
+    if page_kind in _EDITORIAL_KINDS or page_kind == "homepage":
+        return DIMENSION_APPLICABLE, ""
+    if page_kind == "faq":
+        return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
+    return DIMENSION_NOT_APPLICABLE, "dimension_determinately_irrelevant"
+
+
+def _empty_dimension(key: str, applicability: str, reason: str) -> DimensionMeasurement:
+    return DimensionMeasurement(
+        key=key,
+        applicability=applicability,
+        measurement_state=MEASUREMENT_STATE_NOT_MEASURED,
+        score=None,
+        coverage=None if applicability == DIMENSION_NOT_APPLICABLE else 0.0,
+        earned_points=0.0,
+        determinate_points=0.0,
+        expected_points=0.0,
+        determinate_checkpoint_ids=(),
+        checkpoint_families=(),
+        reason=reason,
+    )
+
+
+def _dimension_expected(
+    evaluations: list[RuleEvaluation], key: str
+) -> list[RuleEvaluation]:
+    return [
+        row
+        for row in _profile_rows(evaluations, SCORE_ROLE_AEO)
+        if row.readiness_dimension == key
+    ]
+
+
+def _readiness_points(
+    expected: list[RuleEvaluation], determinate: list[RuleEvaluation]
+) -> tuple[float, float, float]:
+    expected_points = sum(float(row.readiness_weight) for row in expected)
+    determinate_points = sum(float(row.readiness_weight) for row in determinate)
+    earned = sum(
+        float(row.readiness_weight) * _credit(row.outcome) for row in determinate
+    )
+    return earned, determinate_points, expected_points
+
+
+def _readiness_state(score: float | None, coverage: float) -> str:
+    if score is not None and coverage >= AEO_MEASURED_MIN_COVERAGE:
+        return MEASUREMENT_STATE_MEASURED
+    return MEASUREMENT_STATE_LIMITED
+
+
+def _checkpoint_ids(rows: list[RuleEvaluation]) -> tuple[str, ...]:
+    return tuple(sorted({row.rule_id for row in rows}))
+
+
+def _checkpoint_families(rows: list[RuleEvaluation]) -> tuple[str, ...]:
+    return tuple(
+        sorted({row.checkpoint_family for row in rows if row.checkpoint_family})
+    )
+
+
+def _dimension_measurement(
+    key: str,
+    *,
+    evaluations: list[RuleEvaluation],
+    page_kind: str,
+    page_traits: frozenset[str],
+    structural: bool,
+) -> DimensionMeasurement:
+    applicability, reason = _dimension_applicability(
+        key, page_kind=page_kind, page_traits=page_traits, structural=structural
+    )
+    if applicability == DIMENSION_NOT_APPLICABLE:
+        return _empty_dimension(key, applicability, reason)
+    expected = _dimension_expected(evaluations, key)
+    if not expected:
+        bounded_reason = (
+            "no_expected_checkpoint_evaluator"
+            if applicability == DIMENSION_APPLICABLE
+            else reason
+        )
+        return _empty_dimension(key, applicability, bounded_reason)
+    determinate = _determinate_rows(expected)
+    earned, determinate_points, expected_points = _readiness_points(
+        expected, determinate
+    )
+    score = _ratio(earned, determinate_points, score=True)
+    coverage = _ratio(determinate_points, expected_points, score=False) or 0.0
+    state = _readiness_state(score, coverage)
+    return DimensionMeasurement(
+        key=key,
+        applicability=applicability,
+        measurement_state=state,
+        score=score,
+        coverage=coverage,
+        earned_points=round(earned, 4),
+        determinate_points=round(determinate_points, 4),
+        expected_points=round(expected_points, 4),
+        determinate_checkpoint_ids=_checkpoint_ids(determinate),
+        checkpoint_families=_checkpoint_families(determinate),
+        reason=reason,
+    )
+
+
+def _weighted_dimension_average(
+    rows: list[DimensionMeasurement], attribute: str, *, score: bool
+) -> float | None:
+    weight = sum(READINESS_DIMENSION_WEIGHTS[row.key] for row in rows)
+    weighted_value = sum(
+        READINESS_DIMENSION_WEIGHTS[row.key] * float(getattr(row, attribute) or 0.0)
+        for row in rows
+    )
+    if weight <= 0:
+        return None
+    value = weighted_value / weight
+    return _round_score(value) if score else _round_coverage(value)
+
+
+def _breadth_sets(
+    dimensions: tuple[DimensionMeasurement, ...],
+) -> tuple[set[str], set[str], set[str]]:
+    checkpoints = {
+        checkpoint
+        for row in dimensions
+        for checkpoint in row.determinate_checkpoint_ids
     }
-    dimensions = {AEO_READINESS_RULE_DIMENSIONS[rule_id] for rule_id in checkpoint_ids}
-    return AeoEvidenceSufficiency(
-        determinate_checkpoint_count=len(checkpoint_ids),
-        determinate_dimension_count=len(dimensions),
-        sufficient=(
-            len(checkpoint_ids) >= PR1_AEO_MIN_DETERMINATE_CHECKPOINTS
-            and len(dimensions) >= PR1_AEO_MIN_DETERMINATE_DIMENSIONS
+    families = {family for row in dimensions for family in row.checkpoint_families}
+    measured_dimensions = {row.key for row in dimensions if row.determinate_points > 0}
+    return checkpoints, families, measured_dimensions
+
+
+def _aeo_state(
+    *,
+    coverage: float | None,
+    checkpoints: set[str],
+    families: set[str],
+    measured_dimensions: set[str],
+) -> str:
+    if not checkpoints:
+        return MEASUREMENT_STATE_NOT_MEASURED
+    sufficient = (
+        coverage is not None
+        and coverage >= AEO_MEASURED_MIN_COVERAGE
+        and len(checkpoints) >= AEO_MEASURED_MIN_CHECKPOINTS
+        and len(families) >= AEO_MEASURED_MIN_FAMILIES
+        and len(measured_dimensions) >= AEO_MEASURED_MIN_DIMENSIONS
+        and "technical.indexable" in checkpoints
+    )
+    return MEASUREMENT_STATE_MEASURED if sufficient else MEASUREMENT_STATE_LIMITED
+
+
+def _overall_aeo(
+    dimensions: tuple[DimensionMeasurement, ...],
+) -> tuple[float | None, float | None, str]:
+    scored = [row for row in dimensions if row.score is not None]
+    covered = [
+        row for row in dimensions if row.applicability != DIMENSION_NOT_APPLICABLE
+    ]
+    score = _weighted_dimension_average(scored, "score", score=True)
+    coverage = _weighted_dimension_average(covered, "coverage", score=False)
+    checkpoints, families, measured_dimensions = _breadth_sets(dimensions)
+    state = _aeo_state(
+        coverage=coverage,
+        checkpoints=checkpoints,
+        families=families,
+        measured_dimensions=measured_dimensions,
+    )
+    return score, coverage, state
+
+
+def score_analysis(
+    evaluations: Iterable[RuleEvaluation],
+    *,
+    page_kind: str = "",
+    page_traits: Iterable[str] = (),
+    page_kind_evidence: dict | None = None,
+) -> AnalysisScores:
+    rows = list(evaluations)
+    structural = str((page_kind_evidence or {}).get("tier") or "") in ("", "structural")
+    (
+        technical_score,
+        technical_coverage,
+        technical_state,
+        technical_earned,
+        technical_determinate,
+        technical_expected,
+        technical_critical_complete,
+    ) = _technical_measurement(rows)
+    dimensions = tuple(
+        _dimension_measurement(
+            key,
+            evaluations=rows,
+            page_kind=page_kind,
+            page_traits=frozenset(page_traits),
+            structural=structural,
+        )
+        for key in AEO_READINESS_DIMENSIONS
+    )
+    aeo_score, aeo_coverage, aeo_state = _overall_aeo(dimensions)
+    profile = tuple(
+        {
+            "checkpoint_id": row.rule_id,
+            "score_roles": list(row.score_roles),
+            "checkpoint_family": row.checkpoint_family or None,
+            "readiness_dimension": row.readiness_dimension or None,
+            "readiness_weight": float(row.readiness_weight),
+        }
+        for row in rows
+        if row.expected_profile_membership
+    )
+    return AnalysisScores(
+        technical_integrity_score=technical_score,
+        technical_integrity_coverage=technical_coverage,
+        technical_integrity_state=technical_state,
+        technical_earned_weight=technical_earned,
+        technical_determinate_weight=technical_determinate,
+        technical_expected_weight=technical_expected,
+        technical_critical_complete=technical_critical_complete,
+        aeo_readiness_score=aeo_score,
+        aeo_measurement_coverage=aeo_coverage,
+        aeo_measurement_state=aeo_state,
+        expected_checkpoint_profile=profile,
+        readiness_dimensions=dimensions,
+        main_content_indexable=next(
+            (
+                row.outcome == RULE_OUTCOME_PASS
+                for row in rows
+                if row.rule_id == "technical.indexable" and row.outcome in _DETERMINATE
+            ),
+            None,
         ),
     )
 
 
 @dataclass(frozen=True)
-class DimensionScore:
-    """The scored result for one dimension (None when not applicable)."""
-
-    dimension: str
-    score: float | None
-    error_weight: float
-    applicable_count: int
-
-
-@dataclass(frozen=True)
-class AnalysisScores:
-    """The full per-analysis scoring result (dimension + overall scores)."""
-
-    technical_score: float | None
-    aeo_score: float | None
-    overall_score: float | None
-    scoring_version: str = SCORING_VERSION
-
-
-def _round(value: float) -> float:
-    """Round once to the config decimal places (deterministic)."""
-    return round(value, SCORE_ROUNDING_DECIMALS)
-
-
-def score_dimension(
-    evaluations: Iterable[_ScoredLike], *, dimension: str
-) -> DimensionScore:
-    """Score a single dimension, filtering ``evaluations`` to it first.
-
-    ADVISORIES ARE EXCLUDED ENTIRELY — pass, fail and error alike — so
-    opinionated guidance can neither lower nor raise the score. ``weight`` is
-    therefore only meaningful on a defect; an advisory keeps its catalog weight
-    as provenance and it is simply never read here.
-
-    ``not_applicable`` is excluded entirely. ``error`` contributes its weight
-    to the denominator but ZERO to the numerator (distinct, zero-credit). A
-    dimension with no applicable (pass/fail/error) defect has ``score=None``
-    (not zero). Tracks the exact applicable row count so callers can tell
-    "no applicable rules" from "all not_applicable".
-    """
-    passed = 0.0
-    failed = 0.0
-    errored = 0.0
-    applicable = 0
-    for ev in evaluations:
-        if ev.dimension != dimension:
-            continue
-        if ev.finding_class != FINDING_CLASS_DEFECT:
-            continue
-        outcome = ev.outcome
-        weight = max(0.0, float(ev.weight))
-        if outcome == RULE_OUTCOME_NOT_APPLICABLE:
-            continue
-        if outcome == RULE_OUTCOME_PASS:
-            passed += weight
-            applicable += 1
-        elif outcome == RULE_OUTCOME_FAIL:
-            failed += weight
-            applicable += 1
-        elif outcome == RULE_OUTCOME_ERROR:
-            errored += weight
-            applicable += 1
-    denominator = passed + failed + errored
-    score = None if denominator <= 0 else _round(100.0 * passed / denominator)
-    return DimensionScore(
-        dimension=dimension,
-        score=score,
-        error_weight=errored,
-        applicable_count=applicable,
-    )
-
-
-_DIMENSION_WEIGHTS: dict[str, float] = {
-    DIMENSION_TECHNICAL: DIMENSION_WEIGHT_TECHNICAL,
-    DIMENSION_AEO: DIMENSION_WEIGHT_AEO,
-}
-
-
-def overall_score(dimension_scores: dict[str, float | None]) -> float | None:
-    """Config-weighted mean of the AVAILABLE dimension scores.
-
-    A dimension whose score is ``None`` (no applicable rules) is dropped from
-    both the numerator and the denominator, so it is excluded rather than
-    counted as zero. Returns ``None`` when no dimension has a score.
-    """
-    weighted_sum = 0.0
-    weight_total = 0.0
-    for dimension, score in dimension_scores.items():
-        if score is None:
-            continue
-        weight = _DIMENSION_WEIGHTS.get(dimension, 0.0)
-        if weight <= 0:
-            continue
-        weighted_sum += weight * score
-        weight_total += weight
-    if weight_total <= 0:
-        return None
-    return _round(weighted_sum / weight_total)
-
-
-def score_analysis(
-    evaluations: Iterable[_ScoredLike], *, page_kind: str = ""
-) -> AnalysisScores:
-    """Score a whole page analysis: per-dimension scores + the overall score.
-
-    ``evaluations`` is the full set for one analysis (both dimensions),
-    advisories included — ``score_dimension`` drops those itself. Returns an
-    ``AnalysisScores`` with each dimension's score (None when N/A) and the
-    config-weighted overall (None when no dimension scored).
-
-    An UNCLASSIFIABLE page has NO AEO score. Almost every AEO rule is
-    page-kind-scoped, so a page the classifier could not place resolved 12 of
-    15 of them ``not_applicable`` and scored a perfect 100 off the three that
-    are universal — 46% of one site's pages, every one of them exactly 100.0,
-    all of it flowing into the crawl average. "We could not tell what this page
-    is" is not evidence that its answer-engine readiness is perfect; the
-    dimension has no score, which the aggregate already knows how to skip.
-    Technical rules are not page-kind-scoped, so that dimension still scores.
-    """
-    evals = list(evaluations)
-    technical = score_dimension(evals, dimension=DIMENSION_TECHNICAL)
-    aeo = score_dimension(evals, dimension=DIMENSION_AEO)
-    sufficiency = assess_aeo_evidence(evals)
-    aeo_score_value = (
-        None
-        if (
-            str(page_kind or "").strip().lower() == PAGE_KIND_OTHER
-            or not sufficiency.sufficient
-        )
-        else aeo.score
-    )
-    overall = overall_score(
-        {
-            DIMENSION_TECHNICAL: technical.score,
-            DIMENSION_AEO: aeo_score_value,
-        }
-    )
-    return AnalysisScores(
-        technical_score=technical.score,
-        aeo_score=aeo_score_value,
-        overall_score=overall,
-    )
+class AnalysisMeasurementInput:
+    page_kind: str
+    technical_integrity_score: float | None
+    technical_integrity_coverage: float | None
+    technical_integrity_state: str
+    technical_earned_weight: float
+    technical_determinate_weight: float
+    technical_expected_weight: float
+    technical_critical_complete: bool
+    aeo_readiness_score: float | None
+    aeo_measurement_coverage: float | None
+    aeo_measurement_state: str
+    readiness_dimensions: tuple[dict, ...]
 
 
 @dataclass(frozen=True)
-class AnalysisScoreInput:
-    """One completed analysis's scores for crawl-level aggregation.
-
-    ``url_key`` identifies the monitored URL (so only the LATEST completed
-    analysis per URL is aggregated). A missing/errored URL is simply NOT passed
-    in — the aggregator never fabricates a zero for it.
-    """
-
-    url_key: str
-    ordinal: int
-    technical_score: float | None
-    aeo_score: float | None
-    overall_score: float | None
-
-
-@dataclass(frozen=True)
-class AggregateScores:
-    """The crawl-level aggregate over the latest completed analyses."""
-
-    technical_score: float | None
-    aeo_score: float | None
-    overall_score: float | None
+class AggregateMeasurements:
+    technical_integrity_score: float | None
+    technical_integrity_coverage: float | None
+    technical_integrity_state: str
+    aeo_readiness_score: float | None
+    aeo_measurement_coverage: float | None
+    aeo_measurement_state: str
+    readiness_dimensions: tuple[dict, ...]
     analyzed_url_count: int
     scoring_version: str = SCORING_VERSION
 
 
-def _mean(values: list[float]) -> float | None:
-    if not values:
-        return None
-    return _round(sum(values) / len(values))
-
-
-def aggregate_scores(
-    analyses: Iterable[AnalysisScoreInput],
-) -> AggregateScores:
-    """Aggregate the LATEST completed analysis per URL, ignoring missing/error.
-
-    Deduplicates to the highest-``ordinal`` (latest) analysis per ``url_key``,
-    then averages each dimension over ONLY the analyses that actually have a
-    (non-None) score for it. A URL with no completed analysis is never present
-    here, and a None dimension score is skipped rather than treated as zero, so
-    missing/error URLs cannot drag an aggregate to zero.
-    """
-    latest: dict[str, AnalysisScoreInput] = {}
-    for analysis in analyses:
-        existing = latest.get(analysis.url_key)
-        if existing is None or analysis.ordinal >= existing.ordinal:
-            latest[analysis.url_key] = analysis
-
-    technical = [
-        a.technical_score for a in latest.values() if a.technical_score is not None
+def _page_dimensions(key: str, rows: list[AnalysisMeasurementInput]) -> list[dict]:
+    return [
+        item
+        for row in rows
+        for item in row.readiness_dimensions
+        if item.get("key") == key
+        and item.get("dimension_applicability") != DIMENSION_NOT_APPLICABLE
     ]
-    aeo = [a.aeo_score for a in latest.values() if a.aeo_score is not None]
-    overall = [a.overall_score for a in latest.values() if a.overall_score is not None]
-    return AggregateScores(
-        technical_score=_mean(technical),
-        aeo_score=_mean(aeo),
-        overall_score=_mean(overall),
-        analyzed_url_count=len(latest),
+
+
+def _persisted_points(page_dimensions: list[dict]) -> tuple[float, float, float]:
+    earned = sum(float(item.get("earned_points") or 0.0) for item in page_dimensions)
+    determinate = sum(
+        float(item.get("determinate_points") or 0.0) for item in page_dimensions
+    )
+    expected = sum(
+        float(item.get("expected_points") or 0.0) for item in page_dimensions
+    )
+    return earned, determinate, expected
+
+
+def _normalized_page_coverage(page_dimensions: list[dict]) -> float:
+    return sum(float(item.get("coverage") or 0.0) for item in page_dimensions) / len(
+        page_dimensions
     )
 
 
-@dataclass(frozen=True)
-class PageKindScoreInput:
-    """One latest-completed analysis's scores + its classified page type.
+def _persisted_values(page_dimensions: list[dict], key: str) -> tuple[str, ...]:
+    return tuple(
+        sorted({value for item in page_dimensions for value in item.get(key, [])})
+    )
 
-    Feeds the crawl-level ``by_page_kind`` rollup (v2 P1, spec §5.2/§5.6).
-    A missing/errored URL is simply NOT passed in — the rollup never
-    fabricates a zero for it, and a ``None`` dimension score is skipped
-    rather than averaged as zero.
-    """
 
-    page_kind: str
-    technical_score: float | None
-    aeo_score: float | None
-    overall_score: float | None
+def _aggregate_applicability(page_dimensions: list[dict]) -> str:
+    if any(
+        item.get("dimension_applicability") == DIMENSION_APPLICABLE
+        for item in page_dimensions
+    ):
+        return DIMENSION_APPLICABLE
+    return DIMENSION_UNRESOLVED
+
+
+def _aggregate_dimension_state(determinate: float, coverage: float) -> str:
+    if determinate == 0:
+        return MEASUREMENT_STATE_NOT_MEASURED
+    if coverage >= AEO_MEASURED_MIN_COVERAGE:
+        return MEASUREMENT_STATE_MEASURED
+    return MEASUREMENT_STATE_LIMITED
+
+
+def _aggregate_dimension(
+    key: str, rows: list[AnalysisMeasurementInput]
+) -> DimensionMeasurement:
+    page_dimensions = _page_dimensions(key, rows)
+    if not page_dimensions:
+        return _empty_dimension(
+            key, DIMENSION_NOT_APPLICABLE, "dimension_determinately_irrelevant"
+        )
+    earned, determinate, expected = _persisted_points(page_dimensions)
+    coverage = _normalized_page_coverage(page_dimensions)
+    checkpoint_ids = _persisted_values(page_dimensions, "determinate_checkpoint_ids")
+    families = _persisted_values(page_dimensions, "checkpoint_families")
+    applicability = _aggregate_applicability(page_dimensions)
+    state = _aggregate_dimension_state(determinate, coverage)
+    return DimensionMeasurement(
+        key=key,
+        applicability=applicability,
+        measurement_state=state,
+        score=None if determinate <= 0 else _round_score(100.0 * earned / determinate),
+        coverage=_round_coverage(coverage),
+        earned_points=round(earned, 4),
+        determinate_points=round(determinate, 4),
+        expected_points=round(expected, 4),
+        determinate_checkpoint_ids=checkpoint_ids,
+        checkpoint_families=families,
+        reason="dimension_relevance_unresolved"
+        if applicability == DIMENSION_UNRESOLVED
+        else "",
+    )
+
+
+def _aggregate_technical(
+    rows: list[AnalysisMeasurementInput],
+) -> tuple[float | None, float | None, str]:
+    earned = sum(row.technical_earned_weight for row in rows)
+    determinate = sum(row.technical_determinate_weight for row in rows)
+    expected = sum(row.technical_expected_weight for row in rows)
+    score = _ratio(earned, determinate, score=True)
+    coverage = _ratio(determinate, expected, score=False)
+    state = _technical_state(
+        has_expected=expected > 0,
+        has_determinate=determinate > 0,
+        coverage=coverage,
+        complete=all(row.technical_critical_complete for row in rows),
+    )
+    return score, coverage, state
+
+
+def aggregate_measurements(
+    inputs: Iterable[AnalysisMeasurementInput],
+) -> AggregateMeasurements:
+    rows = list(inputs)
+    dimensions = tuple(
+        _aggregate_dimension(key, rows) for key in AEO_READINESS_DIMENSIONS
+    )
+    technical_score, technical_coverage, technical_state = _aggregate_technical(rows)
+    aeo_score, aeo_coverage, aeo_state = _overall_aeo(dimensions)
+    return AggregateMeasurements(
+        technical_integrity_score=technical_score,
+        technical_integrity_coverage=technical_coverage,
+        technical_integrity_state=technical_state,
+        aeo_readiness_score=aeo_score,
+        aeo_measurement_coverage=aeo_coverage,
+        aeo_measurement_state=aeo_state,
+        readiness_dimensions=tuple(item.to_dict() for item in dimensions),
+        analyzed_url_count=len(rows),
+    )

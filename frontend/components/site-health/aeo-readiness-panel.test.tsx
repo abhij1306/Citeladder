@@ -28,46 +28,90 @@ afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
 function dimension(key: string, label: string, failing: boolean) {
+  const ruleId = `rule.${key}.0`;
   return {
     key,
     label,
     description: `What ${label.toLowerCase()} means in one sentence.`,
-    rule_ids: [`rule.${key}.0`],
-    pass_count: failing ? 3 : 4,
-    fail_count: failing ? 2 : 0,
+    dimension_applicability: 'applicable',
+    dimension_measurement_state: 'measured',
+    score: failing ? 60 : 100,
+    reason: '',
+    checkpoint_ids: [ruleId],
+    determinate_checkpoint_ids: [ruleId],
+    checkpoint_families: [key],
+    earned_points: failing ? 3 : 5,
+    determinate_points: 5,
+    expected_points: 6,
+    satisfied_count: failing ? 3 : 4,
+    partial_count: 0,
+    missing_count: failing ? 2 : 0,
+    unknown_count: 0,
+    unavailable_count: 0,
+    conflicting_count: 0,
     not_applicable_count: 1,
     error_count: 0,
-    observed_evaluation_count: 5,
-    expected_evaluation_count: 6,
     coverage: 0.8333,
     checked_page_count: 5,
     failing_page_count: failing ? 2 : 0,
     checks: [
       {
-        rule_id: `rule.${key}.0`,
+        rule_id: ruleId,
         title: failing ? 'Answer is not stated first' : 'Headings are unique',
         remediation: 'Move the direct answer into the first paragraph.',
-        pass_count: failing ? 3 : 4,
-        fail_count: failing ? 2 : 0,
+        satisfied_count: failing ? 3 : 4,
+        partial_count: 0,
+        missing_count: failing ? 2 : 0,
+        unknown_count: 0,
+        unavailable_count: 0,
+        conflicting_count: 0,
         not_applicable_count: 1,
         error_count: 0,
         failing_page_count: failing ? 2 : 0,
+        checkpoint_family: key,
+        readiness_weight: 1,
+        content_addressable: true,
       },
     ],
     evidence_pages: failing
       ? [
           {
             site_url_id: PAGE_A,
+            source_analysis_id: ANALYSIS,
             normalized_url: 'https://acme.test/blogs/american-summer',
             failed_checks: [
-              { rule_id: `rule.${key}.0`, title: 'Answer is not stated first' },
-              { rule_id: `rule.${key}.1`, title: 'No question headings' },
+              {
+                rule_id: ruleId,
+                title: 'Answer is not stated first',
+                observed_evidence: { observed: 'missing' },
+                expected_capability: 'State the answer first.',
+                remediation: 'Move the direct answer into the first paragraph.',
+                content_addressable: true,
+              },
+              {
+                rule_id: `rule.${key}.1`,
+                title: 'No question headings',
+                observed_evidence: { observed: 'missing' },
+                expected_capability: 'Use question-shaped headings.',
+                remediation: 'Add question-shaped headings.',
+                content_addressable: true,
+              },
             ],
           },
           {
             site_url_id: PAGE_B,
+            source_analysis_id: ANALYSIS,
             normalized_url: 'https://acme.test/blogs/rooted-in-fall',
-            failed_checks: [{ rule_id: `rule.${key}.0`, title: 'Answer is not stated first' }],
+            failed_checks: [
+              {
+                rule_id: ruleId,
+                title: 'Answer is not stated first',
+                observed_evidence: { observed: 'missing' },
+                expected_capability: 'State the answer first.',
+                remediation: 'Move the direct answer into the first paragraph.',
+                content_addressable: true,
+              },
+            ],
           },
         ]
       : [],
@@ -79,15 +123,18 @@ function stubReadiness(overrides: Record<string, unknown> = {}) {
   mswServer.use(
     http.get(`/api/v1/projects/${PROJECT}/site-health/aeo-readiness`, () =>
       HttpResponse.json({
-        state: 'available',
+        state: 'measured',
         crawl_id: CRAWL,
-        taxonomy_version: 'aeo-readiness-v1',
+        score: 82,
+        coverage: 0.95,
+        profile_version: 'site-health-profile-1',
+        schema_contract_version: 'site-health-schema-contract-1',
+        scoring_version: 'sh-score-1',
+        presentation_version: 'site-health-presentation-1',
         analyzer_version: 'page-v1',
         source_analysis_ids: [ANALYSIS],
         analysis_count: 5,
-        observed_evaluation_count: 40,
-        expected_evaluation_count: 42,
-        coverage: 0.95,
+        affected_page_count: 2,
         dimensions: DIMENSIONS.map(([key, label], index) => dimension(key, label, index === 0)),
         limitations: [],
         ...overrides,
@@ -101,7 +148,7 @@ describe('AEO Readiness', () => {
     stubReadiness();
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
 
-    await screen.findByText('AEO Readiness');
+    await screen.findByRole('heading', { name: 'AEO Readiness' });
     for (const [, label] of DIMENSIONS) expect(screen.getByText(label)).toBeInTheDocument();
     expect(screen.getByText(/what answerability means in one sentence/i)).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Determinate' })).toBeInTheDocument();
@@ -148,7 +195,7 @@ describe('AEO Readiness', () => {
     await userEvent.click(
       await screen.findByRole('button', { name: 'View details for Answerability' }),
     );
-    expect(screen.getAllByText('Answer is not stated first')).toHaveLength(3);
+    expect(screen.getAllByText(/Answer is not stated first/)).toHaveLength(3);
     expect(screen.queryByText(/rule\.answerability\.0/)).toBeNull();
     expect(screen.queryByText(/^aeo\./)).toBeNull();
   });
@@ -160,6 +207,7 @@ describe('AEO Readiness', () => {
         ? {
             ...base,
             error_count: 1,
+            dimension_measurement_state: 'limited_evidence',
             checks: [{ ...base.checks[0], error_count: 1 }],
           }
         : base;
@@ -199,7 +247,7 @@ describe('AEO Readiness', () => {
       1,
     );
     const row = link.closest('li');
-    expect(within(row!).getByText('No question headings')).toBeInTheDocument();
+    expect(within(row!).getByText(/No question headings/)).toBeInTheDocument();
     // Raw outcome tokens are gone.
     expect(screen.queryByText('fail')).toBeNull();
   });
@@ -220,7 +268,7 @@ describe('AEO Readiness', () => {
   });
 
   it('shows the persisted empty state rather than an empty grid', async () => {
-    stubReadiness({ state: 'unavailable', limitations: ['Run a crawl first.'] });
+    stubReadiness({ state: 'not_measured', crawl_id: null, limitations: ['Run a crawl first.'] });
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
     expect(await screen.findByRole('alert')).toHaveTextContent('Run a crawl first.');
   });

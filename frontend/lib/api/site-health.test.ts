@@ -114,9 +114,13 @@ const inventoryRow = {
   first_seen_at: null,
   last_seen_at: null,
   issue_count: null,
-  technical_score: null,
-  aeo_score: null,
-  overall_score: null,
+  technical_integrity_score: null,
+  technical_integrity_coverage: null,
+  technical_integrity_state: 'not_measured' as const,
+  aeo_readiness_score: null,
+  aeo_measurement_coverage: null,
+  aeo_measurement_state: 'not_measured' as const,
+  main_content_indexable: null,
   last_audited: null,
   page_kind: null,
 };
@@ -300,16 +304,36 @@ describe('siteCrawlSchema site_facts (v2 P2 contract)', () => {
 
 describe('siteScoreSummarySchema by_page_kind (v2 P1)', () => {
   const scoreSummary = {
-    overall_score: 71,
-    technical_score: 80,
-    aeo_score: 62,
+    technical_integrity_score: 80,
+    technical_integrity_coverage: 1,
+    technical_integrity_state: 'measured',
+    aeo_readiness_score: 62,
+    aeo_measurement_coverage: 0.8,
+    aeo_measurement_state: 'measured',
+    search_eligibility: 'eligible',
     selected_count: 10,
     analyzed_count: 4,
     issue_count: 3,
     scoring_version: 's1',
     by_page_kind: {
-      homepage: { analyzed_count: 1, technical_score: 90.5, aeo_score: 70, overall_score: 80.2 },
-      article: { analyzed_count: 3, technical_score: null, aeo_score: null, overall_score: null },
+      homepage: {
+        analyzed_count: 1,
+        technical_integrity_score: 90.5,
+        technical_integrity_coverage: 1,
+        technical_integrity_state: 'measured',
+        aeo_readiness_score: 70,
+        aeo_measurement_coverage: 0.8,
+        aeo_measurement_state: 'measured',
+      },
+      article: {
+        analyzed_count: 3,
+        technical_integrity_score: null,
+        technical_integrity_coverage: null,
+        technical_integrity_state: 'not_measured',
+        aeo_readiness_score: null,
+        aeo_measurement_coverage: null,
+        aeo_measurement_state: 'not_measured',
+      },
     },
   };
 
@@ -320,7 +344,7 @@ describe('siteScoreSummarySchema by_page_kind (v2 P1)', () => {
       'crawl',
     );
     expect(parsed.score_summary?.by_page_kind.homepage?.analyzed_count).toBe(1);
-    expect(parsed.score_summary?.by_page_kind.article?.overall_score).toBeNull();
+    expect(parsed.score_summary?.by_page_kind.article?.aeo_readiness_score).toBeNull();
   });
 
   it('accepts an empty by_page_kind map (nothing classified yet)', () => {
@@ -348,7 +372,7 @@ describe('siteScoreSummarySchema by_page_kind (v2 P1)', () => {
 describe('inventoryRowSchema (nullable analysis summaries)', () => {
   it('accepts null analysis summaries before analysis completes', () => {
     const parsed = strictValidate(inventoryRowSchema, inventoryRow, 'row');
-    expect(parsed.overall_score).toBeNull();
+    expect(parsed.aeo_readiness_score).toBeNull();
     expect(parsed.issue_count).toBeNull();
     expect(parsed.page_kind).toBeNull();
   });
@@ -357,9 +381,13 @@ describe('inventoryRowSchema (nullable analysis summaries)', () => {
     const analysed = {
       ...inventoryRow,
       issue_count: 3,
-      technical_score: 88.5,
-      aeo_score: 72,
-      overall_score: 80.2,
+      technical_integrity_score: 88.5,
+      technical_integrity_coverage: 1,
+      technical_integrity_state: 'measured',
+      aeo_readiness_score: 72,
+      aeo_measurement_coverage: 0.8,
+      aeo_measurement_state: 'measured',
+      main_content_indexable: true,
       last_audited: '2026-07-15T00:00:00Z',
       page_kind: 'article',
     };
@@ -480,9 +508,13 @@ describe('pageDetailSchema (field_cwv_available literal false)', () => {
     analysis_status: 'completed' as const,
     error_code: '',
     field_cwv_available: false as const,
-    technical_score: 90,
-    aeo_score: 80,
-    overall_score: 85,
+    technical_integrity_score: 90,
+    technical_integrity_coverage: 1,
+    technical_integrity_state: 'measured',
+    aeo_readiness_score: 80,
+    aeo_measurement_coverage: 0.8,
+    aeo_measurement_state: 'measured',
+    main_content_indexable: true,
     issue_count: 2,
     last_audited: '2026-07-15T00:00:00Z',
     page_kind: 'homepage',
@@ -687,46 +719,49 @@ describe('query key isolation (project / crawl / filter)', () => {
 });
 
 describe('AEO Readiness contract', () => {
-  it('keeps not-applicable distinct and exposes no score field', () => {
+  it('keeps not-applicable distinct from a null readiness score', () => {
     const parsed = strictValidate(
       aeoReadinessSchema,
       {
-        state: 'available',
+        state: 'limited_evidence',
         crawl_id: UUID,
-        taxonomy_version: 'aeo-readiness-v1',
+        score: null,
+        coverage: 0,
+        profile_version: 'sh-profiles-1',
+        schema_contract_version: 'sh-schema-1',
+        scoring_version: '1',
+        presentation_version: 'sh-presentation-1',
         analyzer_version: 'page-v1',
         source_analysis_ids: [UUID2],
         analysis_count: 1,
-        observed_evaluation_count: 1,
-        expected_evaluation_count: 1,
-        coverage: 1,
+        affected_page_count: 0,
         dimensions: [
           {
             key: 'freshness',
             label: 'Freshness',
             description: 'Whether the page says when it was written or updated.',
-            rule_ids: ['aeo.date_present'],
-            pass_count: 0,
-            fail_count: 0,
+            dimension_applicability: 'unresolved',
+            dimension_measurement_state: 'not_measured',
+            score: null,
+            reason: 'dimension_relevance_unresolved',
+            checkpoint_ids: [],
+            determinate_checkpoint_ids: [],
+            checkpoint_families: [],
+            earned_points: 0,
+            determinate_points: 0,
+            expected_points: 0,
+            satisfied_count: 0,
+            partial_count: 0,
+            missing_count: 0,
+            unknown_count: 0,
+            unavailable_count: 0,
+            conflicting_count: 0,
             not_applicable_count: 1,
             error_count: 0,
-            observed_evaluation_count: 1,
-            expected_evaluation_count: 1,
-            coverage: 1,
+            coverage: 0,
             checked_page_count: 0,
             failing_page_count: 0,
-            checks: [
-              {
-                rule_id: 'aeo.date_present',
-                title: 'Missing published or updated date',
-                remediation: 'Publish a visible date on the page.',
-                pass_count: 0,
-                fail_count: 0,
-                not_applicable_count: 1,
-                error_count: 0,
-                failing_page_count: 0,
-              },
-            ],
+            checks: [],
             evidence_pages: [],
             evidence_truncated: false,
           },
@@ -736,7 +771,7 @@ describe('AEO Readiness contract', () => {
       'readiness',
     );
     expect(parsed.dimensions[0].not_applicable_count).toBe(1);
-    expect('score' in parsed).toBe(false);
+    expect(parsed.score).toBeNull();
   });
 });
 

@@ -18,6 +18,7 @@ from app.core.config.site_health_contracts import (
     ANALYZER_VERSION,
     EXTRACTOR_VERSION,
     RULE_CATALOG_VERSION,
+    RULE_OUTCOME_UNAVAILABLE,
     TASK_KIND_ARCHITECTURE,
 )
 from app.core.config.site_health_link_metrics import COVERAGE_STATE_PARTIAL
@@ -112,7 +113,9 @@ async def test_architecture_runs_after_link_metrics_with_exact_provenance(
             ).all()
         )
         assert len(absence_evaluations) == 3
-        assert {row.outcome for row in absence_evaluations} == {"not_applicable"}
+        assert {row.outcome for row in absence_evaluations} == {
+            RULE_OUTCOME_UNAVAILABLE
+        }
         assert {(row.evidence or {}).get("reason") for row in absence_evaluations} == {
             "coverage_not_complete"
         }

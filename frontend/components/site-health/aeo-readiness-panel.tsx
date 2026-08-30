@@ -39,18 +39,15 @@ type DimensionState =
   | 'Limited evidence'
   | 'Passing'
   | 'Not measured'
-  | 'Not applicable';
+  | 'Not applicable'
+  | 'Excluded';
 
 function dimensionState(dimension: ReadinessDimension): DimensionState {
-  if (dimension.expected_evaluation_count === 0) return 'Not applicable';
-  if (dimension.observed_evaluation_count === 0) return 'Not measured';
-  if (dimension.fail_count > 0) return 'Needs work';
-  if (
-    dimension.error_count > 0 ||
-    dimension.observed_evaluation_count < dimension.expected_evaluation_count
-  ) {
-    return 'Limited evidence';
-  }
+  if (dimension.dimension_applicability === 'not_applicable') return 'Not applicable';
+  if (dimension.dimension_measurement_state === 'excluded') return 'Excluded';
+  if (dimension.dimension_measurement_state === 'not_measured') return 'Not measured';
+  if (dimension.missing_count > 0 || dimension.partial_count > 0) return 'Needs work';
+  if (dimension.dimension_measurement_state === 'limited_evidence') return 'Limited evidence';
   return 'Passing';
 }
 
@@ -74,7 +71,7 @@ export function AeoReadinessPanel({
     );
   }
   if (readiness.isError) return <Alert tone="danger">Could not load AEO Readiness.</Alert>;
-  if (!readiness.data || readiness.data.state === 'unavailable') {
+  if (!readiness.data || readiness.data.crawl_id === null) {
     return (
       <Alert tone="info">
         {readiness.data?.limitations[0] ??
@@ -90,17 +87,25 @@ export function AeoReadinessPanel({
       <ReadinessHeader data={data} />
       {data.limitations.length > 0 ? <Alert tone="info">{data.limitations.join(' ')}</Alert> : null}
       <ReadinessLedger dimensions={data.dimensions} onOpen={setDetailKey} />
-      <DimensionDrawer dimension={selected} crawlId={crawlId} onClose={() => setDetailKey(null)} />
+      <DimensionDrawer
+        dimension={selected}
+        crawlId={crawlId}
+        projectId={projectId}
+        onClose={() => setDetailKey(null)}
+      />
     </div>
   );
 }
 
 function ReadinessHeader({ data }: Readonly<{ data: AeoReadiness }>) {
-  const incomplete = data.state === 'incomplete';
+  const state = measurementState(data.state);
   const items = [
     ['Analyzed pages', String(data.analysis_count)],
-    ['Determinate checks', String(data.observed_evaluation_count)],
-    ['Expected checks', String(data.expected_evaluation_count)],
+    ['Affected pages', String(data.affected_page_count)],
+    [
+      'AEO Readiness',
+      data.state === 'measured' && data.score !== null ? `${Math.round(data.score)}` : state.label,
+    ],
     ['Coverage', formatCoverage(data.coverage)],
   ];
   return (
@@ -108,8 +113,8 @@ function ReadinessHeader({ data }: Readonly<{ data: AeoReadiness }>) {
       <CardHeader className="gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle>AEO Readiness</CardTitle>
-          <Badge variant="status" value={incomplete ? 'warning' : 'success'}>
-            {incomplete ? 'Limited evidence' : 'Available'}
+          <Badge variant="status" value={state.tone}>
+            {state.label}
           </Badge>
         </div>
         <CardDescription>
@@ -131,6 +136,16 @@ function ReadinessHeader({ data }: Readonly<{ data: AeoReadiness }>) {
       </CardContent>
     </Card>
   );
+}
+
+function measurementState(state: AeoReadiness['state']): {
+  label: string;
+  tone: 'success' | 'warning' | 'info';
+} {
+  if (state === 'measured') return { label: 'Measured', tone: 'success' };
+  if (state === 'limited_evidence') return { label: 'Limited evidence', tone: 'warning' };
+  if (state === 'excluded') return { label: 'Excluded', tone: 'info' };
+  return { label: 'Not measured', tone: 'info' };
 }
 
 function ReadinessLedger({
@@ -168,8 +183,8 @@ function ReadinessLedger({
                     <span className="font-medium">{dimension.label}</span>
                     <span className="text-muted mt-0.5 block text-xs">{dimension.description}</span>
                   </TableCell>
-                  <TableCell numeric>{dimension.observed_evaluation_count}</TableCell>
-                  <TableCell numeric>{dimension.expected_evaluation_count}</TableCell>
+                  <TableCell numeric>{dimension.determinate_points}</TableCell>
+                  <TableCell numeric>{dimension.expected_points}</TableCell>
                   <TableCell numeric>{dimension.not_applicable_count}</TableCell>
                   <TableCell
                     numeric
@@ -203,8 +218,14 @@ function ReadinessLedger({
 function DimensionDrawer({
   dimension,
   crawlId,
+  projectId,
   onClose,
-}: Readonly<{ dimension: ReadinessDimension | null; crawlId: string; onClose: () => void }>) {
+}: Readonly<{
+  dimension: ReadinessDimension | null;
+  crawlId: string;
+  projectId: string;
+  onClose: () => void;
+}>) {
   return (
     <Drawer
       open={Boolean(dimension)}
@@ -216,7 +237,7 @@ function DimensionDrawer({
       {dimension ? (
         <div className="grid gap-[var(--workspace-gap)]">
           <CheckLedger checks={dimension.checks} />
-          <FailingPages dimension={dimension} crawlId={crawlId} />
+          <FailingPages dimension={dimension} crawlId={crawlId} projectId={projectId} />
         </div>
       ) : null}
     </Drawer>
@@ -244,9 +265,9 @@ function CheckRow({ check }: Readonly<{ check: ReadinessCheck }>) {
   const state =
     check.error_count > 0
       ? 'Incomplete'
-      : check.fail_count > 0
+      : check.missing_count > 0 || check.partial_count > 0
         ? 'Needs work'
-        : check.pass_count > 0
+        : check.satisfied_count > 0
           ? 'Passing'
           : 'Did not apply';
   return (
@@ -259,8 +280,8 @@ function CheckRow({ check }: Readonly<{ check: ReadinessCheck }>) {
         {check.remediation || 'No remediation guidance is recorded for this check.'}
       </p>
       <p className="text-muted text-xs tabular-nums">
-        {check.pass_count} passed · {check.fail_count} failed · {check.not_applicable_count} not
-        applicable · {check.error_count} errors
+        {check.satisfied_count} satisfied · {check.partial_count} partial · {check.missing_count}{' '}
+        missing · {check.unknown_count} unknown
       </p>
     </li>
   );
@@ -269,7 +290,8 @@ function CheckRow({ check }: Readonly<{ check: ReadinessCheck }>) {
 function FailingPages({
   dimension,
   crawlId,
-}: Readonly<{ dimension: ReadinessDimension; crawlId: string }>) {
+  projectId,
+}: Readonly<{ dimension: ReadinessDimension; crawlId: string; projectId: string }>) {
   const shown = dimension.evidence_pages.length;
   const total = dimension.failing_page_count;
   return (
@@ -297,13 +319,41 @@ function FailingPages({
               {page.failed_checks.map((check) => (
                 <li key={check.rule_id} className="text-secondary flex items-start gap-2 text-xs">
                   <span className="bg-danger mt-1.5 size-1.5 shrink-0 rounded-full" aria-hidden />
-                  {check.title}
+                  <span>
+                    {check.title}: {check.expected_capability}
+                  </span>
                 </li>
               ))}
             </ul>
+            {page.failed_checks.some((check) => check.content_addressable) ? (
+              <Button asChild size="sm" className="justify-self-start">
+                <Link href={contentHref(projectId, crawlId, dimension, page)}>
+                  Improve in Content
+                </Link>
+              </Button>
+            ) : null}
           </li>
         ))}
       </ul>
     </section>
   );
+}
+
+function contentHref(
+  projectId: string,
+  crawlId: string,
+  dimension: ReadinessDimension,
+  page: ReadinessDimension['evidence_pages'][number],
+): string {
+  const params = new URLSearchParams({
+    project_id: projectId,
+    site_health_crawl_id: crawlId,
+    site_url_id: page.site_url_id,
+    source_analysis_id: page.source_analysis_id,
+    dimension: dimension.key,
+  });
+  page.failed_checks
+    .filter((check) => check.content_addressable)
+    .forEach((check) => params.append('checkpoint_ids', check.rule_id));
+  return `/content?${params.toString()}`;
 }

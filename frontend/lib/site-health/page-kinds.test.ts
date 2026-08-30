@@ -53,9 +53,12 @@ describe('pageTraitLabel', () => {
 describe('byPageKindRows (dashboard breakdown ordering)', () => {
   const bucket = (analyzed_count: number): PageKindScoreSummary => ({
     analyzed_count,
-    technical_score: 80,
-    aeo_score: 62,
-    overall_score: 71,
+    technical_integrity_score: 80,
+    technical_integrity_coverage: 1,
+    technical_integrity_state: 'measured',
+    aeo_readiness_score: 62,
+    aeo_measurement_coverage: 0.8,
+    aeo_measurement_state: 'measured',
   });
 
   it('returns [] for an empty breakdown', () => {
@@ -76,9 +79,12 @@ describe('byPageKindRows (dashboard breakdown ordering)', () => {
     expect(row).toEqual({
       page_kind: 'docs',
       analyzed_count: 7,
-      technical_score: 80,
-      aeo_score: 62,
-      overall_score: 71,
+      technical_integrity_score: 80,
+      technical_integrity_coverage: 1,
+      technical_integrity_state: 'measured',
+      aeo_readiness_score: 62,
+      aeo_measurement_coverage: 0.8,
+      aeo_measurement_state: 'measured',
     });
   });
 

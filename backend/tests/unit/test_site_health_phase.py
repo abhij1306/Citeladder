@@ -55,13 +55,27 @@ def test_failed_crawl_with_an_empty_summary_shell_is_still_terminal() -> None:
     # PRESENT-but-null-score summary (persist_empty=True). Treating "summary is
     # not None" as dashboard-worthy is what hid every failed crawl behind an
     # empty dashboard.
-    shell = {"overall_score": None, "analyzed_count": 0}
+    shell = {
+        "technical_integrity_state": "not_measured",
+        "aeo_measurement_state": "not_measured",
+        "analyzed_count": 0,
+    }
     assert _resolve(_crawl(status="failed"), summary=shell) == "terminal"
+
+
+def test_failed_crawl_with_missing_measurement_states_is_still_terminal() -> None:
+    assert _resolve(_crawl(status="failed"), summary={"analyzed_count": 0}) == (
+        "terminal"
+    )
 
 
 def test_failed_crawl_that_scored_something_keeps_its_dashboard() -> None:
     assert (
-        _resolve(_crawl(status="failed"), summary={"overall_score": 71}) == "dashboard"
+        _resolve(
+            _crawl(status="failed"),
+            summary={"technical_integrity_state": "measured"},
+        )
+        == "dashboard"
     )
 
 
@@ -77,7 +91,10 @@ def test_parked_crawl_with_nothing_discovered_is_terminal(status: str) -> None:
 
 def test_parked_crawl_with_partial_scores_prefers_the_dashboard() -> None:
     assert (
-        _resolve(_crawl(status="cancelled"), summary={"overall_score": 71})
+        _resolve(
+            _crawl(status="cancelled"),
+            summary={"aeo_measurement_state": "limited_evidence"},
+        )
         == "dashboard"
     )
 

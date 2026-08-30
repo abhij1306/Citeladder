@@ -20,6 +20,7 @@ the same blocks, so ``message_digest`` stays stable for provenance.
 
 from __future__ import annotations
 
+import json
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -168,6 +169,42 @@ def _render_opportunity(handoff: dict | None, opportunity: Opportunity | None) -
     return "CONTENT OPPORTUNITY\n" + "\n".join(lines)
 
 
+def _render_site_health_task(handoff: dict | None) -> str:
+    if not handoff:
+        return ""
+    lines = _labelled(
+        [
+            ("Dimension", handoff.get("dimension")),
+            ("Checkpoints", handoff.get("checkpoint_ids")),
+            ("Expected capability", handoff.get("expected_capability")),
+            ("Remediation", handoff.get("remediation")),
+        ]
+    )
+    return "SITE HEALTH READINESS GAP\n" + "\n".join(lines)
+
+
+def _render_site_health_evidence(handoff: dict | None) -> str:
+    if not handoff:
+        return ""
+    lines = _labelled(
+        [
+            ("Source URL", handoff.get("normalized_url")),
+            ("Observed page kind", handoff.get("page_kind") or "unknown"),
+            ("Observed page traits", handoff.get("page_traits")),
+            (
+                "Observed checkpoint evidence",
+                json.dumps(
+                    handoff.get("observed_evidence") or [],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    default=str,
+                ),
+            ),
+        ]
+    )
+    return "SITE HEALTH OBSERVED EVIDENCE\n" + "\n".join(lines)
+
+
 def _render_pages(pages: list[dict]) -> str:
     """Readable per-page text — the model parses this far better than JSON."""
     if not pages:
@@ -190,17 +227,37 @@ def _render_pages(pages: list[dict]) -> str:
     return "RELEVANT WEBSITE CONTENT\n\n" + "\n\n".join(blocks)
 
 
-def _selection_inputs(prompt: str, opportunity: Opportunity | None) -> tuple[str, str]:
+def _selection_inputs(
+    prompt: str,
+    opportunity: Opportunity | None,
+    site_health_handoff: dict | None,
+) -> tuple[str, str]:
     """``(target_url, query_text)`` for crawl-page ranking.
 
     The opportunity's theme widens the query so a rewrite finds topically
     adjacent pages, not just the target itself.
     """
-    if opportunity is None:
-        return "", prompt
-    target_url = opportunity.target_url or ""
-    theme = opportunity.target_theme or ""
-    return target_url, " ".join(part for part in (prompt, theme) if part)
+    handoff = site_health_handoff or {}
+    opportunity_url = opportunity.target_url if opportunity is not None else ""
+    target_url = str(handoff.get("normalized_url") or opportunity_url or "")
+    query_parts = [prompt]
+    if opportunity is not None and opportunity.target_theme:
+        query_parts.append(opportunity.target_theme)
+    query_parts.extend(handoff.get("expected_capability") or [])
+    query_parts.extend(handoff.get("remediation") or [])
+    return target_url, " ".join(part for part in query_parts if part)
+
+
+def _site_health_reference(handoff: dict | None) -> dict[str, object] | None:
+    if not handoff:
+        return None
+    return {
+        "crawl_id": str(handoff.get("crawl_id") or ""),
+        "site_url_id": str(handoff.get("site_url_id") or ""),
+        "source_analysis_id": str(handoff.get("source_analysis_id") or ""),
+        "dimension": str(handoff.get("dimension") or ""),
+        "checkpoint_ids": list(handoff.get("checkpoint_ids") or []),
+    }
 
 
 def _render_summary(
@@ -209,6 +266,7 @@ def _render_summary(
     brand_fields: list[str],
     opportunity: Opportunity | None,
     handoff: dict | None,
+    site_health_handoff: dict | None,
 ) -> dict[str, Any]:
     """Bounded provenance for the UI and the persisted snapshot."""
     crawl = selection.summary or {}
@@ -220,6 +278,7 @@ def _render_summary(
         "brand_fields": brand_fields,
         "opportunity_id": str(opportunity.id) if opportunity else None,
         "opportunity_handoff": handoff,
+        "site_health_reference": _site_health_reference(site_health_handoff),
         # GSC is not wired yet; the block stays empty and the flag stays False
         # so the UI can render "not connected" as a neutral state, not a fault.
         "search_connected": False,
@@ -238,6 +297,7 @@ async def build_content_context(
     website: str = "",
     locale: str = "",
     opportunity: Opportunity | None = None,
+    site_health_handoff: dict | None = None,
 ) -> ContentContext:
     """Assemble the rendered context for one generation.
 
@@ -254,11 +314,18 @@ async def build_content_context(
         profile, brand_name=brand_name, website=website, locale=locale
     )
     handoff = project_content_handoff(opportunity) if opportunity else None
-    task_block = _render_opportunity(handoff, opportunity)
+    task_block = "\n\n".join(
+        block
+        for block in (
+            _render_opportunity(handoff, opportunity),
+            _render_site_health_task(site_health_handoff),
+        )
+        if block
+    )
 
     # The opportunity's theme sharpens page ranking, and its target URL pins
     # the page being rewritten to the front of the context.
-    target_url, query_text = _selection_inputs(prompt, opportunity)
+    target_url, query_text = _selection_inputs(prompt, opportunity, site_health_handoff)
     selection = await select_crawl_fragments(
         session,
         workspace_id=workspace_id,
@@ -269,13 +336,21 @@ async def build_content_context(
     return ContentContext(
         brand_block=brand_block,
         task_block=task_block,
-        website_block=_render_pages(selection.pages),
+        website_block="\n\n".join(
+            block
+            for block in (
+                _render_site_health_evidence(site_health_handoff),
+                _render_pages(selection.pages),
+            )
+            if block
+        ),
         search_block="",
         summary=_render_summary(
             selection,
             brand_fields=brand_fields,
             opportunity=opportunity,
             handoff=handoff,
+            site_health_handoff=site_health_handoff,
         ),
     )
 

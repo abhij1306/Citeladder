@@ -9,9 +9,13 @@ const CRAWL = '22222222-2222-4222-8222-222222222222';
 
 function summary(overrides: Partial<SiteScoreSummary> = {}): SiteScoreSummary {
   return {
-    overall_score: 71,
-    technical_score: 80,
-    aeo_score: 62,
+    technical_integrity_score: 80,
+    technical_integrity_coverage: 1,
+    technical_integrity_state: 'measured',
+    aeo_readiness_score: 62,
+    aeo_measurement_coverage: 0.8,
+    aeo_measurement_state: 'measured',
+    search_eligibility: 'eligible',
     selected_count: 10,
     analyzed_count: 4,
     issue_count: 3,
@@ -124,12 +128,23 @@ describe('PageKindScores', () => {
         dashboard={dashboard(
           summary({
             by_page_kind: {
-              article: { analyzed_count: 3, technical_score: 80, aeo_score: 62, overall_score: 71 },
+              article: {
+                analyzed_count: 3,
+                technical_integrity_score: 80,
+                technical_integrity_coverage: 1,
+                technical_integrity_state: 'measured',
+                aeo_readiness_score: 62,
+                aeo_measurement_coverage: 0.8,
+                aeo_measurement_state: 'measured',
+              },
               homepage: {
                 analyzed_count: 1,
-                technical_score: 90.5,
-                aeo_score: 70,
-                overall_score: 80.2,
+                technical_integrity_score: 90.5,
+                technical_integrity_coverage: 1,
+                technical_integrity_state: 'measured',
+                aeo_readiness_score: 70,
+                aeo_measurement_coverage: 0.8,
+                aeo_measurement_state: 'measured',
               },
             },
           }),
@@ -143,7 +158,7 @@ describe('PageKindScores', () => {
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('1')).toBeInTheDocument();
     // Mean scores formatted like every other score cell.
-    expect(screen.getByText('71')).toBeInTheDocument();
+    expect(screen.getByText('80')).toBeInTheDocument();
     expect(screen.getByText('90.5')).toBeInTheDocument();
     // PAGE_KINDS display order: Homepage row precedes the Article row.
     const homepage = screen.getByText('Homepage');
@@ -162,9 +177,12 @@ describe('PageKindScores', () => {
             by_page_kind: {
               docs: {
                 analyzed_count: 2,
-                technical_score: null,
-                aeo_score: null,
-                overall_score: null,
+                technical_integrity_score: null,
+                technical_integrity_coverage: null,
+                technical_integrity_state: 'not_measured',
+                aeo_readiness_score: null,
+                aeo_measurement_coverage: null,
+                aeo_measurement_state: 'not_measured',
               },
             },
           }),
@@ -174,6 +192,32 @@ describe('PageKindScores', () => {
     expect(screen.getByText('Docs')).toBeInTheDocument();
     expect(screen.queryByText('0')).not.toBeInTheDocument();
     expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
+  });
+
+  it('preserves limited and excluded measurement states', () => {
+    render(
+      <PageKindScores
+        crawl={null}
+        dashboard={dashboard(
+          summary({
+            by_page_kind: {
+              docs: {
+                analyzed_count: 2,
+                technical_integrity_score: null,
+                technical_integrity_coverage: 0.5,
+                technical_integrity_state: 'limited_evidence',
+                aeo_readiness_score: null,
+                aeo_measurement_coverage: null,
+                aeo_measurement_state: 'excluded',
+              },
+            },
+          }),
+        )}
+      />,
+    );
+
+    expect(screen.getByText('Limited evidence')).toBeInTheDocument();
+    expect(screen.getByText('Excluded')).toBeInTheDocument();
   });
 
   it('surfaces the unclassified share and its scoring treatment', () => {
@@ -186,15 +230,21 @@ describe('PageKindScores', () => {
             by_page_kind: {
               article: {
                 analyzed_count: 6,
-                technical_score: 80,
-                aeo_score: 70,
-                overall_score: 75,
+                technical_integrity_score: 80,
+                technical_integrity_coverage: 1,
+                technical_integrity_state: 'measured',
+                aeo_readiness_score: 70,
+                aeo_measurement_coverage: 0.8,
+                aeo_measurement_state: 'measured',
               },
               other: {
                 analyzed_count: 4,
-                technical_score: 90,
-                aeo_score: null,
-                overall_score: 90,
+                technical_integrity_score: 90,
+                technical_integrity_coverage: 1,
+                technical_integrity_state: 'measured',
+                aeo_readiness_score: null,
+                aeo_measurement_coverage: 0.3,
+                aeo_measurement_state: 'limited_evidence',
               },
             },
           }),
@@ -217,9 +267,12 @@ describe('PageKindScores', () => {
             by_page_kind: {
               about_contact: {
                 analyzed_count: 1,
-                technical_score: 55,
-                aeo_score: 45,
-                overall_score: 50,
+                technical_integrity_score: 55,
+                technical_integrity_coverage: 1,
+                technical_integrity_state: 'measured',
+                aeo_readiness_score: 45,
+                aeo_measurement_coverage: 0.8,
+                aeo_measurement_state: 'measured',
               },
             },
           }),

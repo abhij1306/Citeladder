@@ -10,6 +10,13 @@ from app.analysis.site_health.page_kinds import classify
 from app.analysis.site_health.parser import extract_page_facts
 from app.analysis.site_health.rules import evaluate_all, rule_for
 from app.core.config.opportunities import SITE_ISSUE_TO_OPPORTUNITY_RULE_ID
+from app.core.config.site_health_contracts import (
+    RULE_OUTCOME_CONFLICTING,
+    RULE_OUTCOME_ERROR,
+    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_PARTIAL,
+    RULE_OUTCOME_PASS,
+)
 from app.core.config.site_health_taxonomy import (
     PAGE_KIND_EXPECTED_SCHEMA,
     PAGE_KIND_PROFILES,
@@ -96,8 +103,11 @@ def test_product_offer_facts_and_visible_schema_parity_fixture() -> None:
     assert product["price_currency"] == ["USD"]
     assert product["ratings"] == ["4.8"]
     assert product["shipping"] is True and product["returns"] is True
-    assert _outcome(facts, "aeo.product_offer_details").outcome == "pass"
-    assert _outcome(facts, "aeo.product_visible_schema_parity").outcome == "pass"
+    assert _outcome(facts, "aeo.product_offer_details").outcome == RULE_OUTCOME_PASS
+    assert (
+        _outcome(facts, "aeo.product_visible_schema_parity").outcome
+        == RULE_OUTCOME_PASS
+    )
 
 
 def test_declared_product_offer_requires_all_offer_fields() -> None:
@@ -112,7 +122,7 @@ def test_declared_product_offer_requires_all_offer_fields() -> None:
     facts["page_kind"] = "product"
 
     outcome = _outcome(facts, "aeo.product_offer_details")
-    assert outcome.outcome == "fail"
+    assert outcome.outcome == RULE_OUTCOME_FAIL
     assert outcome.evidence["offer_declared"] is True
     assert outcome.evidence["missing"] == ["offers.availability"]
 
@@ -129,7 +139,7 @@ def test_product_visible_schema_parity_fails_on_persisted_conflict() -> None:
     )
     facts["page_kind"] = "product"
     parity = _outcome(facts, "aeo.product_visible_schema_parity")
-    assert parity.outcome == "fail"
+    assert parity.outcome == RULE_OUTCOME_FAIL
     assert parity.evidence["mismatch_count"] >= 1
 
 
@@ -146,7 +156,7 @@ def test_product_parity_does_not_match_inside_a_longer_field() -> None:
     facts["page_kind"] = "product"
 
     parity = _outcome(facts, "aeo.product_visible_schema_parity")
-    assert parity.outcome == "fail"
+    assert parity.outcome == RULE_OUTCOME_FAIL
     assert any(
         check["field"] == "sku" and check["visible_match"] is False
         for check in parity.evidence["checks"]
@@ -164,7 +174,10 @@ def test_in_stock_does_not_match_negated_available_phrase() -> None:
         final_url="https://example.test/products/widget-pro",
     )
     facts["page_kind"] = "product"
-    assert _outcome(facts, "aeo.product_visible_schema_parity").outcome == "fail"
+    assert (
+        _outcome(facts, "aeo.product_visible_schema_parity").outcome
+        == RULE_OUTCOME_FAIL
+    )
 
 
 def test_out_of_stock_matches_negated_available_phrase() -> None:
@@ -178,7 +191,10 @@ def test_out_of_stock_matches_negated_available_phrase() -> None:
         final_url="https://example.test/products/widget-pro",
     )
     facts["page_kind"] = "product"
-    assert _outcome(facts, "aeo.product_visible_schema_parity").outcome == "pass"
+    assert (
+        _outcome(facts, "aeo.product_visible_schema_parity").outcome
+        == RULE_OUTCOME_PASS
+    )
 
 
 def test_site_opportunity_mapping_covers_schema_and_content_catalog() -> None:
@@ -221,7 +237,9 @@ def test_grouped_issue_history_tracks_new_continuing_and_resolved() -> None:
             description="Required schema properties are missing.",
             remediation="Add missing properties.",
         )
-        for index, outcome in enumerate(("fail", "fail", "pass"))
+        for index, outcome in enumerate(
+            (RULE_OUTCOME_FAIL, RULE_OUTCOME_FAIL, RULE_OUTCOME_PASS)
+        )
     ]
 
     groups, summary = _group_issue_history(observations)
@@ -240,3 +258,43 @@ def test_grouped_issue_history_tracks_new_continuing_and_resolved() -> None:
         "continuing": 0,
         "resolved": 1,
     }
+
+
+def test_grouped_issue_history_resolves_on_diagnostic_outcomes() -> None:
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    outcomes = (
+        RULE_OUTCOME_FAIL,
+        RULE_OUTCOME_PARTIAL,
+        RULE_OUTCOME_CONFLICTING,
+        RULE_OUTCOME_ERROR,
+    )
+    observations = [
+        _HistoryObservation(
+            crawl_id=uuid4(),
+            observed_at=start + timedelta(days=index),
+            rule_id="aeo.schema_required_valid",
+            dimension="aeo",
+            category="structured_data",
+            severity="medium",
+            finding_class="defect",
+            outcome=outcome,
+            analyzer_version="analyzer-1",
+            rule_version="rule-1",
+            description="Required schema properties are missing.",
+            remediation="Add missing properties.",
+        )
+        for index, outcome in enumerate(outcomes)
+    ]
+
+    groups, summary = _group_issue_history(observations)
+
+    assert groups[0]["current_state"] == "resolved"
+    assert groups[0]["occurrence_count"] == 2
+    assert [entry["transition"] for entry in groups[0]["timeline"]] == [
+        "new",
+        "continuing",
+        "resolved",
+        "unchanged",
+    ]
+    assert summary["continuing"] == 0
+    assert summary["resolved"] == 0

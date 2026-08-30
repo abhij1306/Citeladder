@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.domain.projects.brand_evidence import BrandEvidence
-from app.domain.projects.discovery_schemas import DiscoveryProfile
+from app.domain.projects.discovery_schemas import PersistableDiscoveryProfile
 from app.domain.projects.onboarding.competitor_research import (
     CompetitorResearchResult,
 )
@@ -29,7 +29,7 @@ class _Harvest:
 def _identity() -> IdentityResearchEnvelope:
     return IdentityResearchEnvelope(
         status="ready",
-        profile=DiscoveryProfile(
+        profile=PersistableDiscoveryProfile(
             category="workflow software",
             target_audience="operations teams",
             jobs_to_be_done=["coordinate work"],

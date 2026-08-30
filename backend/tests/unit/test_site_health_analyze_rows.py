@@ -8,6 +8,7 @@ from typing import Any, cast
 
 import pytest
 
+from app.core.config.site_health_contracts import RULE_OUTCOME_FAIL, RULE_OUTCOME_PASS
 from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
@@ -41,6 +42,14 @@ def _evaluation(rule_id: str, outcome: str) -> SimpleNamespace:
         finding_class="defect",
         weight=1.0,
         outcome=outcome,
+        display_applicability=True,
+        score_applicability=True,
+        expected_profile_membership=True,
+        reason_code="",
+        score_roles=("technical_integrity",),
+        checkpoint_family="",
+        readiness_dimension="",
+        readiness_weight=0.0,
         evidence={"rule": rule_id},
         description=f"{rule_id} failed",
         remediation=f"Fix {rule_id}",
@@ -60,8 +69,8 @@ async def test_evaluations_and_issues_flush_as_two_ordered_batches() -> None:
     analysis = SitePageAnalysis(id=uuid.uuid4())
     artifact_id = uuid.uuid4()
     evaluations = [
-        _evaluation("technical.first", "pass"),
-        _evaluation("technical.second", "fail"),
+        _evaluation("technical.first", RULE_OUTCOME_PASS),
+        _evaluation("technical.second", RULE_OUTCOME_FAIL),
     ]
 
     await _persist_evaluations_and_issues(
@@ -98,7 +107,7 @@ async def test_failed_diagnostic_persists_without_creating_an_issue() -> None:
         analyzer_version="analyzer-v1",
     )
     analysis = SitePageAnalysis(id=uuid.uuid4())
-    diagnostic = _evaluation("aeo.server_rendered_content", "fail")
+    diagnostic = _evaluation("aeo.server_rendered_content", RULE_OUTCOME_FAIL)
     diagnostic.finding_class = "diagnostic"
 
     await _persist_evaluations_and_issues(

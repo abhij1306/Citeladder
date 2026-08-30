@@ -315,9 +315,8 @@ async def test_full_allowance_discover_admits_children_and_completes(
         ).scalar_one()
         assert snapshot.selected_url_count == 0
         assert snapshot.analyzed_url_count == 0
-        assert snapshot.technical_score is None
-        assert snapshot.aeo_score is None
-        assert snapshot.overall_score is None
+        assert snapshot.technical_integrity_score is None
+        assert snapshot.aeo_readiness_score is None
 
         # Root + 2 in-scope children admitted; external.org excluded.
         # A set: the assertions below are exact whole-URL membership checks,

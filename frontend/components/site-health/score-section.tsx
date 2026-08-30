@@ -3,7 +3,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { ScoreRing } from '@/components/ui/score-ring';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
-import type { PageSummary, SiteCrawl, SiteHealthDashboard } from '@/lib/api/types';
+import type { SiteCrawl, SiteHealthDashboard } from '@/lib/api/types';
 import { formatScore } from '@/lib/site-health/status';
 
 /**
@@ -19,110 +19,73 @@ import { formatScore } from '@/lib/site-health/status';
 export function ScoreSection({
   crawl,
   dashboard,
-  pages,
-  analyzing,
-  selectedTotal,
 }: Readonly<{
   crawl: SiteCrawl | null;
   dashboard: SiteHealthDashboard | undefined;
-  /** Bounded monitored-page window — live score preview only, never counts. */
-  pages: PageSummary[];
-  /** True while analysis is running (enables the live running-mean fallback). */
-  analyzing: boolean;
-  /** This project's active monitored count; null until loaded. */
-  selectedTotal: number | null;
 }>) {
   const summary = dashboard?.score_summary ?? crawl?.score_summary ?? null;
-  const scores = scoreValues(summary, pages, analyzing);
+  const technical =
+    summary?.technical_integrity_state === 'measured' ? summary.technical_integrity_score : null;
+  const aeo = summary?.aeo_measurement_state === 'measured' ? summary.aeo_readiness_score : null;
+  const coverage =
+    summary?.aeo_measurement_coverage === null || summary?.aeo_measurement_coverage === undefined
+      ? null
+      : summary.aeo_measurement_coverage * 100;
 
   return (
     <div className="grid gap-4 sm:grid-cols-3" data-testid="score-section">
       <ScoreCard
-        label="Site Health"
-        value={scores.overall}
-        sub={overallSub(summary, analyzing, crawl, selectedTotal)}
+        label="Technical Integrity"
+        value={technical}
+        state={summary?.technical_integrity_state}
+        sub={measurementSub(
+          summary?.technical_integrity_state,
+          summary?.technical_integrity_coverage,
+        )}
       />
       <ScoreCard
-        label="Web Fundamentals"
-        value={scores.technical}
-        sub="Response codes, headers, delivery"
+        label="AEO Readiness"
+        value={aeo}
+        state={summary?.aeo_measurement_state}
+        sub={measurementSub(summary?.aeo_measurement_state, summary?.aeo_measurement_coverage)}
       />
-      <ScoreCard label="AEO" value={scores.aeo} sub="Schema, structured data, AI-readiness" />
+      <ScoreCard
+        label="AEO Measurement Coverage"
+        value={coverage}
+        state={coverage === null ? 'not_measured' : 'measured'}
+        sub="Determinate evidence across applicable pillars"
+      />
     </div>
   );
 }
 
-function scoreValues(
-  summary: SiteHealthDashboard['score_summary'],
-  pages: PageSummary[],
-  analyzing: boolean,
-): { overall: number | null; technical: number | null; aeo: number | null } {
-  const incomplete =
-    summary === null ||
-    summary.overall_score === null ||
-    summary.technical_score === null ||
-    summary.aeo_score === null;
-  const liveScores = analyzing && incomplete ? computeLiveScores(pages) : null;
-  return {
-    overall: summary?.overall_score ?? liveScores?.overall ?? null,
-    technical: summary?.technical_score ?? liveScores?.technical ?? null,
-    aeo: summary?.aeo_score ?? liveScores?.aeo ?? null,
-  };
-}
-
-function overallSub(
-  summary: SiteHealthDashboard['score_summary'],
-  analyzing: boolean,
-  crawl: SiteCrawl | null,
-  selectedTotal: number | null,
-): string {
-  if (summary && summary.overall_score !== null) {
-    return `Across ${summary.analyzed_count} of ${summary.selected_count} pages`;
-  }
-  if (analyzing && crawl) {
-    return selectedTotal !== null
-      ? `based on ${crawl.analyzed_count} of ${selectedTotal} pages`
-      : `based on ${crawl.analyzed_count} pages so far`;
-  }
-  if (crawl && ['failed', 'cancelled', 'paused'].includes(crawl.status)) {
-    return 'No score available';
-  }
-  return 'Scores appear as pages are analyzed';
-}
-
-/**
- * Running mean of the per-page scores that have landed so far. Only pages with
- * a completed analysis contribute; returns null (rendered as `Not measured`) until at
- * least one page has scores — never a fabricated zero.
- */
-function computeLiveScores(
-  pages: PageSummary[],
-): { overall: number | null; technical: number | null; aeo: number | null } | null {
-  const scored = pages.filter((p) => p.overall_score !== null);
-  if (scored.length === 0) return null;
-  const mean = (pick: (p: PageSummary) => number | null) => {
-    const values = scored.map(pick).filter((v): v is number => v !== null);
-    if (values.length === 0) return null;
-    return values.reduce((sum, v) => sum + v, 0) / values.length;
-  };
-  return {
-    overall: mean((p) => p.overall_score),
-    technical: mean((p) => p.technical_score),
-    aeo: mean((p) => p.aeo_score),
-  };
+function measurementSub(state: string | undefined, coverage: number | null | undefined): string {
+  if (state === 'limited_evidence') return 'Limited evidence';
+  if (state === 'not_measured' || !state) return 'Not measured';
+  if (state === 'excluded') return 'Excluded from this audit';
+  return coverage === null || coverage === undefined
+    ? 'Measured'
+    : `${Math.round(coverage * 100)}% evidence coverage`;
 }
 
 function ScoreCard({
   label,
   value,
+  state,
   sub,
-}: Readonly<{ label: string; value: number | null; sub: string }>) {
+}: Readonly<{ label: string; value: number | null; state: string | undefined; sub: string }>) {
   return (
     <Card className="border-border/70">
       {value === null ? (
         <CardContent className="grid h-full content-center gap-1 p-[var(--card-padding)] sm:p-[var(--card-padding)]">
           <p className="text-muted text-xs font-semibold">{label}</p>
-          <UnavailableValue state="not_measured" className="text-sm" />
+          {state === 'limited_evidence' || state === 'excluded' ? (
+            <span className="value-placeholder font-sans text-sm font-medium">
+              {state === 'limited_evidence' ? 'Limited evidence' : 'Excluded'}
+            </span>
+          ) : (
+            <UnavailableValue state="not_measured" className="text-sm" />
+          )}
           <span className="text-muted text-xs leading-relaxed">{sub}</span>
         </CardContent>
       ) : (

@@ -21,6 +21,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
+    RULE_OUTCOME_UNAVAILABLE,
 )
 
 
@@ -45,6 +46,8 @@ def test_sitemap_orphan_not_applicable_without_sitemap():
     )
     assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
     assert ev.evidence == {"reason": "no_sitemap"}
+    assert ev.display_applicability is False
+    assert ev.reason_code == "no_sitemap"
 
 
 def test_sitemap_orphan_passes_when_all_linked():
@@ -73,7 +76,9 @@ def test_sitemap_orphan_abstains_when_coverage_is_not_complete():
         orphan_urls=["https://x.example/orphan"],
         coverage_state="partial",
     )
-    assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert ev.outcome == RULE_OUTCOME_UNAVAILABLE
+    assert ev.display_applicability is True
+    assert ev.reason_code == "coverage_not_complete"
     assert ev.evidence == {
         "reason": "coverage_not_complete",
         "coverage_state": "partial",
@@ -94,16 +99,16 @@ def test_hreflang_conflict_not_applicable_without_hreflang():
     assert ev.evidence == {"reason": "no_hreflang"}
 
 
-def test_hreflang_conflict_not_applicable_when_nothing_checkable():
+def test_hreflang_conflict_unavailable_when_nothing_checkable():
     # Alternates exist but none were analyzed in this crawl: absence
-    # fabricates nothing — N/A carrying the counts.
+    # fabricates nothing — unavailable carries the counts.
     ev = evaluate_hreflang_conflict(
         alternate_count=3,
         checked_count=0,
         unchecked_count=3,
         missing_return_tags=[],
     )
-    assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert ev.outcome == RULE_OUTCOME_UNAVAILABLE
     assert ev.evidence["reason"] == "no_checkable_alternates"
     assert ev.evidence["alternate_count"] == 3
     assert ev.evidence["unchecked_count"] == 3

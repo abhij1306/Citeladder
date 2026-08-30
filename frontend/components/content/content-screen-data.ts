@@ -1,9 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
-import { type ContentSkillView, contentApi } from '@/lib/api/content';
+import {
+  type ContentSkillView,
+  contentApi,
+  type SiteHealthReferenceInput,
+} from '@/lib/api/content';
 import { demandApi } from '@/lib/api/demand';
 import { opportunitiesQueries } from '@/lib/api/opportunities';
+import { siteHealthApi } from '@/lib/api/site-health';
 import { queryKeys } from '@/lib/api/query-keys';
 import { ApiError, httpErrorStatus } from '@/lib/api/errors';
 import { buildDemandBrief } from '@/lib/demand/content-brief';
@@ -77,6 +82,36 @@ export function useContentContextPreview(projectId: string) {
     queryKey: queryKeys.content.contextPreview(projectId),
     queryFn: ({ signal }) => contentApi.getContextPreview(projectId, { signal }),
     staleTime: 60_000,
+  });
+}
+
+export function useSiteHealthHandoff(reference?: SiteHealthReferenceInput) {
+  return useQuery({
+    queryKey: reference
+      ? queryKeys.siteHealth.contentHandoff(
+          reference.project_id,
+          reference.crawl_id,
+          reference.site_url_id,
+          reference.source_analysis_id,
+          reference.dimension,
+          reference.checkpoint_ids,
+        )
+      : queryKeys.siteHealth.contentHandoffUnavailable(),
+    queryFn: ({ signal }) => {
+      if (!reference) throw new Error('Site Health reference is required');
+      return siteHealthApi.getContentHandoff(
+        {
+          projectId: reference.project_id,
+          crawlId: reference.crawl_id,
+          siteUrlId: reference.site_url_id,
+          sourceAnalysisId: reference.source_analysis_id,
+          dimension: reference.dimension,
+          checkpointIds: reference.checkpoint_ids,
+        },
+        { signal },
+      );
+    },
+    enabled: Boolean(reference),
   });
 }
 

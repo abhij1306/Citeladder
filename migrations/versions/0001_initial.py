@@ -19,7 +19,6 @@ from alembic import op
 from sqlalchemy import Text
 from sqlalchemy.dialects import postgresql
 
-
 _COMMERCE_SCHEMA_PATH = Path(__file__).parents[1] / "commerce_atomic_schema.py"
 _COMMERCE_SCHEMA_SPEC = importlib.util.spec_from_file_location(
     "commerce_atomic_schema", _COMMERCE_SCHEMA_PATH
@@ -744,14 +743,15 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("project_id", sa.UUID(), nullable=False),
         sa.Column("opportunity_id", sa.UUID(), nullable=True),
+        sa.Column(
+            "site_health_reference", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
         sa.Column("prompt", sa.Text(), nullable=False),
         sa.Column("output_type", sa.String(length=32), nullable=False),
         sa.Column("skill_id", sa.String(64), nullable=False),
         sa.Column("skill_version", sa.String(32), nullable=False),
         sa.Column("feedback", sa.String(16), nullable=True),
-        sa.Column(
-            "feedback_reason", sa.String(32), nullable=False, server_default=""
-        ),
+        sa.Column("feedback_reason", sa.String(32), nullable=False, server_default=""),
         sa.Column("feedback_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("grounding_status", sa.String(length=16), nullable=False),
         sa.Column(
@@ -2392,9 +2392,31 @@ def upgrade() -> None:
         sa.Column("crawl_id", sa.UUID(), nullable=False),
         sa.Column("selected_url_count", sa.Integer(), nullable=False),
         sa.Column("analyzed_url_count", sa.Integer(), nullable=False),
-        sa.Column("technical_score", sa.Float(), nullable=True),
-        sa.Column("aeo_score", sa.Float(), nullable=True),
-        sa.Column("overall_score", sa.Float(), nullable=True),
+        sa.Column("technical_integrity_score", sa.Float(), nullable=True),
+        sa.Column("technical_integrity_coverage", sa.Float(), nullable=True),
+        sa.Column("technical_integrity_state", sa.String(length=24), nullable=False),
+        sa.Column("aeo_readiness_score", sa.Float(), nullable=True),
+        sa.Column("aeo_measurement_coverage", sa.Float(), nullable=True),
+        sa.Column("aeo_measurement_state", sa.String(length=24), nullable=False),
+        sa.Column(
+            "readiness_dimensions", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
+        sa.Column("search_eligibility", sa.String(length=16), nullable=False),
+        sa.Column(
+            "eligibility_totals", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
+        sa.Column(
+            "eligibility_reasons", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
+        sa.Column("status_counts", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("top_issues", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column(
+            "web_fundamentals", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
+        sa.Column("trend", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column(
+            "change_summary", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
         sa.Column("issue_count", sa.Integer(), nullable=False),
         sa.Column(
             "severity_counts", postgresql.JSONB(astext_type=Text()), nullable=True
@@ -2406,14 +2428,17 @@ def upgrade() -> None:
         sa.Column(
             "coverage_evidence", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
-        sa.Column(
-            "coverage_formula_version", sa.String(length=32), nullable=False
-        ),
+        sa.Column("coverage_formula_version", sa.String(length=32), nullable=False),
         sa.Column("source_analysis_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
         sa.Column("source_artifact_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
         sa.Column("source_evaluation_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
+        sa.Column("source_task_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
+        sa.Column("source_attempt_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
         sa.Column("analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("scoring_version", sa.String(length=32), nullable=False),
+        sa.Column("profile_version", sa.String(length=32), nullable=False),
+        sa.Column("schema_contract_version", sa.String(length=32), nullable=False),
+        sa.Column("presentation_version", sa.String(length=32), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
@@ -3677,9 +3702,28 @@ def upgrade() -> None:
         sa.Column("site_url_id", sa.UUID(), nullable=False),
         sa.Column("artifact_id", sa.UUID(), nullable=False),
         sa.Column("status", sa.String(length=24), nullable=False),
-        sa.Column("technical_score", sa.Float(), nullable=True),
-        sa.Column("aeo_score", sa.Float(), nullable=True),
-        sa.Column("overall_score", sa.Float(), nullable=True),
+        sa.Column("technical_integrity_score", sa.Float(), nullable=True),
+        sa.Column("technical_integrity_coverage", sa.Float(), nullable=True),
+        sa.Column("technical_integrity_state", sa.String(length=24), nullable=False),
+        sa.Column("technical_earned_weight", sa.Float(), nullable=False),
+        sa.Column("technical_determinate_weight", sa.Float(), nullable=False),
+        sa.Column("technical_expected_weight", sa.Float(), nullable=False),
+        sa.Column("technical_critical_complete", sa.Boolean(), nullable=False),
+        sa.Column("aeo_readiness_score", sa.Float(), nullable=True),
+        sa.Column("aeo_measurement_coverage", sa.Float(), nullable=True),
+        sa.Column("aeo_measurement_state", sa.String(length=24), nullable=False),
+        sa.Column(
+            "expected_checkpoint_profile",
+            postgresql.JSONB(astext_type=Text()),
+            nullable=True,
+        ),
+        sa.Column(
+            "readiness_dimensions", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
+        sa.Column("profile_version", sa.String(length=32), nullable=False),
+        sa.Column("schema_contract_version", sa.String(length=32), nullable=False),
+        sa.Column("presentation_version", sa.String(length=32), nullable=False),
+        sa.Column("main_content_indexable", sa.Boolean(), nullable=True),
         sa.Column("analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("scoring_version", sa.String(length=32), nullable=False),
         sa.Column("page_kind", sa.String(length=24), nullable=False),
@@ -3886,8 +3930,12 @@ def upgrade() -> None:
         sa.Column("coverage_state", sa.String(length=16), nullable=False),
         sa.Column("page_count", sa.Integer(), nullable=False),
         sa.Column("page_kinds", postgresql.JSONB(astext_type=Text()), nullable=True),
-        sa.Column("internal_linking", postgresql.JSONB(astext_type=Text()), nullable=True),
-        sa.Column("structure_depth", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column(
+            "internal_linking", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
+        sa.Column(
+            "structure_depth", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
         sa.Column("hierarchy", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column("archetype", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column("source_analysis_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
@@ -4159,6 +4207,14 @@ def upgrade() -> None:
         sa.Column("finding_class", sa.String(length=16), nullable=False),
         sa.Column("weight", sa.Float(), nullable=False),
         sa.Column("outcome", sa.String(length=16), nullable=False),
+        sa.Column("display_applicability", sa.Boolean(), nullable=False),
+        sa.Column("score_applicability", sa.Boolean(), nullable=False),
+        sa.Column("expected_profile_membership", sa.Boolean(), nullable=False),
+        sa.Column("reason_code", sa.String(length=64), nullable=False),
+        sa.Column("score_roles", postgresql.ARRAY(sa.String(length=32)), nullable=True),
+        sa.Column("checkpoint_family", sa.String(length=48), nullable=False),
+        sa.Column("readiness_dimension", sa.String(length=32), nullable=False),
+        sa.Column("readiness_weight", sa.Float(), nullable=False),
         sa.Column("evidence", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column(
             "supporting_artifact_ids", postgresql.ARRAY(sa.UUID()), nullable=True
@@ -4183,7 +4239,8 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.CheckConstraint(
-            "outcome IN ('pass', 'fail', 'not_applicable', 'error')",
+            "outcome IN ('satisfied', 'partial', 'missing', 'unknown', "
+            "'unavailable', 'conflicting', 'error', 'not_applicable', 'excluded')",
             name="ck_site_rule_evaluations_outcome",
         ),
         sa.UniqueConstraint(

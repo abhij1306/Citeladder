@@ -141,6 +141,22 @@ def test_create_accepts_a_newly_added_skill() -> None:
     assert payload.skill_id == "linkedin"
 
 
+def test_site_health_checkpoint_ids_are_bounded_before_lookup() -> None:
+    with pytest.raises(ValueError):
+        ContentGenerationCreate(
+            project_id="00000000-0000-0000-0000-000000000001",
+            prompt="Write something",
+            site_health_reference={
+                "project_id": "00000000-0000-0000-0000-000000000001",
+                "crawl_id": "00000000-0000-0000-0000-000000000002",
+                "site_url_id": "00000000-0000-0000-0000-000000000003",
+                "source_analysis_id": "00000000-0000-0000-0000-000000000004",
+                "dimension": "answerability",
+                "checkpoint_ids": ["x" * 65],
+            },
+        )
+
+
 def test_skill_version_records_the_catalog_not_the_generator() -> None:
     # `skill_version` and `generator_version` are separate columns for a
     # reason: a reworded directive changes what was asked for even when the

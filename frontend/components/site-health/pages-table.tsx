@@ -59,13 +59,6 @@ const LINK_COLUMNS: ReadonlyArray<{
     descending: true,
     value: (page) => page.inbound_count,
   },
-  {
-    sort: 'main_content_inbound',
-    label: 'Main-content inbound',
-    descending: true,
-    value: (page) => page.main_content_inbound_count,
-  },
-  { sort: 'depth', label: 'Depth', descending: false, value: (page) => page.depth_from_home },
 ];
 
 function SortableHead({
@@ -120,8 +113,9 @@ export function PagesTable({
           <TableHead>Type</TableHead>
           <TableHead>Status</TableHead>
           <TableHead numeric>Issues</TableHead>
-          <TableHead numeric>Web Fundamentals</TableHead>
-          <TableHead numeric>AEO</TableHead>
+          <TableHead numeric>Technical Integrity</TableHead>
+          <TableHead numeric>AEO Readiness</TableHead>
+          <TableHead numeric>AEO Coverage</TableHead>
           {LINK_COLUMNS.map((column) =>
             onSortChange ? (
               <SortableHead
@@ -137,6 +131,7 @@ export function PagesTable({
               </TableHead>
             ),
           )}
+          <TableHead>Main-content indexable</TableHead>
           <TableHead>Last Audit</TableHead>
           <TableHead className="w-16" />
         </TableRow>
@@ -198,12 +193,24 @@ export function PagesTable({
             </TableCell>
             <TableCell
               numeric
-              className={cn('mono font-medium', scoreTextClass(page.technical_score))}
+              className={cn('mono font-medium', scoreTextClass(page.technical_integrity_score))}
             >
-              {formatScore(page.technical_score)}
+              {page.technical_integrity_state === 'measured'
+                ? formatScore(page.technical_integrity_score)
+                : PLACEHOLDER}
             </TableCell>
-            <TableCell numeric className={cn('mono font-medium', scoreTextClass(page.aeo_score))}>
-              {formatScore(page.aeo_score)}
+            <TableCell
+              numeric
+              className={cn('mono font-medium', scoreTextClass(page.aeo_readiness_score))}
+            >
+              {page.aeo_measurement_state === 'measured'
+                ? formatScore(page.aeo_readiness_score)
+                : PLACEHOLDER}
+            </TableCell>
+            <TableCell numeric className="mono font-medium">
+              {page.aeo_measurement_coverage === null
+                ? PLACEHOLDER
+                : `${Math.round(page.aeo_measurement_coverage * 100)}%`}
             </TableCell>
             {LINK_COLUMNS.map((column) => {
               const value = column.value(page);
@@ -217,6 +224,13 @@ export function PagesTable({
                 </TableCell>
               );
             })}
+            <TableCell className="text-secondary text-xs">
+              {page.main_content_indexable === null
+                ? PLACEHOLDER
+                : page.main_content_indexable
+                  ? 'Indexable'
+                  : 'Blocked'}
+            </TableCell>
             <TableCell className="text-secondary text-xs whitespace-nowrap">
               {formatAudited(page.last_audited)}
             </TableCell>

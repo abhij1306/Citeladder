@@ -20,13 +20,15 @@ from app.domain.site_health.service.link_projections import (
     _internal_links_row,
     _link_metrics_by_site_url,
 )
+from app.domain.site_health.service.measurement_projection import (
+    page_measurement_fields,
+)
 from app.domain.site_health.service.presentation import (
     _MAX_EVALUATIONS,
     _SEVERITY_RANK,
     _UNRANKED_SEVERITY,
     _delivery_facts,
     _evaluation_row,
-    _iso,
     _issue_row,
     presentation_status_for,
 )
@@ -298,6 +300,7 @@ def _detail_response(
     link_metric: SitePageLinkMetric | None,
 ) -> dict:
     return {
+        **page_measurement_fields(analysis),
         # Persisted internal-link projection (PR2); None when this crawl has no
         # metric row for the URL — the section then says so rather than showing
         # zeros that would read as "nothing links here".
@@ -310,18 +313,13 @@ def _detail_response(
         "analysis_status": presentation_status,
         "error_code": error_code,
         "field_cwv_available": False,
-        "page_kind": analysis.page_kind if analysis is not None else None,
         "page_kind_evidence": (
             analysis.page_kind_evidence if analysis is not None else None
         ),
         "page_traits": (
             list(analysis.page_traits or []) if analysis is not None else None
         ),
-        "technical_score": analysis.technical_score if analysis is not None else None,
-        "aeo_score": analysis.aeo_score if analysis is not None else None,
-        "overall_score": analysis.overall_score if analysis is not None else None,
         "issue_count": len(issues) if analysis is not None else None,
-        "last_audited": _iso(analysis.finalized_at) if analysis is not None else None,
         "facts": project_page_facts(facts),
         "delivery": _delivery_facts(facts, html_bytes=html_bytes),
         "issues": issues,

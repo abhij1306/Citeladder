@@ -111,12 +111,17 @@ export const changesPageSchema = changeSummarySchema.extend({
 export const readinessFailingCheckSchema = responseObject({
   rule_id: z.string(),
   title: z.string(),
+  observed_evidence: z.record(z.string(), z.unknown()),
+  expected_capability: z.string(),
+  remediation: z.string(),
+  content_addressable: z.boolean(),
 });
 
 // Evidence is one row per FAILING PAGE listing that page's failed checks —
 // never one row per evaluation, which repeated the same URL once per rule.
 export const readinessEvidencePageSchema = responseObject({
   site_url_id: uuid(),
+  source_analysis_id: uuid(),
   normalized_url: z.string(),
   failed_checks: z.array(readinessFailingCheckSchema),
 });
@@ -126,11 +131,18 @@ export const readinessCheckSchema = responseObject({
   rule_id: z.string(),
   title: z.string(),
   remediation: z.string(),
-  pass_count: z.number().int(),
-  fail_count: z.number().int(),
+  satisfied_count: z.number().int(),
+  partial_count: z.number().int(),
+  missing_count: z.number().int(),
+  unknown_count: z.number().int(),
+  unavailable_count: z.number().int(),
+  conflicting_count: z.number().int(),
   not_applicable_count: z.number().int(),
   error_count: z.number().int(),
   failing_page_count: z.number().int(),
+  checkpoint_family: z.string(),
+  readiness_weight: z.number(),
+  content_addressable: z.boolean(),
 });
 
 export const readinessDimensionSchema = responseObject({
@@ -145,13 +157,24 @@ export const readinessDimensionSchema = responseObject({
   ]),
   label: z.string(),
   description: z.string(),
-  rule_ids: z.array(z.string()),
-  pass_count: z.number().int(),
-  fail_count: z.number().int(),
+  dimension_applicability: z.enum(['applicable', 'not_applicable', 'unresolved']),
+  dimension_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  score: z.number().nullable(),
+  reason: z.string(),
+  checkpoint_ids: z.array(z.string()),
+  determinate_checkpoint_ids: z.array(z.string()),
+  checkpoint_families: z.array(z.string()),
+  earned_points: z.number(),
+  determinate_points: z.number(),
+  expected_points: z.number(),
+  satisfied_count: z.number().int(),
+  partial_count: z.number().int(),
+  missing_count: z.number().int(),
+  unknown_count: z.number().int(),
+  unavailable_count: z.number().int(),
+  conflicting_count: z.number().int(),
   not_applicable_count: z.number().int(),
   error_count: z.number().int(),
-  observed_evaluation_count: z.number().int(),
-  expected_evaluation_count: z.number().int(),
   coverage: z.number().nullable(),
   // Human-scale quantities: pages a check applied to, and pages that failed at
   // least one. Always render `evidence_pages.length` against these, never as a
@@ -164,16 +187,62 @@ export const readinessDimensionSchema = responseObject({
 });
 
 export const aeoReadinessSchema = responseObject({
-  state: z.enum(['available', 'incomplete', 'unavailable']),
+  state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
   crawl_id: uuid().nullable(),
-  taxonomy_version: z.string(),
+  score: z.number().nullable(),
+  coverage: z.number().nullable(),
+  profile_version: z.string(),
+  schema_contract_version: z.string(),
+  scoring_version: z.string(),
+  presentation_version: z.string(),
   analyzer_version: z.string(),
   source_analysis_ids: z.array(uuid()),
   analysis_count: z.number().int(),
-  observed_evaluation_count: z.number().int(),
-  expected_evaluation_count: z.number().int(),
-  coverage: z.number().nullable(),
+  affected_page_count: z.number().int(),
   dimensions: z.array(readinessDimensionSchema),
+  limitations: z.array(z.string()),
+});
+
+export const siteHealthOverviewSchema = responseObject({
+  project_id: uuid(),
+  crawl_id: uuid(),
+  snapshot_id: uuid(),
+  search_eligibility: z.enum(['eligible', 'blocked', 'unknown', 'excluded']),
+  eligibility_totals: z.record(z.string(), z.number().int()),
+  eligibility_reasons: z.array(z.record(z.string(), z.unknown())),
+  technical_integrity_score: z.number().nullable(),
+  technical_integrity_coverage: z.number().nullable(),
+  technical_integrity_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  aeo_readiness_score: z.number().nullable(),
+  aeo_measurement_coverage: z.number().nullable(),
+  aeo_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  crawl_coverage: z.record(z.string(), z.unknown()),
+  audited_page_count: z.number().int(),
+  selected_page_count: z.number().int(),
+  status_counts: z.record(z.string(), z.number().int()),
+  aeo_dimensions: z.array(z.record(z.string(), z.unknown())),
+  top_issues: z.array(z.record(z.string(), z.unknown())),
+  web_fundamentals: z.record(z.string(), z.unknown()),
+  trend: z.record(z.string(), z.unknown()),
+  change_summary: z.record(z.string(), z.unknown()),
+  limitations: z.array(z.string()),
+});
+
+export const siteHealthContentHandoffSchema = responseObject({
+  project_id: uuid(),
+  crawl_id: uuid(),
+  site_url_id: uuid(),
+  source_analysis_id: uuid(),
+  dimension: z.string(),
+  checkpoint_ids: z.array(z.string()),
+  finding_class: z.string(),
+  observed_evidence: z.array(z.record(z.string(), z.unknown())),
+  expected_capability: z.array(z.string()),
+  remediation: z.array(z.string()),
+  page_kind: z.string(),
+  page_traits: z.array(z.string()),
+  normalized_url: z.string(),
+  scoring_policy_version: z.literal('1'),
   limitations: z.array(z.string()),
 });
 

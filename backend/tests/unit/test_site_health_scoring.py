@@ -1,417 +1,258 @@
-"""Unit tests for the EXACT Site Health scoring formula (Task 5).
-
-Verifies: passed/failed/error weighting, not_applicable exclusion, error
-zero-credit (distinct outcome, weight stays in the denominator), advisory
-exclusion in BOTH directions, single rounding, config-weighted overall,
-dimensions with no applicable rules excluded (not zero), and aggregation
-ignoring missing/error URLs. Pure, offline.
-"""
+"""PR2 Site Health measurement formula and aggregation fixtures."""
 
 from __future__ import annotations
 
-import pytest
-
-from app.analysis.site_health.score_aggregation import aggregate_by_page_kind
+from app.analysis.site_health.rules import RuleEvaluation
 from app.analysis.site_health.scoring import (
-    AnalysisScoreInput,
-    PageKindScoreInput,
-    _Scored,
-    aggregate_scores,
-    overall_score,
+    AnalysisMeasurementInput,
+    aggregate_measurements,
     score_analysis,
-    score_dimension,
 )
-from app.core.config.site_health_contracts import (
-    DIMENSION_AEO,
-    DIMENSION_TECHNICAL,
-    RULE_OUTCOME_ERROR,
-    RULE_OUTCOME_FAIL,
-    RULE_OUTCOME_NOT_APPLICABLE,
-    RULE_OUTCOME_PASS,
-    SCORING_VERSION,
-)
-from app.core.config.site_health_rule_types import (
-    FINDING_CLASS_ADVISORY,
-    FINDING_CLASS_DEFECT,
+from app.core.config.site_health_measurement import (
+    MEASUREMENT_STATE_LIMITED,
+    MEASUREMENT_STATE_MEASURED,
+    SCORE_ROLE_AEO,
+    SCORE_ROLE_TECHNICAL,
 )
 
 
-def _s(outcome, weight, dimension=DIMENSION_TECHNICAL, rule_id=""):
-    return _Scored(dimension=dimension, outcome=outcome, weight=weight, rule_id=rule_id)
-
-
-def _advisory(outcome, weight, dimension=DIMENSION_TECHNICAL):
-    return _Scored(
-        dimension=dimension,
-        outcome=outcome,
+def _evaluation(
+    rule_id: str,
+    outcome: str,
+    *,
+    role: str,
+    weight: float = 1.0,
+    severity: str = "medium",
+    family: str = "",
+    dimension: str = "",
+    readiness_weight: float = 0.0,
+) -> RuleEvaluation:
+    return RuleEvaluation(
+        rule_id=rule_id,
+        rule_version="1",
+        dimension="technical",
+        category="test",
+        severity=severity,
+        finding_class="defect",
         weight=weight,
-        finding_class=FINDING_CLASS_ADVISORY,
+        outcome=outcome,
+        expected_profile_membership=True,
+        score_applicability=True,
+        score_roles=(role,),
+        checkpoint_family=family,
+        readiness_dimension=dimension,
+        readiness_weight=readiness_weight,
     )
 
 
-def test_all_pass_is_100():
-    evals = [
-        _s(RULE_OUTCOME_PASS, 3.0),
-        _s(RULE_OUTCOME_PASS, 2.0),
-    ]
-    ds = score_dimension(evals, dimension=DIMENSION_TECHNICAL)
-    assert ds.score == pytest.approx(100.0)
-    assert ds.applicable_count == 2
+def _technical(
+    rule_id: str,
+    outcome: str,
+    *,
+    weight: float = 1.0,
+    severity: str = "medium",
+) -> RuleEvaluation:
+    return _evaluation(
+        rule_id,
+        outcome,
+        role=SCORE_ROLE_TECHNICAL,
+        weight=weight,
+        severity=severity,
+    )
 
 
-def test_pass_fail_weighting():
-    # passed=3, failed=2 -> 100*3/5 = 60.0
-    evals = [
-        _s(RULE_OUTCOME_PASS, 3.0),
-        _s(RULE_OUTCOME_FAIL, 2.0),
-    ]
-    ds = score_dimension(evals, dimension=DIMENSION_TECHNICAL)
-    assert ds.score == pytest.approx(60.0)
+def _aeo(
+    rule_id: str,
+    outcome: str,
+    family: str,
+    dimension: str,
+    *,
+    weight: float = 1.0,
+) -> RuleEvaluation:
+    return _evaluation(
+        rule_id,
+        outcome,
+        role=SCORE_ROLE_AEO,
+        family=family,
+        dimension=dimension,
+        readiness_weight=weight,
+    )
 
 
-def test_error_gets_zero_credit_but_stays_in_denominator():
-    # passed=3, failed=0, error=1 -> 100*3/(3+0+1) = 75.0 (error != pass, != drop)
-    evals = [
-        _s(RULE_OUTCOME_PASS, 3.0),
-        _s(RULE_OUTCOME_ERROR, 1.0),
-    ]
-    ds = score_dimension(evals, dimension=DIMENSION_TECHNICAL)
-    assert ds.score == pytest.approx(75.0)
-    assert ds.error_weight == 1.0
-    assert ds.applicable_count == 2
+def test_technical_boundary_requires_coverage_and_critical_completeness() -> None:
+    below = score_analysis(
+        [
+            _technical("technical.indexable", "satisfied", severity="critical"),
+            _technical("technical.title", "satisfied"),
+            _technical("technical.description", "unknown"),
+        ]
+    )
+    assert below.technical_integrity_score == 100.0
+    assert below.technical_integrity_coverage == 0.6667
+    assert below.technical_integrity_state == MEASUREMENT_STATE_LIMITED
+
+    boundary = score_analysis(
+        [
+            _technical("technical.indexable", "satisfied", severity="critical"),
+            _technical("technical.a", "satisfied"),
+            _technical("technical.b", "satisfied"),
+            _technical("technical.c", "missing"),
+            _technical("technical.d", "unknown"),
+        ]
+    )
+    assert boundary.technical_integrity_score == 75.0
+    assert boundary.technical_integrity_coverage == 0.8
+    assert boundary.technical_integrity_state == MEASUREMENT_STATE_MEASURED
 
 
-def test_not_applicable_excluded_entirely():
-    # not_applicable weight is neither numerator nor denominator.
-    # passed=4, failed=0 (n/a=10 ignored) -> 100.0
-    evals = [
-        _s(RULE_OUTCOME_PASS, 4.0),
-        _s(RULE_OUTCOME_NOT_APPLICABLE, 10.0),
-    ]
-    ds = score_dimension(evals, dimension=DIMENSION_TECHNICAL)
-    assert ds.score == pytest.approx(100.0)
-    assert ds.applicable_count == 1
-
-
-def test_no_applicable_rules_yields_none_not_zero():
-    evals = [_s(RULE_OUTCOME_NOT_APPLICABLE, 5.0)]
-    ds = score_dimension(evals, dimension=DIMENSION_TECHNICAL)
-    assert ds.score is None
-    assert ds.applicable_count == 0
-
-
-def test_single_rounding_to_one_decimal():
-    # passed=1, failed=2 -> 100/3 = 33.333... -> 33.3
-    evals = [
-        _s(RULE_OUTCOME_PASS, 1.0),
-        _s(RULE_OUTCOME_FAIL, 2.0),
-    ]
-    ds = score_dimension(evals, dimension=DIMENSION_TECHNICAL)
-    assert ds.score == pytest.approx(33.3)
-
-
-def test_overall_is_config_weighted_mean():
-    # 50/50 weights -> mean of 80 and 60 = 70.0
-    assert overall_score(
-        {DIMENSION_TECHNICAL: 80.0, DIMENSION_AEO: 60.0}
-    ) == pytest.approx(70.0)
-
-
-def test_overall_excludes_none_dimension():
-    # AEO None -> overall is just technical (not dragged to zero/halved).
-    assert overall_score(
-        {DIMENSION_TECHNICAL: 90.0, DIMENSION_AEO: None}
-    ) == pytest.approx(90.0)
-
-
-def test_overall_all_none_is_none():
-    assert overall_score({DIMENSION_TECHNICAL: None, DIMENSION_AEO: None}) is None
-
-
-def test_score_analysis_end_to_end():
-    evals = [
-        # Technical: passed=3, failed=1 -> 75.0
-        _s(RULE_OUTCOME_PASS, 3.0, DIMENSION_TECHNICAL),
-        _s(RULE_OUTCOME_FAIL, 1.0, DIMENSION_TECHNICAL),
-        # AEO: four determinate checkpoints across four readiness dimensions.
-        _s(RULE_OUTCOME_PASS, 2.0, DIMENSION_AEO, "aeo.answer_first"),
-        _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.schema_required_valid"),
-        _s(RULE_OUTCOME_FAIL, 1.0, DIMENSION_AEO, "aeo.outbound_citations"),
-        _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.author_present"),
-    ]
-    scores = score_analysis(evals)
-    assert scores.technical_score == pytest.approx(75.0)
-    assert scores.aeo_score == pytest.approx(80.0)
-    assert scores.overall_score == pytest.approx(77.5)
-    assert scores.scoring_version == SCORING_VERSION
-
-
-def test_score_analysis_missing_dimension_not_zero():
-    evals = [
-        _s(RULE_OUTCOME_PASS, 3.0, DIMENSION_TECHNICAL),
-        # No applicable AEO rules.
-        _s(RULE_OUTCOME_NOT_APPLICABLE, 3.0, DIMENSION_AEO),
-    ]
-    scores = score_analysis(evals)
-    assert scores.technical_score == pytest.approx(100.0)
-    assert scores.aeo_score is None
-    assert scores.overall_score == pytest.approx(100.0)
-
-
-def test_unclassified_page_has_no_aeo_score() -> None:
-    evals = [
-        _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_TECHNICAL),
-        _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO),
-    ]
-
-    scores = score_analysis(evals, page_kind="other")
-
-    assert scores.technical_score == pytest.approx(100.0)
-    assert scores.aeo_score is None
-    assert scores.overall_score == pytest.approx(100.0)
-
-
-def test_sparse_aeo_score_is_suppressed_even_when_its_only_check_passes() -> None:
+def test_qualifying_faq_needs_breadth_and_coverage() -> None:
     scores = score_analysis(
         [
-            _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_TECHNICAL),
-            _s(
-                RULE_OUTCOME_PASS,
-                2.0,
-                DIMENSION_AEO,
+            _aeo("aeo.answer_first", "satisfied", "answer_content", "answerability"),
+            _aeo(
                 "aeo.question_headings",
+                "partial",
+                "semantic_structure",
+                "structure",
+            ),
+            _aeo(
+                "aeo.schema_expected_for_type",
+                "satisfied",
+                "structured_representation",
+                "machine-readability",
+            ),
+            _aeo("aeo.author_present", "satisfied", "provenance", "authority"),
+            _aeo(
+                "technical.indexable",
+                "satisfied",
+                "indexability",
+                "crawlability",
             ),
         ],
         page_kind="faq",
+        page_kind_evidence={"tier": "structural"},
     )
+    assert scores.aeo_measurement_coverage == 0.8
+    assert scores.aeo_measurement_state == MEASUREMENT_STATE_MEASURED
+    structure = next(
+        row for row in scores.readiness_dimensions if row.key == "structure"
+    )
+    assert structure.score == 50.0
+    assert scores.expected_checkpoint_profile
 
-    assert scores.technical_score == pytest.approx(100.0)
-    assert scores.aeo_score is None
-    assert scores.overall_score == pytest.approx(100.0)
 
-
-def test_pr1_aeo_guard_opens_at_four_checkpoints_across_three_dimensions() -> None:
+def test_healthy_non_faq_stays_limited_and_unresolved_dimensions_lower_coverage() -> (
+    None
+):
     scores = score_analysis(
         [
-            _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.answer_first"),
-            _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.question_headings"),
-            _s(
-                RULE_OUTCOME_PASS,
-                1.0,
-                DIMENSION_AEO,
-                "aeo.schema_required_valid",
+            _aeo(
+                "aeo.schema_expected_for_type",
+                "satisfied",
+                "structured_representation",
+                "machine-readability",
             ),
-            _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.author_present"),
+            _aeo(
+                "aeo.organization_identity",
+                "satisfied",
+                "provenance",
+                "authority",
+            ),
+            _aeo(
+                "technical.indexable",
+                "satisfied",
+                "indexability",
+                "crawlability",
+            ),
         ],
-        page_kind="faq",
+        page_kind="homepage",
+        page_kind_evidence={"tier": "structural"},
+    )
+    assert scores.aeo_measurement_state == MEASUREMENT_STATE_LIMITED
+    dimensions = {row.key: row for row in scores.readiness_dimensions}
+    assert dimensions["evidence"].applicability == "unresolved"
+    assert dimensions["freshness"].applicability == "unresolved"
+    assert dimensions["evidence"].coverage == 0.0
+    assert scores.aeo_measurement_coverage == 0.6923
+
+
+def _aggregate_input(
+    technical_score: float,
+    earned: float,
+    determinate: float,
+    expected: float,
+) -> AnalysisMeasurementInput:
+    return AnalysisMeasurementInput(
+        page_kind="article",
+        technical_integrity_score=technical_score,
+        technical_integrity_coverage=determinate / expected,
+        technical_integrity_state=MEASUREMENT_STATE_MEASURED,
+        technical_earned_weight=earned,
+        technical_determinate_weight=determinate,
+        technical_expected_weight=expected,
+        technical_critical_complete=True,
+        aeo_readiness_score=None,
+        aeo_measurement_coverage=0.0,
+        aeo_measurement_state=MEASUREMENT_STATE_LIMITED,
+        readiness_dimensions=(),
     )
 
-    assert scores.aeo_score == pytest.approx(100.0)
 
-
-def test_pr1_aeo_guard_excludes_advisory_checkpoints() -> None:
-    scores = score_analysis(
+def test_site_technical_score_pools_weights_instead_of_averaging_page_scores() -> None:
+    aggregate = aggregate_measurements(
         [
-            _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.question_headings"),
-            _s(
-                RULE_OUTCOME_PASS,
-                1.0,
-                DIMENSION_AEO,
-                "aeo.schema_required_valid",
-            ),
-            _s(RULE_OUTCOME_PASS, 1.0, DIMENSION_AEO, "aeo.author_present"),
-            _Scored(
-                dimension=DIMENSION_AEO,
-                outcome=RULE_OUTCOME_PASS,
-                weight=1.0,
-                finding_class=FINDING_CLASS_ADVISORY,
-                rule_id="aeo.answer_first",
-            ),
-        ],
+            _aggregate_input(100.0, 9.0, 9.0, 9.0),
+            _aggregate_input(0.0, 0.0, 1.0, 1.0),
+        ]
+    )
+    assert aggregate.technical_integrity_score == 90.0
+    assert aggregate.technical_integrity_coverage == 1.0
+
+
+def test_site_readiness_pools_dimension_points_before_weighting() -> None:
+    common = dict(
         page_kind="faq",
+        technical_integrity_score=None,
+        technical_integrity_coverage=None,
+        technical_integrity_state="not_measured",
+        technical_earned_weight=0.0,
+        technical_determinate_weight=0.0,
+        technical_expected_weight=0.0,
+        technical_critical_complete=False,
+        aeo_readiness_score=None,
+        aeo_measurement_coverage=1.0,
+        aeo_measurement_state=MEASUREMENT_STATE_LIMITED,
     )
-
-    assert scores.aeo_score is None
-
-
-# --- aggregation ----------------------------------------------------------
-
-
-def test_aggregate_averages_latest_per_url():
-    analyses = [
-        AnalysisScoreInput("u1", 0, 100.0, 80.0, 90.0),
-        AnalysisScoreInput("u2", 0, 60.0, 40.0, 50.0),
-    ]
-    agg = aggregate_scores(analyses)
-    assert agg.technical_score == pytest.approx(80.0)  # mean(100, 60)
-    assert agg.aeo_score == pytest.approx(60.0)  # mean(80, 40)
-    assert agg.overall_score == pytest.approx(70.0)  # mean(90, 50)
-    assert agg.analyzed_url_count == 2
-
-
-def test_aggregate_uses_latest_analysis_per_url():
-    # Same url, two analyses; only the higher ordinal (latest) counts.
-    analyses = [
-        AnalysisScoreInput("u1", 0, 10.0, 10.0, 10.0),
-        AnalysisScoreInput("u1", 1, 90.0, 90.0, 90.0),
-    ]
-    agg = aggregate_scores(analyses)
-    assert agg.technical_score == pytest.approx(90.0)
-    assert agg.analyzed_url_count == 1
-
-
-def test_aggregate_ignores_missing_and_error_urls():
-    # A URL whose analysis errored (None scores) must NOT become zero: it is
-    # simply excluded from the per-dimension mean. Missing URLs are never
-    # passed in at all.
-    analyses = [
-        AnalysisScoreInput("u1", 0, 80.0, 80.0, 80.0),
-        AnalysisScoreInput("u2", 0, None, None, None),  # errored analysis
-    ]
-    agg = aggregate_scores(analyses)
-    # Mean over only the url with a real score -> 80.0, not (80+0)/2 = 40.
-    assert agg.technical_score == pytest.approx(80.0)
-    assert agg.aeo_score == pytest.approx(80.0)
-    assert agg.overall_score == pytest.approx(80.0)
-    # Both URLs are counted as analyzed (u2 completed, just with no score).
-    assert agg.analyzed_url_count == 2
-
-
-def test_aggregate_empty_is_none():
-    agg = aggregate_scores([])
-    assert agg.technical_score is None
-    assert agg.aeo_score is None
-    assert agg.overall_score is None
-    assert agg.analyzed_url_count == 0
-
-
-# --- v2 P1: per-page-KIND rollup (spec §5.2/§5.6) ----------------------------
-
-
-def test_by_page_kind_groups_counts_and_means():
-    analyses = [
-        PageKindScoreInput("article", 100.0, 80.0, 90.0),
-        PageKindScoreInput("article", 60.0, 40.0, 50.0),
-        PageKindScoreInput("product", 80.0, 80.0, 80.0),
-    ]
-    rollup = aggregate_by_page_kind(analyses)
-    assert set(rollup) == {"article", "product"}
-    article = rollup["article"]
-    assert article["analyzed_count"] == 2
-    assert article["technical_score"] == pytest.approx(80.0)  # mean(100, 60)
-    assert article["aeo_score"] == pytest.approx(60.0)  # mean(80, 40)
-    assert article["overall_score"] == pytest.approx(70.0)  # mean(90, 50)
-    product = rollup["product"]
-    assert product["analyzed_count"] == 1
-    assert product["overall_score"] == pytest.approx(80.0)
-
-
-def test_by_page_kind_skips_none_scores_never_zero():
-    # A completed analysis with no scores contributes to the count but is
-    # skipped in the means (missing/errored URLs never become zeros).
-    analyses = [
-        PageKindScoreInput("article", 80.0, None, 80.0),
-        PageKindScoreInput("article", None, None, None),
-    ]
-    rollup = aggregate_by_page_kind(analyses)
-    article = rollup["article"]
-    assert article["analyzed_count"] == 2
-    assert article["technical_score"] == pytest.approx(80.0)
-    assert article["aeo_score"] is None  # no non-None aeo score at all
-    assert article["overall_score"] == pytest.approx(80.0)
-
-
-def test_by_page_kind_omits_types_without_analyses():
-    rollup = aggregate_by_page_kind([PageKindScoreInput("faq", 50.0, 50.0, 50.0)])
-    assert set(rollup) == {"faq"}
-
-
-def test_by_page_kind_empty_input_is_empty():
-    assert aggregate_by_page_kind([]) == {}
-
-
-def test_by_page_kind_key_order_follows_taxonomy():
-    analyses = [
-        PageKindScoreInput("other", 10.0, 10.0, 10.0),
-        PageKindScoreInput("article", 20.0, 20.0, 20.0),
-        PageKindScoreInput("homepage", 30.0, 30.0, 30.0),
-        # Defensive: an unrecognized type sorts after the taxonomy members.
-        PageKindScoreInput("legacy_type", 40.0, 40.0, 40.0),
-    ]
-    rollup = aggregate_by_page_kind(analyses)
-    assert list(rollup) == ["homepage", "article", "other", "legacy_type"]
-
-
-def test_zero_weight_contributes_neither_numerator_nor_denominator():
-    # v2 P2: the crawl_finalize rules are weight-0.0 — even a FAIL must not
-    # move any score (they produce issues, never score denominators).
-    evals = [
-        _s(RULE_OUTCOME_PASS, 3.0),
-        _s(RULE_OUTCOME_FAIL, 0.0),
-    ]
-    ds = score_dimension(evals, dimension=DIMENSION_TECHNICAL)
-    assert ds.score == pytest.approx(100.0)
-    assert ds.applicable_count == 2
-
-
-# --- advisories never move the score ----------------------------------------
-#
-# The product tells users a defect and an advisory are different things, and
-# gives them separate views. Scoring did not read ``finding_class`` at all, so
-# an advisory lowered the health score exactly like a defect of equal weight.
-
-
-def test_advisory_failure_does_not_lower_the_score():
-    passing = [_s(RULE_OUTCOME_PASS, 3.0)]
-    baseline = score_dimension(passing, dimension=DIMENSION_TECHNICAL)
-    with_advisory = score_dimension(
-        [_s(RULE_OUTCOME_PASS, 3.0), _advisory(RULE_OUTCOME_FAIL, 9.0)],
-        dimension=DIMENSION_TECHNICAL,
+    high = (
+        {
+            "key": "answerability",
+            "dimension_applicability": "applicable",
+            "coverage": 1.0,
+            "earned_points": 9.0,
+            "determinate_points": 9.0,
+            "expected_points": 9.0,
+            "determinate_checkpoint_ids": ["aeo.answer_first"],
+            "checkpoint_families": ["answer_content"],
+        },
     )
-    assert with_advisory.score == baseline.score == pytest.approx(100.0)
-    assert with_advisory.applicable_count == baseline.applicable_count == 1
-
-
-def test_advisory_pass_does_not_raise_the_score():
-    # The inverse of the same credibility problem: a page must not be able to
-    # lift its score by satisfying opinionated guidance.
-    failing = [_s(RULE_OUTCOME_FAIL, 2.0)]
-    baseline = score_dimension(failing, dimension=DIMENSION_TECHNICAL)
-    with_advisory = score_dimension(
-        [_s(RULE_OUTCOME_FAIL, 2.0), _advisory(RULE_OUTCOME_PASS, 9.0)],
-        dimension=DIMENSION_TECHNICAL,
+    low = (
+        {
+            **high[0],
+            "earned_points": 0.0,
+            "determinate_points": 1.0,
+            "expected_points": 10.0,
+            "coverage": 0.1,
+        },
     )
-    assert baseline.score == pytest.approx(0.0)
-    assert with_advisory.score == pytest.approx(0.0)
-    assert with_advisory.applicable_count == 1
-
-
-def test_advisory_error_does_not_enter_the_denominator():
-    with_advisory = score_dimension(
-        [_s(RULE_OUTCOME_PASS, 3.0), _advisory(RULE_OUTCOME_ERROR, 5.0)],
-        dimension=DIMENSION_TECHNICAL,
+    aggregate = aggregate_measurements(
+        [
+            AnalysisMeasurementInput(**common, readiness_dimensions=high),
+            AnalysisMeasurementInput(**common, readiness_dimensions=low),
+        ]
     )
-    assert with_advisory.score == pytest.approx(100.0)
-    assert with_advisory.error_weight == pytest.approx(0.0)
-
-
-def test_a_dimension_of_only_advisories_has_no_score():
-    # Not zero. "Nothing objectively bad was checked here" is not "this page
-    # failed everything", and the overall mean already knows how to skip None.
-    ds = score_dimension(
-        [_advisory(RULE_OUTCOME_FAIL, 2.0), _advisory(RULE_OUTCOME_PASS, 3.0)],
-        dimension=DIMENSION_TECHNICAL,
+    answerability = next(
+        row for row in aggregate.readiness_dimensions if row["key"] == "answerability"
     )
-    assert ds.score is None
-    assert ds.applicable_count == 0
-
-
-def test_scored_defaults_to_defect():
-    # Defect is the catalog default, so an adapter that forgets the field
-    # keeps scoring the row rather than silently dropping it.
-    assert (
-        _Scored(
-            dimension=DIMENSION_TECHNICAL, outcome=RULE_OUTCOME_PASS, weight=1.0
-        ).finding_class
-        == FINDING_CLASS_DEFECT
-    )
+    assert answerability["score"] == 90.0
+    assert answerability["coverage"] == 0.55
+    assert aggregate.aeo_measurement_coverage == 0.55

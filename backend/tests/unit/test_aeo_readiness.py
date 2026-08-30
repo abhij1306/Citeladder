@@ -1,198 +1,182 @@
-from __future__ import annotations
+"""PR2 readiness manifest and uncertainty vocabulary fixtures."""
 
-import uuid
+from types import SimpleNamespace
+from uuid import UUID, uuid4
 
-from app.analysis.site_health.aeo_readiness import (
-    ReadinessEvaluationInput,
-    project_aeo_readiness,
-)
+import pytest
+
 from app.core.config.site_health_contracts import (
     AEO_READINESS_DIMENSIONS,
-    AEO_READINESS_RULE_DIMENSIONS,
+    RULE_OUTCOME_CONFLICTING,
+    RULE_OUTCOME_ERROR,
+    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_PARTIAL,
 )
-from app.core.config.site_health_rules import (
-    SITE_HEALTH_RULES_BY_ID,
+from app.core.config.site_health_measurement import (
+    READINESS_CHECKPOINTS,
+    READINESS_DIMENSION_WEIGHTS,
+    STRUCTURAL_NA_REASONS,
+    UNAVAILABLE_REASONS,
+    UNKNOWN_REASONS,
 )
+from app.core.config.site_health_rules import SITE_HEALTH_RULES_BY_ID
+from app.domain.site_health.service.aeo_readiness import (
+    _check_projection,
+    _dimension_projection,
+    _page_evidence,
+)
+from app.models.site_health.analysis import SiteRuleEvaluation
 
 
-def _row(
+def test_pr2_manifest_uses_known_rules_and_scored_dimensions() -> None:
+    assert set(READINESS_CHECKPOINTS) <= set(SITE_HEALTH_RULES_BY_ID)
+    assert set(READINESS_DIMENSION_WEIGHTS) == set(AEO_READINESS_DIMENSIONS)
+    assert sum(READINESS_DIMENSION_WEIGHTS.values()) == pytest.approx(1.0)
+    assert {item.dimension for item in READINESS_CHECKPOINTS.values()} == {
+        "answerability",
+        "structure",
+        "machine-readability",
+        "authority",
+        "crawlability",
+    }
+
+
+def test_schema_check_repetition_does_not_manufacture_family_breadth() -> None:
+    schema_families = {
+        checkpoint.family
+        for rule_id, checkpoint in READINESS_CHECKPOINTS.items()
+        if rule_id.startswith("aeo.schema_")
+    }
+    assert schema_families == {"structured_representation"}
+
+
+def test_uncertainty_reason_registries_are_disjoint() -> None:
+    assert STRUCTURAL_NA_REASONS.isdisjoint(UNAVAILABLE_REASONS)
+    assert STRUCTURAL_NA_REASONS.isdisjoint(UNKNOWN_REASONS)
+    assert UNAVAILABLE_REASONS.isdisjoint(UNKNOWN_REASONS)
+    assert "coverage_not_complete" in UNAVAILABLE_REASONS
+    assert "no_checkable_alternates" in UNAVAILABLE_REASONS
+    assert "insufficient_evidence" in UNKNOWN_REASONS
+
+
+def test_only_declared_content_gaps_can_cross_the_content_boundary() -> None:
+    addressable = {
+        rule_id
+        for rule_id, checkpoint in READINESS_CHECKPOINTS.items()
+        if checkpoint.content_addressable
+    }
+    assert addressable == {
+        "aeo.answer_first",
+        "aeo.question_headings",
+        "aeo.author_present",
+        "aeo.organization_identity",
+    }
+
+
+def test_removed_readiness_checkpoints_are_filtered_from_projections() -> None:
+    analysis_id = uuid4()
+    unknown = SiteRuleEvaluation(
+        workspace_id=uuid4(),
+        analysis_id=analysis_id,
+        source_artifact_id=uuid4(),
+        rule_id="aeo.removed_checkpoint",
+        readiness_dimension="answerability",
+        outcome=RULE_OUTCOME_FAIL,
+    )
+
+    assert _check_projection(unknown.rule_id, [unknown]) is None
+    assert _page_evidence("answerability", [unknown], {}) == []
+
+
+def _evaluation(
     rule_id: str,
     outcome: str,
+    analysis_id: UUID,
     *,
-    site_url_id: uuid.UUID | None = None,
-    url: str = "https://example.test/page",
-    title: str = "",
-    reason: str = "",
-) -> ReadinessEvaluationInput:
-    return ReadinessEvaluationInput(
-        evaluation_id=uuid.uuid4(),
-        analysis_id=uuid.uuid4(),
-        site_url_id=site_url_id or uuid.uuid4(),
-        normalized_url=url,
+    dimension: str = "machine-readability",
+) -> SiteRuleEvaluation:
+    return SiteRuleEvaluation(
+        workspace_id=uuid4(),
+        analysis_id=analysis_id,
+        source_artifact_id=uuid4(),
         rule_id=rule_id,
+        readiness_dimension=dimension,
         outcome=outcome,
-        title=title,
-        reason=reason,
     )
 
 
-def test_taxonomy_is_exact_known_and_one_to_one() -> None:
-    assert set(AEO_READINESS_RULE_DIMENSIONS) <= set(SITE_HEALTH_RULES_BY_ID)
-    assert set(AEO_READINESS_RULE_DIMENSIONS.values()) == set(AEO_READINESS_DIMENSIONS)
-    assert len(AEO_READINESS_RULE_DIMENSIONS) == 20
-
-
-def test_projection_reconciles_states_and_never_guesses_unmapped_rules() -> None:
-    evaluations = [
-        _row("aeo.answer_first", "pass"),
-        _row("aeo.question_headings", "fail"),
-        _row("aeo.no_expand_gating", "not_applicable"),
-        _row("technical.thin_content", "error"),
-        _row("technical.title_present", "fail"),
-    ]
-
-    result = project_aeo_readiness(evaluations, analysis_count=1)
-    answerability = result.dimensions[0]
-
-    assert [item.key for item in result.dimensions] == list(AEO_READINESS_DIMENSIONS)
-    assert (
-        answerability.pass_count,
-        answerability.fail_count,
-        answerability.not_applicable_count,
-        answerability.error_count,
-    ) == (1, 1, 1, 1)
-    assert answerability.coverage == 0.6667
-    errored = next(
-        check
-        for check in answerability.checks
-        if check.rule_id == "technical.thin_content"
-    )
-    assert errored.error_count == 1
-    assert result.observed_evaluation_count == 2
-    assert result.expected_evaluation_count == 3
-    assert all(
-        check.rule_id != "technical.title_present" for check in answerability.checks
-    )
-    assert all(
-        failed.rule_id != "technical.title_present"
-        for page in answerability.evidence_pages
-        for failed in page.failed_checks
+def _analysis_pair(analysis_id: UUID, index: int):
+    site_url_id = uuid4()
+    return (
+        SimpleNamespace(id=analysis_id),
+        SimpleNamespace(
+            id=site_url_id,
+            normalized_url=f"https://example.test/{index:02d}",
+        ),
     )
 
 
-def test_evidence_is_one_row_per_failing_page_never_per_evaluation() -> None:
-    """One page failing three checks is one row, not three repeated URLs."""
-    page = uuid.uuid4()
+def test_errors_and_conflicts_are_uncertainty_not_actionable_failures() -> None:
+    analysis_ids = [uuid4() for _ in range(4)]
     rows = [
-        _row("aeo.answer_first", "fail", site_url_id=page, title="Answer not first"),
-        _row(
-            "aeo.question_headings",
-            "fail",
-            site_url_id=page,
-            title="No question headings",
-        ),
-        _row(
-            "aeo.no_expand_gating",
-            "fail",
-            site_url_id=page,
-            title="Answer behind a click",
-        ),
-        _row("technical.thin_content", "pass", site_url_id=page),
-    ]
-
-    answerability = project_aeo_readiness(rows, analysis_count=1).dimensions[0]
-
-    assert len(answerability.evidence_pages) == 1
-    assert answerability.failing_page_count == 1
-    assert [check.title for check in answerability.evidence_pages[0].failed_checks] == [
-        "Answer behind a click",
-        "Answer not first",
-        "No question headings",
-    ]
-    assert answerability.checked_page_count == 1
-
-
-def test_evidence_pages_are_worst_first_bounded_and_report_the_true_total() -> None:
-    """A capped list must never read as the complete set of failing pages."""
-    worst = uuid.uuid4()
-    rows = [
-        _row(
-            "aeo.answer_first", "fail", site_url_id=worst, url="https://example.test/z"
-        ),
-        _row(
-            "aeo.question_headings",
-            "fail",
-            site_url_id=worst,
-            url="https://example.test/z",
-        ),
-    ]
-    rows += [
-        _row("aeo.answer_first", "fail", url=f"https://example.test/{index}")
-        for index in range(30)
-    ]
-
-    answerability = project_aeo_readiness(rows, analysis_count=31).dimensions[0]
-
-    assert len(answerability.evidence_pages) == 25
-    assert answerability.failing_page_count == 31
-    assert answerability.evidence_truncated is True
-    # The page failing two checks leads, because that is the order someone
-    # fixing the site would work in.
-    assert answerability.evidence_pages[0].site_url_id == worst
-
-
-def test_checks_carry_catalog_copy_and_never_fall_back_to_a_rule_id() -> None:
-    rows = [
-        _row("aeo.answer_first", "fail", title="Answer not stated first"),
-        _row("aeo.answer_first", "pass", title="Answer not stated first"),
-    ]
-
-    answerability = project_aeo_readiness(
-        rows,
-        analysis_count=2,
-        rule_copy={
-            "aeo.answer_first": ("Answer not stated first", "Lead with the answer."),
-            "aeo.question_headings": ("Question headings", "Use question headings."),
-        },
-    ).dimensions[0]
-    answer_first = next(
-        check for check in answerability.checks if check.rule_id == "aeo.answer_first"
-    )
-
-    assert answer_first.title == "Answer not stated first"
-    assert answer_first.fail_count == 1
-    assert answer_first.failing_page_count == 1
-    assert all(
-        check.rule_id != "aeo.question_headings" for check in answerability.checks
-    )
-    # Worst-first ordering puts the only failing check at the top.
-    assert answerability.checks[0].rule_id == "aeo.answer_first"
-
-
-def test_dimensions_carry_a_plain_language_description() -> None:
-    result = project_aeo_readiness([], analysis_count=0)
-    assert all(dimension.description for dimension in result.dimensions)
-    assert "answer" in result.dimensions[0].description.lower()
-
-
-def test_uncertainty_coded_not_applicable_lowers_coverage() -> None:
-    result = project_aeo_readiness(
-        [
-            _row(
-                "aeo.outbound_citations",
-                "not_applicable",
-                reason="insufficient_evidence",
+        _evaluation("aeo.schema_expected_for_type", outcome, analysis_id)
+        for outcome, analysis_id in zip(
+            (
+                RULE_OUTCOME_FAIL,
+                RULE_OUTCOME_PARTIAL,
+                RULE_OUTCOME_ERROR,
+                RULE_OUTCOME_CONFLICTING,
             ),
-            _row("aeo.date_present", "not_applicable", reason="coverage_not_complete"),
-        ],
-        analysis_count=1,
+            analysis_ids,
+            strict=True,
+        )
+    ]
+    analyses = {
+        analysis_id: _analysis_pair(analysis_id, index)
+        for index, analysis_id in enumerate(analysis_ids)
+    }
+
+    projection = _dimension_projection({"key": "machine-readability"}, rows, analyses)
+
+    assert projection["failing_page_count"] == 2
+    assert {page["source_analysis_id"] for page in projection["evidence_pages"]} == set(
+        analysis_ids[:2]
     )
 
-    evidence = next(item for item in result.dimensions if item.key == "evidence")
-    freshness = next(item for item in result.dimensions if item.key == "freshness")
-    assert evidence.expected_evaluation_count == 1
-    assert evidence.observed_evaluation_count == 0
-    assert evidence.coverage == 0
-    assert freshness.expected_evaluation_count == 1
-    assert freshness.coverage == 0
-    assert any("not determinate" in limitation for limitation in result.limitations)
+
+def test_evidence_is_worst_first_bounded_and_reports_true_total() -> None:
+    analysis_ids = [uuid4() for _ in range(26)]
+    analyses = {
+        analysis_id: _analysis_pair(analysis_id, index)
+        for index, analysis_id in enumerate(analysis_ids)
+    }
+    rows = [
+        _evaluation("aeo.schema_expected_for_type", RULE_OUTCOME_FAIL, analysis_id)
+        for analysis_id in analysis_ids
+    ]
+    rows.append(
+        _evaluation("aeo.schema_required_valid", RULE_OUTCOME_FAIL, analysis_ids[-1])
+    )
+
+    projection = _dimension_projection({"key": "machine-readability"}, rows, analyses)
+
+    assert projection["failing_page_count"] == 26
+    assert len(projection["evidence_pages"]) == 25
+    assert projection["evidence_truncated"] is True
+    assert projection["evidence_pages"][0]["source_analysis_id"] == analysis_ids[-1]
+
+
+def test_exact_evidence_bound_is_not_reported_as_truncated() -> None:
+    analysis_ids = [uuid4() for _ in range(25)]
+    analyses = {
+        analysis_id: _analysis_pair(analysis_id, index)
+        for index, analysis_id in enumerate(analysis_ids)
+    }
+    rows = [
+        _evaluation("aeo.schema_expected_for_type", RULE_OUTCOME_FAIL, analysis_id)
+        for analysis_id in analysis_ids
+    ]
+
+    projection = _dimension_projection({"key": "machine-readability"}, rows, analyses)
+
+    assert projection["evidence_truncated"] is False

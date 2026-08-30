@@ -26,9 +26,13 @@ function page(overrides: Partial<PageSummary> = {}): PageSummary {
     analysis_status: 'completed',
     error_code: '',
     issue_count: 3,
-    technical_score: 46,
-    aeo_score: 64,
-    overall_score: 55,
+    technical_integrity_score: 46,
+    technical_integrity_coverage: 1,
+    technical_integrity_state: 'measured',
+    aeo_readiness_score: 64,
+    aeo_measurement_coverage: 0.8,
+    aeo_measurement_state: 'measured',
+    main_content_indexable: true,
     last_audited: '2026-07-16T00:00:00Z',
     // Distinct from `title` so badge-text assertions stay unambiguous.
     page_kind: 'article',
@@ -68,9 +72,13 @@ describe('PagesTable', () => {
             title: 'Admin Panel',
             analysis_status: 'blocked',
             issue_count: null,
-            technical_score: null,
-            aeo_score: null,
-            overall_score: null,
+            technical_integrity_score: null,
+            technical_integrity_coverage: null,
+            technical_integrity_state: 'not_measured',
+            aeo_readiness_score: null,
+            aeo_measurement_coverage: null,
+            aeo_measurement_state: 'not_measured',
+            main_content_indexable: null,
             last_audited: null,
             page_kind: null,
           }),
@@ -113,22 +121,24 @@ describe('PagesTable', () => {
     );
   });
 
-  it('renders the internal-link metrics the crawl persisted', () => {
+  it('renders the final PR2 page metrics', () => {
     render(<PagesTable pages={[page()]} crawlId={CRAWL} />);
     expect(screen.getByText('12')).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /Main-content inbound/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'AEO Coverage' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', { name: 'Main-content indexable' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Indexable')).toBeInTheDocument();
   });
 
   it('shows an unmeasured link metric as Not measured, never a zero', () => {
     render(
       <PagesTable
-        pages={[
-          page({ inbound_count: null, main_content_inbound_count: null, depth_from_home: null }),
-        ]}
+        pages={[page({ inbound_count: null, main_content_indexable: null })]}
         crawlId={CRAWL}
       />,
     );
-    expect(screen.getAllByText('Not measured')).toHaveLength(3);
+    expect(screen.getAllByText('Not measured').length).toBeGreaterThanOrEqual(2);
   });
 
   it('asks the server to reorder, and marks the active column', async () => {
@@ -146,17 +156,14 @@ describe('PagesTable', () => {
       'aria-sort',
       'descending',
     );
-    // Depth reads shallowest-first, so its one meaningful direction ascends.
-    fireEvent.click(screen.getByRole('button', { name: /^Depth/ }));
-    expect(onSortChange).toHaveBeenLastCalledWith('depth');
   });
 
   it('clicking the active sort returns to the default URL order', () => {
     const onSortChange = vi.fn();
     render(
-      <PagesTable pages={[page()]} crawlId={CRAWL} sort="depth" onSortChange={onSortChange} />,
+      <PagesTable pages={[page()]} crawlId={CRAWL} sort="inbound" onSortChange={onSortChange} />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /^Depth/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Inbound/ }));
     expect(onSortChange).toHaveBeenCalledWith('url');
   });
 

@@ -41,12 +41,22 @@ export type ContentSkillCatalog = z.infer<typeof contentSkillCatalogSchema>;
 
 const contentGenerationListSchema = z.array(contentGenerationListItemSchema);
 
+export type SiteHealthReferenceInput = {
+  project_id: string;
+  crawl_id: string;
+  site_url_id: string;
+  source_analysis_id: string;
+  dimension: string;
+  checkpoint_ids: string[];
+};
+
 export type EnqueueGenerationInput = {
   project_id: string;
   prompt: string;
   output_type?: string;
   skill_id?: ContentSkill;
   opportunity_id?: string;
+  site_health_reference?: SiteHealthReferenceInput;
 };
 
 export const contentApi = {

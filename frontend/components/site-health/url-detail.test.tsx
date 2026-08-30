@@ -36,9 +36,13 @@ function detail(overrides: Partial<PageDetail> = {}): PageDetail {
     analysis_status: 'completed',
     error_code: '',
     field_cwv_available: false,
-    technical_score: 46,
-    aeo_score: 64,
-    overall_score: 58,
+    technical_integrity_score: 46,
+    technical_integrity_coverage: 1,
+    technical_integrity_state: 'measured',
+    aeo_readiness_score: 64,
+    aeo_measurement_coverage: 0.8,
+    aeo_measurement_state: 'measured',
+    main_content_indexable: true,
     issue_count: 2,
     last_audited: '2026-07-16T00:00:00Z',
     page_kind: 'product',
@@ -273,7 +277,16 @@ describe('UrlDetail', () => {
 
   it('renders the not-measured state for a missing score, never a zero', async () => {
     mswServer.use(
-      ...handlers(detail({ technical_score: null, aeo_score: null, overall_score: null })),
+      ...handlers(
+        detail({
+          technical_integrity_score: null,
+          technical_integrity_coverage: null,
+          technical_integrity_state: 'not_measured',
+          aeo_readiness_score: null,
+          aeo_measurement_coverage: null,
+          aeo_measurement_state: 'not_measured',
+        }),
+      ),
     );
 
     renderWithProviders(<UrlDetail crawlId={CRAWL} siteUrlId={URL_ID} />);

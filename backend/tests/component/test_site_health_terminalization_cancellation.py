@@ -190,9 +190,13 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
                 site_url_id=site_url_id,
                 artifact_id=artifact.id,
                 status=PAGE_ANALYSIS_STATUS_COMPLETED,
-                technical_score=72.0,
-                aeo_score=68.0,
-                overall_score=70.0,
+                technical_integrity_score=72.0,
+                technical_integrity_coverage=1.0,
+                technical_integrity_state="measured",
+                technical_earned_weight=0.72,
+                technical_determinate_weight=1.0,
+                technical_expected_weight=1.0,
+                technical_critical_complete=True,
             )
         )
         # A still-queued analyze task for a second monitored URL — the run is
@@ -245,8 +249,8 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
     # The returned DTO carries the partial score_summary (dashboard-ready).
     summary = dto["score_summary"]
     assert summary is not None
-    assert summary["overall_score"] is not None
-    assert summary["overall_score"] > 0
+    assert summary["technical_integrity_score"] is not None
+    assert summary["technical_integrity_score"] > 0
     assert summary["analyzed_count"] == 1
     assert summary["selected_count"] == 2
     assert dto["status"] == CRAWL_STATUS_CANCELLED
@@ -271,8 +275,8 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
         # fabricated as a zero.
         assert snapshot.analyzed_url_count == 1
         assert snapshot.selected_url_count == 2
-        assert snapshot.overall_score is not None
-        assert snapshot.overall_score > 0
+        assert snapshot.technical_integrity_score is not None
+        assert snapshot.technical_integrity_score > 0
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         assert crawl is not None
         assert crawl.status == CRAWL_STATUS_CANCELLED
@@ -430,9 +434,13 @@ async def test_cancel_crawl_with_only_deactivated_completed_analyses_skips_snaps
                 site_url_id=site_url_id,
                 artifact_id=artifact.id,
                 status=PAGE_ANALYSIS_STATUS_COMPLETED,
-                technical_score=72.0,
-                aeo_score=68.0,
-                overall_score=70.0,
+                technical_integrity_score=72.0,
+                technical_integrity_coverage=1.0,
+                technical_integrity_state="measured",
+                technical_earned_weight=0.72,
+                technical_determinate_weight=1.0,
+                technical_expected_weight=1.0,
+                technical_critical_complete=True,
             )
         )
         # Deactivate the monitored URL — no ACTIVE monitored row remains.
@@ -535,11 +543,11 @@ async def test_persist_crawl_snapshot_persist_empty_writes_null_score_snapshot(
             )
         ).scalar_one()
         assert snapshot.analyzed_url_count == 0
-        assert snapshot.overall_score is None
+        assert snapshot.technical_integrity_score is None
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         assert crawl is not None
         assert crawl.score_summary is not None
-        assert crawl.score_summary["overall_score"] is None
+        assert crawl.score_summary["technical_integrity_score"] is None
 
 
 @pytest.mark.asyncio
@@ -584,9 +592,13 @@ async def test_persist_crawl_snapshot_returns_true_when_active_rows_present(
                 site_url_id=site_url_id,
                 artifact_id=artifact.id,
                 status=PAGE_ANALYSIS_STATUS_COMPLETED,
-                technical_score=72.0,
-                aeo_score=68.0,
-                overall_score=70.0,
+                technical_integrity_score=72.0,
+                technical_integrity_coverage=1.0,
+                technical_integrity_state="measured",
+                technical_earned_weight=0.72,
+                technical_determinate_weight=1.0,
+                technical_expected_weight=1.0,
+                technical_critical_complete=True,
             )
         )
         await session.commit()

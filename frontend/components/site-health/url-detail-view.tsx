@@ -65,9 +65,24 @@ export function UrlDetailView({
         onRerun={onRerun}
       />
       <div className="grid gap-4 sm:grid-cols-3">
-        <ScoreTile label="Web Fundamentals" value={detail.technical_score} />
-        <ScoreTile label="AEO Health" value={detail.aeo_score} />
-        <ScoreTile label="Combined" value={detail.overall_score} />
+        <ScoreTile
+          label="Technical Integrity"
+          value={
+            detail.technical_integrity_state === 'measured'
+              ? detail.technical_integrity_score
+              : null
+          }
+        />
+        <ScoreTile
+          label="AEO Readiness"
+          value={detail.aeo_measurement_state === 'measured' ? detail.aeo_readiness_score : null}
+        />
+        <ScoreTile
+          label="AEO Measurement Coverage"
+          value={
+            detail.aeo_measurement_coverage === null ? null : detail.aeo_measurement_coverage * 100
+          }
+        />
       </div>
       <DeliveryMetrics delivery={detail.delivery} />
       <InternalLinksCard links={detail.internal_links} crawlId={detail.crawl_id} />

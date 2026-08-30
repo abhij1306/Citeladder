@@ -8,6 +8,7 @@ import {
   CONTENT_LIST_DEFAULT_LIMIT,
   CONTENT_LIST_POLL_MS,
   contentApi,
+  type SiteHealthReferenceInput,
 } from '@/lib/api/content';
 import { queryKeys } from '@/lib/api/query-keys';
 import type {
@@ -53,6 +54,7 @@ export function useContentGenerations(
   projectId: string | null,
   limit: number = CONTENT_LIST_DEFAULT_LIMIT,
   opportunityId?: string | null,
+  siteHealthReference?: SiteHealthReferenceInput,
 ) {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -108,6 +110,7 @@ export function useContentGenerations(
           prompt: input.prompt,
           skill_id: input.skillId,
           opportunity_id: opportunityId ?? undefined,
+          site_health_reference: siteHealthReference,
         },
         newIdempotencyKey(),
       ),

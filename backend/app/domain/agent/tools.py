@@ -57,9 +57,9 @@ async def _site_snapshot(
     return {
         "state": "available",
         "scores": {
-            "technical": row.technical_score,
-            "aeo": row.aeo_score,
-            "overall": row.overall_score,
+            "technical_integrity": row.technical_integrity_score,
+            "aeo_readiness": row.aeo_readiness_score,
+            "aeo_measurement_coverage": row.aeo_measurement_coverage,
         },
         "coverage": {
             "selected_urls": row.selected_url_count,

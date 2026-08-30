@@ -48,9 +48,29 @@ class SiteHealthSnapshot(Base):
     )
     selected_url_count: Mapped[int] = mapped_column(Integer, default=0)
     analyzed_url_count: Mapped[int] = mapped_column(Integer, default=0)
-    technical_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    aeo_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    overall_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    technical_integrity_score: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+    technical_integrity_coverage: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+    technical_integrity_state: Mapped[str] = mapped_column(
+        String(24), default="not_measured"
+    )
+    aeo_readiness_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    aeo_measurement_coverage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    aeo_measurement_state: Mapped[str] = mapped_column(
+        String(24), default="not_measured"
+    )
+    readiness_dimensions: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    search_eligibility: Mapped[str] = mapped_column(String(16), default="unknown")
+    eligibility_totals: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    eligibility_reasons: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    status_counts: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    top_issues: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    web_fundamentals: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    trend: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    change_summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     issue_count: Mapped[int] = mapped_column(Integer, default=0)
     severity_counts: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     category_counts: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
@@ -66,8 +86,17 @@ class SiteHealthSnapshot(Base):
     source_evaluation_ids: Mapped[list | None] = mapped_column(
         ARRAY(PGUUID(as_uuid=True)), nullable=True
     )
+    source_task_ids: Mapped[list | None] = mapped_column(
+        ARRAY(PGUUID(as_uuid=True)), nullable=True
+    )
+    source_attempt_ids: Mapped[list | None] = mapped_column(
+        ARRAY(PGUUID(as_uuid=True)), nullable=True
+    )
     analyzer_version: Mapped[str] = mapped_column(String(32), default="")
     scoring_version: Mapped[str] = mapped_column(String(32), default="")
+    profile_version: Mapped[str] = mapped_column(String(32), default="")
+    schema_contract_version: Mapped[str] = mapped_column(String(32), default="")
+    presentation_version: Mapped[str] = mapped_column(String(32), default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

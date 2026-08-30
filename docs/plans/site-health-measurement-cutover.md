@@ -5,8 +5,12 @@
 > **Scope:** three sequential pull requests. Start each PR only after the prior
 > PR merges, using a fresh implementation chat.
 
-**Next implementation slice:** PR2 after PR1 merges. PR3 remains blocked on the
-preceding merge by design.
+**Next implementation slice:** PR3 after PR2 merges.
+
+**Implementation status:** PR1 and PR2 are implemented in the active runtime.
+PR2 shipped the atomic measurement/persistence/API cutover, Overview, final
+Pages metrics, improved AEO surface, Combined retirement, and typed Content
+handoff. PR3 remains blocked on the preceding merge by design.
 
 [../site-health.md](../site-health.md) is the canonical authority for Site
 Health runtime behavior, measurement meaning, checkpoint applicability, score
@@ -213,7 +217,7 @@ defect-derived Opportunities while their finding class is advisory/diagnostic.
 PR2 is the single atomic measurement-contract cutover. It implements the score,
 coverage, applicability, persistence, aggregate, Overview, Pages-metric, AEO UI,
 and Content-handoff contracts defined in
-[the canonical Site Health logic](../site-health.md#approved-measurement-contract-target-not-shipped).
+[the canonical Site Health logic](../site-health.md#shipped-measurement-contract).
 It deletes the Combined score and superseded serializers/tests in the
 same PR; no compatibility scoring facade survives.
 

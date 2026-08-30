@@ -6,6 +6,7 @@ from app.analysis.site_health.change_intel import (
     RuleState,
     compare_crawls,
 )
+from app.core.config.site_health_contracts import RULE_OUTCOME_FAIL, RULE_OUTCOME_PASS
 
 
 def _page(*, title: str = "Same", status: int = 200) -> ChangePage:
@@ -26,7 +27,7 @@ def _page(*, title: str = "Same", status: int = 200) -> ChangePage:
             "redirect_target": "https://example.com/page",
         },
         rules={
-            "title": RuleState("pass", "high", uuid.uuid4()),
+            "title": RuleState(RULE_OUTCOME_PASS, "high", uuid.uuid4()),
         },
         intended_indexable=True,
     )
@@ -51,7 +52,7 @@ def test_classifies_rule_http_and_exact_expected_linkage() -> None:
     after = ChangePage(
         **{
             **after.__dict__,
-            "rules": {"title": RuleState("fail", "critical", uuid.uuid4())},
+            "rules": {"title": RuleState(RULE_OUTCOME_FAIL, "critical", uuid.uuid4())},
         }
     )
     changes = compare_crawls(
@@ -74,7 +75,7 @@ def test_classifies_rule_transition_when_extracted_value_is_unchanged() -> None:
             **before.__dict__,
             "analysis_id": uuid.uuid4(),
             "artifact_id": uuid.uuid4(),
-            "rules": {"title": RuleState("fail", "high", uuid.uuid4())},
+            "rules": {"title": RuleState(RULE_OUTCOME_FAIL, "high", uuid.uuid4())},
         }
     )
 

@@ -51,9 +51,9 @@ def test_csv_renders_bool_and_none_cells() -> None:
             "depth": 0,
             "monitored": True,
             "issue_count": None,
-            "technical_score": None,
-            "aeo_score": None,
-            "overall_score": None,
+            "technical_integrity_score": None,
+            "aeo_readiness_score": None,
+            "aeo_measurement_coverage": None,
             "last_audited": None,
         }
     ]

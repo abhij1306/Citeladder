@@ -16,7 +16,6 @@ from app.core.config.errors import CODE_VALIDATION_ERROR
 from app.core.errors import ApiException
 from app.domain.site_health import service
 from app.domain.site_health.api_schemas import (
-    AeoReadinessResponse,
     DashboardResponse,
 )
 from app.domain.site_health.architecture_schemas import ArchitectureResponse
@@ -24,6 +23,11 @@ from app.domain.site_health.change_schemas import (
     ChangeObservationResponse,
     ChangesPage,
     ChangeSummaryResponse,
+)
+from app.domain.site_health.measurement_api_schemas import (
+    AeoReadinessResponse,
+    SiteHealthContentHandoffResponse,
+    SiteHealthOverviewResponse,
 )
 from app.domain.site_health.service import (
     InvalidChangeSelectionError,
@@ -57,6 +61,28 @@ async def get_dashboard_endpoint(
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc
     return DashboardResponse.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/site-health/overview",
+    response_model=SiteHealthOverviewResponse,
+)
+async def get_overview_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> SiteHealthOverviewResponse:
+    try:
+        result = await service.get_overview(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_id=crawl_id,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    return SiteHealthOverviewResponse.model_validate(result)
 
 
 @router.get(
@@ -159,6 +185,36 @@ async def get_aeo_readiness_endpoint(
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc
     return AeoReadinessResponse.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/site-health/content-handoff",
+    response_model=SiteHealthContentHandoffResponse,
+)
+async def get_content_handoff_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_id: Annotated[uuid.UUID, Query()],
+    site_url_id: Annotated[uuid.UUID, Query()],
+    source_analysis_id: Annotated[uuid.UUID, Query()],
+    dimension: Annotated[str, Query(min_length=1, max_length=32)],
+    checkpoint_ids: Annotated[list[str], Query(min_length=1)],
+) -> SiteHealthContentHandoffResponse:
+    try:
+        result = await service.get_content_handoff(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_id=crawl_id,
+            site_url_id=site_url_id,
+            source_analysis_id=source_analysis_id,
+            dimension=dimension,
+            checkpoint_ids=checkpoint_ids,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    return SiteHealthContentHandoffResponse.model_validate(result)
 
 
 @router.get(

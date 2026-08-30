@@ -161,8 +161,8 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         # It also duplicated ``aeo.schema_expected_for_type``, which is already
         # an advisory for the SAME condition. Together they spent 3.5 weight of
         # the AEO denominator on one fact: this page carries no markup. The
-        # rule id is kept so the AEO Readiness machine-readability dimension
-        # keeps its signal (AEO_READINESS_RULE_DIMENSIONS drops unmapped ids).
+        # rule id is kept so the PR2 measurement manifest can retain the
+        # machine-readability capability without duplicating the absence signal.
         finding_class=FINDING_CLASS_ADVISORY,
     ),
     SiteHealthRule(

@@ -18,6 +18,11 @@ from app.core.config.brand_discovery import (
     MARKET_SCOPES,
     PRICE_TIERS,
 )
+from app.core.config.brand_profile import (
+    BRAND_PROFILE_PRODUCT_MAX_CHARS,
+    BRAND_PROFILE_PRODUCTS_MAX_COUNT,
+    BRAND_PROFILE_TEXT_MAX_CHARS,
+)
 from app.core.config.projects import MAX_PROJECT_COMPETITORS
 from app.core.literals import lock_literal
 from app.domain.projects.normalization import normalize_primary_market
@@ -136,12 +141,25 @@ class DiscoveryProfile(BaseModel):
         )
 
 
-class ConfirmedDiscoveryProfile(DiscoveryProfile):
+class PersistableDiscoveryProfile(DiscoveryProfile):
+    """Discovery profile constrained to the downstream BrandProfile contract."""
+
+    description: str = Field(default="", max_length=BRAND_PROFILE_TEXT_MAX_CHARS)
+    positioning: str = Field(default="", max_length=BRAND_PROFILE_TEXT_MAX_CHARS)
+    products_services: list[
+        Annotated[str, Field(max_length=BRAND_PROFILE_PRODUCT_MAX_CHARS)]
+    ] = Field(default_factory=list, max_length=BRAND_PROFILE_PRODUCTS_MAX_COUNT)
+    target_audience: str = Field(default="", max_length=BRAND_PROFILE_TEXT_MAX_CHARS)
+
+
+class ConfirmedDiscoveryProfile(PersistableDiscoveryProfile):
     """The minimum structured ICP a person must confirm before generation."""
 
-    positioning: str = Field(min_length=1)
-    products_services: list[str] = Field(min_length=1)
-    target_audience: str = Field(min_length=1)
+    positioning: str = Field(min_length=1, max_length=BRAND_PROFILE_TEXT_MAX_CHARS)
+    products_services: list[
+        Annotated[str, Field(max_length=BRAND_PROFILE_PRODUCT_MAX_CHARS)]
+    ] = Field(min_length=1, max_length=BRAND_PROFILE_PRODUCTS_MAX_COUNT)
+    target_audience: str = Field(min_length=1, max_length=BRAND_PROFILE_TEXT_MAX_CHARS)
 
     @field_validator("positioning", "target_audience")
     @classmethod

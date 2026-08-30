@@ -335,20 +335,20 @@ requested, with the sort inside the cursor fingerprint so a cursor cannot be
 replayed under a different ordering. An unmeasured page reports `null`, never
 `0`.
 
-The AEO Readiness endpoint is a separate read-only projection over those same
-persisted current page analyses and rule evaluations. It requires the crawl's
-exact analyzer/extractor versions, maps only the 20 config-declared rule IDs
-into seven presentation dimensions, and returns pass/fail/not-applicable/error
-counts, expected/determinate coverage, and source-analysis IDs. Structural N/A
-leaves the expected set; uncertainty-coded N/A and errors remain expected but
-non-determinate. It persists no row, repairs no state, and performs no
-network/model work.
+The PR2 measurement owner freezes expected profiles before outcomes, persists
+Technical Integrity and AEO Readiness score/coverage/state independently, and
+pools earned, determinate, and expected evidence by dimension before applying
+the seven configured dimension weights once. Snapshot finalization also freezes
+the two-checkpoint Search eligibility gate with exact task, attempt, artifact,
+analysis, and evaluation sources. `SiteCrawl.score_summary` is only a serializer
+projection of that snapshot; no Combined formula or compatibility scorer exists.
 
-The temporary PR1 scorer suppresses the existing nullable AEO score unless at
-least four unique mapped checkpoints are determinate across three readiness
-dimensions. The same config-owned sufficiency decision makes the read projection
-`incomplete` with a limitation. Crawl and page-kind rollups consume the nullable
-persisted page scores, so no finalizer path can recreate a sparse AEO 100.
+Overview and AEO Readiness are separate read-only projections over the persisted
+snapshot, current page analyses, and rule evaluations. They perform no crawl,
+repair, scoring, model, or provider work. The typed Site Health-to-Content
+handoff accepts only config-declared content-addressable missing/partial gaps,
+re-authorizes the exact workspace/project/crawl/URL/analysis/checkpoint graph,
+and passes observations as untrusted evidence to Content grounding.
 
 Its presentation contract is page-shaped rather than evaluation-shaped, because
 the evaluation shape was unreadable. Each dimension carries a plain-language

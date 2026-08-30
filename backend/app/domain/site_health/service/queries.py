@@ -51,6 +51,9 @@ from app.domain.site_health.service.link_projections import (
     _page_link_fields,
     _sorted_page_stmt,
 )
+from app.domain.site_health.service.measurement_projection import (
+    page_measurement_fields,
+)
 from app.domain.site_health.service.presentation import (
     _iso,
     _matches_page_status,
@@ -411,6 +414,7 @@ def _inventory_summary_row(
 ) -> dict:
     """Render the bounded inventory projection for one persisted SiteUrl."""
     return {
+        **page_measurement_fields(analysis),
         "site_url_id": row.id,
         "normalized_url": row.normalized_url,
         "display_url": row.display_url or row.normalized_url,
@@ -422,11 +426,6 @@ def _inventory_summary_row(
         "first_seen_at": _iso(row.first_seen_at),
         "last_seen_at": _iso(row.last_seen_at),
         "issue_count": issue_counts.get(row.id, 0) if analysis is not None else None,
-        "page_kind": analysis.page_kind if analysis is not None else None,
-        "technical_score": analysis.technical_score if analysis is not None else None,
-        "aeo_score": analysis.aeo_score if analysis is not None else None,
-        "overall_score": analysis.overall_score if analysis is not None else None,
-        "last_audited": _iso(analysis.finalized_at) if analysis is not None else None,
     }
 
 
@@ -450,6 +449,7 @@ def _pages_summary_row(
     """
     return {
         **_page_link_fields(link_metric),
+        **page_measurement_fields(analysis),
         "site_url_id": row.id,
         "crawl_id": (
             crawl_id
@@ -463,11 +463,6 @@ def _pages_summary_row(
         "analysis_status": presentation_status,
         "error_code": error_code,
         "issue_count": issue_counts.get(row.id, 0) if analysis is not None else None,
-        "page_kind": analysis.page_kind if analysis is not None else None,
-        "technical_score": analysis.technical_score if analysis is not None else None,
-        "aeo_score": analysis.aeo_score if analysis is not None else None,
-        "overall_score": analysis.overall_score if analysis is not None else None,
-        "last_audited": _iso(analysis.finalized_at) if analysis is not None else None,
     }
 
 

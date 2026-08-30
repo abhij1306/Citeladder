@@ -29,6 +29,8 @@ import {
   siteCrawlListPageSchema,
   siteCrawlSchema,
   siteHealthDashboardSchema,
+  siteHealthOverviewSchema,
+  siteHealthContentHandoffSchema,
   siteHealthEntitlementSchema,
   siteIssueDetailSchema,
   siteIssuesPageSchema,
@@ -50,6 +52,8 @@ import type {
   SiteArchitecture,
   SiteCrawlListPage,
   SiteHealthDashboard,
+  SiteHealthOverview,
+  SiteHealthContentHandoff,
   SiteHealthEntitlement,
   SiteIssueDetail,
   SiteIssuesPage,
@@ -237,6 +241,36 @@ export const siteHealthApi = {
     const res = await apiClient.get<AeoReadiness>(path, options);
     return strictValidate(aeoReadinessSchema, res, 'siteHealth.getAeoReadiness');
   },
+  getOverview: async (projectId: string, crawlId?: string, options?: ApiRequestOptions) => {
+    const path = withQuery(
+      `/projects/${projectId}/site-health/overview`,
+      definedQuery({ crawl_id: crawlId }),
+    );
+    const res = await apiClient.get<SiteHealthOverview>(path, options);
+    return strictValidate(siteHealthOverviewSchema, res, 'siteHealth.getOverview');
+  },
+  getContentHandoff: async (
+    input: {
+      projectId: string;
+      crawlId: string;
+      siteUrlId: string;
+      sourceAnalysisId: string;
+      dimension: string;
+      checkpointIds: string[];
+    },
+    options?: ApiRequestOptions,
+  ) => {
+    const query = definedQuery({
+      crawl_id: input.crawlId,
+      site_url_id: input.siteUrlId,
+      source_analysis_id: input.sourceAnalysisId,
+      dimension: input.dimension,
+    });
+    input.checkpointIds.forEach((checkpointId) => query.append('checkpoint_ids', checkpointId));
+    const path = withQuery(`/projects/${input.projectId}/site-health/content-handoff`, query);
+    const res = await apiClient.get<SiteHealthContentHandoff>(path, options);
+    return strictValidate(siteHealthContentHandoffSchema, res, 'siteHealth.getContentHandoff');
+  },
   getArchitecture: async (projectId: string, crawlId?: string, options?: ApiRequestOptions) => {
     const path = withQuery(
       `/projects/${projectId}/site-health/architecture`,
@@ -300,6 +334,11 @@ export const siteHealthQueries = {
     queryOptions({
       queryKey: queryKeys.siteHealth.aeoReadiness(projectId, crawlId),
       queryFn: ({ signal }) => siteHealthApi.getAeoReadiness(projectId, crawlId, { signal }),
+    }),
+  overview: (projectId: string, crawlId?: string) =>
+    queryOptions({
+      queryKey: queryKeys.siteHealth.overview(projectId, crawlId),
+      queryFn: ({ signal }) => siteHealthApi.getOverview(projectId, crawlId, { signal }),
     }),
   architecture: (projectId: string, crawlId?: string) =>
     queryOptions({

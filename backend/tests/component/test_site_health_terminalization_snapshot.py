@@ -103,9 +103,13 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
                 site_url_id=site_url_id,
                 artifact_id=artifact.id,
                 status=PAGE_ANALYSIS_STATUS_COMPLETED,
-                technical_score=score,
-                aeo_score=score,
-                overall_score=score,
+                technical_integrity_score=score,
+                technical_integrity_coverage=1.0,
+                technical_integrity_state="measured",
+                technical_earned_weight=score / 100.0,
+                technical_determinate_weight=1.0,
+                technical_expected_weight=1.0,
+                technical_critical_complete=True,
                 is_current=analysis_id == high_analysis_id,
                 created_at=same_created_at,
             )
@@ -113,6 +117,7 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
             analyses.append(analysis)
         await session.flush()
 
+        latest_evaluation_id = None
         for index, (analysis, artifact) in enumerate(
             zip(analyses, artifacts, strict=True)
         ):
@@ -129,6 +134,8 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
             )
             session.add(evaluation)
             await session.flush()
+            if analysis.id == high_analysis_id:
+                latest_evaluation_id = evaluation.id
             session.add(
                 SiteIssue(
                     workspace_id=seed.workspace_id,
@@ -155,7 +162,10 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
         # ``_persist_snapshot`` is a thin ``persist_empty=True`` delegation).
         await persist_crawl_snapshot(session, crawl=crawl, persist_empty=True)
         latest_artifact_id = artifacts[1].id
+        latest_task_id = second_task.id
         await session.commit()
+
+    assert latest_evaluation_id is not None
 
     async with session_factory() as session:
         snapshot = (
@@ -166,9 +176,11 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
             )
         ).scalar_one()
         assert snapshot.analyzed_url_count == 1
-        assert snapshot.overall_score == 90.0
+        assert snapshot.technical_integrity_score == 90.0
         assert snapshot.source_analysis_ids == [high_analysis_id]
         assert snapshot.source_artifact_ids == [latest_artifact_id]
+        assert snapshot.source_evaluation_ids == [latest_evaluation_id]
+        assert snapshot.source_task_ids == [latest_task_id]
         assert snapshot.issue_count == 1
         assert snapshot.category_counts == {"fresh": 1}
 

@@ -30,9 +30,9 @@ _INVENTORY_COLUMNS = [
     "monitored",
     "page_kind",
     "issue_count",
-    "technical_score",
-    "aeo_score",
-    "overall_score",
+    "technical_integrity_score",
+    "aeo_readiness_score",
+    "aeo_measurement_coverage",
     "last_audited",
 ]
 
@@ -46,9 +46,9 @@ _PAGES_COLUMNS = [
     "error_code",
     "page_kind",
     "issue_count",
-    "technical_score",
-    "aeo_score",
-    "overall_score",
+    "technical_integrity_score",
+    "aeo_readiness_score",
+    "aeo_measurement_coverage",
     "last_audited",
 ]
 

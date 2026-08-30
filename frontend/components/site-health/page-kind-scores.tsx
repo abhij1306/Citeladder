@@ -67,9 +67,9 @@ export function PageKindScores({
               <TableRow>
                 <TableHead>Page Kind</TableHead>
                 <TableHead numeric>Analyzed</TableHead>
-                <TableHead numeric>Web Fundamentals</TableHead>
-                <TableHead numeric>AEO</TableHead>
-                <TableHead numeric>Overall</TableHead>
+                <TableHead numeric>Technical Integrity</TableHead>
+                <TableHead numeric>AEO Readiness</TableHead>
+                <TableHead numeric>AEO Coverage</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -83,21 +83,23 @@ export function PageKindScores({
                   </TableCell>
                   <TableCell
                     numeric
-                    className={cn('mono font-medium', scoreTextClass(row.technical_score))}
+                    className={cn(
+                      'mono font-medium',
+                      scoreTextClass(row.technical_integrity_score),
+                    )}
                   >
-                    {formatScore(row.technical_score)}
+                    {measurementValue(row.technical_integrity_score, row.technical_integrity_state)}
                   </TableCell>
                   <TableCell
                     numeric
-                    className={cn('mono font-medium', scoreTextClass(row.aeo_score))}
+                    className={cn('mono font-medium', scoreTextClass(row.aeo_readiness_score))}
                   >
-                    {formatScore(row.aeo_score)}
+                    {measurementValue(row.aeo_readiness_score, row.aeo_measurement_state)}
                   </TableCell>
-                  <TableCell
-                    numeric
-                    className={cn('mono font-medium', scoreTextClass(row.overall_score))}
-                  >
-                    {formatScore(row.overall_score)}
+                  <TableCell numeric className="mono font-medium">
+                    {row.aeo_measurement_coverage === null
+                      ? 'Not measured'
+                      : `${Math.round(row.aeo_measurement_coverage * 100)}%`}
                   </TableCell>
                 </TableRow>
               ))}
@@ -107,4 +109,11 @@ export function PageKindScores({
       </CardContent>
     </Card>
   );
+}
+
+function measurementValue(score: number | null, state: string): string {
+  if (state === 'measured') return formatScore(score);
+  if (state === 'limited_evidence') return 'Limited evidence';
+  if (state === 'excluded') return 'Excluded';
+  return 'Not measured';
 }

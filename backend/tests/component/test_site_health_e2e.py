@@ -388,9 +388,12 @@ async def test_partial_error_crawl_surfaces_failed_pages(
                 site_url_id=url.id,
                 artifact_id=artifact.id,
                 status=PAGE_ANALYSIS_STATUS_FAILED,
-                technical_score=None,
-                aeo_score=None,
-                overall_score=None,
+                technical_integrity_score=None,
+                technical_integrity_coverage=None,
+                technical_integrity_state="not_measured",
+                aeo_readiness_score=None,
+                aeo_measurement_coverage=None,
+                aeo_measurement_state="not_measured",
                 analyzer_version="v1",
                 scoring_version="v1",
             )
@@ -413,9 +416,8 @@ async def test_partial_error_crawl_surfaces_failed_pages(
     assert row["analysis_status"] == "error"
     assert row["error_code"] == "fetch_failed"
     # No fabricated zero scores for a failed page.
-    assert row["technical_score"] is None
-    assert row["aeo_score"] is None
-    assert row["overall_score"] is None
+    assert row["technical_integrity_score"] is None
+    assert row["aeo_readiness_score"] is None
 
 
 async def test_sample_redaction_end_to_end(

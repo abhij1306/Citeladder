@@ -187,8 +187,6 @@ CRAWL_PARTIAL_REASONS: Final[frozenset[str]] = frozenset(
     }
 )
 
-AEO_READINESS_TAXONOMY_VERSION: Final = "aeo-readiness-v1"
-
 RULE_ID_TECHNICAL_INDEXABLE: Final = "technical.indexable"
 
 AEO_READINESS_DIMENSIONS: Final[tuple[str, ...]] = (
@@ -206,7 +204,7 @@ AEO_READINESS_DIMENSION_LABELS: Final[dict[str, str]] = {
     "structure": "Structure",
     "evidence": "Evidence",
     "machine-readability": "Machine readability",
-    "authority": "Authority",
+    "authority": "Provenance & trust signals",
     "freshness": "Freshness",
     "crawlability": "Crawlability",
 }
@@ -234,29 +232,6 @@ AEO_READINESS_DIMENSION_DESCRIPTIONS: Final[dict[str, str]] = {
         "Whether an answer engine can reach and read the page at all — the "
         "checks that make every other dimension moot when they fail."
     ),
-}
-
-AEO_READINESS_RULE_DIMENSIONS: Final[dict[str, str]] = {
-    "technical.thin_content": "answerability",
-    "aeo.answer_first": "answerability",
-    "aeo.question_headings": "answerability",
-    "aeo.no_expand_gating": "answerability",
-    "technical.single_h1": "structure",
-    "aeo.schema_expected_for_type": "structure",
-    "aeo.schema_required_valid": "structure",
-    "aeo.schema_recommended_present": "structure",
-    "aeo.schema_matches_content": "structure",
-    "aeo.outbound_citations": "evidence",
-    "aeo.structured_data_present": "machine-readability",
-    "aeo.open_graph_present": "machine-readability",
-    "aeo.llms_txt_present": "machine-readability",
-    "aeo.author_present": "authority",
-    "aeo.organization_identity": "authority",
-    "aeo.date_present": "freshness",
-    "aeo.server_rendered_content": "crawlability",
-    "technical.ai_crawler_access": "crawlability",
-    RULE_ID_TECHNICAL_INDEXABLE: "crawlability",
-    "technical.https": "crawlability",
 }
 
 AEO_READINESS_MAX_EVALUATIONS: Final = 100_000
@@ -290,18 +265,44 @@ DIMENSION_AEO: Final = "aeo"
 
 RULE_DIMENSIONS: Final[frozenset[str]] = frozenset({DIMENSION_TECHNICAL, DIMENSION_AEO})
 
-RULE_OUTCOME_PASS: Final = "pass"
+RULE_OUTCOME_SATISFIED: Final = "satisfied"
 
-RULE_OUTCOME_FAIL: Final = "fail"
+RULE_OUTCOME_PASS: Final = RULE_OUTCOME_SATISFIED
+
+RULE_OUTCOME_MISSING: Final = "missing"
+
+RULE_OUTCOME_FAIL: Final = RULE_OUTCOME_MISSING
+
+RULE_OUTCOME_PARTIAL: Final = "partial"
+
+RULE_OUTCOME_UNKNOWN: Final = "unknown"
+
+RULE_OUTCOME_UNAVAILABLE: Final = "unavailable"
+
+RULE_OUTCOME_CONFLICTING: Final = "conflicting"
+
+RULE_OUTCOME_EXCLUDED: Final = "excluded"
 
 RULE_OUTCOME_NOT_APPLICABLE: Final = "not_applicable"
 
 RULE_OUTCOME_ERROR: Final = "error"
 
+RULE_FAILING_OUTCOMES: Final[frozenset[str]] = frozenset(
+    {
+        RULE_OUTCOME_FAIL,
+        RULE_OUTCOME_PARTIAL,
+    }
+)
+
 RULE_OUTCOMES: Final[frozenset[str]] = frozenset(
     {
         RULE_OUTCOME_PASS,
         RULE_OUTCOME_FAIL,
+        RULE_OUTCOME_PARTIAL,
+        RULE_OUTCOME_UNKNOWN,
+        RULE_OUTCOME_UNAVAILABLE,
+        RULE_OUTCOME_CONFLICTING,
+        RULE_OUTCOME_EXCLUDED,
         RULE_OUTCOME_NOT_APPLICABLE,
         RULE_OUTCOME_ERROR,
     }

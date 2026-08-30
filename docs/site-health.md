@@ -19,8 +19,9 @@ crawler identities even when external evidence later resolves them for a join.
 
 The user-facing area has three pages:
 
-1. **Site Health** — crawl lifecycle, scores by page kind, and URL inventory,
-   with **Pages**, **Architecture**, **AEO Readiness**, and **Changes** tabs.
+1. **Site Health** — persisted measurement Overview, crawl lifecycle, scores by
+   page kind, and URL inventory, with **Overview**, **Pages**, **Architecture**,
+   **AEO Readiness**, and **Changes** tabs.
 2. **Issues** — grouped findings with affected page-kind badges.
 3. **Opportunities** — persisted prioritized actions.
 
@@ -307,47 +308,26 @@ analyzer and extractor versions and returns the exact source-analysis IDs.
 Optional `crawl_id` selects one usable terminal crawl; omission selects the
 latest. Reads never analyze, enqueue, repair, or call a provider.
 
-Taxonomy `aeo-readiness-v1` maps exactly 20 declared rule IDs into seven ordered
-dimensions: **Answerability**, **Structure**, **Evidence**,
-**Machine readability**, **Authority**, **Freshness**, and **Crawlability**.
+The version-`1` PR2 measurement manifest maps only defensible score-applicable
+checkpoints into seven ordered dimensions: **Answerability**, **Structure**,
+**Evidence**, **Machine readability**, **Provenance & trust signals**,
+**Freshness**, and **Crawlability**. The stable machine key for Provenance &
+trust signals remains `authority`.
 
-Each dimension is projected in page terms, not evaluation terms: a plain
-description, per-rule rollups carrying the catalog title and remediation, the
-distinct pages a check applied to, the distinct pages that failed at least one,
-and a bounded list of failing pages each naming its own failed checks once. The
-bound is on pages and is always reported with the true failing-page total, so a
-capped list never reads as the whole set. A rule ID stays provenance and is
-never display copy.
-Unmapped Site Health rules remain outside this view; there is no fallback
-bucket. Each dimension exposes pass, fail, not-applicable, error, expected and
-determinate counts, coverage, and at most 25 failing pages in `evidence_pages`.
-The true failing-page total is reported separately even when that page list is
-bounded.
-Coverage is determinate pass/fail checks divided by expected checks. Structural
-not-applicability leaves the expected set, while the temporary stored
-`not_applicable` rows carrying `coverage_not_complete`, `insufficient_evidence`,
-or `no_checkable_alternates` remain expected and non-determinate. Errors also
-remain expected and non-determinate. They lower coverage without becoming a
-failure.
+Each dimension is projected in page terms, not evaluation terms: applicability,
+measurement state, score, coverage, expected and determinate points, explicit
+uncertainty counts, catalog guidance, and a bounded set of failing pages. The
+bound always travels with the true failing-page total. Reads use persisted
+analyses, evaluations, and snapshot projections; they never calculate or repair
+measurement.
 
-PR1 retains the current nullable score fields and defect-only formula, but
-qualifies every AEO score with a config-owned breadth guard: at least four
-unique determinate checkpoint IDs across three readiness dimensions. Below
-either minimum, page, page-detail, page-kind, and crawl-summary `aeo_score`
-serialize `null`; the AEO projection is `incomplete` and carries a bounded
-limitation. The UI renders **Not measured**, so one passing check can never
-present AEO 100. PR2 replaces this temporary guard with the approved persisted
-measurement contract below.
+## Shipped measurement contract
 
-## Approved measurement contract (target; not shipped)
-
-This section is the canonical logic for the approved measurement contract that
-will replace the temporary PR1 scoring formula while retaining active version
-`1`. The three-PR implementation sequence lives in
+This section is the canonical logic for the active PR2 measurement contract.
+The three-PR implementation sequence lives in
 [`plans/site-health-measurement-cutover.md`](plans/site-health-measurement-cutover.md).
 This file owns measurement meaning and formulas; the plan owns delivery order
-and acceptance. Runtime sections outside this target block remain shipped truth
-until the relevant PR merges.
+and acceptance.
 
 **Development reset policy.** CiteLadder is pre-launch and does not preserve
 development database history. Schema changes are folded into
@@ -810,7 +790,7 @@ an average, majority, or best-page state. Aggregate breadth counts unique
 checkpoint IDs, unique checkpoint families, and unique readiness dimensions;
 repeating one checkpoint across 100 pages still counts as one checkpoint and
 one family.
-No Technical-only result is silently relabelled Combined. The target contract
+No Technical-only result is silently relabelled Combined. The active contract
 retains Technical integrity and AEO Readiness as independent scalars and
 retires the Technical/AEO 50:50 `overall_score` headline.
 

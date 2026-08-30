@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import uuid
 from datetime import UTC, datetime
 
@@ -46,8 +47,11 @@ from app.domain.content.schemas import (
     ContentContextSummary,
     ContentGenerationDetail,
     ContentGenerationListItem,
+    SiteHealthReference,
     prompt_preview,
 )
+from app.domain.site_health.service.aeo_readiness import get_content_handoff
+from app.domain.site_health.service.common import SiteHealthNotFoundError
 from app.models.content import ContentGeneration
 from app.models.opportunity import Opportunity
 from app.models.project import Project
@@ -93,6 +97,7 @@ def request_fingerprint(
     output_type: str,
     skill_id: str = CONTENT_DEFAULT_SKILL,
     opportunity_id: uuid.UUID | None = None,
+    site_health_reference: dict | None = None,
 ) -> str:
     """Stable comparator for idempotency replay-vs-conflict decisions."""
     canonical = "\x1f".join(
@@ -102,6 +107,9 @@ def request_fingerprint(
             output_type,
             skill_id,
             _optional_uuid(opportunity_id),
+            json.dumps(
+                site_health_reference or {}, sort_keys=True, separators=(",", ":")
+            ),
         ]
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -199,6 +207,7 @@ async def enqueue_generation(
     idempotency_key: str = "",
     skill_id: str = CONTENT_DEFAULT_SKILL,
     opportunity_id: uuid.UUID | None = None,
+    site_health_reference: SiteHealthReference | None = None,
 ) -> tuple[ContentGeneration, bool]:
     """Enqueue one generation. Returns ``(row, created)``.
 
@@ -217,12 +226,35 @@ async def enqueue_generation(
         project_id=project_id,
         opportunity_id=opportunity_id,
     )
+    reference_dict = (
+        site_health_reference.model_dump(mode="json") if site_health_reference else None
+    )
+    if site_health_reference and site_health_reference.project_id != project_id:
+        raise ContentGenerationNotFoundError("Site Health reference not found")
+    try:
+        site_health_handoff = (
+            await get_content_handoff(
+                session,
+                workspace_id=workspace_id,
+                project_id=project_id,
+                crawl_id=site_health_reference.crawl_id,
+                site_url_id=site_health_reference.site_url_id,
+                source_analysis_id=site_health_reference.source_analysis_id,
+                dimension=site_health_reference.dimension,
+                checkpoint_ids=site_health_reference.checkpoint_ids,
+            )
+            if site_health_reference
+            else None
+        )
+    except SiteHealthNotFoundError as exc:
+        raise ContentGenerationNotFoundError(str(exc)) from exc
     fingerprint = request_fingerprint(
         project_id=project_id,
         prompt=prompt,
         output_type=output_type,
         skill_id=skill_id,
         opportunity_id=opportunity_id,
+        site_health_reference=reference_dict,
     )
     # A server-side key when the client sent none: the composite constraint is
     # always satisfied and keyless requests never collide with each other.
@@ -250,6 +282,7 @@ async def enqueue_generation(
         website=project.website_url,
         locale=_project_locale(project),
         opportunity=opportunity,
+        site_health_handoff=site_health_handoff,
     )
     _require_provider_configured()
     await _reserve_content_capacity(session, workspace_id=workspace_id)
@@ -265,6 +298,7 @@ async def enqueue_generation(
             request_fingerprint=fingerprint,
             skill_id=skill_id,
             opportunity_id=opportunity_id,
+            site_health_reference=reference_dict,
             # The skill catalog and the generator version independently: a
             # reworded directive changes what was asked for even when the
             # generator is untouched, so provenance must record both.
@@ -465,6 +499,11 @@ async def regenerate(
         output_type=source.output_type,
         skill_id=source.skill_id,
         opportunity_id=source.opportunity_id,
+        site_health_reference=(
+            SiteHealthReference.model_validate(source.site_health_reference)
+            if source.site_health_reference
+            else None
+        ),
     )
     return row
 
@@ -489,6 +528,7 @@ async def try_again(
         output_type=source.output_type,
         skill_id=source.skill_id,
         opportunity_id=source.opportunity_id,
+        site_health_reference=source.site_health_reference,
     )
     row = _insert_generation(
         session,
@@ -501,6 +541,7 @@ async def try_again(
             request_fingerprint=fingerprint,
             skill_id=source.skill_id,
             opportunity_id=source.opportunity_id,
+            site_health_reference=source.site_health_reference,
             skill_version=source.skill_version,
             provider=content_settings.provider,
             requested_model=content_settings.resolved_model,

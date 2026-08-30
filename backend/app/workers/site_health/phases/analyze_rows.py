@@ -21,6 +21,11 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     SCORING_VERSION,
 )
+from app.core.config.site_health_measurement import (
+    PRESENTATION_VERSION,
+    PROFILE_VERSION,
+    SCHEMA_CONTRACT_VERSION,
+)
 from app.core.config.site_health_rule_types import FINDING_CLASS_DIAGNOSTIC
 from app.core.config.site_health_traits import TRAITS_VERSION
 from app.models.site_health.analysis import (
@@ -152,7 +157,12 @@ def _prepare_page_evaluation(
         # which solely owns those rules' rows (single-writer per scope).
         if not _is_crawl_finalize_rule(ev.rule_id)
     ]
-    scores = score_analysis(evaluations, page_kind=assessment.page_kind)
+    scores = score_analysis(
+        evaluations,
+        page_kind=assessment.page_kind,
+        page_traits=traits,
+        page_kind_evidence=assessment.to_evidence(),
+    )
     return assessment, traits, evaluations, scores
 
 
@@ -218,9 +228,22 @@ def _new_page_analysis(
         site_url_id=site_url_id,
         artifact_id=artifact_id,
         status=PAGE_ANALYSIS_STATUS_COMPLETED,
-        technical_score=scores.technical_score,
-        aeo_score=scores.aeo_score,
-        overall_score=scores.overall_score,
+        technical_integrity_score=scores.technical_integrity_score,
+        technical_integrity_coverage=scores.technical_integrity_coverage,
+        technical_integrity_state=scores.technical_integrity_state,
+        technical_earned_weight=scores.technical_earned_weight,
+        technical_determinate_weight=scores.technical_determinate_weight,
+        technical_expected_weight=scores.technical_expected_weight,
+        technical_critical_complete=scores.technical_critical_complete,
+        aeo_readiness_score=scores.aeo_readiness_score,
+        aeo_measurement_coverage=scores.aeo_measurement_coverage,
+        aeo_measurement_state=scores.aeo_measurement_state,
+        expected_checkpoint_profile=list(scores.expected_checkpoint_profile),
+        readiness_dimensions=[item.to_dict() for item in scores.readiness_dimensions],
+        profile_version=PROFILE_VERSION,
+        schema_contract_version=SCHEMA_CONTRACT_VERSION,
+        presentation_version=PRESENTATION_VERSION,
+        main_content_indexable=scores.main_content_indexable,
         analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
         scoring_version=crawl.scoring_version or SCORING_VERSION,
         page_kind=assessment.page_kind,
@@ -287,6 +310,14 @@ async def _persist_evaluations_and_issues(
             finding_class=ev.finding_class,
             weight=ev.weight,
             outcome=ev.outcome,
+            display_applicability=ev.display_applicability,
+            score_applicability=ev.score_applicability,
+            expected_profile_membership=ev.expected_profile_membership,
+            reason_code=ev.reason_code,
+            score_roles=list(ev.score_roles),
+            checkpoint_family=ev.checkpoint_family,
+            readiness_dimension=ev.readiness_dimension,
+            readiness_weight=ev.readiness_weight,
             evidence=ev.evidence,
             supporting_artifact_ids=[artifact_id],
             extractor_version=crawl.extractor_version or EXTRACTOR_VERSION,
