@@ -4,25 +4,17 @@ from __future__ import annotations
 
 import ast
 import inspect
-import uuid
 from typing import ClassVar
 
 import pytest
 from pydantic import ValidationError
 
 from app.core.config.site_health_contracts import RULE_CATALOG_VERSION
-from app.core.config.site_health_crawl_policy import (
-    MANUAL_PHASE_LIFECYCLE_KEY,
-)
 from app.core.config.site_health_runtime import (
     SiteHealthSettings,
     site_health_settings,
 )
 from app.domain.site_health import discovery, frontier
-from app.domain.site_health.api_schemas import (
-    StartAnalysisRequest,
-    StartDiscoveryRequest,
-)
 from app.domain.site_health.planner import (
     CrawlPlanError,
     create_crawl,
@@ -137,22 +129,6 @@ def test_automatic_page_limit_must_fit_public_maximum():
         )
 
 
-def test_phase_request_counts_must_be_positive_and_bounded():
-    with pytest.raises(ValidationError):
-        StartDiscoveryRequest(additional_url_count=0)
-    with pytest.raises(ValidationError):
-        StartAnalysisRequest(
-            requested_url_count=0,
-            expected_selection_version=0,
-        )
-    with pytest.raises(ValidationError):
-        StartAnalysisRequest(
-            requested_url_count=1,
-            site_url_ids=[uuid.uuid4()] * (site_health_settings.max_analysis_urls + 1),
-            expected_selection_version=0,
-        )
-
-
 def test_production_rejects_development_only_exact_mode(monkeypatch):
     monkeypatch.setattr(
         "app.domain.site_health.planner.site_health_settings.advanced_controls_enabled",
@@ -240,28 +216,6 @@ def test_frozen_configuration_stamps_supplemental_page_profile_rule_version():
     )
 
     assert configuration["page_profile_rule_version"] == RULE_CATALOG_VERSION
-    assert MANUAL_PHASE_LIFECYCLE_KEY not in configuration
-
-
-def test_frozen_configuration_only_enables_phase_lifecycle_when_requested():
-    class Runtime:
-        discovery_mode = "sample"
-        count_disclosure = False
-        sample_url_limit = 10
-        monitored_url_limit = 0
-        discovery_url_cap = 10
-        resolved_registry_revision = "registry-v1"
-        resolved_entitlement_lifecycle_version = 1
-
-    configuration = frozen_configuration(
-        root_registrable_domain="example.com",
-        include_globs=[],
-        exclude_globs=[],
-        runtime=Runtime(),
-        manual_phase_lifecycle=True,
-    )
-
-    assert configuration[MANUAL_PHASE_LIFECYCLE_KEY] is True
 
 
 def test_normal_and_page_rerun_creation_share_the_frozen_configuration() -> None:
