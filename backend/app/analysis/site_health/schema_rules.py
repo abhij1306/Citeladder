@@ -62,7 +62,7 @@ def _pass_fail(condition: bool) -> str:
     return RULE_OUTCOME_PASS if condition else RULE_OUTCOME_FAIL
 
 
-def _expectation_for(facts: dict) -> PageKindSchemaExpectation:
+def schema_expectation_for(facts: dict) -> PageKindSchemaExpectation:
     page_kind = str(facts.get("page_kind") or "").strip().lower()
     if page_kind == PRODUCT_SCHEMA_EXPECTATION.page_kind:
         return PRODUCT_SCHEMA_EXPECTATION
@@ -82,7 +82,7 @@ def _expected_blocks(facts: dict, expectation: PageKindSchemaExpectation) -> lis
 
 
 def check_schema_expected_for_type(facts: dict) -> tuple[str, dict]:
-    expectation = _expectation_for(facts)
+    expectation = schema_expectation_for(facts)
     structured = facts.get("structured_data") or {}
     found_types = sorted(str(value) for value in (structured.get("types") or []))
     return _pass_fail(bool(_expected_blocks(facts, expectation))), {
@@ -122,7 +122,7 @@ def _has_shallow_microdata(
 
 def _schema_property_check(facts: dict, *, recommended: bool) -> tuple[str, dict]:
     label = "recommended" if recommended else "required"
-    expectation = _expectation_for(facts)
+    expectation = schema_expectation_for(facts)
     blocks = _expected_blocks(facts, expectation)
     if not blocks:
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
@@ -154,7 +154,7 @@ def check_schema_recommended_present(facts: dict) -> tuple[str, dict]:
 
 
 def check_schema_matches_content(facts: dict) -> tuple[str, dict]:
-    expectation = _expectation_for(facts)
+    expectation = schema_expectation_for(facts)
     blocks = _expected_blocks(facts, expectation)
     if not blocks:
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}

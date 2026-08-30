@@ -6,7 +6,6 @@ from app.core.config.site_health_architecture_rules import ARCHITECTURE_RULE_SPE
 from app.core.config.site_health_contracts import (
     APPLICABILITY_CRAWL_FINALIZE,
     APPLICABILITY_OBSERVED_CONTENT,
-    APPLICABILITY_SITE_ROOT,
     CATEGORY_CITABILITY,
     CATEGORY_CONTENT,
     CATEGORY_INDEXABILITY,
@@ -22,12 +21,14 @@ from app.core.config.site_health_contracts import (
     SEVERITY_LOW,
     SEVERITY_MEDIUM,
 )
+from app.core.config.site_health_measurement import SCORE_ROLE_TECHNICAL
 from app.core.config.site_health_rule_types import (
     FINDING_CLASS_ADVISORY,
     FINDING_CLASS_DIAGNOSTIC,
     KIND_EVIDENCE_TRIGGERED,
     SiteHealthRule,
 )
+from app.core.config.site_health_search_rules import SEARCH_ACCESS_RULES
 from app.core.config.site_health_taxonomy import (
     PAGE_KIND_APPLICABILITY_PREFIX,
     PAGE_KIND_ARTICLE,
@@ -38,10 +39,12 @@ from app.core.config.site_health_taxonomy import (
     PAGE_KIND_FAQ,
     PAGE_KIND_GUIDE,
     PAGE_KIND_HOMEPAGE,
+    PAGE_KIND_PRODUCT,
     PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
     _page_kinds,
 )
 from app.core.config.site_health_traits import PAGE_TRAIT_HAS_FAQ, _traits
+from app.core.config.site_health_web_fundamentals import WEB_FUNDAMENTALS_RULES
 
 DIMENSION_WEIGHT_TECHNICAL: Final = 0.5
 
@@ -64,6 +67,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description="Page has a non-empty <title>.",
         remediation="Add a concise, descriptive <title> element to the page.",
         display_label="Missing page title",
+        score_roles=(SCORE_ROLE_TECHNICAL,),
     ),
     SiteHealthRule(
         rule_id="technical.meta_description_present",
@@ -109,6 +113,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description="Page is not blocked from indexing by a robots meta noindex.",
         remediation="Remove the noindex directive if the page should be indexed.",
         display_label="Page blocked from indexing",
+        score_roles=(SCORE_ROLE_TECHNICAL,),
     ),
     SiteHealthRule(
         rule_id="technical.https",
@@ -121,6 +126,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description="Final URL is served over HTTPS.",
         remediation="Serve the page over HTTPS and redirect HTTP to HTTPS.",
         display_label="Not served over HTTPS",
+        score_roles=(SCORE_ROLE_TECHNICAL,),
     ),
     SiteHealthRule(
         rule_id="technical.single_h1",
@@ -215,6 +221,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "declares hreflang alternates must canonicalise to itself."
         ),
         display_label="Canonical URL conflict",
+        score_roles=(SCORE_ROLE_TECHNICAL,),
     ),
     SiteHealthRule(
         rule_id="technical.title_length_band",
@@ -258,6 +265,8 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "secure transport."
         ),
         display_label="Missing HSTS header",
+        finding_class=FINDING_CLASS_DIAGNOSTIC,
+        web_fundamentals_area="security",
     ),
     SiteHealthRule(
         rule_id="technical.ttfb_band",
@@ -270,6 +279,8 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description="Time to first byte is within the recommended band (<= 800 ms).",
         remediation="Reduce server response time (caching, CDN, faster origin).",
         display_label="Slow time to first byte",
+        finding_class=FINDING_CLASS_DIAGNOSTIC,
+        web_fundamentals_area="lab",
     ),
     SiteHealthRule(
         rule_id="technical.uncompressed_html",
@@ -282,6 +293,8 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description="HTML response is served compressed (gzip/deflate/br).",
         remediation="Enable gzip or brotli compression for HTML responses.",
         display_label="HTML served uncompressed",
+        finding_class=FINDING_CLASS_DIAGNOSTIC,
+        web_fundamentals_area="lab",
     ),
     SiteHealthRule(
         rule_id="technical.render_blocking",
@@ -299,39 +312,11 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "Defer/async non-critical scripts and reduce render-blocking stylesheets."
         ),
         display_label="Too many render-blocking resources",
-    ),
-    # --- v2 P2: site_root scope (evaluated once per crawl, weight 0) -------
-    SiteHealthRule(
-        rule_id="technical.ai_crawler_access",
-        rule_version=RULE_CATALOG_VERSION,
-        dimension=DIMENSION_TECHNICAL,
-        category=CATEGORY_INDEXABILITY,
-        severity=SEVERITY_HIGH,
-        weight=0.0,
-        applicability_key=APPLICABILITY_SITE_ROOT,
-        description=(
-            "robots.txt does not block the major AI crawlers (GPTBot, "
-            "ClaudeBot, PerplexityBot, Google-Extended)."
-        ),
-        remediation=(
-            "Allow the AI crawlers you want citing your content in robots.txt "
-            "(check CDN-managed default bot blocks)."
-        ),
-        display_label="AI crawlers blocked by robots.txt",
         finding_class=FINDING_CLASS_DIAGNOSTIC,
+        web_fundamentals_area="lab",
     ),
-    SiteHealthRule(
-        rule_id="aeo.llms_txt_present",
-        rule_version=RULE_CATALOG_VERSION,
-        dimension=DIMENSION_AEO,
-        category=CATEGORY_CITABILITY,
-        severity=SEVERITY_LOW,
-        weight=0.0,
-        applicability_key=APPLICABILITY_SITE_ROOT,
-        description="Site serves an llms.txt file at the root.",
-        remediation=("Publish /llms.txt summarizing the site for AI answer engines."),
-        display_label="Missing llms.txt",
-    ),
+    *WEB_FUNDAMENTALS_RULES,
+    *SEARCH_ACCESS_RULES,
     # --- v2 P2: per-type schema validity (per-page) -------------------------
     SiteHealthRule(
         rule_id="aeo.schema_expected_for_type",
@@ -606,6 +591,38 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         # signal; until that exists this cannot honestly be a defect.
         finding_class=FINDING_CLASS_ADVISORY,
     ),
+    SiteHealthRule(
+        rule_id="aeo.product_offer_details",
+        kind_evidence=KIND_EVIDENCE_TRIGGERED,
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_STRUCTURED_DATA,
+        severity=SEVERITY_MEDIUM,
+        weight=1.0,
+        applicability_key=_page_kinds(PAGE_KIND_PRODUCT, requires_html=True),
+        description="Product pages expose complete Product/Offer facts.",
+        remediation=(
+            "Add Product and Offer properties for identity, price, currency, "
+            "availability, variants, ratings, shipping, and returns."
+        ),
+        display_label="Incomplete Product/Offer details",
+    ),
+    SiteHealthRule(
+        rule_id="aeo.product_visible_schema_parity",
+        kind_evidence=KIND_EVIDENCE_TRIGGERED,
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_CONTENT,
+        severity=SEVERITY_HIGH,
+        weight=1.5,
+        applicability_key=_page_kinds(PAGE_KIND_PRODUCT, reads_content=True),
+        description="Visible product claims agree with Product/Offer schema.",
+        remediation=(
+            "Make visible product identity, price, and availability claims "
+            "agree with Product/Offer structured data before publishing."
+        ),
+        display_label="Visible product claims conflict with schema",
+    ),
     # --- v2 P2: crawl_finalize scope (weight 0; finalize-writer owned) ------
     SiteHealthRule(
         rule_id="technical.sitemap_orphan",
@@ -742,6 +759,7 @@ PERSISTED_RESPONSE_HEADERS: Final[frozenset[str]] = frozenset(
         "content-security-policy",
         "x-frame-options",
         "referrer-policy",
+        "x-robots-tag",
     }
 )
 

@@ -255,8 +255,9 @@ def _rich_html() -> bytes:
     """
     words = " ".join(f"word{i}" for i in range(140))
     return (
-        "<html><head>"
+        '<html lang="en"><head>'
         "<title>Rich Page - everything about Acme widgets</title>"
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
         '<meta name="description" content="A rich descriptive page about Acme '
         'widgets, their features, and pricing plans.">'
         '<link rel="canonical" href="https://example.com/rich">'

@@ -1,35 +1,13 @@
-"""Supplemental, config-owned page-analysis policy.
-
-The focused Site Health owners retain crawl/fetch policy and the base page
-taxonomy.  This small companion owns only the product-page fields and rules
-that can evolve independently of website acquisition. Analysis modules
-read these tables; they do not embed product-schema policy inline.
-"""
+"""Config-owned Product fact and schema policy used by the shared registry."""
 
 from __future__ import annotations
 
 from typing import Final
 
-from app.core.config.site_health_contracts import (
-    CATEGORY_CONTENT,
-    CATEGORY_STRUCTURED_DATA,
-    DIMENSION_AEO,
-    RULE_CATALOG_VERSION,
-    SEVERITY_HIGH,
-    SEVERITY_MEDIUM,
-)
-from app.core.config.site_health_rule_types import (
-    KIND_EVIDENCE_TRIGGERED,
-    SiteHealthRule,
-)
 from app.core.config.site_health_taxonomy import (
-    PAGE_KIND_APPLICABILITY_PREFIX,
-    PAGE_KIND_CONTENT_APPLICABILITY_PREFIX,
     PAGE_KIND_PRODUCT,
     PageKindSchemaExpectation,
 )
-
-PAGE_PROFILE_RULE_VERSION: Final = f"{RULE_CATALOG_VERSION}-product-1"
 
 # Product / Offer property paths retained by the bounded structured-data
 # extractor.  These are intentionally separate from the generic per-type
@@ -140,48 +118,6 @@ PRODUCT_PARITY_SCHEMA_FACT_KEYS: Final[dict[str, str]] = {
     "brand": "brand",
     "price": "price",
     "availability": "availability",
-}
-
-PRODUCT_ANALYSIS_RULES: Final[tuple[SiteHealthRule, ...]] = (
-    SiteHealthRule(
-        rule_id="aeo.product_offer_details",
-        kind_evidence=KIND_EVIDENCE_TRIGGERED,
-        rule_version=PAGE_PROFILE_RULE_VERSION,
-        dimension=DIMENSION_AEO,
-        category=CATEGORY_STRUCTURED_DATA,
-        severity=SEVERITY_MEDIUM,
-        weight=1.0,
-        applicability_key=f"{PAGE_KIND_APPLICABILITY_PREFIX}{PAGE_KIND_PRODUCT}",
-        description="Product pages expose complete Product/Offer facts.",
-        remediation=(
-            "Add Product and Offer properties for the identifiers, price, "
-            "currency, availability, variants, ratings, shipping, and returns "
-            "that this page makes available."
-        ),
-        display_label="Incomplete Product/Offer details",
-    ),
-    SiteHealthRule(
-        rule_id="aeo.product_visible_schema_parity",
-        kind_evidence=KIND_EVIDENCE_TRIGGERED,
-        rule_version=PAGE_PROFILE_RULE_VERSION,
-        dimension=DIMENSION_AEO,
-        category=CATEGORY_CONTENT,
-        severity=SEVERITY_HIGH,
-        weight=1.5,
-        applicability_key=(
-            f"{PAGE_KIND_CONTENT_APPLICABILITY_PREFIX}{PAGE_KIND_PRODUCT}"
-        ),
-        description="Visible product claims agree with Product/Offer schema.",
-        remediation=(
-            "Make visible product identity, price, and availability claims "
-            "agree with Product/Offer structured data before publishing."
-        ),
-        display_label="Visible product claims conflict with schema",
-    ),
-)
-
-PRODUCT_ANALYSIS_RULES_BY_ID: Final[dict[str, SiteHealthRule]] = {
-    rule.rule_id: rule for rule in PRODUCT_ANALYSIS_RULES
 }
 
 # Stable reason tokens stored in classifier evidence.  They are config-owned

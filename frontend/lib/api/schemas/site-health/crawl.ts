@@ -112,7 +112,7 @@ export const pageKindSchema = z.enum([
 ]);
 
 // One `score_summary.by_page_kind` bucket (site-health v2 P1): the analyzed
-// count + mean Technical/AEO/overall scores across the analyzed pages of one
+// count + pooled Technical Integrity and AEO measurement projections for one
 // page type. A mean is null when no analyzed page of the type produced that
 // score — never a fabricated zero.
 export const pageKindScoreSummarySchema = responseObject({

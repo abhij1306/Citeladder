@@ -44,10 +44,13 @@ from app.analysis.site_health.schema_rules import (
     check_schema_matches_content,
     check_schema_recommended_present,
     check_schema_required_valid,
+    schema_expectation_for,
 )
+from app.analysis.site_health.web_fundamentals import WEB_FUNDAMENTALS_CHECKS
 from app.core.config.site_health_acquisition import (
     AI_CRAWLER_BOTS,
     AI_CRAWLER_STANCE_BLOCK,
+    SEARCH_CITATION_CRAWLER_BOTS,
 )
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_ERROR,
@@ -58,16 +61,12 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_measurement import (
+    PAGE_KIND_READINESS_CHECKPOINTS,
     READINESS_CHECKPOINTS,
     SCORE_ROLE_AEO,
-    SCORE_ROLE_TECHNICAL,
+    TRAIT_READINESS_CHECKPOINTS,
     UNAVAILABLE_REASONS,
     UNKNOWN_REASONS,
-)
-from app.core.config.site_health_page_profiles import (
-    PRODUCT_ANALYSIS_RULES,
-    PRODUCT_ANALYSIS_RULES_BY_ID,
-    PRODUCT_SCHEMA_EXPECTATION,
 )
 from app.core.config.site_health_rule_types import (
     KIND_EVIDENCE_TRIGGERED,
@@ -451,6 +450,38 @@ def _check_llms_txt_present(facts: dict) -> tuple[str, dict]:
     }
 
 
+def _check_search_crawler_access(facts: dict) -> tuple[str, dict]:
+    robots = (facts.get("site") or {}).get("robots") or {}
+    stance = robots.get("ai_crawlers") or {}
+    if not robots.get("fetched"):
+        return RULE_OUTCOME_NOT_APPLICABLE, {
+            "reason": "robots_not_fetched",
+            "crawler_role": "search_citation",
+        }
+    blocked = [
+        bot
+        for bot in SEARCH_CITATION_CRAWLER_BOTS
+        if stance.get(bot) == AI_CRAWLER_STANCE_BLOCK
+    ]
+    return _pass_fail(not blocked), {
+        "crawler_role": "search_citation",
+        "checked": list(SEARCH_CITATION_CRAWLER_BOTS),
+        "blocked": blocked,
+    }
+
+
+def _check_snippet_access(facts: dict) -> tuple[str, dict]:
+    robots = facts.get("robots") or {}
+    nosnippet = bool(robots.get("nosnippet"))
+    max_snippet = robots.get("max_snippet")
+    blocked = nosnippet or max_snippet == 0
+    return _pass_fail(not blocked), {
+        "nosnippet": nosnippet,
+        "max_snippet": max_snippet,
+        "directives": list(robots.get("directives") or ())[:32],
+    }
+
+
 # --- v2 P2: citability checks -----------------------------------------------
 
 
@@ -581,7 +612,10 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "technical.ttfb_band": _check_ttfb_band,
     "technical.uncompressed_html": _check_uncompressed_html,
     "technical.render_blocking": _check_render_blocking,
+    **WEB_FUNDAMENTALS_CHECKS,
     "technical.ai_crawler_access": _check_ai_crawler_access,
+    "search.crawler_access": _check_search_crawler_access,
+    "search.snippet_access": _check_snippet_access,
     "aeo.structured_data_present": _check_structured_data_present,
     "aeo.open_graph_present": _check_open_graph_present,
     "aeo.llms_txt_present": _check_llms_txt_present,
@@ -636,23 +670,36 @@ def _normalized_outcome(
     return outcome, reason
 
 
-def _profile_membership(
-    rule: SiteHealthRule, facts: dict, outcome: str, reason: str
-) -> bool:
+def _triggered_evidence_present(rule: SiteHealthRule, facts: dict) -> bool:
+    if rule.rule_id.startswith("aeo.schema_"):
+        expectation = schema_expectation_for(facts)
+        found_types = set((facts.get("structured_data") or {}).get("types") or ())
+        return bool(found_types.intersection(expectation.expected_types))
+    if rule.rule_id.startswith("aeo.product_"):
+        return "Product" in set((facts.get("structured_data") or {}).get("types") or ())
+    return True
+
+
+def _profile_membership(rule: SiteHealthRule, facts: dict) -> bool:
+    """Freeze expected membership from facts before the evaluator outcome."""
     tier = str((facts.get("page_kind_evidence") or {}).get("tier") or "")
-    profile_member = outcome != RULE_OUTCOME_NOT_APPLICABLE
+    profile_member = True
     checkpoint = READINESS_CHECKPOINTS.get(rule.rule_id)
+    page_kind = str(facts.get("page_kind") or "other")
+    expected = set(PAGE_KIND_READINESS_CHECKPOINTS.get(page_kind, ()))
+    for trait in observed_traits(facts):
+        expected.update(TRAIT_READINESS_CHECKPOINTS.get(trait, ()))
+    if checkpoint is not None:
+        profile_member = rule.rule_id in expected
     if checkpoint is not None and rule.kind_evidence != KIND_EVIDENCE_TRIGGERED:
         profile_member = profile_member and tier in ("", "structural")
     if checkpoint is not None and rule.kind_evidence == KIND_EVIDENCE_TRIGGERED:
-        profile_member = profile_member and not reason.startswith("no_")
+        profile_member = profile_member and _triggered_evidence_present(rule, facts)
     return profile_member
 
 
 def _score_roles(rule: SiteHealthRule, profile_member: bool) -> tuple[str, ...]:
-    score_roles: list[str] = []
-    if rule.finding_class == "defect" and profile_member:
-        score_roles.append(SCORE_ROLE_TECHNICAL)
+    score_roles = list(rule.score_roles if profile_member else ())
     if rule.rule_id in READINESS_CHECKPOINTS and profile_member:
         score_roles.append(SCORE_ROLE_AEO)
     return tuple(score_roles)
@@ -662,7 +709,7 @@ def _measurement_metadata(
     rule: SiteHealthRule, facts: dict, outcome: str, reason: str
 ) -> dict[str, Any]:
     checkpoint = READINESS_CHECKPOINTS.get(rule.rule_id)
-    profile_member = _profile_membership(rule, facts, outcome, reason)
+    profile_member = _profile_membership(rule, facts)
     score_roles = _score_roles(rule, profile_member)
     return {
         "score_applicability": bool(score_roles),
@@ -740,17 +787,9 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
 
 def evaluate_all(facts: dict) -> list[RuleEvaluation]:
     """Evaluate every catalog rule against ``facts`` (catalog order)."""
-    supplemental = (
-        PRODUCT_ANALYSIS_RULES
-        if str(facts.get("page_kind") or "").lower()
-        == PRODUCT_SCHEMA_EXPECTATION.page_kind
-        else ()
-    )
-    return [evaluate_rule(rule, facts) for rule in (*SITE_HEALTH_RULES, *supplemental)]
+    return [evaluate_rule(rule, facts) for rule in SITE_HEALTH_RULES]
 
 
 def rule_for(rule_id: str) -> SiteHealthRule | None:
     """Convenience lookup of a catalog rule by id (or None)."""
-    return SITE_HEALTH_RULES_BY_ID.get(rule_id) or PRODUCT_ANALYSIS_RULES_BY_ID.get(
-        rule_id
-    )
+    return SITE_HEALTH_RULES_BY_ID.get(rule_id)

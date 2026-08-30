@@ -46,7 +46,7 @@ from .common import (
 class SitePageAnalysis(Base):
     """The single page-understanding owner (append-only; DTO ``PageUnderstanding``).
 
-    Carries the Technical/AEO/overall scores, the analysis status, the
+    Carries Technical Integrity and AEO score/coverage/state, the analysis status, the
     analyzer/scoring versions, the generic ``page_kind``, and the source
     evaluation/artifact ID arrays for full provenance.
 

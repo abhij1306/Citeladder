@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 
 import { mswServer } from '@/test/msw-server';
 import { renderWithProviders } from '@/test/render';
+import { EMPTY_WEB_FUNDAMENTALS } from '@/test/site-health-fixtures';
 import { ProjectProvider } from '@/lib/project/project-context';
 import { SiteHealthScreen } from './site-health-screen';
 import type { SiteHealthDashboard } from '@/lib/api/types';
@@ -172,7 +173,7 @@ function overview(crawlId = CRAWL) {
     status_counts: { audited: 1, blocked: 0, error: 0, pending: 0 },
     aeo_dimensions: [],
     top_issues: [],
-    web_fundamentals: { state: 'not_measured', field_data_available: false },
+    web_fundamentals: EMPTY_WEB_FUNDAMENTALS,
     trend: { state: 'not_measured', reason: 'no_comparable_snapshot' },
     change_summary: { state: 'not_measured', reason: 'no_comparable_snapshot' },
     limitations: [],

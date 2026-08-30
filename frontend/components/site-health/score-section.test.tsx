@@ -24,7 +24,7 @@ describe('ScoreSection', () => {
     expect(screen.getAllByText(/Excluded/).length).toBeGreaterThan(0);
   });
 
-  it('renders persisted scores when evidence is limited', () => {
+  it('hides readiness ratios but keeps evidence coverage visible when limited', () => {
     const dashboard = {
       score_summary: {
         technical_integrity_score: 73,
@@ -38,8 +38,9 @@ describe('ScoreSection', () => {
 
     render(<ScoreSection crawl={null} dashboard={dashboard} />);
 
-    expect(screen.getByText('73 / 100')).toBeInTheDocument();
-    expect(screen.getByText('61 / 100')).toBeInTheDocument();
+    expect(screen.queryByText('73 / 100')).not.toBeInTheDocument();
+    expect(screen.queryByText('61 / 100')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Limited evidence')).toHaveLength(4);
     expect(screen.getByText('70 / 100')).toBeInTheDocument();
   });
 });

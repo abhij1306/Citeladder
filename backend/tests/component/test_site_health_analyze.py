@@ -40,6 +40,7 @@ from app.core.config.site_health_contracts import (
 from app.core.config.site_health_crawl_policy import (
     SELECTION_SOURCE_FREE_SAMPLE,
 )
+from app.core.config.site_health_rules import SITE_HEALTH_RULES
 from app.core.config.site_health_taxonomy import (
     MIN_MEANINGFUL_WORDS,
 )
@@ -549,9 +550,10 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
             .select_from(SiteRuleEvaluation)
             .where(SiteRuleEvaluation.analysis_id == analysis.id)
         )
-        # 30 per-page evaluations + 2 terminalization evaluations + 6
-        # post-link-metric observed-architecture evaluations.
-        assert eval_count == 38
+        # Every canonical catalog entry has exactly one owning phase; the
+        # combined page/finalize/architecture writers therefore emit one row
+        # per rule without a parallel Product catalog.
+        assert eval_count == len(SITE_HEALTH_RULES)
 
         # A rich page passes every rule, so no issues are snapshotted.
         issue_count = await session.scalar(

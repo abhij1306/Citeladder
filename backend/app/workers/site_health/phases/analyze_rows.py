@@ -59,7 +59,8 @@ async def _write_page_analysis(
     ordinary ``SiteRuleEvaluation`` per rule/analysis scope, a
     ``SiteIssue`` snapshot per actionable failing outcome (unique
     ``evaluation_id``), and the
-    deterministic Technical/AEO/overall scores stamped with the versions.
+    deterministic Technical Integrity and AEO score/coverage/state projections
+    stamped with their versions.
     """
     site_url_id = await _resolve_analysis_site_url_id(
         ctx, session, crawl=crawl, task=task

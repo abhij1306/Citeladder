@@ -19,9 +19,6 @@ from app.core.config.site_health_crawl_policy import (
     MANUAL_PHASE_LIFECYCLE_KEY,
     URL_ADMISSION_POLICY_VERSION,
 )
-from app.core.config.site_health_page_profiles import (
-    PAGE_PROFILE_RULE_VERSION,
-)
 from app.core.config.site_health_runtime import site_health_settings
 
 
@@ -62,7 +59,7 @@ def frozen_configuration(
         "exclude_globs": exclude_globs,
         "url_admission_policy_version": URL_ADMISSION_POLICY_VERSION,
         "page_kind_classifier_version": CLASSIFIER_VERSION,
-        "page_profile_rule_version": PAGE_PROFILE_RULE_VERSION,
+        "page_profile_rule_version": RULE_CATALOG_VERSION,
         "input_mode": input_mode,
         "requested_page_limit": requested_page_limit,
         **manual_phase_configuration(manual_phase_lifecycle),

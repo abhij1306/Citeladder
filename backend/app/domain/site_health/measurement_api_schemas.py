@@ -111,11 +111,21 @@ class IndexEligibilityCheckpointResponse(_Model):
     source_evaluation_id: uuid.UUID | None
 
 
+class SearchPolicyEligibilityCheckpointResponse(_Model):
+    checkpoint_id: Literal["search.crawler_access", "search.snippet_access"]
+    outcome: str
+    reason: str
+    source_analysis_id: uuid.UUID | None
+    source_evaluation_id: uuid.UUID | None
+
+
 class EligibilityReasonResponse(_Model):
     site_url_id: uuid.UUID
     state: SearchEligibility
     checkpoints: list[
-        AcquisitionEligibilityCheckpointResponse | IndexEligibilityCheckpointResponse
+        AcquisitionEligibilityCheckpointResponse
+        | IndexEligibilityCheckpointResponse
+        | SearchPolicyEligibilityCheckpointResponse
     ]
 
 
@@ -151,9 +161,42 @@ class OverviewIssueResponse(_Model):
     impact_band: int
 
 
+class WebFundamentalsFindingResponse(_Model):
+    rule_id: str
+    title: str
+    remediation: str
+    affected_pages: int
+    source_evaluation_ids: list[uuid.UUID]
+
+
+class WebFundamentalsAreaResponse(_Model):
+    key: Literal["accessibility", "mobile", "security", "lab"]
+    state: MeasurementState
+    coverage: float | None
+    passed_count: int
+    missing_count: int
+    unknown_count: int
+    unavailable_count: int
+    unavailable_checks: list[str]
+    top_findings: list[WebFundamentalsFindingResponse]
+
+
+class WebFundamentalsFieldDataResponse(_Model):
+    state: Literal["unavailable"]
+    reason: str
+    lcp: float | None
+    inp: float | None
+    cls: float | None
+
+
 class WebFundamentalsResponse(_Model):
-    state: str
-    field_data_available: bool
+    state: MeasurementState
+    areas: list[WebFundamentalsAreaResponse]
+    field_data: WebFundamentalsFieldDataResponse
+    source_analysis_ids: list[uuid.UUID]
+    source_artifact_ids: list[uuid.UUID]
+    source_evaluation_ids: list[uuid.UUID]
+    limitations: list[str]
 
 
 class AvailabilityStateResponse(_Model):

@@ -103,11 +103,29 @@ LLMS_TXT_PATH: Final = "/llms.txt"
 
 SITEMAP_DEFAULT_PATHS: Final[tuple[str, ...]] = ("/sitemap.xml",)
 
-AI_CRAWLER_BOTS: Final[tuple[str, ...]] = (
+SEARCH_CITATION_CRAWLER_BOTS: Final[tuple[str, ...]] = (
+    "Googlebot",
+    "Bingbot",
+    "OAI-SearchBot",
+    "PerplexityBot",
+)
+TRAINING_CRAWLER_BOTS: Final[tuple[str, ...]] = (
     "GPTBot",
     "ClaudeBot",
-    "PerplexityBot",
     "Google-Extended",
+)
+USER_TRIGGERED_FETCHER_BOTS: Final[tuple[str, ...]] = (
+    "ChatGPT-User",
+    "Perplexity-User",
+)
+AI_CRAWLER_BOTS: Final[tuple[str, ...]] = tuple(
+    dict.fromkeys(
+        (
+            *SEARCH_CITATION_CRAWLER_BOTS,
+            *TRAINING_CRAWLER_BOTS,
+            *USER_TRIGGERED_FETCHER_BOTS,
+        )
+    )
 )
 
 AI_CRAWLER_STANCE_ALLOW: Final = "allow"

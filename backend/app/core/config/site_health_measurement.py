@@ -5,6 +5,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
+from app.core.config.site_health_taxonomy import (
+    PAGE_KIND_ARTICLE,
+    PAGE_KIND_CASE_STUDY_REVIEW,
+    PAGE_KIND_COMPARISON,
+    PAGE_KIND_DOCS,
+    PAGE_KIND_FAQ,
+    PAGE_KIND_GUIDE,
+    PAGE_KIND_HOMEPAGE,
+    PAGE_KIND_OTHER,
+    PAGE_KIND_PRODUCT,
+    PAGE_KINDS,
+)
+from app.core.config.site_health_traits import PAGE_TRAIT_HAS_FAQ
+
 PROFILE_VERSION: Final = "sh-profiles-1"
 SCHEMA_CONTRACT_VERSION: Final = "sh-schema-1"
 PRESENTATION_VERSION: Final = "sh-presentation-1"
@@ -69,7 +83,25 @@ READINESS_CHECKPOINTS: Final[dict[str, ReadinessCheckpoint]] = {
     "aeo.organization_identity": ReadinessCheckpoint(
         "provenance", "authority", 1.0, True
     ),
+    "aeo.date_present": ReadinessCheckpoint("currency", "freshness", 1.0, True),
+    "aeo.outbound_citations": ReadinessCheckpoint(
+        "source_support", "evidence", 1.0, True
+    ),
+    "aeo.server_rendered_content": ReadinessCheckpoint(
+        "primary_content", "machine-readability", 1.0
+    ),
+    "aeo.no_expand_gating": ReadinessCheckpoint(
+        "content_structure", "structure", 0.5, True
+    ),
+    "aeo.product_offer_details": ReadinessCheckpoint(
+        "commerce_facts", "machine-readability", 1.0, True
+    ),
+    "aeo.product_visible_schema_parity": ReadinessCheckpoint(
+        "schema_parity", "evidence", 1.0, True
+    ),
     "technical.indexable": ReadinessCheckpoint("indexability", "crawlability", 1.0),
+    "search.crawler_access": ReadinessCheckpoint("crawler_access", "crawlability", 1.0),
+    "search.snippet_access": ReadinessCheckpoint("snippet_access", "crawlability", 1.0),
 }
 
 # PR2 intentionally uses only the two determinate checks below. Crawler and
@@ -77,7 +109,64 @@ READINESS_CHECKPOINTS: Final[dict[str, ReadinessCheckpoint]] = {
 SEARCH_ELIGIBILITY_CRITICAL_CHECKPOINTS_1: Final[tuple[str, ...]] = (
     "acquisition.public_representation",
     "search.indexability",
+    "search.crawler_access",
+    "search.snippet_access",
 )
+
+WEB_FUNDAMENTALS_AREAS: Final[tuple[str, ...]] = (
+    "accessibility",
+    "mobile",
+    "security",
+    "lab",
+)
+
+_UNIVERSAL_READINESS: Final[tuple[str, ...]] = (
+    "technical.indexable",
+    "aeo.server_rendered_content",
+    "aeo.no_expand_gating",
+    "search.snippet_access",
+    "search.crawler_access",
+)
+_SCHEMA_READINESS: Final[tuple[str, ...]] = (
+    "aeo.schema_expected_for_type",
+    "aeo.schema_required_valid",
+    "aeo.schema_recommended_present",
+    "aeo.schema_matches_content",
+)
+_EDITORIAL_READINESS: Final[tuple[str, ...]] = (
+    "aeo.author_present",
+    "aeo.date_present",
+    "aeo.outbound_citations",
+)
+
+# The complete page-kind expectation authority. Services never manufacture a
+# second profile from evaluator outcomes; ``other`` deliberately stays on the
+# universal contract.
+PAGE_KIND_READINESS_CHECKPOINTS: Final[dict[str, tuple[str, ...]]] = {
+    kind: _UNIVERSAL_READINESS + (() if kind == PAGE_KIND_OTHER else _SCHEMA_READINESS)
+    for kind in PAGE_KINDS
+}
+PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_HOMEPAGE] += ("aeo.organization_identity",)
+for _editorial_kind in (
+    PAGE_KIND_ARTICLE,
+    PAGE_KIND_GUIDE,
+    PAGE_KIND_DOCS,
+    PAGE_KIND_COMPARISON,
+    PAGE_KIND_CASE_STUDY_REVIEW,
+):
+    PAGE_KIND_READINESS_CHECKPOINTS[_editorial_kind] += _EDITORIAL_READINESS
+PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_FAQ] += (
+    "aeo.answer_first",
+    "aeo.question_headings",
+)
+PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_PRODUCT] += (
+    "aeo.product_offer_details",
+    "aeo.product_visible_schema_parity",
+)
+
+TRAIT_READINESS_CHECKPOINTS: Final[dict[str, tuple[str, ...]]] = {
+    PAGE_TRAIT_HAS_FAQ: ("aeo.answer_first", "aeo.question_headings"),
+}
 
 STRUCTURAL_NA_REASONS: Final[frozenset[str]] = frozenset(
     {

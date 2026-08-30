@@ -251,7 +251,7 @@ function formatIndexability(value: boolean | null) {
 }
 
 function formatMeasurementScore(score: number | null, state: string): string {
-  if (score !== null && (state === 'measured' || state === 'limited_evidence')) {
+  if (score !== null && state === 'measured') {
     return formatScore(score);
   }
   return measurementStateLabel(state);

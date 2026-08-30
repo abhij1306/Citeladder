@@ -10,10 +10,10 @@ from typing import ClassVar
 import pytest
 from pydantic import ValidationError
 
+from app.core.config.site_health_contracts import RULE_CATALOG_VERSION
 from app.core.config.site_health_crawl_policy import (
     MANUAL_PHASE_LIFECYCLE_KEY,
 )
-from app.core.config.site_health_page_profiles import PAGE_PROFILE_RULE_VERSION
 from app.core.config.site_health_runtime import (
     SiteHealthSettings,
     site_health_settings,
@@ -239,7 +239,7 @@ def test_frozen_configuration_stamps_supplemental_page_profile_rule_version():
         runtime=Runtime(),
     )
 
-    assert configuration["page_profile_rule_version"] == PAGE_PROFILE_RULE_VERSION
+    assert configuration["page_profile_rule_version"] == RULE_CATALOG_VERSION
     assert MANUAL_PHASE_LIFECYCLE_KEY not in configuration
 
 

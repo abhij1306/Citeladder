@@ -141,9 +141,7 @@ def test_qualifying_faq_needs_breadth_and_coverage() -> None:
     assert scores.expected_checkpoint_profile
 
 
-def test_healthy_non_faq_stays_limited_and_unresolved_dimensions_lower_coverage() -> (
-    None
-):
+def test_healthy_non_faq_marks_deterministically_irrelevant_dimensions_na() -> None:
     scores = score_analysis(
         [
             _aeo(
@@ -170,10 +168,10 @@ def test_healthy_non_faq_stays_limited_and_unresolved_dimensions_lower_coverage(
     )
     assert scores.aeo_measurement_state == MEASUREMENT_STATE_LIMITED
     dimensions = {row.key: row for row in scores.readiness_dimensions}
-    assert dimensions["evidence"].applicability == "unresolved"
-    assert dimensions["freshness"].applicability == "unresolved"
-    assert dimensions["evidence"].coverage == 0.0
-    assert scores.aeo_measurement_coverage == 1.0
+    assert dimensions["evidence"].applicability == "not_applicable"
+    assert dimensions["freshness"].applicability == "not_applicable"
+    assert dimensions["evidence"].coverage is None
+    assert scores.aeo_measurement_coverage == 0.75
 
 
 def _aggregate_input(

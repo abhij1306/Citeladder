@@ -1,16 +1,17 @@
 # Site Health measurement cutover
 
-> **Status:** active approved implementation plan.
+> **Status:** implemented; retained as the cutover and acceptance record.
 >
 > **Scope:** three sequential pull requests. Start each PR only after the prior
 > PR merges, using a fresh implementation chat.
 
-**Next implementation slice:** PR3 after PR2 merges.
-
-**Implementation status:** PR1 and PR2 are implemented in the active runtime.
-PR2 shipped the atomic measurement/persistence/API cutover, Overview, final
-Pages metrics, improved AEO surface, Combined retirement, and typed Content
-handoff. PR3 remains blocked on the preceding merge by design.
+**Implementation status:** PR1, PR2, and PR3 are implemented in the active
+runtime. PR3 completed the single measurement registry, pre-outcome profiles,
+dimension applicability and coverage correction, four-check eligibility gate,
+HTTP-evidence Web Fundamentals projection/drawer, limited-score presentation,
+and Architecture-to-Pages drill-down. The disposable development database must
+be rebuilt and calibration crawls rerun whenever this version-`1` contract
+changes.
 
 [../site-health.md](../site-health.md) is the canonical authority for Site
 Health runtime behavior, measurement meaning, checkpoint applicability, score
@@ -177,7 +178,7 @@ defect-derived Opportunities while their finding class is advisory/diagnostic.
   Only assigned URLs collapse. Render the persisted observed hierarchy and its
   parent evidence beneath the ledger without inferring relationships in the
   browser. Persisted Internal linking and Structure depth summaries use the
-  supplied card layout, with detailed reports deferred to PR3.
+  supplied card layout; its detailed report actions were delivered in PR3.
 - **AEO Readiness:** retain the existing dimension ledger and evidence drawer,
   improve typography/spacing and show determinate, expected, N/A, error,
   coverage, and limitations accurately. PR1 does not introduce the final AEO
@@ -489,6 +490,10 @@ apply.
 
 ## PR3 — robust AEO pillars and page-kind coverage
 
+**Implementation status:** complete in the PR3 change set. Repository gates and
+the disposable-database bootstrap must pass before merge; calibration results
+remain observations, not score-distribution targets.
+
 PR3 keeps the PR2 formula, persistence interface, Overview hierarchy, AEO UI,
 and Content-handoff interface stable. It improves the facts and applicability
 behind them so coverage is robust across all 15 page kinds and relevant traits.
@@ -512,10 +517,10 @@ behind them so coverage is robust across all 15 page kinds and relevant traits.
 - **Crawlability:** split search/citation crawlers from training bots and add
   response/soft-error, snippet-control, crawlable-link/target, pagination,
   facet, canonical-cluster, hreflang, sitemap, and coverage-qualified orphan
-  evidence. Once `search.crawler_access` and `search.snippet_access` can each
-  produce determinate healthy and blocker states, add them to
-  `SEARCH_ELIGIBILITY_CRITICAL_CHECKPOINTS_1` and rebuild the disposable
-  database; the active identifier remains `1` under the reset policy.
+  evidence. `search.crawler_access` and `search.snippet_access` produce
+  determinate healthy/blocker states and belong to
+  `SEARCH_ELIGIBILITY_CRITICAL_CHECKPOINTS_1`; the active identifier remains
+  `1` under the reset policy.
 - Deepen all page-kind/trait profiles, including listing completeness,
   product/offer consistency, about/contact separation, local/service intent,
   procedural guides, comparisons, reviews/case studies, docs, FAQs, pricing,
@@ -540,3 +545,29 @@ known-analyzer-gap statement in
 [the canonical Site Health runtime](../site-health.md) that its new capability
 supersedes. The canonical document must describe the post-PR3 runtime rather
 than retain resolved limitations as active truth.
+
+### PR3 calibration record
+
+The bounded pre-cutover observations supplied on 2026-08-30 remain the
+comparison baseline; they are not target distributions:
+
+| Site | Analyzed | `other` | Technical score / coverage | AEO score / coverage |
+|---|---:|---:|---:|---:|
+| Bestandless | 200 | 28% | 93.7 / 100% | 77.4 / 37.4% |
+| Myntra | 185 | 95.1% | 99.2 / 100% | 48 / 53.3% |
+| Nykaa | 185 | 53% | 95.6 / 100% | 63.5 / 32.2% |
+
+All three recorded Web Fundamentals as `not_measured`; Evidence and Freshness
+were universally unmeasured, Structure had no determinate checkpoints, and
+sparse unresolved dimensions could still present a numeric AEO 100. Those are
+the defects this cutover removes. Crawl-limit and discovery-partial states stay
+evidence limitations.
+
+The local disposable database was reset from `0001_initial.py` after the PR3
+implementation and Alembic reported no ORM drift. The three original crawl
+rows and exact root URLs were no longer present before that reset (the database
+contained only Goodee and Hiut Denim), so no post-cutover values are recorded
+here by inference. Recalibration must rerun the exact three user-selected roots
+through **Run new crawl**, then append kind distribution, `other`/conflict
+rates, state/score/coverage by kind and dimension, leading unknown/unavailable
+causes, eligibility outcomes, and Web Fundamentals area coverage.

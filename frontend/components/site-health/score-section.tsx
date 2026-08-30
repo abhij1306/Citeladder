@@ -33,7 +33,7 @@ export function ScoreSection({
     summary?.aeo_measurement_coverage === null || summary?.aeo_measurement_coverage === undefined
       ? null
       : summary.aeo_measurement_coverage * 100;
-  const coverage = scoredValue(coverageValue, summary?.aeo_measurement_state);
+  const coverage = coverageValue;
 
   return (
     <div className="grid gap-4 sm:grid-cols-3" data-testid="score-section">
@@ -64,7 +64,7 @@ export function ScoreSection({
 
 function scoredValue(value: number | null | undefined, state: string | undefined): number | null {
   if (value === null || value === undefined) return null;
-  return state === 'measured' || state === 'limited_evidence' ? value : null;
+  return state === 'measured' ? value : null;
 }
 
 function measurementSub(state: string | undefined, coverage: number | null | undefined): string {

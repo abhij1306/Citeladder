@@ -1,0 +1,96 @@
+"""Rule definitions projected into HTTP-evidence Web Fundamentals areas."""
+
+from __future__ import annotations
+
+from typing import Final
+
+from app.core.config.site_health_contracts import (
+    CATEGORY_CONTENT,
+    CATEGORY_SECURITY,
+    DIMENSION_TECHNICAL,
+    RULE_CATALOG_VERSION,
+    SEVERITY_HIGH,
+    SEVERITY_MEDIUM,
+)
+from app.core.config.site_health_rule_types import SiteHealthRule
+
+WEB_FUNDAMENTALS_RULES: Final[tuple[SiteHealthRule, ...]] = (
+    SiteHealthRule(
+        rule_id="web.accessibility_image_alt",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_CONTENT,
+        severity=SEVERITY_MEDIUM,
+        weight=0.0,
+        applicability_key="has_html",
+        description="Informative images declare alternative text.",
+        remediation='Add alt text to informative images; use alt="" for decoration.',
+        display_label="Images missing alt attributes",
+        web_fundamentals_area="accessibility",
+    ),
+    SiteHealthRule(
+        rule_id="web.accessibility_form_names",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_CONTENT,
+        severity=SEVERITY_HIGH,
+        weight=0.0,
+        applicability_key="has_html",
+        description="Form controls have a deterministic accessible name.",
+        remediation="Associate each form control with a label or ARIA name.",
+        display_label="Form controls missing accessible names",
+        web_fundamentals_area="accessibility",
+    ),
+    SiteHealthRule(
+        rule_id="web.accessibility_heading_order",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_CONTENT,
+        severity=SEVERITY_MEDIUM,
+        weight=0.0,
+        applicability_key="has_html",
+        description="Heading levels form a coherent document outline.",
+        remediation="Do not skip heading levels when structuring page sections.",
+        display_label="Heading levels are skipped",
+        web_fundamentals_area="accessibility",
+    ),
+    SiteHealthRule(
+        rule_id="web.accessibility_document_language",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_CONTENT,
+        severity=SEVERITY_MEDIUM,
+        weight=0.0,
+        applicability_key="has_html",
+        description="The HTML document declares its language.",
+        remediation="Set a valid lang attribute on the html element.",
+        display_label="Document language missing",
+        web_fundamentals_area="accessibility",
+    ),
+    SiteHealthRule(
+        rule_id="web.mobile_viewport",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_CONTENT,
+        severity=SEVERITY_HIGH,
+        weight=0.0,
+        applicability_key="has_html",
+        description="The document declares a mobile viewport.",
+        remediation="Add a responsive viewport meta declaration.",
+        display_label="Mobile viewport missing",
+        web_fundamentals_area="mobile",
+    ),
+    SiteHealthRule(
+        rule_id="web.security_mixed_content",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_SECURITY,
+        severity=SEVERITY_HIGH,
+        weight=0.0,
+        applicability_key="has_html",
+        description="HTTPS pages do not reference absolute HTTP assets.",
+        remediation="Serve every page asset over HTTPS.",
+        display_label="Mixed-content assets found",
+        web_fundamentals_area="security",
+    ),
+)

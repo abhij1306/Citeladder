@@ -35,7 +35,9 @@ class SiteHealthRule:
         "remediation",
         "rule_id",
         "rule_version",
+        "score_roles",
         "severity",
+        "web_fundamentals_area",
         "weight",
     )
 
@@ -55,6 +57,8 @@ class SiteHealthRule:
         display_label_variants: dict[str, str] | None = None,
         finding_class: str = FINDING_CLASS_DEFECT,
         kind_evidence: str = KIND_EVIDENCE_EXPECTATION,
+        score_roles: tuple[str, ...] = (),
+        web_fundamentals_area: str = "",
     ) -> None:
         if finding_class not in FINDING_CLASSES:
             raise ValueError(f"Unsupported finding class: {finding_class}")
@@ -67,6 +71,8 @@ class SiteHealthRule:
         self.severity = severity
         self.finding_class = finding_class
         self.kind_evidence = kind_evidence
+        self.score_roles = tuple(score_roles)
+        self.web_fundamentals_area = web_fundamentals_area
         self.weight = weight
         self.applicability_key = applicability_key
         self.description = description

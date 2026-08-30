@@ -51,7 +51,7 @@ describe('PagesTable', () => {
     expect(screen.getByText('64')).toBeInTheDocument();
   });
 
-  it('renders limited scores and labels excluded measurements', () => {
+  it('hides limited ratios and labels excluded measurements', () => {
     render(
       <PagesTable
         crawlId={CRAWL}
@@ -66,7 +66,7 @@ describe('PagesTable', () => {
         ]}
       />,
     );
-    expect(screen.getByText('46')).toBeInTheDocument();
+    expect(screen.getByText('Limited evidence')).toBeInTheDocument();
     expect(screen.getAllByText('Excluded')).toHaveLength(2);
   });
 

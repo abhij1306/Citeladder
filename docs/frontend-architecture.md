@@ -118,6 +118,10 @@ Website uses one tablist on `/site`: **Overview**, **Pages**, **Architecture**,
 and reads the cohesive persisted snapshot projection: Search eligibility,
 Technical Integrity, qualified AEO Readiness, AEO Measurement Coverage, Crawl
 Coverage, seven pillars, top issues, Web Fundamentals, trend, and changes.
+Web Fundamentals opens an Overview drawer over the persisted Accessibility,
+Mobile, Security, and Lab areas; the client does not synthesize browser or
+field-performance evidence. Limited-evidence readiness ratios render as
+**Limited evidence**, while measurement coverage remains visible.
 **Pages** retains the crawl lifecycle and final per-URL metric surface.
 **AEO Readiness** renders the server's seven ordered dimensions, explicit
 applicability/state, uncertainty counts, catalog guidance, and bounded page

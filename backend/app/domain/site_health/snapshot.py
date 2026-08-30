@@ -52,9 +52,13 @@ from app.core.config.site_health_measurement import (
     PRESENTATION_VERSION,
     PROFILE_VERSION,
     SCHEMA_CONTRACT_VERSION,
+    SEARCH_ELIGIBILITY_CRITICAL_CHECKPOINTS_1,
 )
 from app.core.config.task_queue import TASK_STATUS_FAILED
 from app.domain.site_health.coverage import crawl_coverage
+from app.domain.site_health.web_fundamentals_projection import (
+    web_fundamentals_projection,
+)
 from app.models.site_health.acquisition import SiteFetchAttempt
 from app.models.site_health.analysis import (
     SiteIssue,
@@ -112,11 +116,25 @@ def _representation(task: SiteCrawlTask | None) -> tuple[str, str]:
 def _eligibility_state(
     representation: str,
     indexing: str,
+    crawler_access: str,
+    snippet_access: str,
     task: SiteCrawlTask | None,
 ) -> tuple[str, str]:
-    if representation == "missing" or indexing == RULE_OUTCOME_FAIL:
+    outcomes = {
+        "acquisition.public_representation": representation,
+        "search.indexability": indexing,
+        "search.crawler_access": crawler_access,
+        "search.snippet_access": snippet_access,
+    }
+    critical = {
+        checkpoint_id: outcomes.get(checkpoint_id, "unknown")
+        for checkpoint_id in SEARCH_ELIGIBILITY_CRITICAL_CHECKPOINTS_1
+    }
+    if any(outcome in ("missing", RULE_OUTCOME_FAIL) for outcome in critical.values()):
         return "blocked", "blocked"
-    if representation == "satisfied" and indexing == RULE_OUTCOME_PASS:
+    if all(
+        outcome in ("satisfied", RULE_OUTCOME_PASS) for outcome in critical.values()
+    ):
         return "eligible", "audited"
     if (
         task is not None
@@ -136,36 +154,54 @@ def _eligibility_reason(
     representation: str,
     representation_reason: str,
     indexing: str,
+    crawler_access: SiteRuleEvaluation | None,
+    snippet_access: SiteRuleEvaluation | None,
     task: SiteCrawlTask | None,
     attempt: SiteFetchAttempt | None,
     evaluation: SiteRuleEvaluation | None,
 ) -> dict:
+    representation_checkpoint = {
+        "checkpoint_id": "acquisition.public_representation",
+        "outcome": representation,
+        "reason": representation_reason,
+        "source_task_id": str(task.id) if task else None,
+        "source_attempt_id": str(attempt.id) if attempt else None,
+        "source_artifact_id": (
+            str(task.result_artifact_id) if task and task.result_artifact_id else None
+        ),
+    }
     return {
         "site_url_id": str(site_url_id),
         "state": state,
         "checkpoints": [
-            {
-                "checkpoint_id": "acquisition.public_representation",
-                "outcome": representation,
-                "reason": representation_reason,
-                "source_task_id": str(task.id) if task else None,
-                "source_attempt_id": str(attempt.id) if attempt else None,
-                "source_artifact_id": (
-                    str(task.result_artifact_id)
-                    if task and task.result_artifact_id
-                    else None
-                ),
-            },
-            {
-                "checkpoint_id": "search.indexability",
-                "outcome": indexing,
-                "reason": evaluation.reason_code if evaluation else "analysis_missing",
-                "source_analysis_id": (
-                    str(evaluation.analysis_id) if evaluation else None
-                ),
-                "source_evaluation_id": str(evaluation.id) if evaluation else None,
-            },
+            representation_checkpoint,
+            _evaluation_checkpoint("search.crawler_access", crawler_access),
+            _evaluation_checkpoint("search.snippet_access", snippet_access),
+            _evaluation_checkpoint("search.indexability", evaluation, outcome=indexing),
         ],
+    }
+
+
+def _evaluation_checkpoint(
+    checkpoint_id: str,
+    evaluation: SiteRuleEvaluation | None,
+    *,
+    outcome: str | None = None,
+) -> dict:
+    if evaluation is None:
+        return {
+            "checkpoint_id": checkpoint_id,
+            "outcome": outcome or "unknown",
+            "reason": "analysis_missing",
+            "source_analysis_id": None,
+            "source_evaluation_id": None,
+        }
+    return {
+        "checkpoint_id": checkpoint_id,
+        "outcome": outcome or evaluation.outcome,
+        "reason": evaluation.reason_code,
+        "source_analysis_id": str(evaluation.analysis_id),
+        "source_evaluation_id": str(evaluation.id),
     }
 
 
@@ -175,6 +211,8 @@ def _eligibility_rollup(
     tasks: dict[uuid.UUID, SiteCrawlTask],
     attempts: dict[uuid.UUID, SiteFetchAttempt],
     indexability: dict[uuid.UUID, SiteRuleEvaluation],
+    crawler_access: SiteRuleEvaluation | None,
+    snippet_access: dict[uuid.UUID, SiteRuleEvaluation],
 ) -> tuple[dict[str, int], list[dict], dict[str, int]]:
     totals = {"eligible": 0, "blocked": 0, "unknown": 0, "excluded": 0}
     reasons: list[dict] = []
@@ -189,9 +227,16 @@ def _eligibility_rollup(
         task = tasks.get(site_url_id)
         attempt = attempts.get(task.id) if task else None
         evaluation = indexability.get(site_url_id)
+        snippet_evaluation = snippet_access.get(site_url_id)
         representation, representation_reason = _representation(task)
         indexing = evaluation.outcome if evaluation else "unknown"
-        state, status = _eligibility_state(representation, indexing, task)
+        crawler_outcome = crawler_access.outcome if crawler_access else "unknown"
+        snippet_outcome = (
+            snippet_evaluation.outcome if snippet_evaluation else "unknown"
+        )
+        state, status = _eligibility_state(
+            representation, indexing, crawler_outcome, snippet_outcome, task
+        )
         totals[state] += 1
         statuses[status] += 1
         if state != "eligible":
@@ -202,6 +247,8 @@ def _eligibility_rollup(
                     representation=representation,
                     representation_reason=representation_reason,
                     indexing=indexing,
+                    crawler_access=crawler_access,
+                    snippet_access=snippet_evaluation,
                     task=task,
                     attempt=attempt,
                     evaluation=evaluation,
@@ -282,19 +329,34 @@ async def _eligibility_projection(
                 )
                 .where(
                     SitePageAnalysis.id.in_(analysis_ids),
-                    SiteRuleEvaluation.rule_id == "technical.indexable",
+                    SiteRuleEvaluation.rule_id.in_(
+                        (
+                            "technical.indexable",
+                            "search.crawler_access",
+                            "search.snippet_access",
+                        )
+                    ),
                 )
                 .order_by(SitePageAnalysis.site_url_id, SiteRuleEvaluation.id)
             )
         ).all()
     indexability: dict[uuid.UUID, SiteRuleEvaluation] = {}
+    snippet_access: dict[uuid.UUID, SiteRuleEvaluation] = {}
+    crawler_access: SiteRuleEvaluation | None = None
     for site_url_id, evaluation in evaluation_rows:
-        indexability[site_url_id] = evaluation
+        if evaluation.rule_id == "technical.indexable":
+            indexability[site_url_id] = evaluation
+        elif evaluation.rule_id == "search.snippet_access":
+            snippet_access[site_url_id] = evaluation
+        elif evaluation.rule_id == "search.crawler_access":
+            crawler_access = evaluation
     totals, reasons, status_counts = _eligibility_rollup(
         selected_ids,
         tasks=latest_tasks,
         attempts=latest_attempts,
         indexability=indexability,
+        crawler_access=crawler_access,
+        snippet_access=snippet_access,
     )
     gate = _eligibility_gate(totals)
     attempt_ids = sorted((attempt.id for attempt in latest_attempts.values()), key=str)
@@ -571,6 +633,12 @@ async def persist_crawl_snapshot(
         selected_ids=selected_ids,
         analysis_ids=analysis_ids,
     )
+    web_fundamentals = await web_fundamentals_projection(
+        session,
+        workspace_id=crawl.workspace_id,
+        analysis_ids=analysis_ids,
+        artifact_ids=artifact_ids,
+    )
 
     # One immutable snapshot per crawl. ``ON CONFLICT DO NOTHING`` makes this
     # safe if the worker and a cancel both reach terminalization (the earliest
@@ -596,7 +664,7 @@ async def persist_crawl_snapshot(
             eligibility_reasons=eligibility_reasons,
             status_counts=status_counts,
             top_issues=top_issues,
-            web_fundamentals={"state": "not_measured", "field_data_available": False},
+            web_fundamentals=web_fundamentals,
             trend={"state": "unavailable", "reason": "no_comparable_snapshot"},
             change_summary={"state": "unavailable", "reason": "no_comparable_snapshot"},
             issue_count=issue_total,

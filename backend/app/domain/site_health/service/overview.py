@@ -82,7 +82,21 @@ async def get_overview(
         "top_issues": _stored(snapshot.top_issues, []),
         "web_fundamentals": _stored(
             snapshot.web_fundamentals,
-            {"state": "not_measured", "field_data_available": False},
+            {
+                "state": "not_measured",
+                "areas": [],
+                "field_data": {
+                    "state": "unavailable",
+                    "reason": "provider_not_configured",
+                    "lcp": None,
+                    "inp": None,
+                    "cls": None,
+                },
+                "source_analysis_ids": [],
+                "source_artifact_ids": [],
+                "source_evaluation_ids": [],
+                "limitations": [],
+            },
         ),
         "trend": _stored(
             snapshot.trend,

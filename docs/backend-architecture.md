@@ -335,12 +335,16 @@ requested, with the sort inside the cursor fingerprint so a cursor cannot be
 replayed under a different ordering. An unmeasured page reports `null`, never
 `0`.
 
-The PR2 measurement owner freezes expected profiles before outcomes, persists
+The Site Health measurement owner freezes config-declared page-kind and trait
+profiles before outcomes, persists
 Technical Integrity and AEO Readiness score/coverage/state independently, and
 pools earned, determinate, and expected evidence by dimension before applying
 the seven configured dimension weights once. Snapshot finalization also freezes
-the two-checkpoint Search eligibility gate with exact task, attempt, artifact,
-analysis, and evaluation sources. `SiteCrawl.score_summary` is only a serializer
+the config-driven representation, indexability, search/citation-crawler, and
+snippet-access eligibility gate with exact task, attempt, artifact, analysis,
+and evaluation sources. It persists a non-numeric HTTP-evidence Web
+Fundamentals projection with the same provenance. `SiteCrawl.score_summary` is
+only a serializer
 projection of that snapshot; no Combined formula or compatibility scorer exists.
 
 Overview and AEO Readiness are separate read-only projections over the persisted

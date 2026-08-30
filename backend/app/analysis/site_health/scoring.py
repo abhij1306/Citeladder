@@ -26,22 +26,17 @@ from app.core.config.site_health_measurement import (
     MEASUREMENT_STATE_LIMITED,
     MEASUREMENT_STATE_MEASURED,
     MEASUREMENT_STATE_NOT_MEASURED,
+    PAGE_KIND_READINESS_CHECKPOINTS,
+    READINESS_CHECKPOINTS,
     READINESS_DIMENSION_WEIGHTS,
     SCORE_ROLE_AEO,
     SCORE_ROLE_TECHNICAL,
     TECHNICAL_MEASURED_MIN_COVERAGE,
 )
-from app.core.config.site_health_taxonomy import (
-    PAGE_KIND_ARTICLE,
-    PAGE_KIND_COMPARISON,
-    PAGE_KIND_FAQ,
-    PAGE_KIND_GUIDE,
-    PAGE_KIND_HOMEPAGE,
-    PAGE_KIND_OTHER,
-)
+from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER
+from app.core.config.site_health_traits import PAGE_TRAIT_HAS_FAQ
 
 _DETERMINATE = frozenset({RULE_OUTCOME_PASS, RULE_OUTCOME_PARTIAL, RULE_OUTCOME_FAIL})
-_EDITORIAL_KINDS = frozenset({PAGE_KIND_ARTICLE, PAGE_KIND_GUIDE, PAGE_KIND_COMPARISON})
 
 
 @dataclass(frozen=True)
@@ -184,39 +179,30 @@ def _technical_measurement(
 def _dimension_applicability(
     key: str, *, page_kind: str, page_traits: frozenset[str], structural: bool
 ) -> tuple[str, str]:
-    if key in {"evidence", "freshness"}:
-        return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
-    if key in {"answerability", "structure"}:
-        return _answer_structure_applicability(page_kind, page_traits, structural)
-    if key == "machine-readability":
-        return _machine_applicability(page_kind, structural)
-    if key == "authority":
-        return _authority_applicability(page_kind, structural)
-    return DIMENSION_APPLICABLE, ""
-
-
-def _answer_structure_applicability(
-    page_kind: str, page_traits: frozenset[str], structural: bool
-) -> tuple[str, str]:
-    if not structural:
-        return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
-    if page_kind == PAGE_KIND_FAQ or "has_faq" in page_traits:
+    expected_ids = set(PAGE_KIND_READINESS_CHECKPOINTS.get(page_kind, ()))
+    if PAGE_TRAIT_HAS_FAQ in page_traits:
+        expected_ids.update(("aeo.answer_first", "aeo.question_headings"))
+    dimension_expected = any(
+        READINESS_CHECKPOINTS[checkpoint_id].dimension == key
+        for checkpoint_id in expected_ids
+    )
+    if structural:
+        return (
+            (DIMENSION_APPLICABLE, "")
+            if dimension_expected
+            else (
+                DIMENSION_NOT_APPLICABLE,
+                "dimension_determinately_irrelevant",
+            )
+        )
+    universal_ids = PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_OTHER]
+    universal_dimension = any(
+        READINESS_CHECKPOINTS[checkpoint_id].dimension == key
+        for checkpoint_id in universal_ids
+    )
+    if universal_dimension:
         return DIMENSION_APPLICABLE, ""
-    return DIMENSION_NOT_APPLICABLE, "dimension_determinately_irrelevant"
-
-
-def _machine_applicability(page_kind: str, structural: bool) -> tuple[str, str]:
-    if structural and page_kind != PAGE_KIND_OTHER:
-        return DIMENSION_APPLICABLE, ""
-    return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
-
-
-def _authority_applicability(page_kind: str, structural: bool) -> tuple[str, str]:
-    if not structural:
-        return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
-    if page_kind in _EDITORIAL_KINDS or page_kind == PAGE_KIND_HOMEPAGE:
-        return DIMENSION_APPLICABLE, ""
-    if page_kind == PAGE_KIND_FAQ:
+    if dimension_expected and page_kind != PAGE_KIND_OTHER:
         return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
     return DIMENSION_NOT_APPLICABLE, "dimension_determinately_irrelevant"
 
@@ -366,12 +352,12 @@ def _aeo_state(
 
 def _overall_aeo(
     dimensions: tuple[DimensionMeasurement, ...],
+    *,
+    allow_measured: bool = True,
 ) -> tuple[float | None, float | None, str]:
     scored = [row for row in dimensions if row.score is not None]
     covered = [
-        row
-        for row in dimensions
-        if row.applicability != DIMENSION_NOT_APPLICABLE and row.expected_points > 0
+        row for row in dimensions if row.applicability != DIMENSION_NOT_APPLICABLE
     ]
     score = _weighted_dimension_average(scored, "score", score=True)
     coverage = _weighted_dimension_average(covered, "coverage", score=False)
@@ -382,6 +368,8 @@ def _overall_aeo(
         families=families,
         measured_dimensions=measured_dimensions,
     )
+    if state == MEASUREMENT_STATE_MEASURED and not allow_measured:
+        state = MEASUREMENT_STATE_LIMITED
     return score, coverage, state
 
 
@@ -413,7 +401,9 @@ def score_analysis(
         )
         for key in AEO_READINESS_DIMENSIONS
     )
-    aeo_score, aeo_coverage, aeo_state = _overall_aeo(dimensions)
+    aeo_score, aeo_coverage, aeo_state = _overall_aeo(
+        dimensions, allow_measured=page_kind != PAGE_KIND_OTHER
+    )
     profile = tuple(
         {
             "checkpoint_id": row.rule_id,
@@ -585,7 +575,10 @@ def aggregate_measurements(
         _aggregate_dimension(key, rows) for key in AEO_READINESS_DIMENSIONS
     )
     technical_score, technical_coverage, technical_state = _aggregate_technical(rows)
-    aeo_score, aeo_coverage, aeo_state = _overall_aeo(dimensions)
+    aeo_score, aeo_coverage, aeo_state = _overall_aeo(
+        dimensions,
+        allow_measured=any(row.page_kind != PAGE_KIND_OTHER for row in rows),
+    )
     return AggregateMeasurements(
         technical_integrity_score=technical_score,
         technical_integrity_coverage=technical_coverage,

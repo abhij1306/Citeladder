@@ -1,9 +1,11 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -12,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Drawer } from '@/components/ui/drawer';
 import {
   Table,
   TableBody,
@@ -29,9 +32,8 @@ function percent(value: number | null): string {
 }
 
 function headline(score: number | null, state: string): string {
-  if ((state === 'measured' || state === 'limited_evidence') && score !== null)
-    return `${Math.round(score)}`;
   if (state === 'limited_evidence') return 'Limited evidence';
+  if (state === 'measured' && score !== null) return `${Math.round(score)}`;
   if (state === 'excluded') return 'Excluded';
   return 'Not measured';
 }
@@ -52,6 +54,7 @@ export function OverviewPanel({
 
 function OverviewContent({ data }: Readonly<{ data: SiteHealthOverview }>) {
   const eligibilityTone = searchEligibilityTone(data.search_eligibility);
+  const [webFundamentalsOpen, setWebFundamentalsOpen] = useState(false);
   return (
     <div className="grid min-w-0 gap-4" data-testid="site-health-overview">
       <Alert tone={eligibilityTone}>
@@ -86,11 +89,97 @@ function OverviewContent({ data }: Readonly<{ data: SiteHealthOverview }>) {
         <TopIssues issues={data.top_issues} />
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        <StateCard title="Web Fundamentals" value={data.web_fundamentals.state} />
+        <WebFundamentalsCard
+          data={data.web_fundamentals}
+          onOpen={() => setWebFundamentalsOpen(true)}
+        />
         <StateCard title="Trend" value={data.trend.state} />
         <StateCard title="Changes" value={data.change_summary.state} />
       </div>
+      <WebFundamentalsDrawer
+        data={data.web_fundamentals}
+        open={webFundamentalsOpen}
+        onOpenChange={setWebFundamentalsOpen}
+      />
     </div>
+  );
+}
+
+function WebFundamentalsCard({
+  data,
+  onOpen,
+}: Readonly<{ data: SiteHealthOverview['web_fundamentals']; onOpen: () => void }>) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardEyebrow>Web Fundamentals</CardEyebrow>
+        <CardTitle className="text-lg">{data.state}</CardTitle>
+        <CardDescription>Persisted HTTP evidence across four areas.</CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <Button variant="secondary" size="sm" onClick={onOpen}>
+          View evidence
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WebFundamentalsDrawer({
+  data,
+  open,
+  onOpenChange,
+}: Readonly<{
+  data: SiteHealthOverview['web_fundamentals'];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}>) {
+  return (
+    <Drawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Web Fundamentals"
+      description="Static evidence from the acquired HTML and response headers."
+    >
+      <div className="grid gap-4">
+        {data.areas.map((area) => (
+          <Card key={area.key}>
+            <CardHeader bordered>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="capitalize">{area.key}</CardTitle>
+                <Badge variant="status" value="info">
+                  {area.state}
+                </Badge>
+              </div>
+              <CardDescription>
+                {percent(area.coverage)} evidence coverage · {area.passed_count} passed ·{' '}
+                {area.missing_count} missing · {area.unavailable_count} unavailable
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              {area.top_findings.length === 0 ? (
+                <p className="text-secondary text-sm">No missing HTTP-evidence checks.</p>
+              ) : (
+                area.top_findings.map((finding) => (
+                  <div key={finding.rule_id} className="grid gap-1">
+                    <span className="text-foreground text-sm font-medium">{finding.title}</span>
+                    <span className="text-muted text-xs">
+                      {finding.affected_pages} affected pages · {finding.remediation}
+                    </span>
+                  </div>
+                ))
+              )}
+              {area.unavailable_checks.length > 0 ? (
+                <p className="text-muted text-xs">
+                  Unavailable without browser evidence: {area.unavailable_checks.join(', ')}.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+        ))}
+        <Alert tone="info">{data.limitations.join(' ')}</Alert>
+      </div>
+    </Drawer>
   );
 }
 

@@ -68,26 +68,23 @@ export function UrlDetailView({
         <ScoreTile
           label="Technical Integrity"
           value={
-            detail.technical_integrity_state === 'measured' ||
-            detail.technical_integrity_state === 'limited_evidence'
+            detail.technical_integrity_state === 'measured'
               ? detail.technical_integrity_score
               : null
           }
+          state={detail.technical_integrity_state}
         />
         <ScoreTile
           label="AEO Readiness"
-          value={
-            detail.aeo_measurement_state === 'measured' ||
-            detail.aeo_measurement_state === 'limited_evidence'
-              ? detail.aeo_readiness_score
-              : null
-          }
+          value={detail.aeo_measurement_state === 'measured' ? detail.aeo_readiness_score : null}
+          state={detail.aeo_measurement_state}
         />
         <ScoreTile
           label="AEO Measurement Coverage"
           value={
             detail.aeo_measurement_coverage === null ? null : detail.aeo_measurement_coverage * 100
           }
+          state="measured"
         />
       </div>
       <DeliveryMetrics delivery={detail.delivery} />
@@ -355,13 +352,17 @@ function EvidenceSignals({ evidence }: Readonly<{ evidence: PageKindEvidenceView
   );
 }
 
-function ScoreTile({ label, value }: Readonly<{ label: string; value: number | null }>) {
+function ScoreTile({
+  label,
+  value,
+  state,
+}: Readonly<{ label: string; value: number | null; state: string }>) {
   return (
     <Card>
       <CardContent className="flex flex-col items-center gap-2 py-[var(--card-padding)]">
         {value === null ? (
           <div className="mono border-border-subtle text-muted flex size-16 items-center justify-center rounded-full border text-base">
-            {PLACEHOLDER}
+            {state === 'limited_evidence' ? 'Limited' : PLACEHOLDER}
           </div>
         ) : (
           <ScoreRing value={value} size={64} label={`${label}: ${Math.round(value)}`} />

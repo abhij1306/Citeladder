@@ -21,6 +21,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 from lxml import etree
 from lxml import html as lxml_html
 
+from app.analysis.site_health.accessibility_facts import extract_accessibility_facts
 from app.analysis.site_health.commerce_facts import extract_commerce_facts
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
 from app.analysis.site_health.dom import node_text as _text
@@ -39,6 +40,10 @@ from app.analysis.site_health.fact_signals import (
     outbound_domains,
 )
 from app.analysis.site_health.page_kinds import is_question_heading
+from app.analysis.site_health.robots_directives import (
+    extract_robots_directives,
+    merge_x_robots_tag,
+)
 from app.analysis.site_health.structured_data import (
     parse_jsonld_blocks,
     product_facts,
@@ -109,36 +114,6 @@ def _safe_parser_encoding(charset: str) -> str | None:
     except LookupError:
         return None
     return normalized.lower()
-
-
-def _parse_robots_directives(root: Any) -> dict[str, bool]:
-    """Extract robots meta directives (noindex / nofollow) from the head.
-
-    Reads every ``<meta name="robots">`` (and the ``googlebot`` variant),
-    splitting on commas. Deterministic + case-insensitive.
-    """
-    noindex = False
-    nofollow = False
-    try:
-        nodes = root.xpath(
-            "//meta[translate(@name,"
-            "'ABCDEFGHIJKLMNOPQRSTUVWXYZ',"
-            "'abcdefghijklmnopqrstuvwxyz')='robots' or "
-            "translate(@name,"
-            "'ABCDEFGHIJKLMNOPQRSTUVWXYZ',"
-            "'abcdefghijklmnopqrstuvwxyz')='googlebot']"
-        )
-    except DOM_ERRORS as exc:
-        dom_failure("_parse_robots_directives", exc)
-        nodes = []
-    for node in nodes:
-        content = (node.get("content") or "").lower()
-        tokens = {tok.strip() for tok in content.split(",")}
-        if "noindex" in tokens or "none" in tokens:
-            noindex = True
-        if "nofollow" in tokens or "none" in tokens:
-            nofollow = True
-    return {"noindex": noindex, "nofollow": nofollow}
 
 
 def _meta_content(root: Any, *, name: str) -> str:
@@ -300,7 +275,7 @@ def _link_context(anchors: list[dict]) -> list[str]:
 
 
 def _images(root: Any) -> dict[str, int]:
-    """Count images and how many are missing a non-empty alt attribute."""
+    """Distinguish absent alt text from an explicit decorative empty alt."""
     try:
         nodes = root.xpath("//img")
     except DOM_ERRORS as exc:
@@ -308,11 +283,23 @@ def _images(root: Any) -> dict[str, int]:
         nodes = []
     total = len(nodes)
     missing_alt = 0
+    decorative_alt = 0
     for node in nodes:
         alt = node.get("alt")
-        if alt is None or not str(alt).strip():
+        if alt is None:
             missing_alt += 1
-    return {"count": total, "missing_alt": missing_alt}
+        elif not str(alt).strip():
+            decorative_alt += 1
+    return {
+        "count": total,
+        "missing_alt": missing_alt,
+        "decorative_alt": decorative_alt,
+    }
+
+
+def _viewport_facts(root: Any) -> dict[str, Any]:
+    content = _meta_content(root, name="viewport")
+    return {"declared": bool(content), "content": content}
 
 
 def _body_text(root: Any, *, max_chars: int) -> dict[str, Any]:
@@ -551,7 +538,15 @@ def _empty_facts() -> dict[str, Any]:
             "h2_texts": [],
             "h3_texts": [],
         },
-        "images": {"count": 0, "missing_alt": 0},
+        "images": {"count": 0, "missing_alt": 0, "decorative_alt": 0},
+        "accessibility": {
+            "control_count": 0,
+            "controls_missing_accessible_name": 0,
+            "heading_levels": [],
+            "heading_level_skips": 0,
+            "document_language": "",
+        },
+        "mobile": {"viewport": {"declared": False, "content": ""}},
         "body": {"text": "", "word_count": 0},
         # Industry-role classifier facts (see the extractors above).
         "cta_text": [],
@@ -633,13 +628,17 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
     except DOM_ERRORS as exc:
         dom_failure("_extract_document", exc)
     facts["meta_description"] = _meta_content(root, name="description")
-    facts["robots"] = _parse_robots_directives(root)
+    facts["robots"] = extract_robots_directives(root)
     facts["canonical_url"] = _canonical_href(root)
     facts["open_graph"] = _meta_property_map(root, prefix="og:")
     facts["twitter"] = _meta_property_map(root, prefix="twitter:")
     article_meta = _meta_property_map(root, prefix="article:")
     facts["headings"] = _headings(root)
     facts["images"] = _images(root)
+    facts["accessibility"] = extract_accessibility_facts(
+        root, max_headings=_MAX_HEADINGS_KEPT
+    )
+    facts["mobile"] = {"viewport": _viewport_facts(root)}
     facts["structured_data"] = _structured_data(
         root, max_blocks=settings.max_structured_data_blocks
     )
@@ -749,5 +748,9 @@ def extract_page_facts(
         latency_ms=latency_ms,
         wire_bytes=wire_bytes,
         decoded_bytes=decoded_bytes,
+    )
+    facts["robots"] = merge_x_robots_tag(
+        facts.get("robots") or {},
+        str((redacted_headers or {}).get("x-robots-tag") or ""),
     )
     return facts

@@ -221,6 +221,13 @@ const indexEligibilityCheckpointSchema = responseObject({
   source_analysis_id: uuid().nullable(),
   source_evaluation_id: uuid().nullable(),
 });
+const searchPolicyEligibilityCheckpointSchema = responseObject({
+  checkpoint_id: z.enum(['search.crawler_access', 'search.snippet_access']),
+  outcome: z.string(),
+  reason: z.string(),
+  source_analysis_id: uuid().nullable(),
+  source_evaluation_id: uuid().nullable(),
+});
 const overviewDimensionSchema = responseObject({
   key: z.string(),
   dimension_applicability: dimensionApplicabilitySchema,
@@ -257,7 +264,11 @@ export const siteHealthOverviewSchema = responseObject({
       site_url_id: uuid(),
       state: searchEligibilitySchema,
       checkpoints: z.array(
-        z.union([acquisitionEligibilityCheckpointSchema, indexEligibilityCheckpointSchema]),
+        z.union([
+          acquisitionEligibilityCheckpointSchema,
+          indexEligibilityCheckpointSchema,
+          searchPolicyEligibilityCheckpointSchema,
+        ]),
       ),
     }),
   ),
@@ -278,8 +289,39 @@ export const siteHealthOverviewSchema = responseObject({
   aeo_dimensions: z.array(overviewDimensionSchema),
   top_issues: z.array(overviewIssueSchema),
   web_fundamentals: responseObject({
-    state: z.string(),
-    field_data_available: z.boolean(),
+    state: measurementStateSchema,
+    areas: z.array(
+      responseObject({
+        key: z.enum(['accessibility', 'mobile', 'security', 'lab']),
+        state: measurementStateSchema,
+        coverage: z.number().nullable(),
+        passed_count: z.number().int(),
+        missing_count: z.number().int(),
+        unknown_count: z.number().int(),
+        unavailable_count: z.number().int(),
+        unavailable_checks: z.array(z.string()),
+        top_findings: z.array(
+          responseObject({
+            rule_id: z.string(),
+            title: z.string(),
+            remediation: z.string(),
+            affected_pages: z.number().int(),
+            source_evaluation_ids: z.array(uuid()),
+          }),
+        ),
+      }),
+    ),
+    field_data: responseObject({
+      state: z.literal('unavailable'),
+      reason: z.string(),
+      lcp: z.number().nullable(),
+      inp: z.number().nullable(),
+      cls: z.number().nullable(),
+    }),
+    source_analysis_ids: z.array(uuid()),
+    source_artifact_ids: z.array(uuid()),
+    source_evaluation_ids: z.array(uuid()),
+    limitations: z.array(z.string()),
   }),
   trend: responseObject({ state: z.string(), reason: z.string() }),
   change_summary: responseObject({ state: z.string(), reason: z.string() }),

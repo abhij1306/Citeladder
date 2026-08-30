@@ -326,7 +326,7 @@ def test_admission_rejection_is_excluded_from_search_eligibility() -> None:
         status=TASK_STATUS_FAILED,
         error_code=ERROR_URL_ADMISSION_REJECTED,
     )
-    assert _eligibility_state("unknown", "unknown", task) == (
+    assert _eligibility_state("unknown", "unknown", "unknown", "unknown", task) == (
         "excluded",
         "excluded",
     )
@@ -334,7 +334,10 @@ def test_admission_rejection_is_excluded_from_search_eligibility() -> None:
 
 def test_robots_denial_remains_an_observed_blocker() -> None:
     task = SimpleNamespace(status=TASK_STATUS_FAILED, error_code=ERROR_ROBOTS_DENIED)
-    assert _eligibility_state("missing", "unknown", task) == ("blocked", "blocked")
+    assert _eligibility_state("missing", "unknown", "unknown", "unknown", task) == (
+        "blocked",
+        "blocked",
+    )
 
 
 def test_only_determinate_indexability_outcomes_become_booleans() -> None:

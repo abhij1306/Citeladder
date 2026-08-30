@@ -28,7 +28,10 @@ from app.core.config.site_health_acquisition import (
     ROBOTS_FETCH_STATUS_FETCHED,
     ROBOTS_FETCH_STATUS_NOT_FOUND,
     ROBOTS_TXT_PATH,
+    SEARCH_CITATION_CRAWLER_BOTS,
     SITEMAP_DEFAULT_PATHS,
+    TRAINING_CRAWLER_BOTS,
+    USER_TRIGGERED_FETCHER_BOTS,
 )
 from app.core.config.site_health_contracts import (
     DISCOVERY_STATUS_SAMPLE_COMPLETED,
@@ -216,6 +219,11 @@ async def collect_site_setup(
             "url": f"{authority}{ROBOTS_TXT_PATH}" if authority else "",
             "status_code": robots_status,
             "ai_crawlers": stance,
+            "crawler_roles": {
+                "search_citation": list(SEARCH_CITATION_CRAWLER_BOTS),
+                "training": list(TRAINING_CRAWLER_BOTS),
+                "user_triggered": list(USER_TRIGGERED_FETCHER_BOTS),
+            },
             "sitemaps": declared_sitemaps,
         },
         "llms_txt": {

@@ -34,7 +34,10 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_UNKNOWN,
     SKIP_REASON_LOW_CONFIDENCE_KIND,
 )
-from app.core.config.site_health_page_profiles import PRODUCT_ANALYSIS_RULES
+from app.core.config.site_health_measurement import (
+    PAGE_KIND_READINESS_CHECKPOINTS,
+    READINESS_CHECKPOINTS,
+)
 from app.core.config.site_health_rule_types import (
     FINDING_CLASS_ADVISORY,
     FINDING_CLASS_DEFECT,
@@ -81,6 +84,16 @@ def _html_facts(**overrides):
         ),
         "canonical_url": "https://x.example/",
         "robots": {"noindex": False, "nofollow": False},
+        "images": {"count": 0, "missing_alt": 0, "decorative_alt": 0},
+        "accessibility": {
+            "control_count": 0,
+            "controls_missing_accessible_name": 0,
+            "heading_levels": [1, 2, 2],
+            "heading_level_skips": 0,
+            "document_language": "en",
+        },
+        "mobile": {"viewport": {"declared": True, "content": "width=device-width"}},
+        "links": {"images": [], "scripts": [], "stylesheets": []},
         "delivery": {
             "is_https": True,
             "scheme": "https",
@@ -155,6 +168,27 @@ def _html_facts(**overrides):
     return facts
 
 
+def test_measurement_registry_covers_every_page_kind_and_checkpoint() -> None:
+    from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER, PAGE_KINDS
+
+    assert set(PAGE_KIND_READINESS_CHECKPOINTS) == set(PAGE_KINDS)
+    for checkpoints in PAGE_KIND_READINESS_CHECKPOINTS.values():
+        assert set(checkpoints) <= set(READINESS_CHECKPOINTS)
+    assert (
+        "aeo.schema_expected_for_type"
+        not in PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_OTHER]
+    )
+
+
+def test_evaluator_not_applicable_does_not_erase_frozen_expectation() -> None:
+    facts = _html_facts(page_kind="faq")
+    facts["headings"] = {"h1_count": 1, "counts": {"h1": 1}, "h1_texts": ["FAQ"]}
+    evaluation = _outcome(facts, "aeo.question_headings")
+    assert evaluation.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert evaluation.expected_profile_membership is True
+    assert evaluation.score_roles == ("aeo_readiness",)
+
+
 def _article_facts(**overrides):
     """The healthy fixture as an ARTICLE.
 
@@ -186,7 +220,10 @@ def test_all_rules_pass_on_healthy_page():
     evals = evaluate_all(facts)
     assert {e.rule_id for e in evals} == {r.rule_id for r in SITE_HEALTH_RULES}
     for e in evals:
-        if e.rule_id in _CRAWL_FINALIZE_RULE_IDS | _EDITORIAL_RULE_IDS:
+        if (
+            e.rule_id in _CRAWL_FINALIZE_RULE_IDS | _EDITORIAL_RULE_IDS
+            or e.rule_id.startswith("aeo.product_")
+        ):
             # crawl_finalize rules are owned by the finalize-writer; the
             # editorial rules are scoped to article/guide/docs page kinds and
             # this fixture is a homepage; the trait rules need an observation
@@ -1690,7 +1727,7 @@ def test_missing_classifier_evidence_opens_the_gate():
 def test_every_kind_scoped_rule_declares_its_evidence_class():
     # A new page-kind rule defaults to EXPECTATION, so it is gated unless it
     # explicitly declares that an artifact triggers it.
-    for rule in (*SITE_HEALTH_RULES, *PRODUCT_ANALYSIS_RULES):
+    for rule in SITE_HEALTH_RULES:
         assert rule.kind_evidence in KIND_EVIDENCE_CLASSES, rule.rule_id
 
 

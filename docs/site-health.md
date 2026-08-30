@@ -261,8 +261,9 @@ at least one incoming link, and the orphan count when complete coverage permits
 that absence claim. Structure depth reports page counts and percentages for
 depth 0, depth 1, depth 2, and depth 3+, plus the number of pages whose depth was
 not measured. Percentages use only pages with measured depth as their
-denominator. Detailed internal-link and depth reports are deferred to PR3, so
-PR1 presents no report links or report actions.
+denominator. The summaries link into the existing server-sorted Pages inventory
+by inbound-link count or measured depth. No second report store or workspace is
+created.
 
 Architecture health is a state, not a synthesized score. An observed
 indexability blocker is `Blocked`; an observed duplicate-metadata, orphan, or
@@ -363,10 +364,11 @@ Site Health separates five facts that a Combined percentage cannot represent:
    and satisfied advisories without turning an advisory absence into an
    objective fault or eligibility failure.
 4. **Web Fundamentals** is a separate accessibility, mobile, security, and
-   page-experience result. Lab diagnostics never impersonate field Core Web
-   Vitals. Field status uses the 75th percentile and the current good
-   thresholds LCP <= 2.5 seconds, INP <= 200 milliseconds, and CLS <= 0.1
-   ([Core Web Vitals thresholds](https://web.dev/articles/defining-core-web-vitals-thresholds)).
+   page-experience result persisted from bounded HTML, asset, delivery, and
+   response-header evidence. It has no fabricated composite score. Browser
+   layout, runtime DOM, touch targets, and field LCP/INP/CLS remain explicitly
+   unavailable until a persisted browser or field-data provider exists; HTTP
+   lab diagnostics never impersonate field Core Web Vitals.
 5. **Observed AI Visibility** remains the outcome metric: comparable observed
    mentions and citations. It is not inferred from Site Health readiness.
 
@@ -380,8 +382,8 @@ by successful HTML analysis. The complete target config-owned
 |---|---|---|
 | `acquisition.public_representation` | Intended-public URL disposition, terminal acquisition task, fetch attempt, and supported representation | A determinate fetch/representation blocker yields `blocked`; missing terminal evidence yields `unknown` |
 | `search.indexability` | `technical.indexable` and its declared-intent evidence | A proven intended-public contradiction yields `blocked`; deliberate exclusion yields `excluded`; unresolved intent yields `unknown` |
-| `search.crawler_access` | Robots and declared search/citation-crawler policy evidence | A proven contradiction yields `blocked`; unsupported or conflated bot evidence remains `unknown` until a dedicated evaluator ships |
-| `search.snippet_access` | Determinate snippet-control directives and declared visibility intent | A proven contradiction yields `blocked`; an evaluator not yet available remains `unknown` until a dedicated evaluator ships |
+| `search.crawler_access` | Robots and the config-pinned search/citation crawler role set, separate from training and user-triggered agents | A proven search/citation denial yields `blocked`; absent robots evidence yields `unknown` |
+| `search.snippet_access` | Meta robots and persisted `X-Robots-Tag` `nosnippet`/`max-snippet` evidence | A determinate snippet prohibition yields `blocked`; missing page analysis yields `unknown` |
 
 A checkpoint enters the critical set only when its evaluator can produce both
 a determinate healthy state and a determinate blocker state. The delivery plan

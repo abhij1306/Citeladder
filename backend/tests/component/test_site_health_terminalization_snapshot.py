@@ -125,7 +125,7 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
                 workspace_id=seed.workspace_id,
                 analysis_id=analysis.id,
                 source_artifact_id=artifact.id,
-                rule_id=f"rule-{index}",
+                rule_id=("rule-0" if index == 0 else "technical.ttfb_band"),
                 dimension="technical",
                 category="stale" if index == 0 else "fresh",
                 severity="high",
@@ -183,6 +183,16 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
         assert snapshot.source_task_ids == [latest_task_id]
         assert snapshot.issue_count == 1
         assert snapshot.category_counts == {"fresh": 1}
+        assert snapshot.web_fundamentals["state"] == "limited_evidence"
+        assert snapshot.web_fundamentals["source_analysis_ids"] == [
+            str(high_analysis_id)
+        ]
+        assert snapshot.web_fundamentals["source_artifact_ids"] == [
+            str(latest_artifact_id)
+        ]
+        assert snapshot.web_fundamentals["source_evaluation_ids"] == [
+            str(latest_evaluation_id)
+        ]
 
 
 @pytest.mark.asyncio
