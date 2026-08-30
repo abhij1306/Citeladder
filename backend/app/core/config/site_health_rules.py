@@ -49,6 +49,8 @@ from app.core.config.site_health_taxonomy import (
 )
 from app.core.config.site_health_web_fundamentals import WEB_FUNDAMENTALS_RULES
 
+_SCHEMA_EXPECTED_FOR_TYPE_RULE_ID: Final = "aeo.schema_expected_for_type"
+
 SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
     SiteHealthRule(
         rule_id="technical.title_present",
@@ -301,7 +303,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
     *READINESS_EXPANSION_RULES,
     # --- v2 P2: per-type schema validity (per-page) -------------------------
     SiteHealthRule(
-        rule_id="aeo.schema_expected_for_type",
+        rule_id=_SCHEMA_EXPECTED_FOR_TYPE_RULE_ID,
         rule_version=RULE_CATALOG_VERSION,
         dimension=DIMENSION_AEO,
         category=CATEGORY_STRUCTURED_DATA,
@@ -356,7 +358,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         checkpoint_family="structured_representation",
         readiness_dimension="machine-readability",
         readiness_weight=1.0,
-        triggered_by="aeo.schema_expected_for_type",
+        triggered_by=_SCHEMA_EXPECTED_FOR_TYPE_RULE_ID,
     ),
     SiteHealthRule(
         rule_id="aeo.schema_recommended_present",
@@ -382,7 +384,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         checkpoint_family="structured_representation",
         readiness_dimension="machine-readability",
         readiness_weight=0.5,
-        triggered_by="aeo.schema_expected_for_type",
+        triggered_by=_SCHEMA_EXPECTED_FOR_TYPE_RULE_ID,
     ),
     SiteHealthRule(
         rule_id="aeo.schema_matches_content",
@@ -408,7 +410,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         checkpoint_family="structured_representation",
         readiness_dimension="machine-readability",
         readiness_weight=1.0,
-        triggered_by="aeo.schema_expected_for_type",
+        triggered_by=_SCHEMA_EXPECTED_FOR_TYPE_RULE_ID,
     ),
     # --- v2 P2: citability (per-page) ---------------------------------------
     SiteHealthRule(

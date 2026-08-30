@@ -95,6 +95,7 @@ _EDITORIAL_READINESS: Final[tuple[str, ...]] = (
     "aeo.outbound_citations",
     "aeo.editorial_lead_present",
 )
+_ORGANIZATION_IDENTITY_CHECKPOINT: Final = "aeo.organization_identity"
 
 # The complete page-kind expectation authority. Services never manufacture a
 # second profile from evaluator outcomes; ``other`` deliberately stays on the
@@ -108,7 +109,7 @@ for _classified_kind in PAGE_KINDS:
         _PAGE_KIND_READINESS_CHECKPOINTS[_classified_kind] += ("aeo.heading_hierarchy",)
 
 _PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_HOMEPAGE] += (
-    "aeo.organization_identity",
+    _ORGANIZATION_IDENTITY_CHECKPOINT,
     "aeo.trust_path_present",
     "aeo.entity_value_proposition",
 )
@@ -119,7 +120,7 @@ for _entity_kind in (
     PAGE_KIND_LOCAL,
 ):
     _PAGE_KIND_READINESS_CHECKPOINTS[_entity_kind] += (
-        "aeo.organization_identity",
+        _ORGANIZATION_IDENTITY_CHECKPOINT,
         "aeo.entity_value_proposition",
     )
 for _editorial_kind in (
@@ -133,18 +134,18 @@ for _editorial_kind in (
     )
 _PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_DOCS] += (
     *_EDITORIAL_READINESS,
-    "aeo.organization_identity",
+    _ORGANIZATION_IDENTITY_CHECKPOINT,
 )
 _PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_CASE_STUDY_REVIEW] += (
     "aeo.content_date_present",
     "aeo.outbound_citations",
     "aeo.editorial_lead_present",
-    "aeo.organization_identity",
+    _ORGANIZATION_IDENTITY_CHECKPOINT,
 )
 _PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_FAQ] += (
     "aeo.answer_first",
     "aeo.question_headings",
-    "aeo.organization_identity",
+    _ORGANIZATION_IDENTITY_CHECKPOINT,
 )
 _PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_PRODUCT] += (
     "aeo.product_answer_facts",
@@ -156,10 +157,10 @@ _PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_CATEGORY] += (
     "aeo.listing_answer_set",
     "aeo.listing_item_facts",
     "aeo.assortment_freshness_signal",
-    "aeo.organization_identity",
+    _ORGANIZATION_IDENTITY_CHECKPOINT,
 )
 _PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_TRUST_POLICY] += (
-    "aeo.organization_identity",
+    _ORGANIZATION_IDENTITY_CHECKPOINT,
 )
 
 _UNIVERSAL_RELEVANT_DIMENSIONS: Final = (

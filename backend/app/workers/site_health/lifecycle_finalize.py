@@ -92,15 +92,18 @@ def _internal_link_targets(artifacts: Sequence[Any]) -> list[str]:
     for source_url, facts in artifacts:
         source_targets: set[str] = set()
         for anchor in ((facts or {}).get("links") or {}).get("anchors") or []:
-            if not bool((anchor or {}).get("is_internal")):
-                continue
-            canonical = canonical_or_empty(
-                urljoin(str(source_url or ""), str((anchor or {}).get("url") or ""))
-            )
+            canonical = _canonical_internal_target(source_url, anchor)
             if canonical:
                 source_targets.add(canonical)
         targets.extend(sorted(source_targets))
     return targets
+
+
+def _canonical_internal_target(source_url: object, anchor: object) -> str:
+    row = anchor if isinstance(anchor, dict) else {}
+    if not bool(row.get("is_internal")):
+        return ""
+    return canonical_or_empty(urljoin(str(source_url or ""), str(row.get("url") or "")))
 
 
 async def _fetch_resolutions(
