@@ -1482,6 +1482,16 @@ def test_organization_identity():
     ev = _outcome(facts, "aeo.organization_identity")
     assert ev.outcome == RULE_OUTCOME_MISSING
     assert ev.evidence["has_organization"] is False
+    for schema_type in ("LocalBusiness", "ContactPage"):
+        facts = _html_facts(
+            structured_data=_sd(
+                [{"type": schema_type, "name": "Acme", "url": "https://x.example"}]
+            )
+        )
+        assert (
+            _outcome(facts, "aeo.organization_identity").outcome
+            == RULE_OUTCOME_SATISFIED
+        )
     # Site scope follows root context, not page-kind confidence.
     non_root = _html_facts(page_kind="article")
     non_root["site"] = None
@@ -1531,6 +1541,33 @@ def test_soft_error_reads_h1_text():
 
     assert evaluation.outcome == RULE_OUTCOME_MISSING
     assert evaluation.evidence["matched_error_phrase"] == "page not found"
+
+
+def test_soft_error_ignores_editorial_headlines_containing_error_phrases():
+    facts = _html_facts(title="Why a page does not exist and what to do next")
+    facts["delivery"]["status_code"] = 200
+
+    evaluation = _outcome(facts, "technical.soft_error")
+
+    assert evaluation.outcome == RULE_OUTCOME_SATISFIED
+    assert evaluation.evidence["matched_error_phrase"] == ""
+
+
+def test_trust_path_matches_terms_without_substring_false_positives():
+    facts = _html_facts()
+    facts["links"]["anchors"] = [
+        {"url": "/aboutness", "anchor_text": "Read more", "is_internal": True}
+    ]
+    assert _outcome(facts, "aeo.trust_path_present").outcome == RULE_OUTCOME_MISSING
+
+    facts["links"]["anchors"] = [
+        {
+            "url": "/legal/privacy-policy",
+            "anchor_text": "Read more",
+            "is_internal": True,
+        }
+    ]
+    assert _outcome(facts, "aeo.trust_path_present").outcome == RULE_OUTCOME_SATISFIED
 
 
 def test_entity_contact_path_ignores_unrelated_form_fields():

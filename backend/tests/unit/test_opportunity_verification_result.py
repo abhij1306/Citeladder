@@ -6,13 +6,41 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.domain.opportunities import verification_result
+from app.core.config.site_health_contracts import RULE_OUTCOME_PARTIAL
+from app.domain.opportunities import verification, verification_result
 
 
 def test_numeric_state_preserves_unavailable_and_observed_zero() -> None:
     assert verification_result._state(None) == "unavailable"
     assert verification_result._state(0) == "observed_zero"
     assert verification_result._state(0.1) == "available"
+
+
+@pytest.mark.asyncio
+async def test_site_rule_verification_accepts_partial_outcomes() -> None:
+    analysis_id = uuid.uuid4()
+    evaluation_id = uuid.uuid4()
+    session = SimpleNamespace(
+        scalar=AsyncMock(
+            return_value=SimpleNamespace(
+                id=evaluation_id,
+                outcome=RULE_OUTCOME_PARTIAL,
+            )
+        )
+    )
+    result = verification._Evaluation()
+
+    await verification._evaluate_site_rule(
+        session,
+        declaration=SimpleNamespace(workspace_id=uuid.uuid4()),
+        analysis=SimpleNamespace(id=analysis_id),
+        check={"rule_id": "aeo.example", "expected_outcome": "partial"},
+        result=result,
+    )
+
+    assert result.observed == 1
+    assert result.matched == 1
+    assert result.limitations == []
 
 
 @pytest.mark.asyncio

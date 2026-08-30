@@ -10,6 +10,15 @@ from app.core.config.site_health_contracts import (
 from app.core.config.site_health_rule_types import CompositeContract
 
 
+def _count(value: object) -> int:
+    if not isinstance(value, int | float | str):
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
 def _present(value: object) -> str:
     return RULE_OUTCOME_SATISFIED if bool(value) else RULE_OUTCOME_MISSING
 
@@ -98,9 +107,9 @@ def check_product_evidence_facts(facts: dict) -> tuple[str, dict]:
     """Require a stable visible or machine-readable product identifier."""
     entity, schema, _commerce = _product_signals(facts)
     identifiers = [
-        *schema.get("sku", ()),
-        *schema.get("gtin", ()),
-        *schema.get("mpn", ()),
+        *(schema.get("sku") or ()),
+        *(schema.get("gtin") or ()),
+        *(schema.get("mpn") or ()),
     ]
     visible_marker = bool(entity.get("has_sku_marker"))
     return _present(identifiers or visible_marker), {
@@ -122,7 +131,7 @@ def _listing_signals(facts: dict) -> tuple[bool, int]:
     commerce = facts.get("commerce") or {}
     purpose = bool(headings.get("h1_texts"))
     item_count = max(
-        int(entity.get("distinct_card_list_targets", 0) or 0),
+        _count(entity.get("distinct_card_list_targets")),
         len(commerce.get("product_cards") or ()),
     )
     return purpose, item_count
@@ -183,7 +192,7 @@ def check_listing_item_facts(facts: dict) -> tuple[str, dict]:
     cards = (facts.get("commerce") or {}).get("product_cards") or ()
     complete = list(filter(None, map(_listing_item_fact, cards)))
     listing = (facts.get("entity") or {}).get("listing") or {}
-    entity_count = int(listing.get("distinct_card_list_targets", 0) or 0)
+    entity_count = _count(listing.get("distinct_card_list_targets"))
     item_count = max(len(complete), entity_count)
     return _present(item_count), {
         "item_fact_count": item_count,

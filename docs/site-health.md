@@ -346,9 +346,9 @@ and coverage. A page-level row measured at site scope names that reason rather
 than rendering an unexplained dash.
 
 The snapshot retains ten ranked issues; the Overview projection returns the
-first five. Its four metric-card counts are frozen separately: Technical counts
-include defect findings with a Technical score role, while AEO gap counts
-include readiness-role findings. Site-scoped evidence never fabricates an
+first five. Its four metric-card counts are frozen separately: Web Fundamentals
+counts include defect findings with the `web_fundamentals` score role, while
+AEO gap counts include readiness-role findings. Site-scoped evidence never fabricates an
 affected page. Defect impact is config-owned severity; advisory impact is its
 config-owned readiness dimension and checkpoint weight, never borrowed
 severity. Rows expose impact, issue, type, affected pages, and effect, and link
@@ -708,29 +708,29 @@ Search-hygiene guidance such as duplicate titles and descriptions remains an
 evaluation but is not persisted or presented as an issue:
 
 ```text
-technical_determinate_weight = satisfied_defect_weight + missing_defect_weight
+web_fundamentals_determinate_weight = satisfied_defect_weight + missing_defect_weight
 web_fundamentals =
-    null if technical_determinate_weight == 0
-    else 100 * satisfied_defect_weight / technical_determinate_weight
-technical_coverage =
-    null if expected_technical_defect_weight == 0
-    else technical_determinate_weight / expected_technical_defect_weight
+    null if web_fundamentals_determinate_weight == 0
+    else 100 * satisfied_defect_weight / web_fundamentals_determinate_weight
+web_fundamentals_coverage =
+    null if expected_web_fundamentals_defect_weight == 0
+    else web_fundamentals_determinate_weight / expected_web_fundamentals_defect_weight
 ```
 
-Analyzer error and unavailable evidence do not make the site technically
+Analyzer error and unavailable evidence do not make the site objectively
 wrong. They remain expected but non-determinate and lower coverage.
 
 Web Fundamentals has its own presentation state:
 
-- `measured`: every critical expected Technical checkpoint is determinate and
-  Technical coverage meets `TECHNICAL_MEASURED_MIN_COVERAGE`;
-- `limited_evidence`: some Technical evidence is determinate but the measured
+- `measured`: every critical expected Web Fundamentals checkpoint is determinate and
+  Web Fundamentals coverage meets `TECHNICAL_MEASURED_MIN_COVERAGE`;
+- `limited_evidence`: some Web Fundamentals evidence is determinate but the measured
   criteria are not met;
-- `not_measured`: no defensible determinate Technical measurement exists; and
+- `not_measured`: no defensible determinate Web Fundamentals measurement exists; and
 - `excluded`: the declared audit intent excludes the page.
 
 The active development default is `TECHNICAL_MEASURED_MIN_COVERAGE=0.80`. A
-Technical ratio is serialized and displayed for `measured` and
+The Web Fundamentals ratio is serialized and displayed for `measured` and
 `limited_evidence`; it is null for `not_measured` or `excluded`. The state
 appears beside a present ratio as subordinate confidence metadata.
 
@@ -837,7 +837,7 @@ lengths receive no core AEO points. They may remain no-score advisories or
 diagnostics when useful. Research may justify a scoped advisory, never a
 universal defect or causal visibility claim.
 
-A critical eligibility failure produces `blocked` regardless of Technical or
+A critical eligibility failure produces `blocked` regardless of Web Fundamentals or
 AEO scores. The UI leads with that state but retains a sufficiently covered AEO
 Readiness score; it never mathematically caps or zeros unrelated capability
 evidence.
@@ -866,7 +866,7 @@ score. A result may therefore display `78 · 42% measured · Low confidence`
 without pretending that 42 is its quality score.
 
 Crawl aggregation reads immutable rule evaluations, normalizes every rule by
-its declared scope, then applies the role-specific Technical or AEO formula.
+its declared scope, then applies the role-specific Web Fundamentals or AEO formula.
 It never aggregates the already-computed page scalar scores. Page-scoped rules
 macro-roll up page kinds before dimension weighting, so adding 100 equivalent
 category pages cannot drown 10 articles. Site facts are counted once, and
@@ -888,9 +888,9 @@ an average, majority, or best-page state. Aggregate breadth counts unique
 checkpoint IDs, unique checkpoint families, and unique readiness dimensions;
 repeating one checkpoint across 100 pages still counts as one checkpoint and
 one family.
-No Technical-only result is silently relabelled Combined. The active contract
+No Web Fundamentals-only result is silently relabelled Combined. The active contract
 retains Web Fundamentals and AEO Readiness as independent scalars and
-retires the Technical/AEO 50:50 `overall_score` headline.
+retires the former 50:50 `overall_score` headline.
 
 Web Fundamentals 100 means no observed objective defects within a
 sufficiently covered measurement under the active build. AEO Readiness 100
@@ -1015,7 +1015,7 @@ body content.
 
 Not-applicable is different from pass and is excluded from scoring.
 
-- Technical delivery and indexability rules read the response and remain
+- Delivery and indexability rules read the response and remain
   applicable to any successful fetch.
 - Title, meta-description, and canonical rules require an HTML response. A
   supported office/PDF/Markdown document is successful inventory evidence and
@@ -1085,7 +1085,7 @@ values are `sh-extractor-1`, `sh-classifier-1`, `sh-traits-1`,
 `sh-analyzer-1`, `sh-rules-1`, `sh-scoring-1`, `sh-coverage-1`,
 `sh-link-metrics-1`, `sh-architecture-1`, and `sh-archetypes-1`. The disposable
 development reset policy above applies. An unclassified `other` page retains
-its Technical score but has no AEO score.
+its Web Fundamentals score but has no AEO score.
 
 The analyzer, rule, scoring, profile, schema, and presentation version owners
 deliberately remain separate. Snapshots do not yet persist a complete frozen

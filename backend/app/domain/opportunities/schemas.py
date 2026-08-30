@@ -62,7 +62,7 @@ class SiteRuleExpectedCheck(_Model):
     kind: Literal["site_rule"]
     target_site_url_id: uuid.UUID | None = None
     rule_id: str = Field(min_length=1, max_length=64)
-    expected_outcome: Literal["pass", "fail"]
+    expected_outcome: Literal["pass", "fail", "partial"]
 
 
 class PageFactExpectedCheck(_Model):

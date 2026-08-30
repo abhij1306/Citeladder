@@ -21,6 +21,7 @@ from app.core.config.opportunities import (
 )
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_MISSING,
+    RULE_OUTCOME_PARTIAL,
     RULE_OUTCOME_SATISFIED,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
@@ -94,6 +95,7 @@ async def _evaluate_site_rule(
     if evaluation is None or evaluation.outcome not in {
         RULE_OUTCOME_SATISFIED,
         RULE_OUTCOME_MISSING,
+        RULE_OUTCOME_PARTIAL,
     }:
         result.limitations.append("site_rule: no applicable evaluation")
         return

@@ -2,9 +2,11 @@
 # Finalize-scoped rules are evaluated and persisted only by ``finalize.py``.
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlsplit
 
 from app.analysis.site_health.indexing import (
     canonical_origin,
@@ -80,6 +82,7 @@ from app.core.config.site_health_taxonomy import (
     CONTENT_SUFFICIENCY_PRICE_KINDS,
     CONTENT_SUFFICIENCY_TRAITS,
     MIN_MEANINGFUL_WORDS,
+    ORGANIZATION_BEARING_SCHEMA_TYPES,
     PAGE_KIND_OTHER,
     PAGE_KIND_PROFILES,
 )
@@ -446,7 +449,7 @@ def _check_organization_identity(facts: dict) -> tuple[str, dict]:
 
 
 def _is_organization_block(block: dict) -> bool:
-    return str(block.get("type") or "") == "Organization"
+    return str(block.get("type") or "") in ORGANIZATION_BEARING_SCHEMA_TYPES
 
 
 def _organization_identity(block: dict) -> dict | None:
@@ -460,14 +463,22 @@ def _organization_identity(block: dict) -> dict | None:
 _TRUST_PATH_TOKENS = ("about", "contact", "privacy", "policy", "terms")
 
 
+def _trust_terms(value: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", value.casefold()))
+
+
 def _check_trust_path_present(facts: dict) -> tuple[str, dict]:
     paths: list[dict] = []
     for anchor in (facts.get("links") or {}).get("anchors") or ():
         if not anchor.get("is_internal"):
             continue
-        url = str(anchor.get("url") or "").lower()
-        label = str(anchor.get("anchor_text") or "").lower()
-        if any(token in f"{url} {label}" for token in _TRUST_PATH_TOKENS):
+        url = str(anchor.get("url") or "")
+        label = str(anchor.get("anchor_text") or "")
+        try:
+            path_terms = _trust_terms(urlsplit(url).path)
+        except ValueError:
+            path_terms = set()
+        if (path_terms | _trust_terms(label)) & set(_TRUST_PATH_TOKENS):
             paths.append({"url": url[:512], "label": label[:128]})
     return _pass_fail(bool(paths)), {"trust_paths": paths[:12], "count": len(paths)}
 
@@ -478,11 +489,11 @@ _SOFT_ERROR_PHRASES = ("page not found", "404 not found", "does not exist")
 def _check_soft_error(facts: dict) -> tuple[str, dict]:
     status_code = (facts.get("delivery") or {}).get("status_code")
     headings = facts.get("headings") or {}
-    text = " ".join(
-        [str(facts.get("title") or "")]
-        + [str(value) for value in headings.get("h1_texts") or ()]
-    ).lower()
-    matched = next((phrase for phrase in _SOFT_ERROR_PHRASES if phrase in text), "")
+    title_and_h1 = [str(facts.get("title") or ""), *(headings.get("h1_texts") or ())]
+    normalized = {value.strip().casefold() for value in title_and_h1 if value}
+    matched = next(
+        (phrase for phrase in _SOFT_ERROR_PHRASES if phrase in normalized), ""
+    )
     soft_error = status_code == 200 and bool(matched)
     return _pass_fail(not soft_error), {
         "status_code": status_code,

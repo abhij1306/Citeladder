@@ -10,6 +10,11 @@ from app.analysis.site_health.page_analysis import analyze_page
 from app.analysis.site_health.page_kinds import classify
 from app.analysis.site_health.page_traits import derive_traits
 from app.analysis.site_health.parser import extract_page_facts
+from app.analysis.site_health.product_rules import (
+    _listing_signals,
+    check_listing_item_facts,
+    check_product_evidence_facts,
+)
 from app.analysis.site_health.rules import evaluate_all, rule_for
 from app.core.config.opportunities import SITE_ISSUE_TO_OPPORTUNITY_RULE_ID
 from app.core.config.site_health_contracts import (
@@ -314,6 +319,23 @@ def test_assortment_freshness_does_not_treat_item_count_as_current() -> None:
         "timestamp": "2026-08-01",
         "timestamp_source": "published",
     }
+
+
+def test_product_rules_tolerate_malformed_persisted_collections_and_counts() -> None:
+    product = {"structured_data": {"product": {"sku": None, "gtin": None, "mpn": None}}}
+    outcome, evidence = check_product_evidence_facts(product)
+    assert outcome == RULE_OUTCOME_MISSING
+    assert evidence["identifiers"] == []
+
+    malformed_listing = {
+        "entity": {"listing": {"distinct_card_list_targets": {"count": 4}}},
+        "commerce": {"product_cards": []},
+    }
+    assert _listing_signals(malformed_listing) == (False, 0)
+    assert check_listing_item_facts(malformed_listing)[1]["item_fact_count"] == 0
+
+    malformed_listing["entity"]["listing"]["distinct_card_list_targets"] = "4"
+    assert _listing_signals(malformed_listing) == (False, 4)
 
 
 def test_composite_contracts_are_attached_to_every_composite_evaluator() -> None:

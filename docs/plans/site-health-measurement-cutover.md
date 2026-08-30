@@ -124,7 +124,7 @@ defect-derived Opportunities while their finding class is advisory/diagnostic.
 - Keep classifier confidence as persisted display metadata. Page kind, traits,
   and structural crawl context decide applicability; the winning classifier
   tier never suppresses an expectation or score.
-- Remove Technical score weight from word-count-based thin content and
+- Remove Web Fundamentals score weight from word-count-based thin content and
   exact-one-H1. They remain visible guidance, not objective integrity defects.
 - In PR1, remove `aeo.outbound_citations` from guide-wide scoring/failure
   semantics, replace generic date presence with page-kind-specific freshness
@@ -222,7 +222,7 @@ same PR; no compatibility scoring facade survives.
 ### PR2 readiness scoring manifest
 
 PR2 expands the repaired PR1 contract with deterministic page-kind expressions.
-`readiness_weight` is independent of Technical defect weight and is used within
+`readiness_weight` is independent of Web Fundamentals defect weight and is used within
 the seven fixed dimension weights.
 
 | Dimension | Family | Current rule | PR2 score-applicability gate | Within-dimension weight |
@@ -378,9 +378,9 @@ impact. Trend/change summaries compare only rows created inside the same reset
 database and version-`1` contract.
 
 Overview freezes distinct role-aware metric counts beside those rows. Technical
-counts require both defect finding class and Technical score role; AEO gap
-counts require the readiness role. Affected-page counts include page-scoped
-entities only. Advisory impact is rendered from its readiness dimension and
+defect counts require both defect finding class and the `web_fundamentals`
+score role; AEO gap counts require the readiness role. Affected-page counts
+include page-scoped entities only. Advisory impact is rendered from its readiness dimension and
 checkpoint weight, not from a defect severity label.
 
 ### PR2 frontend cutover
@@ -441,7 +441,7 @@ apply.
 - Expected checkpoints are frozen before evaluation; unknown cannot become N/A
   without a deterministic structural reason.
 - Unknown changes coverage, never readiness credit; missing advisories can
-  lower AEO Readiness without becoming Technical defects.
+  lower AEO Readiness without becoming Web Fundamentals defects.
 - Applicable but unsupported dimensions remain `not_measured` with
   zero coverage; they cannot disappear as N/A or raise AEO coverage.
 - Every current N/A reason is classified during cutover: uncertainty becomes
@@ -484,7 +484,7 @@ apply.
 - The disposable database rebuilds from `0001_initial.py`; every active version
   is `1`; no Combined or compatibility scoring path remains.
 - The PR atomically updates
-  [the canonical Site Health runtime](../site-health.md): Technical alone remains
+  [the canonical Site Health runtime](../site-health.md): Web Fundamentals remains
   defect-only; declared applicable defects/advisories may score AEO; the AEO
   route exposes score/coverage/state; the tab list includes Overview; and the
   Content boundary records the typed Site Health handoff. Superseded pre-PR2
@@ -578,7 +578,7 @@ than retain resolved limitations as active truth.
 The bounded pre-cutover observations supplied on 2026-08-30 remain the
 comparison baseline; they are not target distributions:
 
-| Site | Analyzed | `other` | Technical score / coverage | AEO score / coverage |
+| Site | Analyzed | `other` | Web Fundamentals score / coverage | AEO score / coverage |
 |---|---:|---:|---:|---:|
 | Bestandless | 200 | 28% | 93.7 / 100% | 77.4 / 37.4% |
 | Myntra | 185 | 95.1% | 99.2 / 100% | 48 / 53.3% |

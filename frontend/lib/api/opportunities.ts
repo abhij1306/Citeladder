@@ -59,7 +59,7 @@ type ExpectedCheck =
       kind: 'site_rule';
       target_site_url_id?: string;
       rule_id: string;
-      expected_outcome: 'pass' | 'fail';
+      expected_outcome: 'pass' | 'fail' | 'partial';
     }
   | {
       kind: 'page_fact';

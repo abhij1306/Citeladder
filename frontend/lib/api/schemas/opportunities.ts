@@ -244,7 +244,7 @@ const siteRuleExpectedCheckSchema = responseObject({
   kind: z.literal('site_rule'),
   target_site_url_id: uuid().optional(),
   rule_id: z.string(),
-  expected_outcome: z.enum(['pass', 'fail']),
+  expected_outcome: z.enum(['pass', 'fail', 'partial']),
 });
 const pageFactExpectedCheckSchema = responseObject({
   kind: z.literal('page_fact'),
