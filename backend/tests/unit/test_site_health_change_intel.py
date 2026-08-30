@@ -6,7 +6,11 @@ from app.analysis.site_health.change_intel import (
     RuleState,
     compare_crawls,
 )
-from app.core.config.site_health_contracts import RULE_OUTCOME_FAIL, RULE_OUTCOME_PASS
+from app.core.config.site_health_contracts import (
+    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_PARTIAL,
+    RULE_OUTCOME_PASS,
+)
 
 
 def _page(*, title: str = "Same", status: int = 200) -> ChangePage:
@@ -79,11 +83,35 @@ def test_classifies_rule_transition_when_extracted_value_is_unchanged() -> None:
         }
     )
 
-    changes = compare_crawls([before], [after], complete_pair=True)
+    event_id = uuid.uuid4()
+    changes = compare_crawls(
+        [before],
+        [after],
+        complete_pair=True,
+        expected={(after.site_url_id, "title"): ExpectedChange(event_id, "fail")},
+    )
 
     assert [(item.field, item.change_class) for item in changes] == [
         ("title", "potential-regression")
     ]
+    assert changes[0].expected is True
+    assert changes[0].implementation_event_id == event_id
+
+
+def test_partial_rule_outcomes_are_failures_for_change_classification() -> None:
+    before = _page()
+    partial = ChangePage(
+        **{
+            **before.__dict__,
+            "analysis_id": uuid.uuid4(),
+            "artifact_id": uuid.uuid4(),
+            "rules": {"title": RuleState(RULE_OUTCOME_PARTIAL, "high", uuid.uuid4())},
+        }
+    )
+    regression = compare_crawls([before], [partial], complete_pair=True)
+    improvement = compare_crawls([partial], [_page()], complete_pair=True)
+    assert regression[0].change_class == "potential-regression"
+    assert improvement[0].change_class == "improvement"
 
 
 def test_redirect_target_is_an_explicit_neutral_change() -> None:

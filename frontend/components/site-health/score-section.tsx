@@ -24,13 +24,16 @@ export function ScoreSection({
   dashboard: SiteHealthDashboard | undefined;
 }>) {
   const summary = dashboard?.score_summary ?? crawl?.score_summary ?? null;
-  const technical =
-    summary?.technical_integrity_state === 'measured' ? summary.technical_integrity_score : null;
-  const aeo = summary?.aeo_measurement_state === 'measured' ? summary.aeo_readiness_score : null;
-  const coverage =
+  const technical = scoredValue(
+    summary?.technical_integrity_score,
+    summary?.technical_integrity_state,
+  );
+  const aeo = scoredValue(summary?.aeo_readiness_score, summary?.aeo_measurement_state);
+  const coverageValue =
     summary?.aeo_measurement_coverage === null || summary?.aeo_measurement_coverage === undefined
       ? null
       : summary.aeo_measurement_coverage * 100;
+  const coverage = scoredValue(coverageValue, summary?.aeo_measurement_state);
 
   return (
     <div className="grid gap-4 sm:grid-cols-3" data-testid="score-section">
@@ -52,11 +55,16 @@ export function ScoreSection({
       <ScoreCard
         label="AEO Measurement Coverage"
         value={coverage}
-        state={coverage === null ? 'not_measured' : 'measured'}
+        state={summary?.aeo_measurement_state}
         sub="Determinate evidence across applicable pillars"
       />
     </div>
   );
+}
+
+function scoredValue(value: number | null | undefined, state: string | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  return state === 'measured' || state === 'limited_evidence' ? value : null;
 }
 
 function measurementSub(state: string | undefined, coverage: number | null | undefined): string {

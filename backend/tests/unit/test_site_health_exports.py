@@ -65,6 +65,23 @@ def test_csv_renders_bool_and_none_cells() -> None:
     assert data["monitored"] == "true"
 
 
+def test_page_export_keeps_technical_and_aeo_scores_distinct() -> None:
+    rows = _parse_csv(
+        rows_to_csv(
+            "pages",
+            [
+                {
+                    "technical_integrity_score": 81,
+                    "aeo_readiness_score": 63,
+                }
+            ],
+        )
+    )
+    data = dict(zip(rows[0], rows[1], strict=True))
+    assert data["technical_integrity_score"] == "81"
+    assert data["aeo_readiness_score"] == "63"
+
+
 def test_csv_rfc4180_quoting_of_delimiters_quotes_newlines() -> None:
     items = [
         {

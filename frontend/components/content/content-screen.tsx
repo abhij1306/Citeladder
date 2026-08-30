@@ -27,6 +27,19 @@ import { GenerationHistory } from './content-screen-history';
 
 const FALLBACK_SKILL_ID = 'content_page';
 
+function replaceAutomaticPrompt(
+  current: string,
+  next: string,
+  priority: number,
+  automatic: { current: { value: string; priority: number } | null },
+): string {
+  const previous = automatic.current;
+  const userEdited = current.trim().length > 0 && current !== previous?.value;
+  if (userEdited || (previous?.priority ?? 0) > priority) return current;
+  automatic.current = { value: next, priority };
+  return next;
+}
+
 /** Project-aware content entry point that resets transient state on project switch. */
 export function ContentScreen({
   opportunityId,
@@ -100,6 +113,7 @@ function ProjectContentScreen({
     siteHealthReference,
   );
   const detail: ContentGenerationDetail | null = generation.detailQuery.data ?? null;
+  const automaticPrompt = useRef<{ value: string; priority: number } | null>(null);
   const seededBrief = useRef<string | null>(null);
 
   // Seed only a newly arrived brief; subsequent snapshot refreshes must not overwrite edits.
@@ -107,7 +121,7 @@ function ProjectContentScreen({
     const brief = demand.brief;
     if (!brief || seededBrief.current === brief.prompt) return;
     seededBrief.current = brief.prompt;
-    setPrompt(brief.prompt);
+    setPrompt((current) => replaceAutomaticPrompt(current, brief.prompt, 1, automaticPrompt));
     setChosenSkillId(brief.suggestedSkillId);
   }, [demand.brief]);
 
@@ -117,7 +131,9 @@ function ProjectContentScreen({
   useEffect(() => {
     if (!opportunity?.taskSeed || seededOpportunity.current === opportunity.id) return;
     seededOpportunity.current = opportunity.id;
-    setPrompt((current) => (current.trim() ? current : opportunity.taskSeed));
+    setPrompt((current) =>
+      replaceAutomaticPrompt(current, opportunity.taskSeed, 2, automaticPrompt),
+    );
     setChosenSkillId((current) => current ?? opportunity.suggestedSkillId);
   }, [opportunity]);
 
@@ -127,7 +143,7 @@ function ProjectContentScreen({
     if (!handoff || seededSiteHealth.current === handoff.source_analysis_id) return;
     seededSiteHealth.current = handoff.source_analysis_id;
     const task = [...handoff.expected_capability, ...handoff.remediation].join('\n');
-    setPrompt((current) => (current.trim() ? current : task));
+    setPrompt((current) => replaceAutomaticPrompt(current, task, 3, automaticPrompt));
   }, [siteHealth.data]);
 
   const generating = Boolean(
@@ -233,20 +249,26 @@ function ContentWorkspace({
   reasonOpen: boolean;
   setReasonOpen: (value: boolean) => void;
 }>) {
+  let siteHealthAlert = null;
+  if (siteHealth.isError) {
+    siteHealthAlert = (
+      <Alert tone="danger">
+        The Site Health readiness evidence could not be authorized or loaded.
+      </Alert>
+    );
+  } else if (siteHealth.data) {
+    siteHealthAlert = (
+      <Alert tone="info">
+        This draft will use the persisted {siteHealth.data.dimension} readiness gap and its bounded
+        crawl evidence.
+      </Alert>
+    );
+  }
   return (
     <div className="grid grid-cols-1 items-start gap-[var(--workspace-gap)] xl:grid-cols-[minmax(0,1fr)_320px] [&>*]:min-w-0">
       <div className="flex min-w-0 flex-col gap-[var(--workspace-gap)]">
         <DemandAlerts notFound={demand.notFound} failed={demand.failed} />
-        {siteHealth.isError ? (
-          <Alert tone="danger">
-            The Site Health readiness evidence could not be authorized or loaded.
-          </Alert>
-        ) : siteHealth.data ? (
-          <Alert tone="info">
-            This draft will use the persisted {siteHealth.data.dimension} readiness gap and its
-            bounded crawl evidence.
-          </Alert>
-        ) : null}
+        {siteHealthAlert}
         <ContentComposer
           prompt={prompt}
           promptRef={promptRef}

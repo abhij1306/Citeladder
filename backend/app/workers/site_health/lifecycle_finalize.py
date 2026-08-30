@@ -27,7 +27,7 @@ from app.core.config.site_health_contracts import (
     EXTRACTOR_VERSION,
     OBSERVATION_SOURCE_SITEMAP,
     PAGE_ANALYSIS_STATUS_COMPLETED,
-    RULE_OUTCOME_FAIL,
+    RULE_FAILING_OUTCOMES,
 )
 from app.domain.site_health.coverage import crawl_coverage
 from app.domain.site_health.normalization import canonical_identity, canonical_or_empty
@@ -375,7 +375,7 @@ class CrawlFinalizeMixin:
             )
             if inserted_id is None:
                 continue
-            if ev.outcome == RULE_OUTCOME_FAIL:
+            if ev.outcome in RULE_FAILING_OUTCOMES:
                 session.add(
                     SiteIssue(
                         workspace_id=crawl.workspace_id,

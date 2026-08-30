@@ -108,15 +108,13 @@ def test_confirmed_profile_rejects_blank_required_fields(payload: dict) -> None:
 
 
 def test_generated_profile_rejects_product_too_long_for_project_persistence() -> None:
+    generated_payload = ["x" * 256]
     with pytest.raises(ValidationError):
-        PersistableDiscoveryProfile(
-            products_services=["x" * 256],
-        )
+        PersistableDiscoveryProfile(products_services=generated_payload)
 
+    confirmed_payload = {**_profile(), "products_services": ["x" * 256]}
     with pytest.raises(ValidationError):
-        ConfirmedDiscoveryProfile(
-            **{**_profile(), "products_services": ["x" * 256]},
-        )
+        ConfirmedDiscoveryProfile(**confirmed_payload)
 
 
 def _competitor(model: str | None) -> DiscoveryCompetitorSuggestion:

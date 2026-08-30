@@ -203,28 +203,86 @@ export const aeoReadinessSchema = responseObject({
   limitations: z.array(z.string()),
 });
 
+const measurementStateSchema = z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']);
+const dimensionApplicabilitySchema = z.enum(['applicable', 'not_applicable', 'unresolved']);
+const searchEligibilitySchema = z.enum(['eligible', 'blocked', 'unknown', 'excluded']);
+const acquisitionEligibilityCheckpointSchema = responseObject({
+  checkpoint_id: z.literal('acquisition.public_representation'),
+  outcome: z.string(),
+  reason: z.string(),
+  source_task_id: uuid().nullable(),
+  source_attempt_id: uuid().nullable(),
+  source_artifact_id: uuid().nullable(),
+});
+const indexEligibilityCheckpointSchema = responseObject({
+  checkpoint_id: z.literal('search.indexability'),
+  outcome: z.string(),
+  reason: z.string(),
+  source_analysis_id: uuid().nullable(),
+  source_evaluation_id: uuid().nullable(),
+});
+const overviewDimensionSchema = responseObject({
+  key: z.string(),
+  dimension_applicability: dimensionApplicabilitySchema,
+  dimension_measurement_state: measurementStateSchema,
+  score: z.number().nullable(),
+  coverage: z.number().nullable(),
+  earned_points: z.number(),
+  determinate_points: z.number(),
+  expected_points: z.number(),
+  determinate_checkpoint_ids: z.array(z.string()),
+  checkpoint_families: z.array(z.string()),
+  reason: z.string(),
+});
+const overviewIssueSchema = responseObject({
+  rule_id: z.string(),
+  finding_class: z.string(),
+  severity: z.string(),
+  category: z.string(),
+  description: z.string(),
+  remediation: z.string(),
+  affected_pages: z.number().int(),
+  eligibility_blocker: z.boolean(),
+  impact_band: z.number().int(),
+});
+
 export const siteHealthOverviewSchema = responseObject({
   project_id: uuid(),
   crawl_id: uuid(),
   snapshot_id: uuid(),
-  search_eligibility: z.enum(['eligible', 'blocked', 'unknown', 'excluded']),
+  search_eligibility: searchEligibilitySchema,
   eligibility_totals: z.record(z.string(), z.number().int()),
-  eligibility_reasons: z.array(z.record(z.string(), z.unknown())),
+  eligibility_reasons: z.array(
+    responseObject({
+      site_url_id: uuid(),
+      state: searchEligibilitySchema,
+      checkpoints: z.array(
+        z.union([acquisitionEligibilityCheckpointSchema, indexEligibilityCheckpointSchema]),
+      ),
+    }),
+  ),
   technical_integrity_score: z.number().nullable(),
   technical_integrity_coverage: z.number().nullable(),
-  technical_integrity_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  technical_integrity_state: measurementStateSchema,
   aeo_readiness_score: z.number().nullable(),
   aeo_measurement_coverage: z.number().nullable(),
-  aeo_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
-  crawl_coverage: z.record(z.string(), z.unknown()),
+  aeo_measurement_state: measurementStateSchema,
+  crawl_coverage: responseObject({
+    state: z.string(),
+    evidence: z.record(z.string(), z.unknown()),
+    denominator_kind: z.literal('selected_intended_public_urls'),
+  }),
   audited_page_count: z.number().int(),
   selected_page_count: z.number().int(),
   status_counts: z.record(z.string(), z.number().int()),
-  aeo_dimensions: z.array(z.record(z.string(), z.unknown())),
-  top_issues: z.array(z.record(z.string(), z.unknown())),
-  web_fundamentals: z.record(z.string(), z.unknown()),
-  trend: z.record(z.string(), z.unknown()),
-  change_summary: z.record(z.string(), z.unknown()),
+  aeo_dimensions: z.array(overviewDimensionSchema),
+  top_issues: z.array(overviewIssueSchema),
+  web_fundamentals: responseObject({
+    state: z.string(),
+    field_data_available: z.boolean(),
+  }),
+  trend: responseObject({ state: z.string(), reason: z.string() }),
+  change_summary: responseObject({ state: z.string(), reason: z.string() }),
   limitations: z.array(z.string()),
 });
 

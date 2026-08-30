@@ -18,7 +18,7 @@ from app.core.config.site_health_contracts import (
     EXTRACTOR_VERSION,
     OBSERVATION_SOURCE_SITEMAP,
     PAGE_ANALYSIS_STATUS_COMPLETED,
-    RULE_OUTCOME_FAIL,
+    RULE_FAILING_OUTCOMES,
     SCORING_VERSION,
 )
 from app.core.config.site_health_measurement import (
@@ -57,7 +57,8 @@ async def _write_page_analysis(
 
     One UUID-identified ``SitePageAnalysis`` (``artifact_id`` is provenance), one
     ordinary ``SiteRuleEvaluation`` per rule/analysis scope, a
-    ``SiteIssue`` snapshot per FAIL (unique ``evaluation_id``), and the
+    ``SiteIssue`` snapshot per actionable failing outcome (unique
+    ``evaluation_id``), and the
     deterministic Technical/AEO/overall scores stamped with the versions.
     """
     site_url_id = await _resolve_analysis_site_url_id(
@@ -327,7 +328,7 @@ async def _persist_evaluations_and_issues(
         session.add(evaluation)
         evaluation_ids.append(evaluation_id)
         if (
-            ev.outcome == RULE_OUTCOME_FAIL
+            ev.outcome in RULE_FAILING_OUTCOMES
             and ev.finding_class != FINDING_CLASS_DIAGNOSTIC
         ):
             failed.append((ev, evaluation_id))

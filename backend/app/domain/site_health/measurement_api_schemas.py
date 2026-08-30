@@ -5,10 +5,12 @@ from __future__ import annotations
 import uuid
 from typing import Literal
 
-from app.domain.site_health.api_schemas import _Model
-
-MeasurementState = Literal["measured", "limited_evidence", "not_measured", "excluded"]
-DimensionApplicability = Literal["applicable", "not_applicable", "unresolved"]
+from app.domain.site_health.api_schemas import (
+    DimensionApplicability,
+    MeasurementState,
+    SearchEligibility,
+    _Model,
+)
 
 
 class ReadinessFailingCheckResponse(_Model):
@@ -92,28 +94,95 @@ class AeoReadinessResponse(_Model):
     limitations: list[str]
 
 
+class AcquisitionEligibilityCheckpointResponse(_Model):
+    checkpoint_id: Literal["acquisition.public_representation"]
+    outcome: str
+    reason: str
+    source_task_id: uuid.UUID | None
+    source_attempt_id: uuid.UUID | None
+    source_artifact_id: uuid.UUID | None
+
+
+class IndexEligibilityCheckpointResponse(_Model):
+    checkpoint_id: Literal["search.indexability"]
+    outcome: str
+    reason: str
+    source_analysis_id: uuid.UUID | None
+    source_evaluation_id: uuid.UUID | None
+
+
+class EligibilityReasonResponse(_Model):
+    site_url_id: uuid.UUID
+    state: SearchEligibility
+    checkpoints: list[
+        AcquisitionEligibilityCheckpointResponse | IndexEligibilityCheckpointResponse
+    ]
+
+
+class CrawlCoverageResponse(_Model):
+    state: str
+    evidence: dict[str, object]
+    denominator_kind: Literal["selected_intended_public_urls"]
+
+
+class OverviewDimensionResponse(_Model):
+    key: str
+    dimension_applicability: DimensionApplicability
+    dimension_measurement_state: MeasurementState
+    score: float | None
+    coverage: float | None
+    earned_points: float
+    determinate_points: float
+    expected_points: float
+    determinate_checkpoint_ids: list[str]
+    checkpoint_families: list[str]
+    reason: str
+
+
+class OverviewIssueResponse(_Model):
+    rule_id: str
+    finding_class: str
+    severity: str
+    category: str
+    description: str
+    remediation: str
+    affected_pages: int
+    eligibility_blocker: bool
+    impact_band: int
+
+
+class WebFundamentalsResponse(_Model):
+    state: str
+    field_data_available: bool
+
+
+class AvailabilityStateResponse(_Model):
+    state: str
+    reason: str
+
+
 class SiteHealthOverviewResponse(_Model):
     project_id: uuid.UUID
     crawl_id: uuid.UUID
     snapshot_id: uuid.UUID
-    search_eligibility: str
+    search_eligibility: SearchEligibility
     eligibility_totals: dict[str, int]
-    eligibility_reasons: list[dict]
+    eligibility_reasons: list[EligibilityReasonResponse]
     technical_integrity_score: float | None
     technical_integrity_coverage: float | None
     technical_integrity_state: MeasurementState
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
     aeo_measurement_state: MeasurementState
-    crawl_coverage: dict
+    crawl_coverage: CrawlCoverageResponse
     audited_page_count: int
     selected_page_count: int
     status_counts: dict[str, int]
-    aeo_dimensions: list[dict]
-    top_issues: list[dict]
-    web_fundamentals: dict
-    trend: dict
-    change_summary: dict
+    aeo_dimensions: list[OverviewDimensionResponse]
+    top_issues: list[OverviewIssueResponse]
+    web_fundamentals: WebFundamentalsResponse
+    trend: AvailabilityStateResponse
+    change_summary: AvailabilityStateResponse
     limitations: list[str]
 
 

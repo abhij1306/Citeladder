@@ -1,5 +1,5 @@
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 
@@ -14,6 +14,14 @@ const WORKSPACE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const PROJECT = '11111111-1111-4111-8111-111111111111';
 const GEN = '33333333-3333-4333-8333-333333333333';
 const OPPORTUNITY = '44444444-4444-4444-8444-444444444444';
+const SITE_HEALTH_REFERENCE = {
+  project_id: PROJECT,
+  crawl_id: '22222222-2222-4222-8222-222222222222',
+  site_url_id: '33333333-3333-4333-8333-333333333333',
+  source_analysis_id: '44444444-4444-4444-8444-444444444444',
+  dimension: 'answerability',
+  checkpoint_ids: ['aeo.answer_first'],
+};
 
 const project = {
   id: PROJECT,
@@ -273,14 +281,7 @@ afterAll(() => mswServer.close());
 
 describe('ContentScreen — Site Health handoff', () => {
   it('loads the authorized gap, seeds the task, and sends the stable reference', async () => {
-    const reference = {
-      project_id: PROJECT,
-      crawl_id: '22222222-2222-4222-8222-222222222222',
-      site_url_id: '33333333-3333-4333-8333-333333333333',
-      source_analysis_id: '44444444-4444-4444-8444-444444444444',
-      dimension: 'answerability',
-      checkpoint_ids: ['aeo.answer_first'],
-    };
+    const reference = SITE_HEALTH_REFERENCE;
     const sent: Record<string, unknown>[] = [];
     mockBase();
     mswServer.use(
@@ -298,6 +299,10 @@ describe('ContentScreen — Site Health handoff', () => {
           limitations: [],
         }),
       ),
+      http.get(`/api/v1/projects/${PROJECT}/demand/latest`, async () => {
+        await delay(50);
+        return HttpResponse.json(demandSnapshot);
+      }),
       http.post('/api/v1/content/generations', async ({ request }) => {
         sent.push((await request.json()) as Record<string, unknown>);
         return HttpResponse.json(generation(), { status: 201 });
@@ -305,11 +310,13 @@ describe('ContentScreen — Site Health handoff', () => {
       http.get(`/api/v1/content/generations/${GEN}`, () => HttpResponse.json(generation())),
     );
 
-    renderScreen({ siteHealthReference: reference });
+    renderScreen({ siteHealthReference: reference, demandSignalId: DEMAND_SIGNAL });
     const box = (await screen.findByRole('textbox', {
       name: /describe the website content/i,
     })) as HTMLTextAreaElement;
     await waitFor(() => expect(box.value).toContain('Answer the primary question directly.'));
+    await screen.findByText(/Brief written from the search demand signal/i);
+    expect(box.value).toContain('Answer the primary question directly.');
     expect(screen.getByText(/persisted answerability readiness gap/i)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
@@ -327,12 +334,8 @@ describe('ContentScreen — Site Health handoff', () => {
 
     renderScreen({
       siteHealthReference: {
+        ...SITE_HEALTH_REFERENCE,
         project_id: '99999999-9999-4999-8999-999999999999',
-        crawl_id: '22222222-2222-4222-8222-222222222222',
-        site_url_id: '33333333-3333-4333-8333-333333333333',
-        source_analysis_id: '44444444-4444-4444-8444-444444444444',
-        dimension: 'answerability',
-        checkpoint_ids: ['aeo.answer_first'],
       },
     });
 
@@ -542,9 +545,6 @@ describe('ContentScreen — platform skills', () => {
 
 describe('ContentScreen — ready state', () => {
   it('reports an empty preview as a crawl to run, not as a pending check', async () => {
-    // Regression: the indicator distinguished only "have preview" from "no
-    // preview", so a resolved-but-empty preview read as "Checking available
-    // context…" rather than telling the user what to actually do.
     mockBase();
     mswServer.use(
       http.get('/api/v1/content/context-preview', () =>

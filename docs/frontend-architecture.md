@@ -16,7 +16,7 @@ superseded path is deleted.
 | Station | Destination | Canonical browser location |
 |---|---|---|
 | Overview | Overview | `/projects` |
-| Analyze | Website | `/site?tab=pages` (default), `architecture`, `aeo-readiness`, `changes` |
+| Analyze | Website | `/site?tab=pages` (navigation target and non-dashboard default); Overview becomes the default when the server phase is `dashboard`, with `architecture`, `aeo-readiness`, and `changes` also available |
 | Analyze | Issues / Search Demand / Traffic | `/issues`, `/demand`, `/traffic` |
 | Analyze | Commerce Suite | `/products` |
 | Act | Opportunities / Content | `/opportunities`, `/content` |
@@ -111,7 +111,8 @@ an active persisted crawl, otherwise **Run new crawl**. **Export** is the
 secondary action. The client exposes no separate discovery or analysis buttons.
 
 Website uses one tablist on `/site`: **Overview**, **Pages**, **Architecture**,
-**AEO Readiness**, and **Changes**. Overview is the default after a usable crawl
+**AEO Readiness**, and **Changes**. Pages is the fallback outside the server's
+`dashboard` phase; Overview is the fallback in `dashboard`
 and reads the cohesive persisted snapshot projection: Search eligibility,
 Technical Integrity, qualified AEO Readiness, AEO Measurement Coverage, Crawl
 Coverage, seven pillars, top issues, Web Fundamentals, trend, and changes.

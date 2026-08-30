@@ -165,9 +165,8 @@ def _group_issue_history(
     """Collapse persisted evaluation evidence into rule-grouped history.
 
     Only evaluations from the selected URL's latest analysis in each crawl are
-    supplied.  A pass/not-applicable after a prior fail is therefore a real,
-    satisfied or non-scoring result after a prior missing result is therefore
-    a real, persisted resolution — never an inferred repair.
+    supplied. A satisfied or non-scoring result after a prior failing result is
+    therefore a real, persisted resolution — never an inferred repair.
     """
     by_rule = _observations_by_rule(observations)
     groups = [
@@ -227,6 +226,14 @@ def _rule_history_group(rule_id: str, rows: list[_HistoryObservation]) -> dict |
     timeline = _history_timeline(rows)
     latest = rows[-1]
     last_failure = failures[-1]
+    description = next(
+        (row.description for row in reversed(rows) if row.description),
+        last_failure.description,
+    )
+    remediation = next(
+        (row.remediation for row in reversed(rows) if row.remediation),
+        last_failure.remediation,
+    )
     return {
         "rule_id": rule_id,
         "dimension": last_failure.dimension,
@@ -234,8 +241,8 @@ def _rule_history_group(rule_id: str, rows: list[_HistoryObservation]) -> dict |
         "severity": last_failure.severity,
         "finding_class": last_failure.finding_class,
         "title": display_label_for(rule_id),
-        "description": last_failure.description,
-        "remediation": last_failure.remediation,
+        "description": description,
+        "remediation": remediation,
         "current_state": (
             "open" if latest.outcome in RULE_FAILING_OUTCOMES else "resolved"
         ),

@@ -14,6 +14,7 @@ from app.core.config.site_health_contracts import (
     AEO_READINESS_DIMENSION_LABELS,
     AEO_READINESS_DIMENSIONS,
     AEO_READINESS_MAX_EVALUATIONS,
+    AEO_READINESS_MAX_EVIDENCE_PAGES_PER_DIMENSION,
     PAGE_ANALYSIS_STATUS_COMPLETED,
     RULE_FAILING_OUTCOMES,
     RULE_OUTCOME_CONFLICTING,
@@ -24,6 +25,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_PASS,
     RULE_OUTCOME_UNAVAILABLE,
     RULE_OUTCOME_UNKNOWN,
+    SCORING_VERSION,
 )
 from app.core.config.site_health_measurement import (
     PRESENTATION_VERSION,
@@ -40,8 +42,6 @@ from app.models.site_health.analysis import SitePageAnalysis, SiteRuleEvaluation
 from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
 
-_MAX_EVIDENCE_PAGES = 25
-
 
 def _unavailable(crawl_id: uuid.UUID | None = None) -> dict:
     return {
@@ -51,7 +51,7 @@ def _unavailable(crawl_id: uuid.UUID | None = None) -> dict:
         "coverage": None,
         "profile_version": PROFILE_VERSION,
         "schema_contract_version": SCHEMA_CONTRACT_VERSION,
-        "scoring_version": "sh-scoring-1",
+        "scoring_version": SCORING_VERSION,
         "presentation_version": PRESENTATION_VERSION,
         "analyzer_version": "",
         "source_analysis_ids": [],
@@ -60,6 +60,15 @@ def _unavailable(crawl_id: uuid.UUID | None = None) -> dict:
         "dimensions": [],
         "limitations": ["AEO Readiness appears after persisted page analysis."],
     }
+
+
+def _bounded_evaluations(
+    evaluations: list[SiteRuleEvaluation],
+) -> tuple[list[SiteRuleEvaluation], bool]:
+    return (
+        evaluations[:AEO_READINESS_MAX_EVALUATIONS],
+        len(evaluations) > AEO_READINESS_MAX_EVALUATIONS,
+    )
 
 
 def _check_projection(rule_id: str, rows: list[SiteRuleEvaluation]) -> dict | None:
@@ -116,7 +125,9 @@ def _page_evidence(
         ),
     )
     pages: list[dict] = []
-    for analysis_id, failures in ordered[:_MAX_EVIDENCE_PAGES]:
+    for analysis_id, failures in ordered[
+        :AEO_READINESS_MAX_EVIDENCE_PAGES_PER_DIMENSION
+    ]:
         analysis, site_url = analyses[analysis_id]
         failures.sort(key=lambda row: row.rule_id)
         failure_guidance = {
@@ -225,7 +236,11 @@ async def _analysis_graph(
     crawl_id: uuid.UUID,
     workspace_id: uuid.UUID,
     project_id: uuid.UUID,
-) -> tuple[dict[uuid.UUID, tuple[SitePageAnalysis, SiteUrl]], list[SiteRuleEvaluation]]:
+) -> tuple[
+    dict[uuid.UUID, tuple[SitePageAnalysis, SiteUrl]],
+    list[SiteRuleEvaluation],
+    bool,
+]:
     analysis_rows = (
         await session.execute(
             select(SitePageAnalysis, SiteUrl)
@@ -260,13 +275,14 @@ async def _analysis_graph(
                     SiteRuleEvaluation.rule_id.in_(READINESS_CHECKPOINTS),
                 )
                 .order_by(SiteRuleEvaluation.analysis_id, SiteRuleEvaluation.rule_id)
-                .limit(AEO_READINESS_MAX_EVALUATIONS)
+                .limit(AEO_READINESS_MAX_EVALUATIONS + 1)
             )
         )
         if analyses
         else []
     )
-    return analyses, evaluations
+    bounded, evaluations_truncated = _bounded_evaluations(evaluations)
+    return analyses, bounded, evaluations_truncated
 
 
 async def get_aeo_readiness(
@@ -290,7 +306,7 @@ async def get_aeo_readiness(
     )
     if snapshot is None:
         return _unavailable(crawl.id)
-    analyses, evaluations = await _analysis_graph(
+    analyses, evaluations, evaluations_truncated = await _analysis_graph(
         session,
         crawl_id=crawl.id,
         workspace_id=workspace_id,
@@ -316,6 +332,11 @@ async def get_aeo_readiness(
         limitations.append(
             f"AEO Readiness describes {snapshot.analyzed_url_count} audited pages; "
             f"crawl coverage is {snapshot.coverage_state}."
+        )
+    if evaluations_truncated:
+        limitations.append(
+            "Readiness diagnostic counts and evidence are truncated at "
+            f"{AEO_READINESS_MAX_EVALUATIONS} evaluations."
         )
     return {
         "state": snapshot.aeo_measurement_state,

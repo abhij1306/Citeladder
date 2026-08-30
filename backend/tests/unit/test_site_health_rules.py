@@ -386,6 +386,10 @@ def test_check_raising_yields_error_outcome():
     ev = evaluate_rule(rule, facts)
     assert ev.outcome == RULE_OUTCOME_ERROR
     assert "error" in ev.evidence
+    assert ev.reason_code == "check_error"
+    assert ev.score_roles == ()
+    assert ev.score_applicability is False
+    assert ev.expected_profile_membership is True
 
 
 def test_unmapped_rule_id_yields_error():
@@ -403,6 +407,8 @@ def test_unmapped_rule_id_yields_error():
     ev = evaluate_rule(phantom, _html_facts())
     assert ev.outcome == RULE_OUTCOME_ERROR
     assert ev.evidence["error"] == "no_check_mapped"
+    assert ev.reason_code == "no_check_mapped"
+    assert ev.readiness_dimension == ""
 
 
 def test_unknown_applicability_key_is_not_applicable():

@@ -51,6 +51,25 @@ describe('PagesTable', () => {
     expect(screen.getByText('64')).toBeInTheDocument();
   });
 
+  it('renders limited scores and labels excluded measurements', () => {
+    render(
+      <PagesTable
+        crawlId={CRAWL}
+        pages={[
+          page({
+            technical_integrity_state: 'limited_evidence',
+            technical_integrity_score: 46,
+            aeo_measurement_state: 'excluded',
+            aeo_readiness_score: null,
+            aeo_measurement_coverage: null,
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText('46')).toBeInTheDocument();
+    expect(screen.getAllByText('Excluded')).toHaveLength(2);
+  });
+
   it('renders the page-kind badge for a classified page', () => {
     render(<PagesTable pages={[page()]} crawlId={CRAWL} />);
     expect(screen.getByText('Article')).toBeInTheDocument();

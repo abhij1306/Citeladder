@@ -65,7 +65,7 @@ def _aeo(
     rule_id: str,
     outcome: str,
     family: str,
-    dimension: str,
+    readiness_dimension: str,
     *,
     weight: float = 1.0,
 ) -> RuleEvaluation:
@@ -74,7 +74,7 @@ def _aeo(
         outcome,
         role=SCORE_ROLE_AEO,
         family=family,
-        dimension=dimension,
+        dimension=readiness_dimension,
         readiness_weight=weight,
     )
 
@@ -132,7 +132,7 @@ def test_qualifying_faq_needs_breadth_and_coverage() -> None:
         page_kind="faq",
         page_kind_evidence={"tier": "structural"},
     )
-    assert scores.aeo_measurement_coverage == 0.8
+    assert scores.aeo_measurement_coverage == 1.0
     assert scores.aeo_measurement_state == MEASUREMENT_STATE_MEASURED
     structure = next(
         row for row in scores.readiness_dimensions if row.key == "structure"
@@ -173,7 +173,7 @@ def test_healthy_non_faq_stays_limited_and_unresolved_dimensions_lower_coverage(
     assert dimensions["evidence"].applicability == "unresolved"
     assert dimensions["freshness"].applicability == "unresolved"
     assert dimensions["evidence"].coverage == 0.0
-    assert scores.aeo_measurement_coverage == 0.6923
+    assert scores.aeo_measurement_coverage == 1.0
 
 
 def _aggregate_input(

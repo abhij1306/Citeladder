@@ -216,9 +216,30 @@ describe('AEO Readiness', () => {
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
 
     const row = (await screen.findByText('Answerability')).closest('tr');
-    expect(within(row!).getByText('Limited evidence')).toBeInTheDocument();
+    expect(within(row!).getByText('Incomplete')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'View details for Answerability' }));
-    expect(screen.getByText('Incomplete')).toBeInTheDocument();
+    expect(screen.getAllByText('Incomplete')).toHaveLength(2);
+  });
+
+  it('labels unknown-only checks as incomplete rather than not applicable', async () => {
+    const dimensions = DIMENSIONS.map(([key, label], index) => {
+      const base = dimension(key, label, false);
+      return index === 0
+        ? {
+            ...base,
+            unknown_count: 1,
+            checks: [{ ...base.checks[0], satisfied_count: 0, unknown_count: 1 }],
+          }
+        : base;
+    });
+    stubReadiness({ dimensions });
+    renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'View details for Answerability' }),
+    );
+    expect(screen.getAllByText('Incomplete').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Did not apply')).not.toBeInTheDocument();
   });
 
   it('reveals the remediation for a check on demand', async () => {

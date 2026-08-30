@@ -703,9 +703,12 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
         )
     check = _CHECKS.get(rule.rule_id)
     if check is None:
+        reason = "no_check_mapped"
         return RuleEvaluation(
             outcome=RULE_OUTCOME_ERROR,
-            evidence={"error": "no_check_mapped"},
+            evidence={"error": reason},
+            reason_code=reason,
+            **_measurement_metadata(rule, facts, RULE_OUTCOME_ERROR, reason),
             **base,
         )
     try:
@@ -716,9 +719,12 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
     # pass, a fail, and a not-applicable. Narrowing it would let an
     # unanticipated defect crash the whole page evaluation instead.
     except Exception as exc:  # noqa: BLE001
+        reason = "check_error"
         return RuleEvaluation(
             outcome=RULE_OUTCOME_ERROR,
             evidence={"error": f"{type(exc).__name__}: {exc}"[:512]},
+            reason_code=reason,
+            **_measurement_metadata(rule, facts, RULE_OUTCOME_ERROR, reason),
             **base,
         )
     outcome, reason = _normalized_outcome(rule, outcome, evidence)

@@ -33,7 +33,7 @@ export const siteHealthKeys = {
       siteUrlId,
       sourceAnalysisId,
       dimension,
-      [...checkpointIds].sort(),
+      [...checkpointIds].sort((left, right) => left.localeCompare(right)),
     ] as const,
   contentHandoffUnavailable: () => ['site-health', 'content-handoff', 'unavailable'] as const,
   aeoReadiness: (projectId: string, crawlId?: string) =>

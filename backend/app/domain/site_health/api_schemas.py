@@ -39,6 +39,9 @@ FindingClass = Literal["defect", "advisory", "diagnostic"]
 IssueDimension = Literal["technical", "aeo"]
 SiteUrlSource = Literal["root", "link", "sitemap", "redirect"]
 SelectionSource = Literal["user", "free_sample", "bootstrap"]
+MeasurementState = Literal["measured", "limited_evidence", "not_measured", "excluded"]
+DimensionApplicability = Literal["applicable", "not_applicable", "unresolved"]
+SearchEligibility = Literal["eligible", "blocked", "unknown", "excluded"]
 
 
 class _Model(BaseModel):
@@ -172,20 +175,20 @@ class ScoreSummaryByType(_Model):
     analyzed_count: int
     technical_integrity_score: float | None
     technical_integrity_coverage: float | None
-    technical_integrity_state: str
+    technical_integrity_state: MeasurementState
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
-    aeo_measurement_state: str
+    aeo_measurement_state: MeasurementState
 
 
 class ScoreSummary(_Model):
     technical_integrity_score: float | None
     technical_integrity_coverage: float | None
-    technical_integrity_state: str
+    technical_integrity_state: MeasurementState
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
-    aeo_measurement_state: str
-    search_eligibility: Literal["eligible", "blocked", "unknown", "excluded"]
+    aeo_measurement_state: MeasurementState
+    search_eligibility: SearchEligibility
     selected_count: int
     analyzed_count: int
     issue_count: int
@@ -330,10 +333,10 @@ class InventoryRow(_Model):
     # ``_Model`` validation for any packed analysis.
     technical_integrity_score: float | None
     technical_integrity_coverage: float | None
-    technical_integrity_state: str
+    technical_integrity_state: MeasurementState
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
-    aeo_measurement_state: str
+    aeo_measurement_state: MeasurementState
     main_content_indexable: bool | None
     last_audited: str | None
 
@@ -389,10 +392,10 @@ class PageSummary(_Model):
     # detail projection so a page of rows never carries kilobytes of evidence.
     technical_integrity_score: float | None
     technical_integrity_coverage: float | None
-    technical_integrity_state: str
+    technical_integrity_state: MeasurementState
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
-    aeo_measurement_state: str
+    aeo_measurement_state: MeasurementState
     main_content_indexable: bool | None
     last_audited: str | None
     # Persisted internal-link projection (PR2). None means UNMEASURED — this
@@ -566,10 +569,10 @@ class PageDetail(_Model):
     # (unpacked project, or an analysis written before the pack was frozen).
     technical_integrity_score: float | None
     technical_integrity_coverage: float | None
-    technical_integrity_state: str
+    technical_integrity_state: MeasurementState
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
-    aeo_measurement_state: str
+    aeo_measurement_state: MeasurementState
     main_content_indexable: bool | None
     issue_count: int | None
     last_audited: str | None

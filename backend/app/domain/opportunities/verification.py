@@ -68,6 +68,14 @@ def _target_id(
         return None
 
 
+def _expected_rule_outcome(value: object) -> object:
+    if value == "pass":
+        return RULE_OUTCOME_PASS
+    if value == "fail":
+        return RULE_OUTCOME_FAIL
+    return value
+
+
 async def _evaluate_site_rule(
     session: AsyncSession,
     *,
@@ -92,7 +100,7 @@ async def _evaluate_site_rule(
     result.observed += 1
     result.analysis_ids.add(analysis.id)
     result.rule_evaluation_ids.add(evaluation.id)
-    if evaluation.outcome == check.get("expected_outcome"):
+    if evaluation.outcome == _expected_rule_outcome(check.get("expected_outcome")):
         result.matched += 1
     else:
         result.contradicted = True

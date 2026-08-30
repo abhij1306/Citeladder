@@ -68,14 +68,20 @@ export function UrlDetailView({
         <ScoreTile
           label="Technical Integrity"
           value={
-            detail.technical_integrity_state === 'measured'
+            detail.technical_integrity_state === 'measured' ||
+            detail.technical_integrity_state === 'limited_evidence'
               ? detail.technical_integrity_score
               : null
           }
         />
         <ScoreTile
           label="AEO Readiness"
-          value={detail.aeo_measurement_state === 'measured' ? detail.aeo_readiness_score : null}
+          value={
+            detail.aeo_measurement_state === 'measured' ||
+            detail.aeo_measurement_state === 'limited_evidence'
+              ? detail.aeo_readiness_score
+              : null
+          }
         />
         <ScoreTile
           label="AEO Measurement Coverage"

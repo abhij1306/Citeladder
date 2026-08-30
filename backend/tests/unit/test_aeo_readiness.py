@@ -20,7 +20,9 @@ from app.core.config.site_health_measurement import (
     UNKNOWN_REASONS,
 )
 from app.core.config.site_health_rules import SITE_HEALTH_RULES_BY_ID
+from app.domain.site_health.service import aeo_readiness
 from app.domain.site_health.service.aeo_readiness import (
+    _bounded_evaluations,
     _check_projection,
     _dimension_projection,
     _page_evidence,
@@ -180,3 +182,15 @@ def test_exact_evidence_bound_is_not_reported_as_truncated() -> None:
     projection = _dimension_projection({"key": "machine-readability"}, rows, analyses)
 
     assert projection["evidence_truncated"] is False
+
+
+def test_diagnostic_evaluation_cap_reports_truncation(monkeypatch) -> None:
+    monkeypatch.setattr(aeo_readiness, "AEO_READINESS_MAX_EVALUATIONS", 2)
+    rows = [
+        _evaluation("aeo.answer_first", RULE_OUTCOME_FAIL, uuid4()) for _ in range(3)
+    ]
+
+    bounded, truncated = _bounded_evaluations(rows)
+
+    assert bounded == rows[:2]
+    assert truncated is True

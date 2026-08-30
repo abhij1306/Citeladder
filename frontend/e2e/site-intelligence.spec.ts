@@ -134,6 +134,7 @@ async function stubWebsite(page: Page) {
           );
           const ruleId = ruleIds[0];
           const missingCount = index ? 0 : 1;
+          const notApplicableCount = index === 1 ? 1 : 0;
           return {
             key,
             label,
@@ -148,13 +149,13 @@ async function stubWebsite(page: Page) {
             earned_points: index ? ruleCounts[index] : ruleCounts[index] - 1,
             determinate_points: ruleCounts[index],
             expected_points: ruleCounts[index],
-            satisfied_count: ruleCounts[index] * 2 - missingCount,
+            satisfied_count: ruleCounts[index] * 2 - missingCount - notApplicableCount,
             partial_count: 0,
             missing_count: missingCount,
             unknown_count: 0,
             unavailable_count: 0,
             conflicting_count: 0,
-            not_applicable_count: index === 1 ? 1 : 0,
+            not_applicable_count: notApplicableCount,
             error_count: 0,
             coverage: 1,
             checked_page_count: 2,
@@ -164,13 +165,13 @@ async function stubWebsite(page: Page) {
                 rule_id: ruleId,
                 title: index ? `${label} check` : 'Answer is not stated first',
                 remediation: 'Move the direct answer into the opening paragraph.',
-                satisfied_count: index ? 2 : 1,
+                satisfied_count: 2 - missingCount - notApplicableCount,
                 partial_count: 0,
                 missing_count: missingCount,
                 unknown_count: 0,
                 unavailable_count: 0,
                 conflicting_count: 0,
-                not_applicable_count: index === 1 ? 1 : 0,
+                not_applicable_count: notApplicableCount,
                 error_count: 0,
                 failing_page_count: missingCount,
                 checkpoint_family: key,

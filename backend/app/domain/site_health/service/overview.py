@@ -81,10 +81,17 @@ async def get_overview(
         "aeo_dimensions": _stored(snapshot.readiness_dimensions, []),
         "top_issues": _stored(snapshot.top_issues, []),
         "web_fundamentals": _stored(
-            snapshot.web_fundamentals, {"state": "not_measured"}
+            snapshot.web_fundamentals,
+            {"state": "not_measured", "field_data_available": False},
         ),
-        "trend": _stored(snapshot.trend, {"state": "unavailable"}),
-        "change_summary": _stored(snapshot.change_summary, {"state": "unavailable"}),
+        "trend": _stored(
+            snapshot.trend,
+            {"state": "unavailable", "reason": "projection_unavailable"},
+        ),
+        "change_summary": _stored(
+            snapshot.change_summary,
+            {"state": "unavailable", "reason": "projection_unavailable"},
+        ),
         "limitations": _overview_limitations(snapshot),
     }
 

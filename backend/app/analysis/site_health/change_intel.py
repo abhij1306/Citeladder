@@ -13,7 +13,11 @@ from app.core.config.site_change_intel import (
     CHANGE_CLASS_REGRESSION,
     CHANGE_FIELDS,
 )
-from app.core.config.site_health_contracts import RULE_OUTCOME_FAIL, RULE_OUTCOME_PASS
+from app.core.config.site_health_contracts import (
+    RULE_FAILING_OUTCOMES,
+    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_PASS,
+)
 
 
 @dataclass(frozen=True)
@@ -61,9 +65,9 @@ class ChangeObservation:
 def _rule_class(before: RuleState | None, after: RuleState | None) -> str | None:
     if before is None or after is None or before.outcome == after.outcome:
         return None
-    if before.outcome == RULE_OUTCOME_FAIL and after.outcome == RULE_OUTCOME_PASS:
+    if before.outcome in RULE_FAILING_OUTCOMES and after.outcome == RULE_OUTCOME_PASS:
         return CHANGE_CLASS_IMPROVEMENT
-    if before.outcome == RULE_OUTCOME_PASS and after.outcome == RULE_OUTCOME_FAIL:
+    if before.outcome == RULE_OUTCOME_PASS and after.outcome in RULE_FAILING_OUTCOMES:
         return (
             CHANGE_CLASS_CRITICAL
             if after.severity == "critical"
@@ -106,9 +110,19 @@ def _expected_link(
     site_url_id: uuid.UUID,
     field: str,
     after_value: Any,
+    after_rule: RuleState | None,
 ) -> tuple[bool, uuid.UUID | None]:
     item = expected.get((site_url_id, field))
-    if item is None or item.expected_value != after_value:
+    if item is None:
+        return False, None
+    expected_value = item.expected_value
+    if expected_value == "pass":
+        expected_value = RULE_OUTCOME_PASS
+    elif expected_value == "fail":
+        expected_value = RULE_OUTCOME_FAIL
+    matches_value = expected_value == after_value
+    matches_rule = after_rule is not None and expected_value == after_rule.outcome
+    if not matches_value and not matches_rule:
         return False, None
     return True, item.implementation_event_id
 
@@ -139,6 +153,7 @@ def _paired_observations(
             site_url_id=after.site_url_id,
             field=field,
             after_value=after_value,
+            after_rule=after_rule,
         )
         observations.append(
             ChangeObservation(

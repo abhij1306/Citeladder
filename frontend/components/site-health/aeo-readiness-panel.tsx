@@ -37,6 +37,7 @@ function formatCoverage(coverage: number | null): string {
 type DimensionState =
   | 'Needs work'
   | 'Limited evidence'
+  | 'Incomplete'
   | 'Passing'
   | 'Not measured'
   | 'Not applicable'
@@ -46,6 +47,13 @@ function dimensionState(dimension: ReadinessDimension): DimensionState {
   if (dimension.dimension_applicability === 'not_applicable') return 'Not applicable';
   if (dimension.dimension_measurement_state === 'excluded') return 'Excluded';
   if (dimension.dimension_measurement_state === 'not_measured') return 'Not measured';
+  if (
+    dimension.unknown_count > 0 ||
+    dimension.unavailable_count > 0 ||
+    dimension.conflicting_count > 0 ||
+    dimension.error_count > 0
+  )
+    return 'Incomplete';
   if (dimension.missing_count > 0 || dimension.partial_count > 0) return 'Needs work';
   if (dimension.dimension_measurement_state === 'limited_evidence') return 'Limited evidence';
   return 'Passing';
@@ -54,6 +62,7 @@ function dimensionState(dimension: ReadinessDimension): DimensionState {
 function stateBadgeValue(state: DimensionState) {
   if (state === 'Needs work') return 'danger' as const;
   if (state === 'Limited evidence') return 'warning' as const;
+  if (state === 'Incomplete') return 'warning' as const;
   if (state === 'Passing') return 'success' as const;
   return 'info' as const;
 }
@@ -262,14 +271,7 @@ function CheckLedger({ checks }: Readonly<{ checks: ReadinessCheck[] }>) {
 }
 
 function CheckRow({ check }: Readonly<{ check: ReadinessCheck }>) {
-  const state =
-    check.error_count > 0
-      ? 'Incomplete'
-      : check.missing_count > 0 || check.partial_count > 0
-        ? 'Needs work'
-        : check.satisfied_count > 0
-          ? 'Passing'
-          : 'Did not apply';
+  const state = checkState(check);
   return (
     <li className="grid gap-1 py-3 first:pt-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -285,6 +287,20 @@ function CheckRow({ check }: Readonly<{ check: ReadinessCheck }>) {
       </p>
     </li>
   );
+}
+
+function checkState(check: ReadinessCheck) {
+  if (
+    check.error_count > 0 ||
+    check.unknown_count > 0 ||
+    check.unavailable_count > 0 ||
+    check.conflicting_count > 0
+  )
+    return 'Incomplete';
+  if (check.missing_count > 0 || check.partial_count > 0) return 'Needs work';
+  if (check.satisfied_count > 0) return 'Passing';
+  if (check.not_applicable_count > 0) return 'Did not apply';
+  return 'Not measured';
 }
 
 function FailingPages({

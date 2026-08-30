@@ -8,10 +8,12 @@ from dataclasses import dataclass
 from app.analysis.site_health.rules import RuleEvaluation
 from app.core.config.site_health_contracts import (
     AEO_READINESS_DIMENSIONS,
+    RULE_ID_TECHNICAL_INDEXABLE,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_PARTIAL,
     RULE_OUTCOME_PASS,
     SCORING_VERSION,
+    SEVERITY_CRITICAL,
 )
 from app.core.config.site_health_measurement import (
     AEO_MEASURED_MIN_CHECKPOINTS,
@@ -29,10 +31,17 @@ from app.core.config.site_health_measurement import (
     SCORE_ROLE_TECHNICAL,
     TECHNICAL_MEASURED_MIN_COVERAGE,
 )
-from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER
+from app.core.config.site_health_taxonomy import (
+    PAGE_KIND_ARTICLE,
+    PAGE_KIND_COMPARISON,
+    PAGE_KIND_FAQ,
+    PAGE_KIND_GUIDE,
+    PAGE_KIND_HOMEPAGE,
+    PAGE_KIND_OTHER,
+)
 
 _DETERMINATE = frozenset({RULE_OUTCOME_PASS, RULE_OUTCOME_PARTIAL, RULE_OUTCOME_FAIL})
-_EDITORIAL_KINDS = frozenset({"article", "guide", "comparison"})
+_EDITORIAL_KINDS = frozenset({PAGE_KIND_ARTICLE, PAGE_KIND_GUIDE, PAGE_KIND_COMPARISON})
 
 
 @dataclass(frozen=True)
@@ -151,7 +160,9 @@ def _technical_measurement(
     score = _ratio(earned, determinate_weight, score=True)
     coverage = _ratio(determinate_weight, expected_weight, score=False)
     critical_complete = all(
-        row.outcome in _DETERMINATE for row in expected if row.severity == "critical"
+        row.outcome in _DETERMINATE
+        for row in expected
+        if row.severity == SEVERITY_CRITICAL
     )
     state = _technical_state(
         has_expected=bool(expected),
@@ -189,7 +200,7 @@ def _answer_structure_applicability(
 ) -> tuple[str, str]:
     if not structural:
         return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
-    if page_kind == "faq" or "has_faq" in page_traits:
+    if page_kind == PAGE_KIND_FAQ or "has_faq" in page_traits:
         return DIMENSION_APPLICABLE, ""
     return DIMENSION_NOT_APPLICABLE, "dimension_determinately_irrelevant"
 
@@ -203,9 +214,9 @@ def _machine_applicability(page_kind: str, structural: bool) -> tuple[str, str]:
 def _authority_applicability(page_kind: str, structural: bool) -> tuple[str, str]:
     if not structural:
         return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
-    if page_kind in _EDITORIAL_KINDS or page_kind == "homepage":
+    if page_kind in _EDITORIAL_KINDS or page_kind == PAGE_KIND_HOMEPAGE:
         return DIMENSION_APPLICABLE, ""
-    if page_kind == "faq":
+    if page_kind == PAGE_KIND_FAQ:
         return DIMENSION_UNRESOLVED, "dimension_relevance_unresolved"
     return DIMENSION_NOT_APPLICABLE, "dimension_determinately_irrelevant"
 
@@ -348,7 +359,7 @@ def _aeo_state(
         and len(checkpoints) >= AEO_MEASURED_MIN_CHECKPOINTS
         and len(families) >= AEO_MEASURED_MIN_FAMILIES
         and len(measured_dimensions) >= AEO_MEASURED_MIN_DIMENSIONS
-        and "technical.indexable" in checkpoints
+        and RULE_ID_TECHNICAL_INDEXABLE in checkpoints
     )
     return MEASUREMENT_STATE_MEASURED if sufficient else MEASUREMENT_STATE_LIMITED
 
@@ -358,7 +369,9 @@ def _overall_aeo(
 ) -> tuple[float | None, float | None, str]:
     scored = [row for row in dimensions if row.score is not None]
     covered = [
-        row for row in dimensions if row.applicability != DIMENSION_NOT_APPLICABLE
+        row
+        for row in dimensions
+        if row.applicability != DIMENSION_NOT_APPLICABLE and row.expected_points > 0
     ]
     score = _weighted_dimension_average(scored, "score", score=True)
     coverage = _weighted_dimension_average(covered, "coverage", score=False)
@@ -429,7 +442,8 @@ def score_analysis(
             (
                 row.outcome == RULE_OUTCOME_PASS
                 for row in rows
-                if row.rule_id == "technical.indexable" and row.outcome in _DETERMINATE
+                if row.rule_id == RULE_ID_TECHNICAL_INDEXABLE
+                and row.outcome in _DETERMINATE
             ),
             None,
         ),

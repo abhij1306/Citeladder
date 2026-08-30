@@ -35,7 +35,10 @@ from app.analysis.site_health.scoring import (
     AnalysisMeasurementInput,
     aggregate_measurements,
 )
-from app.core.config.site_health_acquisition import ERROR_ROBOTS_DENIED
+from app.core.config.site_health_acquisition import (
+    CORPUS_EXCLUSION_ERROR_CODES,
+    ERROR_ROBOTS_DENIED,
+)
 from app.core.config.site_health_contracts import (
     ANALYZER_VERSION,
     PAGE_ANALYSIS_STATUS_COMPLETED,
@@ -115,6 +118,12 @@ def _eligibility_state(
         return "blocked", "blocked"
     if representation == "satisfied" and indexing == RULE_OUTCOME_PASS:
         return "eligible", "audited"
+    if (
+        task is not None
+        and task.status == TASK_STATUS_FAILED
+        and task.error_code in CORPUS_EXCLUSION_ERROR_CODES
+    ):
+        return "excluded", "excluded"
     if task is not None and task.status == TASK_STATUS_FAILED:
         return "unknown", "error"
     return "unknown", "pending"
@@ -169,7 +178,13 @@ def _eligibility_rollup(
 ) -> tuple[dict[str, int], list[dict], dict[str, int]]:
     totals = {"eligible": 0, "blocked": 0, "unknown": 0, "excluded": 0}
     reasons: list[dict] = []
-    statuses = {"audited": 0, "blocked": 0, "error": 0, "pending": 0}
+    statuses = {
+        "audited": 0,
+        "blocked": 0,
+        "excluded": 0,
+        "error": 0,
+        "pending": 0,
+    }
     for site_url_id in selected_ids:
         task = tasks.get(site_url_id)
         attempt = attempts.get(task.id) if task else None
@@ -219,11 +234,17 @@ async def _eligibility_projection(
     """Freeze the PR2 two-checkpoint eligibility gate with exact sources."""
     tasks = (
         await session.scalars(
-            select(SiteCrawlTask).where(
+            select(SiteCrawlTask)
+            .where(
                 SiteCrawlTask.crawl_id == crawl.id,
                 SiteCrawlTask.workspace_id == crawl.workspace_id,
                 SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
                 SiteCrawlTask.site_url_id.in_(selected_ids),
+            )
+            .order_by(
+                SiteCrawlTask.site_url_id,
+                SiteCrawlTask.generation,
+                SiteCrawlTask.id,
             )
         )
     ).all()
@@ -232,10 +253,17 @@ async def _eligibility_projection(
     attempts = (
         list(
             await session.scalars(
-                select(SiteFetchAttempt).where(
+                select(SiteFetchAttempt)
+                .where(
                     SiteFetchAttempt.crawl_id == crawl.id,
                     SiteFetchAttempt.workspace_id == crawl.workspace_id,
                     SiteFetchAttempt.task_id.in_(task_ids),
+                )
+                .order_by(
+                    SiteFetchAttempt.task_id,
+                    SiteFetchAttempt.attempt_number,
+                    SiteFetchAttempt.request_ordinal,
+                    SiteFetchAttempt.id,
                 )
             )
         )
@@ -256,11 +284,12 @@ async def _eligibility_projection(
                     SitePageAnalysis.id.in_(analysis_ids),
                     SiteRuleEvaluation.rule_id == "technical.indexable",
                 )
+                .order_by(SitePageAnalysis.site_url_id, SiteRuleEvaluation.id)
             )
         ).all()
-    indexability = {
-        site_url_id: evaluation for site_url_id, evaluation in evaluation_rows
-    }
+    indexability: dict[uuid.UUID, SiteRuleEvaluation] = {}
+    for site_url_id, evaluation in evaluation_rows:
+        indexability[site_url_id] = evaluation
     totals, reasons, status_counts = _eligibility_rollup(
         selected_ids,
         tasks=latest_tasks,

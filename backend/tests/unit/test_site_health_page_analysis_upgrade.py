@@ -260,6 +260,34 @@ def test_grouped_issue_history_tracks_new_continuing_and_resolved() -> None:
     }
 
 
+def test_grouped_issue_history_uses_latest_nonempty_guidance() -> None:
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    observations = [
+        _HistoryObservation(
+            crawl_id=uuid4(),
+            observed_at=start + timedelta(days=index),
+            rule_id="aeo.answer_first",
+            dimension="aeo",
+            category="content",
+            severity="medium",
+            finding_class="defect",
+            outcome=RULE_OUTCOME_FAIL,
+            analyzer_version="analyzer-1",
+            rule_version="rule-1",
+            description=description,
+            remediation=remediation,
+        )
+        for index, (description, remediation) in enumerate(
+            (("Old description", "Old fix"), ("Current description", ""), ("", ""))
+        )
+    ]
+
+    groups, _summary = _group_issue_history(observations)
+
+    assert groups[0]["description"] == "Current description"
+    assert groups[0]["remediation"] == "Old fix"
+
+
 def test_grouped_issue_history_resolves_on_diagnostic_outcomes() -> None:
     start = datetime(2026, 1, 1, tzinfo=UTC)
     outcomes = (

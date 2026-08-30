@@ -20,6 +20,7 @@ import pytest
 from app.core.config.site_health_acquisition import (
     ERROR_ROBOTS_DENIED,
     ERROR_SSRF_BLOCKED,
+    ERROR_URL_ADMISSION_REJECTED,
 )
 from app.core.config.site_health_contracts import (
     PAGE_ANALYSIS_STATUS_COMPLETED,
@@ -33,6 +34,7 @@ from app.core.config.task_queue import (
     TASK_STATUS_RUNNING,
     TASK_STATUS_SUCCEEDED,
 )
+from app.domain.site_health.architecture import _indexability_outcome
 from app.domain.site_health.normalization import (
     CursorScopeError,
     decode_keyset_cursor,
@@ -44,6 +46,7 @@ from app.domain.site_health.service import (
     display_label_for,
     presentation_status_for,
 )
+from app.domain.site_health.snapshot import _eligibility_state
 from app.models.site_health.analysis import SitePageAnalysis
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
@@ -316,3 +319,26 @@ def test_score_summary_without_breakdown_projects_empty_map() -> None:
 
 def test_score_summary_none_when_absent() -> None:
     assert _score_summary(cast(SiteCrawl, _crawl_with_summary(None))) is None
+
+
+def test_admission_rejection_is_excluded_from_search_eligibility() -> None:
+    task = SimpleNamespace(
+        status=TASK_STATUS_FAILED,
+        error_code=ERROR_URL_ADMISSION_REJECTED,
+    )
+    assert _eligibility_state("unknown", "unknown", task) == (
+        "excluded",
+        "excluded",
+    )
+
+
+def test_robots_denial_remains_an_observed_blocker() -> None:
+    task = SimpleNamespace(status=TASK_STATUS_FAILED, error_code=ERROR_ROBOTS_DENIED)
+    assert _eligibility_state("missing", "unknown", task) == ("blocked", "blocked")
+
+
+def test_only_determinate_indexability_outcomes_become_booleans() -> None:
+    assert _indexability_outcome("satisfied") is True
+    assert _indexability_outcome("missing") is False
+    assert _indexability_outcome("unknown") is None
+    assert _indexability_outcome("unavailable") is None

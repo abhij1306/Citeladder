@@ -27,6 +27,7 @@ from app.core.config.site_health_contracts import (
     DISCOVERY_STATUS_SAMPLE_COMPLETED,
     DISCOVERY_STATUS_STOPPED,
 )
+from app.core.config.site_health_measurement import MEASUREMENT_STATE_NOT_MEASURED
 from app.models.site_health.crawl import SiteCrawl
 
 SiteHealthPhase = Literal[
@@ -64,8 +65,10 @@ def _has_real_scores(score_summary: dict | None) -> bool:
     without a separate failure probe.
     """
     return score_summary is not None and (
-        score_summary.get("technical_integrity_state", "not_measured") != "not_measured"
-        or score_summary.get("aeo_measurement_state", "not_measured") != "not_measured"
+        score_summary.get("technical_integrity_state", MEASUREMENT_STATE_NOT_MEASURED)
+        != MEASUREMENT_STATE_NOT_MEASURED
+        or score_summary.get("aeo_measurement_state", MEASUREMENT_STATE_NOT_MEASURED)
+        != MEASUREMENT_STATE_NOT_MEASURED
     )
 
 

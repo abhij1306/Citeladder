@@ -195,21 +195,20 @@ export function PagesTable({
               numeric
               className={cn('mono font-medium', scoreTextClass(page.technical_integrity_score))}
             >
-              {page.technical_integrity_state === 'measured'
-                ? formatScore(page.technical_integrity_score)
-                : PLACEHOLDER}
+              {formatMeasurementScore(
+                page.technical_integrity_score,
+                page.technical_integrity_state,
+              )}
             </TableCell>
             <TableCell
               numeric
               className={cn('mono font-medium', scoreTextClass(page.aeo_readiness_score))}
             >
-              {page.aeo_measurement_state === 'measured'
-                ? formatScore(page.aeo_readiness_score)
-                : PLACEHOLDER}
+              {formatMeasurementScore(page.aeo_readiness_score, page.aeo_measurement_state)}
             </TableCell>
             <TableCell numeric className="mono font-medium">
               {page.aeo_measurement_coverage === null
-                ? PLACEHOLDER
+                ? measurementStateLabel(page.aeo_measurement_state)
                 : `${Math.round(page.aeo_measurement_coverage * 100)}%`}
             </TableCell>
             {LINK_COLUMNS.map((column) => {
@@ -225,11 +224,7 @@ export function PagesTable({
               );
             })}
             <TableCell className="text-secondary text-xs">
-              {page.main_content_indexable === null
-                ? PLACEHOLDER
-                : page.main_content_indexable
-                  ? 'Indexable'
-                  : 'Blocked'}
+              {formatIndexability(page.main_content_indexable)}
             </TableCell>
             <TableCell className="text-secondary text-xs whitespace-nowrap">
               {formatAudited(page.last_audited)}
@@ -248,4 +243,22 @@ export function PagesTable({
       </TableBody>
     </Table>
   );
+}
+
+function formatIndexability(value: boolean | null) {
+  if (value === null) return PLACEHOLDER;
+  return value ? 'Indexable' : 'Blocked';
+}
+
+function formatMeasurementScore(score: number | null, state: string): string {
+  if (score !== null && (state === 'measured' || state === 'limited_evidence')) {
+    return formatScore(score);
+  }
+  return measurementStateLabel(state);
+}
+
+function measurementStateLabel(state: string): string {
+  if (state === 'limited_evidence') return 'Limited evidence';
+  if (state === 'excluded') return 'Excluded';
+  return PLACEHOLDER;
 }

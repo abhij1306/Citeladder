@@ -55,7 +55,7 @@ class ArchitecturePage:
     depth_from_home: int | None
     inbound_count: int
     outbound_count: int
-    indexable: bool
+    indexable: bool | None
     facts: dict
 
 

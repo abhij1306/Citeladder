@@ -22,20 +22,11 @@ function percent(value: number | null): string {
 }
 
 function headline(score: number | null, state: string): string {
-  if (state === 'measured' && score !== null) return `${Math.round(score)}`;
+  if ((state === 'measured' || state === 'limited_evidence') && score !== null)
+    return `${Math.round(score)}`;
   if (state === 'limited_evidence') return 'Limited evidence';
   if (state === 'excluded') return 'Excluded';
   return 'Not measured';
-}
-
-function recordString(record: Record<string, unknown>, key: string): string {
-  const value = record[key];
-  return typeof value === 'string' ? value : '';
-}
-
-function recordNumber(record: Record<string, unknown>, key: string): number | null {
-  const value = record[key];
-  return typeof value === 'number' ? value : null;
 }
 
 export function OverviewPanel({
@@ -53,12 +44,7 @@ export function OverviewPanel({
 }
 
 function OverviewContent({ data }: Readonly<{ data: SiteHealthOverview }>) {
-  const eligibilityTone =
-    data.search_eligibility === 'eligible'
-      ? 'success'
-      : data.search_eligibility === 'blocked'
-        ? 'danger'
-        : 'warning';
+  const eligibilityTone = searchEligibilityTone(data.search_eligibility);
   return (
     <div className="grid min-w-0 gap-4" data-testid="site-health-overview">
       <Alert tone={eligibilityTone}>
@@ -83,7 +69,7 @@ function OverviewContent({ data }: Readonly<{ data: SiteHealthOverview }>) {
         />
         <MetricCard
           title="Crawl Coverage"
-          value={recordString(data.crawl_coverage, 'state') || 'Unknown'}
+          value={data.crawl_coverage.state || 'Unknown'}
           detail="Selected intended-public denominator"
         />
       </div>
@@ -93,12 +79,18 @@ function OverviewContent({ data }: Readonly<{ data: SiteHealthOverview }>) {
         <TopIssues issues={data.top_issues} />
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        <StateCard title="Web Fundamentals" value={recordString(data.web_fundamentals, 'state')} />
-        <StateCard title="Trend" value={recordString(data.trend, 'state')} />
-        <StateCard title="Changes" value={recordString(data.change_summary, 'state')} />
+        <StateCard title="Web Fundamentals" value={data.web_fundamentals.state} />
+        <StateCard title="Trend" value={data.trend.state} />
+        <StateCard title="Changes" value={data.change_summary.state} />
       </div>
     </div>
   );
+}
+
+function searchEligibilityTone(state: SiteHealthOverview['search_eligibility']) {
+  if (state === 'eligible') return 'success' as const;
+  if (state === 'blocked') return 'danger' as const;
+  return 'warning' as const;
 }
 
 function MetricCard({
@@ -117,7 +109,9 @@ function MetricCard({
   );
 }
 
-function DimensionLedger({ dimensions }: Readonly<{ dimensions: Record<string, unknown>[] }>) {
+function DimensionLedger({
+  dimensions,
+}: Readonly<{ dimensions: SiteHealthOverview['aeo_dimensions'] }>) {
   return (
     <Card>
       <CardHeader bordered>
@@ -137,18 +131,18 @@ function DimensionLedger({ dimensions }: Readonly<{ dimensions: Record<string, u
           </TableHeader>
           <TableBody>
             {dimensions.map((dimension) => {
-              const key = recordString(dimension, 'key');
+              const key = dimension.key;
               return (
                 <TableRow key={key}>
                   <TableCell className="font-medium">{key}</TableCell>
-                  <TableCell>{recordString(dimension, 'dimension_applicability')}</TableCell>
+                  <TableCell>{dimension.dimension_applicability}</TableCell>
                   <TableCell>
                     <Badge variant="status" value="info">
-                      {recordString(dimension, 'dimension_measurement_state')}
+                      {dimension.dimension_measurement_state}
                     </Badge>
                   </TableCell>
-                  <TableCell numeric>{recordNumber(dimension, 'score') ?? PLACEHOLDER}</TableCell>
-                  <TableCell numeric>{percent(recordNumber(dimension, 'coverage'))}</TableCell>
+                  <TableCell numeric>{dimension.score ?? PLACEHOLDER}</TableCell>
+                  <TableCell numeric>{percent(dimension.coverage)}</TableCell>
                 </TableRow>
               );
             })}
@@ -159,7 +153,7 @@ function DimensionLedger({ dimensions }: Readonly<{ dimensions: Record<string, u
   );
 }
 
-function TopIssues({ issues }: Readonly<{ issues: Record<string, unknown>[] }>) {
+function TopIssues({ issues }: Readonly<{ issues: SiteHealthOverview['top_issues'] }>) {
   return (
     <Card>
       <CardHeader bordered>
@@ -174,16 +168,12 @@ function TopIssues({ issues }: Readonly<{ issues: Record<string, unknown>[] }>) 
             <li className="text-secondary py-3 text-sm">No persisted issues.</li>
           ) : (
             issues.map((issue) => (
-              <li
-                key={`${recordString(issue, 'rule_id')}-${recordString(issue, 'finding_class')}`}
-                className="grid gap-1 py-3"
-              >
+              <li key={`${issue.rule_id}-${issue.finding_class}`} className="grid gap-1 py-3">
                 <span className="text-foreground text-sm font-medium">
-                  {recordString(issue, 'description') || recordString(issue, 'rule_id')}
+                  {issue.description || issue.rule_id}
                 </span>
                 <span className="text-muted text-xs">
-                  {recordNumber(issue, 'affected_pages') ?? 0} affected pages ·{' '}
-                  {recordString(issue, 'finding_class')}
+                  {issue.affected_pages} affected pages · {issue.finding_class}
                 </span>
               </li>
             ))

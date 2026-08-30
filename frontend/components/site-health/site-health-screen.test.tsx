@@ -162,15 +162,19 @@ function overview(crawlId = CRAWL) {
     aeo_readiness_score: 62,
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
-    crawl_coverage: { state: 'complete', observed: 1, expected: 1 },
+    crawl_coverage: {
+      state: 'complete',
+      evidence: { observed: 1, expected: 1 },
+      denominator_kind: 'selected_intended_public_urls',
+    },
     audited_page_count: 1,
     selected_page_count: 1,
     status_counts: { audited: 1, blocked: 0, error: 0, pending: 0 },
     aeo_dimensions: [],
     top_issues: [],
-    web_fundamentals: { state: 'not_measured' },
-    trend: { state: 'not_measured' },
-    change_summary: { state: 'not_measured' },
+    web_fundamentals: { state: 'not_measured', field_data_available: false },
+    trend: { state: 'not_measured', reason: 'no_comparable_snapshot' },
+    change_summary: { state: 'not_measured', reason: 'no_comparable_snapshot' },
     limitations: [],
   };
 }
@@ -277,13 +281,13 @@ describe('SiteHealthScreen — Website tab deep links', () => {
     expect(await screen.findByText('Architecture is not available yet.')).toBeVisible();
   });
 
-  it('falls back to Pages for an unknown URL tab', async () => {
+  it('defaults to Overview after the crawl projection resolves', async () => {
     search = 'tab=unknown';
     mockRoutes();
 
     renderScreen();
 
-    expect(await screen.findByRole('tab', { name: 'Pages' })).toHaveAttribute(
+    expect(await screen.findByRole('tab', { name: 'Overview' })).toHaveAttribute(
       'aria-selected',
       'true',
     );
@@ -568,7 +572,8 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     );
   });
 
-  it('keeps the dashboard + partial scores and labels the run Cancelled (with Re-crawl)', async () => {
+  it('defaults partial results to Overview and keeps the cancelled Pages view available', async () => {
+    const user = userEvent.setup();
     const summary = {
       technical_integrity_score: 80,
       technical_integrity_coverage: 1,
@@ -616,10 +621,15 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
 
     renderScreen();
 
+    expect(await screen.findByRole('tab', { name: 'Overview' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect((await screen.findAllByText('80')).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('tab', { name: 'Pages' }));
     expect(
       await screen.findByText(/This run was cancelled — showing the pages analyzed so far/),
     ).toBeInTheDocument();
-    expect((await screen.findAllByText('80')).length).toBeGreaterThan(0);
     const breakdown = screen.getByTestId('page-kind-scores');
     expect(breakdown).toBeInTheDocument();
     expect(within(breakdown).getByText('Article')).toBeInTheDocument();
@@ -777,7 +787,7 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
 
     expect((await screen.findAllByText('80')).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Run new crawl' })).toBeInTheDocument();
-    expect(screen.getByTestId('site-health-canonical')).toBe(canonical);
-    expect(screen.getByTestId('score-section')).toBeInTheDocument();
+    expect(screen.getByTestId('site-health-overview')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
   });
 });
