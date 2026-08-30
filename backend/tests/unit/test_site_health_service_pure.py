@@ -255,9 +255,9 @@ def _crawl_with_summary(summary: dict | None) -> SimpleNamespace:
 def test_score_summary_projects_by_page_kind() -> None:
     crawl = _crawl_with_summary(
         {
-            "technical_integrity_score": 80.0,
-            "technical_integrity_coverage": 1.0,
-            "technical_integrity_state": "measured",
+            "web_fundamentals_score": 80.0,
+            "web_fundamentals_coverage": 1.0,
+            "web_fundamentals_state": "measured",
             "aeo_readiness_score": 70.0,
             "aeo_measurement_coverage": 0.8,
             "aeo_measurement_state": "measured",
@@ -269,18 +269,18 @@ def test_score_summary_projects_by_page_kind() -> None:
             "by_page_kind": {
                 "article": {
                     "analyzed_count": 2,
-                    "technical_integrity_score": 85.0,
-                    "technical_integrity_coverage": 1.0,
-                    "technical_integrity_state": "measured",
+                    "web_fundamentals_score": 85.0,
+                    "web_fundamentals_coverage": 1.0,
+                    "web_fundamentals_state": "measured",
                     "aeo_readiness_score": 70.0,
                     "aeo_measurement_coverage": 0.8,
                     "aeo_measurement_state": "measured",
                 },
                 "product": {
                     "analyzed_count": 1,
-                    "technical_integrity_score": None,
-                    "technical_integrity_coverage": 0.5,
-                    "technical_integrity_state": "limited_evidence",
+                    "web_fundamentals_score": None,
+                    "web_fundamentals_coverage": 0.5,
+                    "web_fundamentals_state": "limited_evidence",
                     "aeo_readiness_score": 70.0,
                     "aeo_measurement_coverage": 0.8,
                     "aeo_measurement_state": "measured",
@@ -294,15 +294,15 @@ def test_score_summary_projects_by_page_kind() -> None:
     assert set(by_page_kind) == {"article", "product"}
     assert by_page_kind["article"] == {
         "analyzed_count": 2,
-        "technical_integrity_score": 85.0,
-        "technical_integrity_coverage": 1.0,
-        "technical_integrity_state": "measured",
+        "web_fundamentals_score": 85.0,
+        "web_fundamentals_coverage": 1.0,
+        "web_fundamentals_state": "measured",
         "aeo_readiness_score": 70.0,
         "aeo_measurement_coverage": 0.8,
         "aeo_measurement_state": "measured",
     }
     # A None mean is projected as None, never fabricated as zero.
-    assert by_page_kind["product"]["technical_integrity_score"] is None
+    assert by_page_kind["product"]["web_fundamentals_score"] is None
 
 
 def test_score_summary_without_breakdown_projects_empty_map() -> None:
@@ -310,9 +310,9 @@ def test_score_summary_without_breakdown_projects_empty_map() -> None:
     # an empty map rather than a missing key.
     crawl = _crawl_with_summary(
         {
-            "technical_integrity_score": 50.0,
-            "technical_integrity_coverage": 1.0,
-            "technical_integrity_state": "measured",
+            "web_fundamentals_score": 50.0,
+            "web_fundamentals_coverage": 1.0,
+            "web_fundamentals_state": "measured",
             "aeo_readiness_score": 50.0,
             "aeo_measurement_coverage": 0.8,
             "aeo_measurement_state": "measured",
@@ -348,6 +348,16 @@ def test_robots_denial_remains_an_observed_blocker() -> None:
         "blocked",
         "blocked",
     )
+
+
+def test_search_eligibility_uses_only_public_representation_and_indexability() -> None:
+    task = SimpleNamespace(status=TASK_STATUS_SUCCEEDED, error_code=None)
+    assert _eligibility_state(
+        "satisfied", "satisfied", "unknown", "not_applicable", task
+    ) == ("eligible", "audited")
+    assert _eligibility_state(
+        "satisfied", "unknown", "satisfied", "satisfied", task
+    ) == ("unknown", "pending")
 
 
 def test_only_determinate_indexability_outcomes_become_booleans() -> None:

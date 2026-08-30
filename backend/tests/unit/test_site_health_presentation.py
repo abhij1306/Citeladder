@@ -269,7 +269,7 @@ def test_evaluation_row_titles_from_the_CURRENT_catalog() -> None:
                 score_applicability=True,
                 expected_profile_membership=True,
                 reason_code="",
-                score_roles=["technical_integrity"],
+                score_roles=["web_fundamentals"],
                 checkpoint_family="",
                 readiness_dimension="",
                 readiness_weight=0.0,

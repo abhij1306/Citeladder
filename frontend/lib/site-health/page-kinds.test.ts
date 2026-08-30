@@ -53,9 +53,9 @@ describe('pageTraitLabel', () => {
 describe('byPageKindRows (dashboard breakdown ordering)', () => {
   const bucket = (analyzed_count: number): PageKindScoreSummary => ({
     analyzed_count,
-    technical_integrity_score: 80,
-    technical_integrity_coverage: 1,
-    technical_integrity_state: 'measured',
+    web_fundamentals_score: 80,
+    web_fundamentals_coverage: 1,
+    web_fundamentals_state: 'measured',
     aeo_readiness_score: 62,
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
@@ -79,9 +79,9 @@ describe('byPageKindRows (dashboard breakdown ordering)', () => {
     expect(row).toEqual({
       page_kind: 'docs',
       analyzed_count: 7,
-      technical_integrity_score: 80,
-      technical_integrity_coverage: 1,
-      technical_integrity_state: 'measured',
+      web_fundamentals_score: 80,
+      web_fundamentals_coverage: 1,
+      web_fundamentals_state: 'measured',
       aeo_readiness_score: 62,
       aeo_measurement_coverage: 0.8,
       aeo_measurement_state: 'measured',
@@ -180,29 +180,6 @@ describe('readPageKindEvidence (why-this-type disclosure reader)', () => {
     );
     expect(view?.signals).toEqual([
       { signal: 'structured_data', pageKind: 'product', tier: 'semantic', detail: '' },
-    ]);
-  });
-
-  it('keeps historical numeric evidence readable', () => {
-    const view = readPageKindEvidence(
-      {
-        classifier_version: 'sh-classifier-5',
-        classified_by: 'path_pattern',
-        confidence: 0.85,
-        confidence_threshold: 0.6,
-        signals: [{ signal: 'path_pattern', page_kind: 'article', weight: 0.85, detail: '/blog/' }],
-        alternatives: [{ page_kind: 'article', confidence: 0.85, signals: ['path_pattern'] }],
-      },
-      'article',
-    );
-
-    expect(view?.confidence).toBe('0.85');
-    expect(view?.tier).toBe('legacy');
-    expect(view?.signals).toEqual([
-      { signal: 'path_pattern', pageKind: 'article', tier: 'legacy', detail: '/blog/' },
-    ]);
-    expect(view?.alternatives).toEqual([
-      { pageKind: 'article', tier: 'legacy', signals: ['path_pattern'] },
     ]);
   });
 });

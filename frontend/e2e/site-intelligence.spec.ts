@@ -43,9 +43,9 @@ const crawl = {
   total_url_count: 2,
   has_more_site_urls: false,
   score_summary: {
-    technical_integrity_score: 85,
-    technical_integrity_coverage: 1,
-    technical_integrity_state: 'measured',
+    web_fundamentals_score: 85,
+    web_fundamentals_coverage: 1,
+    web_fundamentals_state: 'measured',
     aeo_readiness_score: 79,
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
@@ -109,7 +109,6 @@ async function stubWebsite(page: Page) {
         snapshot_id: SNAPSHOT,
         quota: { used: 2, limit: 50 },
         root_errors: [],
-        phase_runs: { discovery: null, analysis: null },
       },
     ],
     [
@@ -163,6 +162,7 @@ async function stubWebsite(page: Page) {
             checks: [
               {
                 rule_id: ruleId,
+                scope: 'page',
                 title: index ? `${label} check` : 'Answer is not stated first',
                 remediation: 'Move the direct answer into the opening paragraph.',
                 satisfied_count: 2 - missingCount - notApplicableCount,
@@ -173,7 +173,7 @@ async function stubWebsite(page: Page) {
                 conflicting_count: 0,
                 not_applicable_count: notApplicableCount,
                 error_count: 0,
-                failing_page_count: missingCount,
+                failing_entity_count: missingCount,
                 checkpoint_family: key,
                 readiness_weight: 1,
                 content_addressable: true,

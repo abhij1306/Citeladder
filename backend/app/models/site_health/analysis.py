@@ -46,7 +46,7 @@ from .common import (
 class SitePageAnalysis(Base):
     """The single page-understanding owner (append-only; DTO ``PageUnderstanding``).
 
-    Carries Technical Integrity and AEO score/coverage/state, the analysis status, the
+    Carries Web Fundamentals and AEO score/coverage/state, the analysis status, the
     analyzer/scoring versions, the generic ``page_kind``, and the source
     evaluation/artifact ID arrays for full provenance.
 
@@ -102,13 +102,11 @@ class SitePageAnalysis(Base):
     status: Mapped[str] = mapped_column(
         String(24), default=PAGE_ANALYSIS_STATUS_PENDING
     )
-    technical_integrity_score: Mapped[float | None] = mapped_column(
+    web_fundamentals_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    web_fundamentals_coverage: Mapped[float | None] = mapped_column(
         Float, nullable=True
     )
-    technical_integrity_coverage: Mapped[float | None] = mapped_column(
-        Float, nullable=True
-    )
-    technical_integrity_state: Mapped[str] = mapped_column(
+    web_fundamentals_state: Mapped[str] = mapped_column(
         String(24), default="not_measured"
     )
     technical_earned_weight: Mapped[float] = mapped_column(Float, default=0.0)
@@ -190,6 +188,10 @@ class SiteRuleEvaluation(Base):
             "'unavailable', 'conflicting', 'error', 'not_applicable', 'excluded')",
             name="ck_site_rule_evaluations_outcome",
         ),
+        CheckConstraint(
+            "scope IN ('page', 'site', 'cluster', 'graph')",
+            name="ck_site_rule_evaluations_scope",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -221,6 +223,7 @@ class SiteRuleEvaluation(Base):
     category: Mapped[str] = mapped_column(String(32), default="")
     severity: Mapped[str] = mapped_column(String(16), default="")
     finding_class: Mapped[str] = mapped_column(String(16), default="defect")
+    scope: Mapped[str] = mapped_column(String(16), default="page")
     weight: Mapped[float] = mapped_column(Float, default=0.0)
     outcome: Mapped[str] = mapped_column(String(16), default="")
     display_applicability: Mapped[bool] = mapped_column(Boolean, default=True)

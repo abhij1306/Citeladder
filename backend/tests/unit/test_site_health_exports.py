@@ -51,7 +51,7 @@ def test_csv_renders_bool_and_none_cells() -> None:
             "depth": 0,
             "monitored": True,
             "issue_count": None,
-            "technical_integrity_score": None,
+            "web_fundamentals_score": None,
             "aeo_readiness_score": None,
             "aeo_measurement_coverage": None,
             "last_audited": None,
@@ -71,14 +71,14 @@ def test_page_export_keeps_technical_and_aeo_scores_distinct() -> None:
             "pages",
             [
                 {
-                    "technical_integrity_score": 81,
+                    "web_fundamentals_score": 81,
                     "aeo_readiness_score": 63,
                 }
             ],
         )
     )
     data = dict(zip(rows[0], rows[1], strict=True))
-    assert data["technical_integrity_score"] == "81"
+    assert data["web_fundamentals_score"] == "81"
     assert data["aeo_readiness_score"] == "63"
 
 

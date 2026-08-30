@@ -137,9 +137,9 @@ function inventoryRow(id: string, url: string) {
     first_seen_at: null,
     last_seen_at: null,
     issue_count: null,
-    technical_integrity_score: null,
-    technical_integrity_coverage: null,
-    technical_integrity_state: 'not_measured',
+    web_fundamentals_score: null,
+    web_fundamentals_coverage: null,
+    web_fundamentals_state: 'not_measured',
     aeo_readiness_score: null,
     aeo_measurement_coverage: null,
     aeo_measurement_state: 'not_measured',
@@ -157,9 +157,9 @@ function overview(crawlId = CRAWL) {
     search_eligibility: 'eligible',
     eligibility_totals: { eligible: 1, blocked: 0, unknown: 0, excluded: 0 },
     eligibility_reasons: [],
-    technical_integrity_score: 80,
-    technical_integrity_coverage: 1,
-    technical_integrity_state: 'measured',
+    web_fundamentals_score: 80,
+    web_fundamentals_coverage: 1,
+    web_fundamentals_state: 'measured',
     aeo_readiness_score: 62,
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
@@ -171,6 +171,15 @@ function overview(crawlId = CRAWL) {
     audited_page_count: 1,
     selected_page_count: 1,
     status_counts: { audited: 1, blocked: 0, error: 0, pending: 0 },
+    issue_count: 0,
+    technical_defect_count: 0,
+    technical_defect_affected_page_count: 0,
+    aeo_readiness_gap_count: 0,
+    aeo_readiness_gap_affected_page_count: 0,
+    severity_counts: {},
+    category_counts: {},
+    measured_check_count: 0,
+    expected_check_count: 0,
     aeo_dimensions: [],
     top_issues: [],
     web_fundamentals: EMPTY_WEB_FUNDAMENTALS,
@@ -180,12 +189,7 @@ function overview(crawlId = CRAWL) {
   };
 }
 
-/**
- * `phase` is a SERVER field now (backend/app/domain/site_health/phase.py), so
- * each test states the phase it is exercising instead of arranging a crawl
- * shape and hoping the client re-derives the one it meant. Phase RESOLUTION is
- * covered by tests/unit/test_site_health_phase.py; these are rendering tests.
- */
+// Tests state the persisted server phase they render; backend tests own phase resolution.
 function mockRoutes(
   crawlOverrides: Record<string, unknown> = {},
   phase: SiteHealthDashboard['phase'] = 'dashboard',
@@ -203,7 +207,6 @@ function mockRoutes(
         snapshot_id: null,
         quota: { used: 3, limit: 50 },
         root_errors: [],
-        phase_runs: { discovery: null, analysis: null },
       }),
     ),
     http.get(`/api/v1/projects/${PROJECT}/monitored-urls`, () =>
@@ -339,7 +342,6 @@ describe('SiteHealthScreen — before the first crawl', () => {
           snapshot_id: null,
           quota: { used: 0, limit: 50 },
           root_errors: [],
-          phase_runs: { discovery: null, analysis: null },
         }),
       ),
       http.get(`/api/v1/projects/${PROJECT}/monitored-urls`, () => {
@@ -402,9 +404,9 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
         analysis_status: 'failed',
         analyzed_count: 0,
         score_summary: {
-          technical_integrity_score: null,
-          technical_integrity_coverage: 0,
-          technical_integrity_state: 'not_measured',
+          web_fundamentals_score: null,
+          web_fundamentals_coverage: 0,
+          web_fundamentals_state: 'not_measured',
           aeo_readiness_score: null,
           aeo_measurement_coverage: 0,
           aeo_measurement_state: 'not_measured',
@@ -465,7 +467,6 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
               latency_ms: 120,
             },
           ],
-          phase_runs: { discovery: null, analysis: null },
         }),
       ),
     );
@@ -576,9 +577,9 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
   it('defaults partial results to Overview and keeps the cancelled Pages view available', async () => {
     const user = userEvent.setup();
     const summary = {
-      technical_integrity_score: 80,
-      technical_integrity_coverage: 1,
-      technical_integrity_state: 'measured',
+      web_fundamentals_score: 80,
+      web_fundamentals_coverage: 1,
+      web_fundamentals_state: 'measured',
       aeo_readiness_score: 62,
       aeo_measurement_coverage: 0.8,
       aeo_measurement_state: 'measured',
@@ -590,9 +591,9 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
       by_page_kind: {
         article: {
           analyzed_count: 4,
-          technical_integrity_score: 80,
-          technical_integrity_coverage: 1,
-          technical_integrity_state: 'measured',
+          web_fundamentals_score: 80,
+          web_fundamentals_coverage: 1,
+          web_fundamentals_state: 'measured',
           aeo_readiness_score: 62,
           aeo_measurement_coverage: 0.8,
           aeo_measurement_state: 'measured',
@@ -615,7 +616,6 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
           snapshot_id: null,
           quota: { used: 4, limit: 50 },
           root_errors: [],
-          phase_runs: { discovery: null, analysis: null },
         }),
       ),
     );
@@ -648,9 +648,9 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
     const NEW_CRAWL = '99999999-9999-4999-8999-999999999999';
     const URL_ID = '66666666-6666-4666-8666-666666666666';
     const summary = {
-      technical_integrity_score: 80,
-      technical_integrity_coverage: 1,
-      technical_integrity_state: 'measured',
+      web_fundamentals_score: 80,
+      web_fundamentals_coverage: 1,
+      web_fundamentals_state: 'measured',
       aeo_readiness_score: 62,
       aeo_measurement_coverage: 0.8,
       aeo_measurement_state: 'measured',
@@ -697,7 +697,6 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
           snapshot_id: null,
           quota: { used: monitored.length, limit: 50 },
           root_errors: [],
-          phase_runs: { discovery: null, analysis: null },
         }),
       ),
       http.get(`/api/v1/projects/${PROJECT}/monitored-urls`, () =>

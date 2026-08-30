@@ -24,10 +24,12 @@ from app.core.config.site_health_acquisition import (
     SITE_HEALTH_MAX_URL_CHARS,
 )
 from app.core.config.site_health_contracts import (
-    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_MISSING,
     RULE_OUTCOME_NOT_APPLICABLE,
-    RULE_OUTCOME_PASS,
+    RULE_OUTCOME_PARTIAL,
+    RULE_OUTCOME_SATISFIED,
     RULE_OUTCOME_UNAVAILABLE,
+    RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_link_metrics import COVERAGE_STATE_COMPLETE
 from app.core.config.site_health_rule_types import SiteHealthRule
@@ -51,6 +53,7 @@ def _catalog_rule(rule_id: str) -> SiteHealthRule:
 
 def _evaluation(rule: SiteHealthRule, outcome: str, evidence: dict) -> RuleEvaluation:
     """Build the finalize-pass ``RuleEvaluation`` for one catalog rule."""
+    expected = bool(rule.score_roles) and outcome != RULE_OUTCOME_NOT_APPLICABLE
     return RuleEvaluation(
         rule_id=rule.rule_id,
         rule_version=rule.rule_version,
@@ -58,13 +61,126 @@ def _evaluation(rule: SiteHealthRule, outcome: str, evidence: dict) -> RuleEvalu
         category=rule.category,
         severity=rule.severity,
         finding_class=rule.finding_class,
+        scope=rule.scope,
         weight=float(rule.weight),
         outcome=outcome,
         evidence=evidence,
         description=rule.description,
         remediation=rule.remediation,
         display_applicability=outcome != RULE_OUTCOME_NOT_APPLICABLE,
+        score_applicability=expected,
+        expected_profile_membership=expected,
         reason_code=str(evidence.get("reason") or ""),
+        score_roles=rule.score_roles if expected else (),
+        checkpoint_family=rule.checkpoint_family,
+        readiness_dimension=rule.readiness_dimension,
+        readiness_weight=rule.readiness_weight,
+    )
+
+
+def _entity_set_evaluation(
+    rule_id: str,
+    *,
+    total_count: int,
+    checked_count: int,
+    failing_urls: list[str],
+) -> RuleEvaluation:
+    rule = _catalog_rule(rule_id)
+    total = max(0, int(total_count))
+    checked = min(total, max(0, int(checked_count)))
+    deduplicated_failures = list(dict.fromkeys(failing_urls))
+    failures = min(checked, len(deduplicated_failures))
+    if total == 0:
+        return _evaluation(
+            rule,
+            RULE_OUTCOME_SATISFIED,
+            {
+                "total_count": 0,
+                "checked_count": 0,
+                "normalized_score": 1.0,
+                "normalized_coverage": 1.0,
+            },
+        )
+    if checked == 0:
+        return _evaluation(
+            rule,
+            RULE_OUTCOME_UNKNOWN,
+            {
+                "reason": "insufficient_evidence",
+                "total_count": total,
+                "checked_count": 0,
+            },
+        )
+    score = (checked - failures) / checked
+    coverage = checked / total
+    outcome = (
+        RULE_OUTCOME_SATISFIED
+        if score == 1.0
+        else RULE_OUTCOME_MISSING
+        if score == 0.0
+        else RULE_OUTCOME_PARTIAL
+    )
+    return _evaluation(
+        rule,
+        outcome,
+        {
+            "total_count": total,
+            "checked_count": checked,
+            "failure_count": failures,
+            "failing_urls": _bounded_urls(deduplicated_failures),
+            "normalized_score": score,
+            "normalized_coverage": coverage,
+        },
+    )
+
+
+def evaluate_broken_internal_links(
+    *, total_count: int, checked_count: int, broken_urls: list[str]
+) -> RuleEvaluation:
+    return _entity_set_evaluation(
+        "technical.broken_internal_link",
+        total_count=total_count,
+        checked_count=checked_count,
+        failing_urls=broken_urls,
+    )
+
+
+def evaluate_sitemap_url_unreachable(
+    *, total_count: int, checked_count: int, unreachable_urls: list[str]
+) -> RuleEvaluation:
+    if total_count <= 0:
+        return _evaluation(
+            _catalog_rule("technical.sitemap_url_unreachable"),
+            RULE_OUTCOME_NOT_APPLICABLE,
+            {"reason": "no_sitemap"},
+        )
+    return _entity_set_evaluation(
+        "technical.sitemap_url_unreachable",
+        total_count=total_count,
+        checked_count=checked_count,
+        failing_urls=unreachable_urls,
+    )
+
+
+def evaluate_canonical_resolvable(
+    *, target_url: str, checked: bool, status_code: int | None, redirected: bool
+) -> RuleEvaluation:
+    rule = _catalog_rule("technical.canonical_resolvable")
+    if not checked or status_code is None:
+        return _evaluation(
+            rule,
+            RULE_OUTCOME_UNKNOWN,
+            {"reason": "insufficient_evidence", "target_url": target_url},
+        )
+    healthy = status_code < 400 and not redirected
+    return _evaluation(
+        rule,
+        RULE_OUTCOME_SATISFIED if healthy else RULE_OUTCOME_MISSING,
+        {
+            "target_url": target_url,
+            "status_code": status_code,
+            "redirected": redirected,
+        },
     )
 
 
@@ -88,7 +204,7 @@ def evaluate_sitemap_orphan(
         )
     if sitemap_url_count <= 0:
         return _evaluation(rule, RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_sitemap"})
-    outcome = RULE_OUTCOME_FAIL if orphan_urls else RULE_OUTCOME_PASS
+    outcome = RULE_OUTCOME_MISSING if orphan_urls else RULE_OUTCOME_SATISFIED
     return _evaluation(
         rule,
         outcome,
@@ -130,7 +246,7 @@ def evaluate_hreflang_conflict(
                 "unchecked_count": int(unchecked_count),
             },
         )
-    outcome = RULE_OUTCOME_FAIL if missing_return_tags else RULE_OUTCOME_PASS
+    outcome = RULE_OUTCOME_MISSING if missing_return_tags else RULE_OUTCOME_SATISFIED
     return _evaluation(
         rule,
         outcome,

@@ -9,7 +9,7 @@ import { formatScore } from '@/lib/site-health/status';
 /**
  * Always-mounted score section of the canonical Site Health screen.
  *
- * The three score cards (Site Health / Web Fundamentals / AEO) render in every phase:
+ * The three score cards (Web Fundamentals / AEO / coverage) render in every phase:
  * placeholders before any analysis has produced data, a live running mean
  * while analysis is in flight, and the final `score_summary` once it lands.
  * Scores appear IN PLACE — the section never unmounts, so finishing a crawl
@@ -24,11 +24,8 @@ export function ScoreSection({
   dashboard: SiteHealthDashboard | undefined;
 }>) {
   const summary = dashboard?.score_summary ?? crawl?.score_summary ?? null;
-  const technical = scoredValue(
-    summary?.technical_integrity_score,
-    summary?.technical_integrity_state,
-  );
-  const aeo = scoredValue(summary?.aeo_readiness_score, summary?.aeo_measurement_state);
+  const technical = scoredValue(summary?.web_fundamentals_score);
+  const aeo = scoredValue(summary?.aeo_readiness_score);
   const coverageValue =
     summary?.aeo_measurement_coverage === null || summary?.aeo_measurement_coverage === undefined
       ? null
@@ -38,13 +35,10 @@ export function ScoreSection({
   return (
     <div className="grid gap-4 sm:grid-cols-3" data-testid="score-section">
       <ScoreCard
-        label="Technical Integrity"
+        label="Web Fundamentals"
         value={technical}
-        state={summary?.technical_integrity_state}
-        sub={measurementSub(
-          summary?.technical_integrity_state,
-          summary?.technical_integrity_coverage,
-        )}
+        state={summary?.web_fundamentals_state}
+        sub={measurementSub(summary?.web_fundamentals_state, summary?.web_fundamentals_coverage)}
       />
       <ScoreCard
         label="AEO Readiness"
@@ -62,18 +56,19 @@ export function ScoreSection({
   );
 }
 
-function scoredValue(value: number | null | undefined, state: string | undefined): number | null {
+function scoredValue(value: number | null | undefined): number | null {
   if (value === null || value === undefined) return null;
-  return state === 'measured' ? value : null;
+  return value;
 }
 
 function measurementSub(state: string | undefined, coverage: number | null | undefined): string {
-  if (state === 'limited_evidence') return 'Limited evidence';
+  const measured =
+    coverage === null || coverage === undefined ? null : `${Math.round(coverage * 100)}% measured`;
+  if (state === 'limited_evidence')
+    return measured ? `${measured} · Limited confidence` : 'Limited confidence';
   if (state === 'not_measured' || !state) return 'Not measured';
   if (state === 'excluded') return 'Excluded from this audit';
-  return coverage === null || coverage === undefined
-    ? 'Measured'
-    : `${Math.round(coverage * 100)}% evidence coverage`;
+  return measured ?? 'Measured';
 }
 
 function ScoreCard({

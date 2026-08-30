@@ -14,6 +14,11 @@ _PRICE = re.compile(
     r"(?:[$£€₹]|AUD|USD|CAD|NZD|GBP|EUR|INR)\s*\d[\d,.]*(?:\.\d{1,2})?",
     re.IGNORECASE,
 )
+_AVAILABILITY = re.compile(
+    r"\b(?:in stock|out of stock|sold out|pre-?order|backorder(?:ed)?|"
+    r"(?:un)?available for (?:order|purchase|pickup))\b",
+    re.IGNORECASE,
+)
 _PRICE_CONTEXT_CHARS = 48
 _PRODUCT_TOKENS = ("product-card", "product_card", "productgrid", "product-tile")
 _CATEGORY_TOKENS = ("subcategory", "category-card", "department", "collection-card")
@@ -108,6 +113,7 @@ def extract_commerce_facts(
     # made every crawled page of a real store report a visible price of "$1".
     page_text = primary_region_text(root, exclude_card_lists=True)
     match = _PRICE.search(page_text)
+    availability = _AVAILABILITY.search(page_text)
     return {
         "breadcrumbs": breadcrumbs,
         "breadcrumb_links": breadcrumb_links,
@@ -117,6 +123,7 @@ def extract_commerce_facts(
             "leaf" if product_cards else "hub" if category_links else "unknown"
         ),
         "visible_price": match.group(0)[:64] if match else "",
+        "visible_availability": availability.group(0)[:64] if availability else "",
         # The words AROUND the price decide whether it is a price at all.
         # Only the bare match was carried forward, so the projector's
         # "from"/"over"/"up to" guard was checking a string that could not

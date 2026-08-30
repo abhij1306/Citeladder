@@ -104,6 +104,16 @@ def test_full_page_extraction():
     assert facts["extractor_version"] == EXTRACTOR_VERSION
 
 
+def test_availability_requires_commerce_context() -> None:
+    unrelated = _facts(b"<html><body>Support is available worldwide.</body></html>")
+    assert unrelated["commerce"]["visible_availability"] == ""
+
+    purchasable = _facts(
+        b"<html><body>This item is available for purchase.</body></html>"
+    )
+    assert purchasable["commerce"]["visible_availability"] == "available for purchase"
+
+
 def test_accessibility_viewport_and_snippet_facts_are_distinct() -> None:
     facts = _facts(
         b'<html lang="en"><head><meta name="robots" content="nosnippet">'
@@ -648,7 +658,7 @@ def test_dates_time_element_fallback():
 #
 # Every source above this point is markup. A properly attributed article --
 # the byline printed where a reader looks for it -- reported no author and no
-# date, so aeo.author_present and aeo.date_present failed it. Those rules ask
+# date, so author/date readiness checks failed it. Those rules ask
 # whether the page tells a reader who wrote this and when; answering only from
 # markup asked a different question.
 

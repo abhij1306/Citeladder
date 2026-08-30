@@ -110,7 +110,7 @@ select = [
 ]
 ignore = [
   # S105/S106/S107 match on the *identifier*, not the value, so every
-  # ``RULE_OUTCOME_PASS`` constant and every OAuth ``token`` local trips them;
+  # ``RULE_OUTCOME_SATISFIED`` constant and every OAuth ``token`` local trips them;
   # all seven occurrences here were false. Credential detection is owned by
   # the ``detect-secrets`` job in ``.github/workflows/ci.yml``, which compares
   # actual values against a committed baseline instead of guessing from names.

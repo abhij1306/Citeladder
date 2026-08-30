@@ -9,9 +9,9 @@ const CRAWL = '22222222-2222-4222-8222-222222222222';
 
 function summary(overrides: Partial<SiteScoreSummary> = {}): SiteScoreSummary {
   return {
-    technical_integrity_score: 80,
-    technical_integrity_coverage: 1,
-    technical_integrity_state: 'measured',
+    web_fundamentals_score: 80,
+    web_fundamentals_coverage: 1,
+    web_fundamentals_state: 'measured',
     aeo_readiness_score: 62,
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
@@ -34,7 +34,6 @@ function dashboard(scoreSummary: SiteScoreSummary | null): SiteHealthDashboard {
     snapshot_id: null,
     quota: { used: 4, limit: 50 },
     root_errors: [],
-    phase_runs: { discovery: null, analysis: null },
   };
 }
 
@@ -130,18 +129,18 @@ describe('PageKindScores', () => {
             by_page_kind: {
               article: {
                 analyzed_count: 3,
-                technical_integrity_score: 80,
-                technical_integrity_coverage: 1,
-                technical_integrity_state: 'measured',
+                web_fundamentals_score: 80,
+                web_fundamentals_coverage: 1,
+                web_fundamentals_state: 'measured',
                 aeo_readiness_score: 62,
                 aeo_measurement_coverage: 0.8,
                 aeo_measurement_state: 'measured',
               },
               homepage: {
                 analyzed_count: 1,
-                technical_integrity_score: 90.5,
-                technical_integrity_coverage: 1,
-                technical_integrity_state: 'measured',
+                web_fundamentals_score: 90.5,
+                web_fundamentals_coverage: 1,
+                web_fundamentals_state: 'measured',
                 aeo_readiness_score: 70,
                 aeo_measurement_coverage: 0.8,
                 aeo_measurement_state: 'measured',
@@ -177,9 +176,9 @@ describe('PageKindScores', () => {
             by_page_kind: {
               docs: {
                 analyzed_count: 2,
-                technical_integrity_score: null,
-                technical_integrity_coverage: null,
-                technical_integrity_state: 'not_measured',
+                web_fundamentals_score: null,
+                web_fundamentals_coverage: null,
+                web_fundamentals_state: 'not_measured',
                 aeo_readiness_score: null,
                 aeo_measurement_coverage: null,
                 aeo_measurement_state: 'not_measured',
@@ -194,7 +193,7 @@ describe('PageKindScores', () => {
     expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
   });
 
-  it('preserves limited and excluded measurement states', () => {
+  it('shows a non-null limited score with subordinate coverage and preserves excluded state', () => {
     render(
       <PageKindScores
         crawl={null}
@@ -203,9 +202,9 @@ describe('PageKindScores', () => {
             by_page_kind: {
               docs: {
                 analyzed_count: 2,
-                technical_integrity_score: null,
-                technical_integrity_coverage: 0.5,
-                technical_integrity_state: 'limited_evidence',
+                web_fundamentals_score: 46,
+                web_fundamentals_coverage: 0.5,
+                web_fundamentals_state: 'limited_evidence',
                 aeo_readiness_score: null,
                 aeo_measurement_coverage: null,
                 aeo_measurement_state: 'excluded',
@@ -216,7 +215,8 @@ describe('PageKindScores', () => {
       />,
     );
 
-    expect(screen.getByText('Limited evidence')).toBeInTheDocument();
+    expect(screen.getByText('46')).toBeInTheDocument();
+    expect(screen.getByText('50% measured · Moderate confidence')).toBeInTheDocument();
     expect(screen.getByText('Excluded')).toBeInTheDocument();
   });
 
@@ -230,18 +230,18 @@ describe('PageKindScores', () => {
             by_page_kind: {
               article: {
                 analyzed_count: 6,
-                technical_integrity_score: 80,
-                technical_integrity_coverage: 1,
-                technical_integrity_state: 'measured',
+                web_fundamentals_score: 80,
+                web_fundamentals_coverage: 1,
+                web_fundamentals_state: 'measured',
                 aeo_readiness_score: 70,
                 aeo_measurement_coverage: 0.8,
                 aeo_measurement_state: 'measured',
               },
               other: {
                 analyzed_count: 4,
-                technical_integrity_score: 90,
-                technical_integrity_coverage: 1,
-                technical_integrity_state: 'measured',
+                web_fundamentals_score: 90,
+                web_fundamentals_coverage: 1,
+                web_fundamentals_state: 'measured',
                 aeo_readiness_score: null,
                 aeo_measurement_coverage: 0.3,
                 aeo_measurement_state: 'limited_evidence',
@@ -267,9 +267,9 @@ describe('PageKindScores', () => {
             by_page_kind: {
               about_contact: {
                 analyzed_count: 1,
-                technical_integrity_score: 55,
-                technical_integrity_coverage: 1,
-                technical_integrity_state: 'measured',
+                web_fundamentals_score: 55,
+                web_fundamentals_coverage: 1,
+                web_fundamentals_state: 'measured',
                 aeo_readiness_score: 45,
                 aeo_measurement_coverage: 0.8,
                 aeo_measurement_state: 'measured',

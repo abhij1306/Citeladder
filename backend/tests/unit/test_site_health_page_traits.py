@@ -128,6 +128,23 @@ def test_a_product_page_carrying_an_faq_keeps_both() -> None:
     assert "has_variants" in traits
 
 
+def test_variant_trait_uses_form_context_not_variant_evidence() -> None:
+    facts = {
+        "form_fields": ["Finish"],
+        "entity": {"product": {"has_variant_control": False}},
+        "structured_data": {"product": {"variants": []}},
+    }
+    assert "has_variants" in derive_traits("https://example.test/widget", facts)
+
+    facts["form_fields"] = []
+    facts["entity"]["product"]["has_variant_control"] = True
+    facts["structured_data"]["product"]["variants"] = ["Blue"]
+    assert "has_variants" not in derive_traits("https://example.test/widget", facts)
+
+    facts["form_fields"] = ["Resize"]
+    assert "has_variants" not in derive_traits("https://example.test/widget", facts)
+
+
 # --- bounded, deterministic, total -------------------------------------------
 
 

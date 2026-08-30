@@ -178,7 +178,14 @@ function AnalysisPanel({
   if (tab === 'pages')
     return <SiteHealthDashboardLayout screen={screen} entitlement={entitlement} />;
   if (tab === 'overview' && crawlId)
-    return <OverviewPanel projectId={projectId} crawlId={crawlId} />;
+    return (
+      <OverviewPanel
+        projectId={projectId}
+        crawlId={crawlId}
+        crawl={screen.crawl}
+        dashboard={screen.dashboardQuery.data}
+      />
+    );
   // Architecture reads a project-scoped projection, so it renders its own
   // "derived after the crawl finishes" state rather than needing a crawl here.
   if (tab === 'architecture')

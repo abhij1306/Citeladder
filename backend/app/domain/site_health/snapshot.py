@@ -13,8 +13,8 @@
 #     dashboard (partial scores + inventory) instead of a null ``score_summary``.
 #
 # Idempotent per crawl: the ``site_health_snapshots`` table is unique on
-# ``crawl_id``, so this uses ``ON CONFLICT DO NOTHING`` for the immutable row and
-# always (re)writes the crawl ``score_summary`` projection.
+# ``crawl_id``. The transaction that inserts the immutable row also writes the
+# crawl ``score_summary``; a replay changes neither projection.
 #
 # The single fetched aggregate row set is authoritative — when it is empty the
 # helper writes nothing and returns ``False`` (cancel), unless the caller passes
@@ -25,25 +25,20 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
-from sqlalchemy import Row, func, select
+from sqlalchemy import Row, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.analysis.site_health.score_aggregation import aggregate_by_page_kind
-from app.analysis.site_health.scoring import (
-    AnalysisMeasurementInput,
-    aggregate_measurements,
-)
 from app.core.config.site_health_acquisition import (
     CORPUS_EXCLUSION_ERROR_CODES,
     ERROR_ROBOTS_DENIED,
 )
 from app.core.config.site_health_contracts import (
     ANALYZER_VERSION,
-    PAGE_ANALYSIS_STATUS_COMPLETED,
-    RULE_OUTCOME_FAIL,
-    RULE_OUTCOME_PASS,
+    RULE_OUTCOME_MISSING,
+    RULE_OUTCOME_SATISFIED,
     SCORING_VERSION,
     TASK_KIND_ANALYZE,
 )
@@ -55,16 +50,24 @@ from app.core.config.site_health_measurement import (
     SEARCH_ELIGIBILITY_CRITICAL_CHECKPOINTS_1,
 )
 from app.core.config.task_queue import TASK_STATUS_FAILED
+from app.domain.site_health.aeo_readiness_projection import (
+    build_snapshot_aeo_readiness_descriptor,
+)
 from app.domain.site_health.coverage import crawl_coverage
+from app.domain.site_health.issue_snapshot import build_issue_snapshot
+from app.domain.site_health.overview_snapshot import (
+    build_overview_history,
+    measurement_check_counts,
+)
+from app.domain.site_health.score_summary import (
+    load_crawl_measurement_projection,
+    score_summary_payload,
+)
 from app.domain.site_health.web_fundamentals_projection import (
     web_fundamentals_projection,
 )
 from app.models.site_health.acquisition import SiteFetchAttempt
-from app.models.site_health.analysis import (
-    SiteIssue,
-    SitePageAnalysis,
-    SiteRuleEvaluation,
-)
+from app.models.site_health.analysis import SitePageAnalysis, SiteRuleEvaluation
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.runtime import SiteHealthProfile
@@ -130,10 +133,13 @@ def _eligibility_state(
         checkpoint_id: outcomes.get(checkpoint_id, "unknown")
         for checkpoint_id in SEARCH_ELIGIBILITY_CRITICAL_CHECKPOINTS_1
     }
-    if any(outcome in ("missing", RULE_OUTCOME_FAIL) for outcome in critical.values()):
+    if any(
+        outcome in ("missing", RULE_OUTCOME_MISSING) for outcome in critical.values()
+    ):
         return "blocked", "blocked"
     if all(
-        outcome in ("satisfied", RULE_OUTCOME_PASS) for outcome in critical.values()
+        outcome in ("satisfied", RULE_OUTCOME_SATISFIED)
+        for outcome in critical.values()
     ):
         return "eligible", "audited"
     if (
@@ -389,8 +395,8 @@ async def persist_crawl_snapshot(
         still write the explicit empty/null-score snapshot + projection, so an
         empty-plan crawl terminalizes with a canonical (zeroed) snapshot.
 
-    Returns ``True`` when a snapshot/projection was (re)written, ``False`` when
-    persistence was skipped because the aggregate was empty.
+    Returns ``True`` only when this transaction inserted both projections;
+    ``False`` for an empty aggregate or an immutable-snapshot replay.
     """
     # The caller holds the crawl row lock, which closes discovery/task writes.
     # Selection mutations are serialized by the profile row, so take that same
@@ -406,88 +412,8 @@ async def persist_crawl_snapshot(
         .with_for_update()
     )
 
-    # Exactly one latest completed analysis per ACTIVE monitored URL in this
-    # crawl. Rank by the full timestamp, then UUID for a deterministic tie-break
-    # (never truncate timestamps to whole seconds).
-    ranked = (
-        select(
-            SitePageAnalysis.id.label("id"),
-            SitePageAnalysis.site_url_id.label("site_url_id"),
-            SitePageAnalysis.artifact_id.label("artifact_id"),
-            SitePageAnalysis.technical_integrity_score.label(
-                "technical_integrity_score"
-            ),
-            SitePageAnalysis.technical_integrity_coverage.label(
-                "technical_integrity_coverage"
-            ),
-            SitePageAnalysis.technical_integrity_state.label(
-                "technical_integrity_state"
-            ),
-            SitePageAnalysis.technical_earned_weight.label("technical_earned_weight"),
-            SitePageAnalysis.technical_determinate_weight.label(
-                "technical_determinate_weight"
-            ),
-            SitePageAnalysis.technical_expected_weight.label(
-                "technical_expected_weight"
-            ),
-            SitePageAnalysis.technical_critical_complete.label(
-                "technical_critical_complete"
-            ),
-            SitePageAnalysis.aeo_readiness_score.label("aeo_readiness_score"),
-            SitePageAnalysis.aeo_measurement_coverage.label("aeo_measurement_coverage"),
-            SitePageAnalysis.aeo_measurement_state.label("aeo_measurement_state"),
-            SitePageAnalysis.readiness_dimensions.label("readiness_dimensions"),
-            SitePageAnalysis.page_kind.label("page_kind"),
-            func.row_number()
-            .over(
-                partition_by=SitePageAnalysis.site_url_id,
-                order_by=(
-                    SitePageAnalysis.created_at.desc(),
-                    SitePageAnalysis.id.desc(),
-                ),
-            )
-            .label("latest_rank"),
-        )
-        .join(
-            MonitoredSiteUrl,
-            (MonitoredSiteUrl.site_url_id == SitePageAnalysis.site_url_id)
-            & (MonitoredSiteUrl.project_id == crawl.project_id)
-            & (MonitoredSiteUrl.workspace_id == crawl.workspace_id),
-        )
-        .where(
-            SitePageAnalysis.workspace_id == crawl.workspace_id,
-            SitePageAnalysis.project_id == crawl.project_id,
-            SitePageAnalysis.crawl_id == crawl.id,
-            SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
-            MonitoredSiteUrl.workspace_id == crawl.workspace_id,
-            MonitoredSiteUrl.project_id == crawl.project_id,
-            MonitoredSiteUrl.active.is_(True),
-        )
-        .subquery()
-    )
-    rows = (
-        await session.execute(
-            select(
-                ranked.c.id,
-                ranked.c.site_url_id,
-                ranked.c.artifact_id,
-                ranked.c.technical_integrity_score,
-                ranked.c.technical_integrity_coverage,
-                ranked.c.technical_integrity_state,
-                ranked.c.technical_earned_weight,
-                ranked.c.technical_determinate_weight,
-                ranked.c.technical_expected_weight,
-                ranked.c.technical_critical_complete,
-                ranked.c.aeo_readiness_score,
-                ranked.c.aeo_measurement_coverage,
-                ranked.c.aeo_measurement_state,
-                ranked.c.readiness_dimensions,
-                ranked.c.page_kind,
-            )
-            .where(ranked.c.latest_rank == 1)
-            .order_by(ranked.c.site_url_id)
-        )
-    ).all()
+    projection = await load_crawl_measurement_projection(session, crawl=crawl)
+    rows = projection.rows
 
     # The single fetched aggregate row set decides persistence — no separate
     # precheck (which would race membership/analysis changes). Zero aggregatable
@@ -496,113 +422,16 @@ async def persist_crawl_snapshot(
     if not rows and not persist_empty:
         return False
 
-    inputs: list[AnalysisMeasurementInput] = []
-    analysis_ids: list[uuid.UUID] = []
-    artifact_ids: list[uuid.UUID] = []
-    for row in rows:
-        analysis_ids.append(row.id)
-        artifact_ids.append(row.artifact_id)
-        inputs.append(
-            AnalysisMeasurementInput(
-                page_kind=row.page_kind,
-                technical_integrity_score=row.technical_integrity_score,
-                technical_integrity_coverage=row.technical_integrity_coverage,
-                technical_integrity_state=row.technical_integrity_state,
-                technical_earned_weight=row.technical_earned_weight,
-                technical_determinate_weight=row.technical_determinate_weight,
-                technical_expected_weight=row.technical_expected_weight,
-                technical_critical_complete=row.technical_critical_complete,
-                aeo_readiness_score=row.aeo_readiness_score,
-                aeo_measurement_coverage=row.aeo_measurement_coverage,
-                aeo_measurement_state=row.aeo_measurement_state,
-                readiness_dimensions=tuple(row.readiness_dimensions or ()),
-            )
-        )
-    aggregate = aggregate_measurements(inputs)
-    by_page_kind = aggregate_by_page_kind(inputs)
-
+    analysis_ids = projection.analysis_ids
+    artifact_ids = projection.artifact_ids
+    evaluation_rows = projection.evaluation_rows
+    aggregate = projection.aggregate
+    measured_check_count, expected_check_count = measurement_check_counts(
+        evaluation_rows
+    )
     # Issue severity/category rollups for this crawl.
-    severity_counts: dict[str, int] = {}
-    category_counts: dict[str, int] = {}
-    issue_total = 0
-    evaluation_ids = (
-        list(
-            await session.scalars(
-                select(SiteRuleEvaluation.id)
-                .where(
-                    SiteRuleEvaluation.workspace_id == crawl.workspace_id,
-                    SiteRuleEvaluation.analysis_id.in_(analysis_ids),
-                )
-                .order_by(SiteRuleEvaluation.id)
-            )
-        )
-        if analysis_ids
-        else []
-    )
-    issue_rows: Sequence[Row] = []
-    if analysis_ids:
-        issue_rows = (
-            await session.execute(
-                select(
-                    SiteIssue.severity,
-                    SiteIssue.category,
-                    SiteIssue.rule_id,
-                    SiteIssue.finding_class,
-                    SiteIssue.site_url_id,
-                    SiteIssue.description,
-                    SiteIssue.remediation,
-                ).where(
-                    SiteIssue.workspace_id == crawl.workspace_id,
-                    SiteIssue.project_id == crawl.project_id,
-                    SiteIssue.crawl_id == crawl.id,
-                    SiteIssue.analysis_id.in_(analysis_ids),
-                )
-            )
-        ).all()
-    issue_groups: dict[tuple[str, str], dict] = {}
-    for (
-        severity,
-        category,
-        rule_id,
-        finding_class,
-        site_url_id,
-        description,
-        remediation,
-    ) in issue_rows:
-        issue_total += 1
-        severity_counts[severity] = severity_counts.get(severity, 0) + 1
-        category_counts[category] = category_counts.get(category, 0) + 1
-        key = (rule_id, finding_class)
-        group = issue_groups.setdefault(
-            key,
-            {
-                "rule_id": rule_id,
-                "finding_class": finding_class,
-                "severity": severity,
-                "category": category,
-                "description": description,
-                "remediation": remediation,
-                "affected_site_url_ids": set(),
-            },
-        )
-        group["affected_site_url_ids"].add(site_url_id)
-    impact_order = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
-    top_issues = []
-    for group in issue_groups.values():
-        group["affected_pages"] = len(group.pop("affected_site_url_ids"))
-        group["eligibility_blocker"] = group["rule_id"] == "technical.indexable"
-        group["impact_band"] = impact_order.get(group["severity"], 0)
-        top_issues.append(group)
-    top_issues.sort(
-        key=lambda item: (
-            -int(item["eligibility_blocker"]),
-            -int(item["impact_band"]),
-            0 if item["finding_class"] == "defect" else 1,
-            -int(item["affected_pages"]),
-            str(item["rule_id"]),
-        )
-    )
-    top_issues = top_issues[:10]
+    evaluation_ids = [row.id for row in evaluation_rows]
+    issues = await build_issue_snapshot(session, crawl=crawl, analysis_ids=analysis_ids)
 
     selected_ids = list(
         await session.scalars(
@@ -620,6 +449,13 @@ async def persist_crawl_snapshot(
     analyzer_version = crawl.analyzer_version or ANALYZER_VERSION
     scoring_version = crawl.scoring_version or SCORING_VERSION
     coverage = await crawl_coverage(session, crawl=crawl)
+    coverage_evidence = dict(coverage.evidence)
+    coverage_evidence.update(
+        {
+            "measured_check_count": measured_check_count,
+            "expected_check_count": expected_check_count,
+        }
+    )
     (
         search_eligibility,
         eligibility_totals,
@@ -639,12 +475,35 @@ async def persist_crawl_snapshot(
         analysis_ids=analysis_ids,
         artifact_ids=artifact_ids,
     )
+    aeo_readiness_diagnostic = build_snapshot_aeo_readiness_descriptor(
+        crawl=crawl,
+        aggregate=aggregate,
+        coverage_state=coverage.state,
+        evaluations=evaluation_rows,
+        analysis_rows=rows,
+        scoring_version=scoring_version,
+        analyzer_version=analyzer_version,
+    )
+    observed_at = datetime.now(UTC)
+    trend, change_summary = await build_overview_history(
+        session,
+        crawl=crawl,
+        analyzer_version=analyzer_version,
+        scoring_version=scoring_version,
+        current_metrics={
+            "web_fundamentals_score": aggregate.web_fundamentals_score,
+            "web_fundamentals_coverage": aggregate.web_fundamentals_coverage,
+            "aeo_readiness_score": aggregate.aeo_readiness_score,
+            "aeo_measurement_coverage": aggregate.aeo_measurement_coverage,
+        },
+        observed_at=observed_at,
+    )
 
     # One immutable snapshot per crawl. ``ON CONFLICT DO NOTHING`` makes this
-    # safe if the worker and a cancel both reach terminalization (the earliest
-    # writer wins; the crawl ``score_summary`` projection below is still
-    # (re)written so the DTO reflects the same aggregate).
-    await session.execute(
+    # safe if the worker and a cancel both reach terminalization. RETURNING
+    # identifies the one transaction allowed to write the matching crawl
+    # summary; a losing replay must not diverge the two projections.
+    inserted_snapshot_id = await session.scalar(
         pg_insert(SiteHealthSnapshot)
         .values(
             workspace_id=crawl.workspace_id,
@@ -652,26 +511,35 @@ async def persist_crawl_snapshot(
             crawl_id=crawl.id,
             selected_url_count=selected_url_count,
             analyzed_url_count=aggregate.analyzed_url_count,
-            technical_integrity_score=aggregate.technical_integrity_score,
-            technical_integrity_coverage=aggregate.technical_integrity_coverage,
-            technical_integrity_state=aggregate.technical_integrity_state,
+            web_fundamentals_score=aggregate.web_fundamentals_score,
+            web_fundamentals_coverage=aggregate.web_fundamentals_coverage,
+            web_fundamentals_state=aggregate.web_fundamentals_state,
             aeo_readiness_score=aggregate.aeo_readiness_score,
             aeo_measurement_coverage=aggregate.aeo_measurement_coverage,
             aeo_measurement_state=aggregate.aeo_measurement_state,
             readiness_dimensions=list(aggregate.readiness_dimensions),
+            aeo_readiness_diagnostic=aeo_readiness_diagnostic,
             search_eligibility=search_eligibility,
             eligibility_totals=eligibility_totals,
             eligibility_reasons=eligibility_reasons,
             status_counts=status_counts,
-            top_issues=top_issues,
+            top_issues=issues.top_issues,
             web_fundamentals=web_fundamentals,
-            trend={"state": "unavailable", "reason": "no_comparable_snapshot"},
-            change_summary={"state": "unavailable", "reason": "no_comparable_snapshot"},
-            issue_count=issue_total,
-            severity_counts=severity_counts,
-            category_counts=category_counts,
+            trend=trend,
+            change_summary=change_summary,
+            issue_count=issues.issue_count,
+            severity_counts=issues.severity_counts,
+            category_counts=issues.category_counts,
+            technical_defect_count=issues.technical_defect_count,
+            technical_defect_affected_page_count=(
+                issues.technical_defect_affected_page_count
+            ),
+            aeo_readiness_gap_count=issues.aeo_readiness_gap_count,
+            aeo_readiness_gap_affected_page_count=(
+                issues.aeo_readiness_gap_affected_page_count
+            ),
             coverage_state=coverage.state,
-            coverage_evidence=coverage.evidence,
+            coverage_evidence=coverage_evidence,
             coverage_formula_version=COVERAGE_FORMULA_VERSION,
             source_analysis_ids=analysis_ids,
             source_artifact_ids=artifact_ids,
@@ -683,26 +551,19 @@ async def persist_crawl_snapshot(
             profile_version=PROFILE_VERSION,
             schema_contract_version=SCHEMA_CONTRACT_VERSION,
             presentation_version=PRESENTATION_VERSION,
+            created_at=observed_at,
         )
         .on_conflict_do_nothing(
             constraint="uq_site_health_snapshot_crawl",
         )
+        .returning(SiteHealthSnapshot.id)
     )
-    crawl.score_summary = {
-        "technical_integrity_score": aggregate.technical_integrity_score,
-        "technical_integrity_coverage": aggregate.technical_integrity_coverage,
-        "technical_integrity_state": aggregate.technical_integrity_state,
-        "aeo_readiness_score": aggregate.aeo_readiness_score,
-        "aeo_measurement_coverage": aggregate.aeo_measurement_coverage,
-        "aeo_measurement_state": aggregate.aeo_measurement_state,
-        "search_eligibility": search_eligibility,
-        "analyzed_count": aggregate.analyzed_url_count,
-        "selected_count": selected_url_count,
-        "issue_count": issue_total,
-        "scoring_version": aggregate.scoring_version,
-        "presentation_version": PRESENTATION_VERSION,
-        # Persisted per-page-kind measurement rollups. Missing/errored URLs
-        # never appear here.
-        "by_page_kind": by_page_kind,
-    }
+    if inserted_snapshot_id is None:
+        return False
+    crawl.score_summary = score_summary_payload(
+        projection,
+        selected_count=selected_url_count,
+        issue_count=issues.issue_count,
+    )
+    crawl.score_summary["search_eligibility"] = search_eligibility
     return True

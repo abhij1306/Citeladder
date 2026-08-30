@@ -10,9 +10,9 @@ def page_measurement_fields(analysis: SitePageAnalysis | None) -> dict:
     if analysis is None:
         return {
             "page_kind": None,
-            "technical_integrity_score": None,
-            "technical_integrity_coverage": None,
-            "technical_integrity_state": "not_measured",
+            "web_fundamentals_score": None,
+            "web_fundamentals_coverage": None,
+            "web_fundamentals_state": "not_measured",
             "aeo_readiness_score": None,
             "aeo_measurement_coverage": None,
             "aeo_measurement_state": "not_measured",
@@ -21,9 +21,9 @@ def page_measurement_fields(analysis: SitePageAnalysis | None) -> dict:
         }
     return {
         "page_kind": analysis.page_kind,
-        "technical_integrity_score": analysis.technical_integrity_score,
-        "technical_integrity_coverage": analysis.technical_integrity_coverage,
-        "technical_integrity_state": analysis.technical_integrity_state,
+        "web_fundamentals_score": analysis.web_fundamentals_score,
+        "web_fundamentals_coverage": analysis.web_fundamentals_coverage,
+        "web_fundamentals_state": analysis.web_fundamentals_state,
         "aeo_readiness_score": analysis.aeo_readiness_score,
         "aeo_measurement_coverage": analysis.aeo_measurement_coverage,
         "aeo_measurement_state": analysis.aeo_measurement_state,

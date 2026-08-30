@@ -31,6 +31,7 @@ class ReadinessEvidencePageResponse(_Model):
 
 class ReadinessCheckResponse(_Model):
     rule_id: str
+    scope: Literal["page", "site", "cluster", "graph"]
     title: str
     remediation: str
     satisfied_count: int
@@ -41,7 +42,7 @@ class ReadinessCheckResponse(_Model):
     conflicting_count: int
     not_applicable_count: int
     error_count: int
-    failing_page_count: int
+    failing_entity_count: int
     checkpoint_family: str
     readiness_weight: float
     content_addressable: bool
@@ -137,6 +138,8 @@ class CrawlCoverageResponse(_Model):
 
 class OverviewDimensionResponse(_Model):
     key: str
+    label: str
+    description: str
     dimension_applicability: DimensionApplicability
     dimension_measurement_state: MeasurementState
     score: float | None
@@ -156,9 +159,13 @@ class OverviewIssueResponse(_Model):
     category: str
     description: str
     remediation: str
+    # Which site scores the rule feeds: `web_fundamentals` (presented as
+    # Web Fundamentals) and/or `aeo_readiness`. Empty for a diagnostic rule.
+    score_roles: list[str]
     affected_pages: int
     eligibility_blocker: bool
     impact_band: int
+    impact_label: str
 
 
 class WebFundamentalsFindingResponse(_Model):
@@ -199,9 +206,36 @@ class WebFundamentalsResponse(_Model):
     limitations: list[str]
 
 
-class AvailabilityStateResponse(_Model):
-    state: str
-    reason: str
+class OverviewTrendPointResponse(_Model):
+    label: str
+    value: float | None
+
+
+class OverviewTrendResponse(_Model):
+    state: Literal["unavailable", "measured"]
+    reason: Literal["no_comparable_snapshot", "comparable_snapshot"]
+    metric: Literal["aeo_readiness_score"]
+    series: list[OverviewTrendPointResponse]
+
+
+class OverviewChangeMetricResponse(_Model):
+    key: Literal[
+        "web_fundamentals_score",
+        "web_fundamentals_coverage",
+        "aeo_readiness_score",
+        "aeo_measurement_coverage",
+    ]
+    label: str
+    previous: float | None
+    current: float | None
+    delta: float | None
+    direction: Literal["increased", "decreased", "unchanged", "unavailable"]
+
+
+class OverviewChangeSummaryResponse(_Model):
+    state: Literal["unavailable", "measured"]
+    reason: Literal["no_comparable_snapshot", "comparable_snapshot"]
+    metrics: list[OverviewChangeMetricResponse]
 
 
 class SiteHealthOverviewResponse(_Model):
@@ -211,9 +245,9 @@ class SiteHealthOverviewResponse(_Model):
     search_eligibility: SearchEligibility
     eligibility_totals: dict[str, int]
     eligibility_reasons: list[EligibilityReasonResponse]
-    technical_integrity_score: float | None
-    technical_integrity_coverage: float | None
-    technical_integrity_state: MeasurementState
+    web_fundamentals_score: float | None
+    web_fundamentals_coverage: float | None
+    web_fundamentals_state: MeasurementState
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
     aeo_measurement_state: MeasurementState
@@ -221,11 +255,20 @@ class SiteHealthOverviewResponse(_Model):
     audited_page_count: int
     selected_page_count: int
     status_counts: dict[str, int]
+    issue_count: int
+    technical_defect_count: int
+    technical_defect_affected_page_count: int
+    aeo_readiness_gap_count: int
+    aeo_readiness_gap_affected_page_count: int
+    severity_counts: dict[str, int]
+    category_counts: dict[str, int]
+    measured_check_count: int
+    expected_check_count: int
     aeo_dimensions: list[OverviewDimensionResponse]
     top_issues: list[OverviewIssueResponse]
     web_fundamentals: WebFundamentalsResponse
-    trend: AvailabilityStateResponse
-    change_summary: AvailabilityStateResponse
+    trend: OverviewTrendResponse
+    change_summary: OverviewChangeSummaryResponse
     limitations: list[str]
 
 

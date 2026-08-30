@@ -219,6 +219,12 @@ page-understanding row. It stores scores, analyzer/scoring versions,
 and append-only; repeated analyses may reuse one immutable artifact, with one
 current row per page in a crawl.
 
+The pure `analysis/site_health/page_analysis.py` module is the page-understanding
+seam. Its single interface classifies immutable normalized facts, derives
+independent traits, applies page-owned rules, and scores the resulting
+evaluations. Workers select crawl-root and sitemap context, then persist the
+returned projection; they do not reconstruct that ordering.
+
 `SiteIssue` is the immutable failure-copy boundary. It freezes the catalog
 description and remediation alongside rule/analyzer versions at creation;
 group, detail, page, and history reads project those columns and never consult
@@ -254,11 +260,9 @@ The product control surface has no separate discovery or analysis start action.
 
 The standard production crawl freezes a 50-page requested limit. Advanced
 input and the 50,000 discovery/analysis ceilings are development-only config;
-they are not a production UI contract or a throughput claim. Availability of
-those development controls is separate from the frozen manual-phase lifecycle
-marker. Standard user-triggered crawls never create manual phase runs and proceed to
-snapshot and terminalization; starting an explicit development phase marks its
-crawl as manually controlled. The internal `input_mode=auto` token describes
+they are not a production UI contract or a throughput claim. Advanced inputs
+use the same automatic discovery, analysis, snapshot, and terminalization
+lifecycle as standard crawls. The internal `input_mode=auto` token describes
 the standard user-triggered **Run new crawl** request; it is not a scheduled or
 autonomous crawl feature. Each curl request continues to enforce the
 connector's DNS, pinned-IP, redirect, robots, scope, and host-gate controls.
@@ -337,7 +341,7 @@ replayed under a different ordering. An unmeasured page reports `null`, never
 
 The Site Health measurement owner freezes config-declared page-kind and trait
 profiles before outcomes, persists
-Technical Integrity and AEO Readiness score/coverage/state independently, and
+Web Fundamentals and AEO Readiness score/coverage/state independently, and
 pools earned, determinate, and expected evidence by dimension before applying
 the seven configured dimension weights once. Snapshot finalization also freezes
 the config-driven representation, indexability, search/citation-crawler, and

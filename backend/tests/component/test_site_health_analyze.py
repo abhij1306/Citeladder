@@ -29,9 +29,9 @@ from app.core.config.site_health_contracts import (
     EXTRACTOR_VERSION,
     PAGE_ANALYSIS_STATUS_COMPLETED,
     RULE_CATALOG_VERSION,
-    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_MISSING,
     RULE_OUTCOME_NOT_APPLICABLE,
-    RULE_OUTCOME_PASS,
+    RULE_OUTCOME_SATISFIED,
     SCORING_VERSION,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
@@ -391,7 +391,7 @@ async def test_cancelled_user_analysis_does_not_penalize_applicable_free_sample(
         assert crawl.analysis_status == ANALYSIS_STATUS_COMPLETED
         assert crawl.status == CRAWL_STATUS_COMPLETED
         assert snapshot.analyzed_url_count == 1
-        assert snapshot.technical_integrity_score is not None
+        assert snapshot.web_fundamentals_score is not None
 
 
 @pytest.mark.asyncio
@@ -538,7 +538,7 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
             )
         ).scalar_one()
         assert analysis.status == PAGE_ANALYSIS_STATUS_COMPLETED
-        assert analysis.technical_integrity_score is not None
+        assert analysis.web_fundamentals_score is not None
         # `other` is classifier abstention, so AEO is unmeasured rather than a
         # perfect score from the few universal rules that remain applicable.
         assert analysis.page_kind == "other"
@@ -586,7 +586,7 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
             )
         ).scalar_one()
         assert snapshot.analyzed_url_count == 1
-        assert snapshot.technical_integrity_score is not None
+        assert snapshot.web_fundamentals_score is not None
         assert snapshot.issue_count == issue_count
 
 
@@ -655,7 +655,7 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
         # A 140-word article used to be "thin" against a 300-word floor. It is
         # short, not defective, and the analyzer cannot tell the difference --
         # so the only thing still reported here is an actually empty page.
-        assert thin.outcome == RULE_OUTCOME_PASS
+        assert thin.outcome == RULE_OUTCOME_SATISFIED
         assert thin.evidence["word_count"] >= MIN_MEANINGFUL_WORDS
 
         # The crawl rollup carries the per-page-type breakdown.
@@ -666,11 +666,11 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
         by_page_kind = summary.get("by_page_kind") or {}
         assert set(by_page_kind) == {"article"}
         assert by_page_kind["article"]["analyzed_count"] == 1
-        assert by_page_kind["article"]["technical_integrity_score"] is not None
+        assert by_page_kind["article"]["web_fundamentals_score"] is not None
 
 
 @pytest.mark.asyncio
-async def test_thin_page_generates_multiple_issues(
+async def test_minimal_page_reports_only_observable_issues(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     seed, _site_url_id, _task_id = await _seed_analyze_ready(
@@ -690,12 +690,12 @@ async def test_thin_page_generates_multiple_issues(
             .scalars()
             .all()
         )
-        # Thin page fails: meta description, canonical, https, single h1,
-        # structured data, open graph, thin content.
-        assert "technical.meta_description_present" in issues
-        assert "technical.canonical_present" in issues
-        assert "technical.thin_content" in issues
-        assert len(issues) >= 5
+        # Missing optional metadata and merely short copy are advisory or
+        # abstained signals. The observable document defects remain issues.
+        assert set(issues) == {
+            "web.accessibility_document_language",
+            "web.mobile_viewport",
+        }
 
 
 @pytest.mark.asyncio
@@ -790,12 +790,12 @@ async def test_analyze_injects_site_facts_on_root_analysis_only(
         # llms.txt is present -> PASS. Provenance is the current rule catalog.
         stance = await _eval("technical.ai_crawler_access", root_analysis.id)
         assert stance is not None
-        assert stance.outcome == RULE_OUTCOME_FAIL
+        assert stance.outcome == RULE_OUTCOME_MISSING
         assert stance.evidence["blocked"] == ["GPTBot"]
         assert stance.rule_version == RULE_CATALOG_VERSION == "sh-rules-1"
         llms = await _eval("aeo.llms_txt_present", root_analysis.id)
         assert llms is not None
-        assert llms.outcome == RULE_OUTCOME_PASS
+        assert llms.outcome == RULE_OUTCOME_SATISFIED
 
         # Non-root: the same rules are N/A (no injection).
         other_stance = await _eval("technical.ai_crawler_access", other_analysis.id)

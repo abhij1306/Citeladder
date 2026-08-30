@@ -65,8 +65,8 @@ export const POSTS: readonly BlogPost[] = [
       {
         type: 'paragraph',
         text:
-          'Built-in Web Fundamentals and AEO checks score pages with inspectable outcomes. ' +
-          'A missing or failed result shows as an em dash — never a fabricated zero.',
+          'Built-in Web Fundamentals, Web Fundamentals, and AEO checks use inspectable outcomes. ' +
+          'Scores remain visible with their evidence coverage; unmeasured results are never fabricated.',
       },
       { type: 'heading', text: 'Three engines, your keys' },
       {

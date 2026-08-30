@@ -112,14 +112,14 @@ export const pageKindSchema = z.enum([
 ]);
 
 // One `score_summary.by_page_kind` bucket (site-health v2 P1): the analyzed
-// count + pooled Technical Integrity and AEO measurement projections for one
+// count + pooled Web Fundamentals and AEO measurement projections for one
 // page type. A mean is null when no analyzed page of the type produced that
 // score — never a fabricated zero.
 export const pageKindScoreSummarySchema = responseObject({
   analyzed_count: z.number().int(),
-  technical_integrity_score: z.number().nullable(),
-  technical_integrity_coverage: z.number().nullable(),
-  technical_integrity_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  web_fundamentals_score: z.number().nullable(),
+  web_fundamentals_coverage: z.number().nullable(),
+  web_fundamentals_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
   aeo_readiness_score: z.number().nullable(),
   aeo_measurement_coverage: z.number().nullable(),
   aeo_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
@@ -129,9 +129,9 @@ export const pageKindScoreSummarySchema = responseObject({
 // `by_page_kind` breaks the means down per classified page type (empty until
 // at least one analyzed page has been classified).
 export const siteScoreSummarySchema = responseObject({
-  technical_integrity_score: z.number().nullable(),
-  technical_integrity_coverage: z.number().nullable(),
-  technical_integrity_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  web_fundamentals_score: z.number().nullable(),
+  web_fundamentals_coverage: z.number().nullable(),
+  web_fundamentals_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
   aeo_readiness_score: z.number().nullable(),
   aeo_measurement_coverage: z.number().nullable(),
   aeo_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
@@ -230,25 +230,6 @@ export const siteCrawlSchema = responseObject({
   updated_at: z.string(),
   started_at: z.string().nullable(),
   completed_at: z.string().nullable(),
-});
-
-export const phaseRunSchema = responseObject({
-  id: uuid(),
-  phase: z.enum(['discovery', 'analysis']),
-  status: z.enum(['running', 'stopped', 'completed', 'failed']),
-  requested_count: z.number().int(),
-  processed_count: z.number().int(),
-  created_at: z.string(),
-  stopped_at: z.string().nullable(),
-  completed_at: z.string().nullable(),
-});
-
-export const phaseMutationResponseSchema = responseObject({
-  crawl: siteCrawlSchema,
-  phase_run: phaseRunSchema.nullable(),
-  created_new_crawl: z.boolean(),
-  selection_version: z.number().int().nullable(),
-  scheduled_count: z.number().int(),
 });
 
 export const urlPreviewRowSchema = responseObject({

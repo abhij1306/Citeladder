@@ -56,7 +56,7 @@ def test_failed_crawl_with_an_empty_summary_shell_is_still_terminal() -> None:
     # not None" as dashboard-worthy is what hid every failed crawl behind an
     # empty dashboard.
     shell = {
-        "technical_integrity_state": "not_measured",
+        "web_fundamentals_state": "not_measured",
         "aeo_measurement_state": "not_measured",
         "analyzed_count": 0,
     }
@@ -73,7 +73,7 @@ def test_failed_crawl_that_scored_something_keeps_its_dashboard() -> None:
     assert (
         _resolve(
             _crawl(status="failed"),
-            summary={"technical_integrity_state": "measured"},
+            summary={"web_fundamentals_state": "measured"},
         )
         == "dashboard"
     )

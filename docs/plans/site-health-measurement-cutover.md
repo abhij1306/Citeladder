@@ -1,17 +1,14 @@
 # Site Health measurement cutover
 
-> **Status:** implemented; retained as the cutover and acceptance record.
+> **Status:** implementation in progress; retained as the cutover and acceptance record.
 >
 > **Scope:** three sequential pull requests. Start each PR only after the prior
 > PR merges, using a fresh implementation chat.
 
-**Implementation status:** PR1, PR2, and PR3 are implemented in the active
-runtime. PR3 completed the single measurement registry, pre-outcome profiles,
-dimension applicability and coverage correction, four-check eligibility gate,
-HTTP-evidence Web Fundamentals projection/drawer, limited-score presentation,
-and Architecture-to-Pages drill-down. The disposable development database must
-be rebuilt and calibration crawls rerun whenever this version-`1` contract
-changes.
+**Implementation status:** PR1 and PR2 are implemented; PR3 code is pending the
+repository gates, disposable-database bootstrap, calibration crawls, and live
+visual verification required by its acceptance section. The database must be
+rebuilt and calibration crawls rerun whenever this version-`1` contract changes.
 
 [../site-health.md](../site-health.md) is the canonical authority for Site
 Health runtime behavior, measurement meaning, checkpoint applicability, score
@@ -112,7 +109,7 @@ merely setting their weight to zero:
 | `technical.thin_content` | `advisory` | `none` |
 | `aeo.server_rendered_content` | `diagnostic` | `none` |
 | `aeo.outbound_citations` | `advisory` | `none` |
-| `aeo.date_present` | `advisory` | `none` |
+| generic date presence | `advisory` | `none`; PR2 replaces it with page-kind-specific currency rules |
 | `aeo.no_expand_gating` | `advisory` | `none` |
 | `technical.ai_crawler_access` | `diagnostic` | `none` |
 | `aeo.answer_first` | `advisory` | `none` in PR1; PR2 may assign AEO under its strong gate |
@@ -124,19 +121,18 @@ defect-derived Opportunities while their finding class is advisory/diagnostic.
   articles without article-owned body evidence.
 - Separate page-owned `contact_intent` from site-wide footer/navigation contact
   affordances. A footer phone or email cannot activate a contact-page profile.
-- Tighten current expectation applicability: page-kind-derived failures require
-  page-owned structural evidence; route/title-only classifications may show
-  conditional advisories but cannot fail or score an expectation.
+- Keep classifier confidence as persisted display metadata. Page kind, traits,
+  and structural crawl context decide applicability; the winning classifier
+  tier never suppresses an expectation or score.
 - Remove Technical score weight from word-count-based thin content and
   exact-one-H1. They remain visible guidance, not objective integrity defects.
-- Remove `aeo.outbound_citations` from guide-wide scoring/failure semantics,
-  keep `aeo.date_present` non-scoring unless current evidence proves freshness
-  is material, and constrain `aeo.answer_first` to proven FAQ/answer-task
-  purpose. Evidence and Freshness may honestly remain not measured.
-- Keep `aeo.no_expand_gating` advisory-only and correct any copy that claims
-  server-present accordion text is inaccessible. Treat
-  `aeo.server_rendered_content` as a non-scoring compatibility diagnostic in
-  PR1; PR3 owns a real rendered-content-availability checkpoint.
+- In PR1, remove `aeo.outbound_citations` from guide-wide scoring/failure
+  semantics, replace generic date presence with page-kind-specific freshness
+  expressions, and constrain `aeo.answer_first` to FAQ/answer-task purpose.
+- In PR1, keep `aeo.no_expand_gating` and `aeo.server_rendered_content`
+  non-scoring while correcting copy that claims server-present accordion text
+  is inaccessible. PR2 may assign them AEO roles only through the explicit
+  applicability gates and weights in its manifest below.
 - Keep training-crawler preferences out of Search eligibility and AEO scoring;
   unresolved `technical.ai_crawler_access` evidence is displayed as unknown.
 - Fix the current AEO Readiness projection so coverage means determinate checks
@@ -152,8 +148,9 @@ defect-derived Opportunities while their finding class is advisory/diagnostic.
   checkpoint families do not exist until PR2. The temporary policy owns
   `PR1_AEO_MIN_DETERMINATE_CHECKPOINTS=4` and
   `PR1_AEO_MIN_DETERMINATE_DIMENSIONS=3`; a result below either minimum is
-  internally treated as limited evidence. PR1 preserves the current
-  API shapes: page, detail,
+  internally treated as limited evidence. This temporary PR1 behavior is
+  superseded by the active PR2/PR3 contract. At that delivery stage, PR1
+  preserved the prior API shapes: page, detail,
   page-kind, and crawl-summary `aeo_score` fields serialize `null`; the existing
   AEO route reports `state=incomplete` with a bounded limitation; and the UI
   renders **Not measured** rather than a numeric ratio. PR2 introduces the
@@ -222,83 +219,83 @@ and Content-handoff contracts defined in
 It deletes the Combined score and superseded serializers/tests in the
 same PR; no compatibility scoring facade survives.
 
-### PR2 initial readiness scoring manifest
+### PR2 readiness scoring manifest
 
-PR2 reuses the evaluators stabilized in PR1 but scores only the following
-defensible capabilities. `readiness_weight` is independent of Technical defect
-weight and is used within the seven fixed dimension weights.
+PR2 expands the repaired PR1 contract with deterministic page-kind expressions.
+`readiness_weight` is independent of Technical defect weight and is used within
+the seven fixed dimension weights.
 
 | Dimension | Family | Current rule | PR2 score-applicability gate | Within-dimension weight |
 |---|---|---|---|---:|
-| Answerability | `answer_content` | `aeo.answer_first` | structurally proven FAQ/answer-task purpose | 1.0 |
-| Structure | `semantic_structure` | `aeo.question_headings` | structurally proven FAQ with determinately observed sections | 1.0 |
-| Machine readability | `structured_representation` | `aeo.schema_expected_for_type` | page kind established by page-owned structure | 1.0 |
+| Answerability | `answer_content` | `aeo.answer_first` | FAQ page kind only | 1.0 |
+| Answerability | `answer_content` | `aeo.editorial_lead_present` | editorial page kind | 1.0 |
+| Answerability | `answer_content` | `aeo.entity_value_proposition` | homepage/about/pricing/service/local expression | 1.0 |
+| Answerability | `answer_content` | `aeo.product_answer_facts` | product expression | 1.0 |
+| Answerability | `answer_content` | `aeo.listing_answer_set` | category expression | 1.0 |
+| Structure | `semantic_structure` | `aeo.question_headings` | FAQ page kind only; 60% question-heading threshold | 1.0 |
+| Structure | `semantic_structure` | `aeo.heading_hierarchy` | every classified readable page | 1.0 |
+| Structure | `content_structure` | `aeo.no_expand_gating` | readable content with observed expand-gating evidence | 0.5 |
+| Evidence | `commerce_facts` | `aeo.product_evidence_facts`, `aeo.listing_item_facts` | product/category expression | 1.0 |
+| Evidence | `source_support` | `aeo.outbound_citations` | readable editorial page kind | 1.0 |
+| Machine readability | `structured_representation` | `aeo.schema_expected_for_type` | applicable classified page kind | 1.0 |
 | Machine readability | `structured_representation` | `aeo.schema_required_valid` | relevant schema artifact triggers validation | 1.0 |
 | Machine readability | `structured_representation` | `aeo.schema_recommended_present` | relevant schema artifact triggers completeness guidance | 0.5 |
 | Machine readability | `structured_representation` | `aeo.schema_matches_content` | schema and visible page-owned content are determinate | 1.0 |
-| Provenance & trust signals | `provenance` | `aeo.author_present` | structurally proven authored editorial purpose | 1.0 |
-| Provenance & trust signals | `provenance` | `aeo.organization_identity` | structurally proven homepage/entity context | 1.0 |
+| Machine readability | `primary_content` | `aeo.server_rendered_content` | HTML response | 1.0 |
+| Provenance & trust signals | `provenance` | `aeo.author_present` | authored editorial page kind | 1.0 |
+| Provenance & trust signals | `provenance` | `aeo.organization_identity`, `aeo.trust_path_present` | site-owned authority expression | 1.0 |
+| Provenance & trust signals | `provenance` | `aeo.product_brand_identity` | product expression | 1.0 |
+| Freshness | `currency` | `aeo.content_date_present` | editorial expression | 1.0 |
+| Freshness | `currency` | `aeo.offer_freshness_signal` | product expression | 1.0 |
+| Freshness | `currency` | `aeo.assortment_freshness_signal` | category expression | 1.0 |
 | Crawlability | `indexability` | `technical.indexable` | known intended-public/indexable state | 1.0 |
 
 The family IDs and meanings are owned by the canonical checkpoint-family
 registry. All schema checks count as one family; duplicated checks cannot
 manufacture breadth.
 
-The following remain visible but no-score in PR2: word-count thin-content,
-exact-one-H1, generic outbound citations, generic date presence, expand-gating,
-duplicated structured-data presence, Open Graph, `llms.txt`, conflated AI-bot
-access, initial-server-HTML compatibility, and HTTPS duplicated from Technical
-Integrity/Web Fundamentals. Evidence and Freshness remain `not_measured` until
-PR3 provides trustworthy evaluators. In PR2 they freeze `unresolved` for every
-non-excluded page: PR2 has no evaluator capable of proving either dimension
-irrelevant. Each therefore has null readiness, zero coverage, and remains in
-the overall coverage denominator. PR3 may emit `not_applicable` only after a
-dedicated applicability contract can freeze a deterministic irrelevance reason.
+The following remain evaluation guidance but do not create Issues or enter a
+score: word-count thin-content, exact-one-H1, title/meta-description length,
+canonical presence, duplicated structured-data presence, Open Graph, and
+duplicate metadata. `llms.txt` and conflated AI-bot access remain diagnostics.
+Editorial citations, server-rendered primary content, and
+expand-gating retain explicit AEO roles under their narrow page-kind/evidence
+contracts. An applicable dimension without a trustworthy evaluator is
+`not_measured` with zero coverage and remains in the overall coverage
+denominator. `not_applicable` requires a deterministic semantic irrelevance
+reason.
 
 For every other dimension, an empty expected-checkpoint set follows the
-canonical three-way rule. Proven irrelevance is `not_applicable`; proven
+canonical two-way rule. Proven irrelevance is `not_applicable`; proven
 relevance without a score-applicable PR2 checkpoint is `applicable` and
-`not_measured` with `no_expected_checkpoint_evaluator`; undecidable relevance
-is `unresolved` and `not_measured` with `dimension_relevance_unresolved`.
+`not_measured` with `no_expected_checkpoint_evaluator`.
 An empty set cannot silently leave the coverage denominator.
 
-### PR2 expected measurement distribution
+### PR2 measurement acceptance
 
-PR2 is expected to render **Limited evidence**, not a numeric AEO headline, for
-most pages and for most mixed-page sites. This is an intentional foundation
-state rather than a regression:
+PR2 does not target a score direction. It targets honest determinacy across the
+page kinds where each dimension is semantically relevant. Scores are non-null
+for `measured` and `limited_evidence`; `not_measured` remains null. Measurement
+state is subordinate confidence metadata beside a present score. Calibration
+requires at least 90% determinacy over
+eligible page × dimension combinations, or an explicit gap report naming the
+unavailable evidence for every kind/dimension below that guardrail. N/A is
+permitted only with a documented semantic reason and never as a way to meet the
+guardrail.
 
-- Evidence (15%) and Freshness (5%) have no trustworthy PR2 evaluator, are
-  always unresolved for non-excluded pages, and contribute zero coverage.
-- Non-FAQ pages have no PR2 evaluator for Answerability (20%) or Structure
-  (15%). If those dimensions are applicable or unresolved, the best possible
-  page coverage is 45%. If both are determinately not applicable, the best
-  possible coverage is `45 / 65 = 69.23%`. Either ceiling is below
-  `AEO_MEASURED_MIN_COVERAGE`.
-- A qualifying page with determinate Answerability, Structure, Machine
-  readability, Provenance, and Crawlability can meet
-  `AEO_MEASURED_MIN_COVERAGE`. An ordinary FAQ with no independent provenance
-  applicability evidence cannot: its empty Provenance expected set is
-  unresolved, not silently N/A. The canonical breadth gates still apply.
-- The site aggregate will normally remain limited when most selected pages have
-  unresolved Answerability or Structure coverage. PR3 owns the missing
-  page-purpose evaluators that make a broadly measured headline possible.
-
-In this state, Overview's AEO card shows **Limited evidence**, AEO Measurement
-Coverage, audited-page count, and a plain limitation explaining that PR3
-expands page-purpose coverage. The calculated readiness ratio may remain in
-persisted diagnostics but is not rendered as a headline. The seven-dimension
-ledger still shows measured, not-measured, and unresolved evidence so PR2 is
-useful without pretending the sparse manifest is complete.
+Acceptance also requires coverage invariance, duplicate site-evidence
+invariance, and page-mix invariance. Rules are normalized by page/site/cluster/
+graph scope before role-specific aggregation; page rules macro-roll up fixed
+page-kind weights, shared site facts count once, and coverage weights
+participation without changing the observed component score.
 
 PR2 Search eligibility uses only `acquisition.public_representation` and
 `search.indexability` as critical checkpoints because they have determinate
 healthy and blocker outcomes. `search.crawler_access` and
 `search.snippet_access` remain persisted non-critical observations with
-`unknown` reasons; they do not force the aggregate gate to `unknown`. PR3 ships
-their dedicated evaluators and promotes them into the complete canonical
-critical set. The Overview banner can therefore render `eligible`, `blocked`,
-or `unknown` honestly in PR2.
+`unknown` reasons; they do not force the aggregate gate to `unknown` and are not
+promoted without a later explicit measurement-contract change. The Overview
+banner can therefore render `eligible`, `blocked`, or `unknown` honestly.
 
 ### PR2 backend and persistence cutover
 
@@ -308,8 +305,8 @@ or `unknown` honestly in PR2.
   and `sh-presentation-1` for the new persisted measurement presentation
   policy. These are new config-owned authorities required by the new contract,
   not renames of existing PR1 owners or a second analyzer.
-- `SitePageAnalysis` exposes `technical_integrity_score`,
-  `technical_integrity_coverage`, `technical_integrity_state`,
+- `SitePageAnalysis` exposes `web_fundamentals_score`,
+  `web_fundamentals_coverage`, `web_fundamentals_state`,
   `aeo_readiness_score`, `aeo_measurement_coverage`, `aeo_measurement_state`,
   the frozen expected-checkpoint profile, and per-dimension summary.
   `overall_score` is removed, not renamed.
@@ -345,9 +342,11 @@ or `unknown` honestly in PR2.
 - Persist and serialize `authority` as the stable dimension key while rendering
   **Provenance & trust signals** as its label. PR2 changes the label and
   measurement contract, not the machine identity.
-- `SiteCrawl.score_summary`, if still required for lifecycle polling, is only a
-  serializer projection of the snapshot and is equivalence-pinned; it owns no
-  formula.
+- `SiteCrawl.score_summary` is a persisted lifecycle projection, never a read-
+  time calculation. Workers refresh it after successful persisted analyses by
+  calling the same scope-normalized aggregation owner used by snapshotting.
+  The terminal writer replaces it only when that writer wins immutable snapshot
+  insertion, so replay cannot diverge or overwrite the terminal pair.
 - Reads remain persisted projections. No Overview, Pages, Architecture, AEO,
   Changes, or handoff read crawls, repairs, or recalculates measurement.
 
@@ -355,7 +354,7 @@ The cohesive Overview projection is:
 
 ```text
 search_eligibility
-technical_integrity
+web_fundamentals
 aeo_readiness
 aeo_measurement_coverage
 crawl_coverage
@@ -366,7 +365,7 @@ trend
 change_summary
 ```
 
-`aeo_measurement_coverage` qualifies AEO Readiness. Technical Integrity carries
+`aeo_measurement_coverage` qualifies AEO Readiness. Web Fundamentals carries
 its own coverage/state. Crawl Coverage is separate and includes denominator
 kind/evidence. Partial or unknown acquisition permanently labels the aggregate
 **AEO Readiness — audited pages** with analyzed-page count; it never implies
@@ -378,18 +377,24 @@ Defects use config-owned severity; readiness gaps use config-owned checkpoint
 impact. Trend/change summaries compare only rows created inside the same reset
 database and version-`1` contract.
 
+Overview freezes distinct role-aware metric counts beside those rows. Technical
+counts require both defect finding class and Technical score role; AEO gap
+counts require the readiness role. Affected-page counts include page-scoped
+entities only. Advisory impact is rendered from its readiness dimension and
+checkpoint weight, not from a defect severity label.
+
 ### PR2 frontend cutover
 
 The tab order becomes **Overview**, **Pages**, **Architecture**, **AEO
 Readiness**, and **Changes**, with Overview as the default after a usable crawl.
 
 - **Overview:** implement the supplied hierarchy: Search eligibility banner;
-  peer cards for Technical Integrity, AEO Readiness, AEO Measurement Coverage,
+  peer cards for Web Fundamentals, AEO Readiness, AEO Measurement Coverage,
   and Crawl Coverage; seven-row readiness ledger beside Top issues; Web
   Fundamentals, trend, and change summary below. Technical and AEO cards show
   their coverage/state. There is no Combined score.
 - **Pages:** preserve the PR1 design and interactions; change only metrics to
-  Technical Integrity, AEO Readiness, AEO Measurement Coverage, Issues, Inbound
+  Web Fundamentals, AEO Readiness, AEO Measurement Coverage, Issues, Inbound
   links, and Main-content indexable. Remove Combined from table, detail, sorts,
   exports, and page-kind rollups.
 - **AEO Readiness:** open directly on the seven-dimension ledger and readiness-gap
@@ -437,37 +442,34 @@ apply.
   without a deterministic structural reason.
 - Unknown changes coverage, never readiness credit; missing advisories can
   lower AEO Readiness without becoming Technical defects.
-- Applicable/unresolved but unsupported dimensions remain `not_measured` with
+- Applicable but unsupported dimensions remain `not_measured` with
   zero coverage; they cannot disappear as N/A or raise AEO coverage.
 - Every current N/A reason is classified during cutover: uncertainty becomes
   `unknown` or `unavailable`, while only proven structural irrelevance remains
   `not_applicable`. Coverage-incomplete Architecture and sitemap-orphan absence
   claims are `unavailable`, not N/A; a sitemap-orphan check on a site with no
   sitemap remains structurally not applicable to that specific rule.
-- Technical Integrity cannot present a headline ratio unless its own state is
-  `measured`, every critical expected Technical checkpoint is determinate, and
-  Technical coverage meets the canonical
-  `TECHNICAL_MEASURED_MIN_COVERAGE`. Fixtures directly below and at the
-  configured boundary pin the decision.
+- Web Fundamentals serializes and presents a non-null ratio for `measured`
+  and `limited_evidence`; `not_measured` remains null. Its measurement state and
+  coverage are subordinate confidence metadata beside a present ratio.
+  Fixtures directly below and at the configured boundary pin the state decision.
 - No sparse page presents a measured 100. Page and pooled crawl breadth obey
   `AEO_MEASURED_MIN_CHECKPOINTS`, `AEO_MEASURED_MIN_FAMILIES`, and
   `AEO_MEASURED_MIN_DIMENSIONS`; page and crawl totals reproduce persisted
   points.
-- Aggregate measurement coverage first combines selected pages within each
-  dimension and then applies the seven dimension weights once. A fixture with
-  materially different per-dimension page counts proves that page frequency
-  cannot change the configured 20/15/15/20/10/5/15 influence.
-- Evidence and Freshness are unresolved—not N/A—for every non-excluded PR2
-  page. A homepage fixture that would otherwise remove those dimensions proves
-  they remain in the denominator and cannot inflate coverage.
-- An FAQ with no independent Provenance applicability evidence freezes
-  Provenance as unresolved with `dimension_relevance_unresolved`; its empty
-  expected set cannot become N/A. A separate fixture whose independent
-  Provenance gate passes may meet `AEO_MEASURED_MIN_COVERAGE` only when all
-  canonical critical and breadth gates also pass.
-- A healthy non-FAQ page and a mixed site dominated by non-FAQ pages both
-  produce `limited_evidence`, expose their coverage and limitations, and show no
-  numeric AEO headline.
+- Aggregate scoring normalizes each rule by page/site/cluster/graph scope before
+  applying rule and dimension weights. The required coverage, duplicate
+  site-evidence, and page-mix invariance fixtures prove that evidence volume and
+  crawl composition cannot manufacture score influence.
+- Evidence and Freshness are expressed only where material: product/category
+  commerce evidence and page-kind-specific editorial, offer, or assortment
+  currency. Homepage/about Freshness is determinately N/A with a documented
+  semantic reason.
+- Site-owned Authority remains measured at site scope and never inherits into a
+  page score; page rows carry `measured_at_site_scope` instead of a bare dash.
+- A healthy non-FAQ page and a mixed site expose their numeric score together
+  with coverage, sample size, and confidence; `limited_evidence` never suppresses
+  a non-null number.
 - A healthy intended-public URL with determinate acquisition and indexability
   is `eligible` in PR2 even while crawler/snippet observations are unknown. A
   contradiction in either PR2 critical checkpoint is `blocked`; missing or
@@ -490,13 +492,37 @@ apply.
 
 ## PR3 — robust AEO pillars and page-kind coverage
 
-**Implementation status:** complete in the PR3 change set. Repository gates and
-the disposable-database bootstrap must pass before merge; calibration results
-remain observations, not score-distribution targets.
+**Implementation status:** in progress until repository gates, the disposable-
+database bootstrap, calibration, and live visual verification pass. Calibration
+results remain observations, not score-distribution targets.
 
 PR3 keeps the PR2 formula, persistence interface, Overview hierarchy, AEO UI,
 and Content-handoff interface stable. It improves the facts and applicability
 behind them so coverage is robust across all 15 page kinds and relevant traits.
+
+The shipped presentation completes that stable interface without adding a
+second measurement or polling authority:
+
+- Overview reuses the screen's one dashboard poll for live mounted cards and
+  switches to its immutable snapshot after terminalization. Non-null scores
+  remain visible under `limited_evidence`; coverage and confidence are
+  subordinate qualifiers.
+- AEO dimension rows show persisted labels/descriptions, scores, bars, and
+  coverage. Web Fundamentals shows four independently stated areas. Trend is a
+  bounded, version-compatible snapshot series and Change summary exposes four
+  persisted directional deltas.
+- Snapshots retain ten ranked issues and Overview projects five. Issue rows link
+  to `/issues?rule=<rule_id>`; the Issues route owns URL-backed filters, search,
+  page kind, and cursor state, including browser-history restoration and cursor
+  reset on filter changes.
+- The obsolete `pass`/`fail` outcome aliases are deleted. The proposed collapse
+  of the separate Site Health version identifiers is deliberately skipped:
+  snapshots do not persist the complete frozen rule/weight/threshold/profile
+  descriptor required to make one identifier reproducible.
+- The AEO Readiness diagnostic is frozen with the terminal snapshot, including
+  its bounded checkpoint counts and page evidence. Its main read no longer
+  re-derives a second projection from mutable current analysis/evaluation rows;
+  raw rows remain only for the authorized per-page Content handoff.
 
 - **Answerability:** add purpose-essential facts, direct answers/definitions,
   useful summaries, and task outcomes only for page purposes that warrant them.
@@ -519,8 +545,9 @@ behind them so coverage is robust across all 15 page kinds and relevant traits.
   facet, canonical-cluster, hreflang, sitemap, and coverage-qualified orphan
   evidence. `search.crawler_access` and `search.snippet_access` produce
   determinate healthy/blocker states and belong to
-  `SEARCH_ELIGIBILITY_CRITICAL_CHECKPOINTS_1`; the active identifier remains
-  `1` under the reset policy.
+  supplemental readiness evidence. They do not enter
+  `SEARCH_ELIGIBILITY_CRITICAL_CHECKPOINTS_1` until a later explicit contract
+  change; the active identifier remains `1` under the reset policy.
 - Deepen all page-kind/trait profiles, including listing completeness,
   product/offer consistency, about/contact separation, local/service intent,
   procedural guides, comparisons, reviews/case studies, docs, FAQs, pricing,
@@ -546,7 +573,7 @@ known-analyzer-gap statement in
 supersedes. The canonical document must describe the post-PR3 runtime rather
 than retain resolved limitations as active truth.
 
-### PR3 calibration record
+### Final calibration record
 
 The bounded pre-cutover observations supplied on 2026-08-30 remain the
 comparison baseline; they are not target distributions:
@@ -559,15 +586,13 @@ comparison baseline; they are not target distributions:
 
 All three recorded Web Fundamentals as `not_measured`; Evidence and Freshness
 were universally unmeasured, Structure had no determinate checkpoints, and
-sparse unresolved dimensions could still present a numeric AEO 100. Those are
-the defects this cutover removes. Crawl-limit and discovery-partial states stay
-evidence limitations.
+sparse formerly unresolved dimensions could still present a numeric AEO 100.
+Those are the defects this cutover removes. Crawl-limit and discovery-partial
+states stay evidence limitations.
 
-The local disposable database was reset from `0001_initial.py` after the PR3
-implementation and Alembic reported no ORM drift. The three original crawl
-rows and exact root URLs were no longer present before that reset (the database
-contained only Goodee and Hiut Denim), so no post-cutover values are recorded
-here by inference. Recalibration must rerun the exact three user-selected roots
-through **Run new crawl**, then append kind distribution, `other`/conflict
-rates, state/score/coverage by kind and dimension, leading unknown/unavailable
-causes, eligibility outcomes, and Web Fundamentals area coverage.
+After PR3 presentation work is complete, reset the disposable database from
+`0001_initial.py`, verify zero ORM drift, and run the single final calibration
+pass for Goodee and Hiut Denim. Append before/after score and coverage without
+a target direction, kind/dimension determinacy, every sub-90% gap report,
+leading unknown/unavailable causes, eligibility outcomes, and Web Fundamentals
+area coverage. No intermediate calibration crawl is required.

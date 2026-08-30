@@ -17,6 +17,45 @@ afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
 describe('OverviewPanel', () => {
+  it('uses the live dashboard while active without fetching a terminal snapshot', async () => {
+    let overviewRequests = 0;
+    mswServer.use(
+      http.get(`/api/v1/projects/${PROJECT}/site-health/overview`, () => {
+        overviewRequests += 1;
+        return HttpResponse.json({}, { status: 500 });
+      }),
+    );
+
+    renderWithProviders(
+      <OverviewPanel
+        projectId={PROJECT}
+        crawlId={CRAWL}
+        crawl={{ status: 'running', analyzed_count: 4, visible_url_count: 10 } as never}
+        dashboard={
+          {
+            score_summary: {
+              web_fundamentals_score: 81,
+              web_fundamentals_coverage: 0.75,
+              web_fundamentals_state: 'limited_evidence',
+              aeo_readiness_score: 62,
+              aeo_measurement_coverage: 0.5,
+              aeo_measurement_state: 'limited_evidence',
+              analyzed_count: 4,
+              selected_count: 10,
+              issue_count: 3,
+            },
+          } as never
+        }
+      />,
+    );
+
+    expect(screen.getByRole('img', { name: 'Web Fundamentals score: 81' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'AEO Readiness score: 62' })).toBeInTheDocument();
+    expect(screen.getByText('4 of 10 pages analyzed')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Loading Overview details')).not.toBeInTheDocument();
+    expect(overviewRequests).toBe(0);
+  });
+
   it('opens persisted Web Fundamentals evidence and discloses browser limits', async () => {
     mswServer.use(
       http.get(`/api/v1/projects/${PROJECT}/site-health/overview`, () =>
@@ -27,22 +66,45 @@ describe('OverviewPanel', () => {
           search_eligibility: 'eligible',
           eligibility_totals: { eligible: 1, blocked: 0, unknown: 0, excluded: 0 },
           eligibility_reasons: [],
-          technical_integrity_score: 100,
-          technical_integrity_coverage: 1,
-          technical_integrity_state: 'measured',
+          web_fundamentals_score: 88,
+          web_fundamentals_coverage: 1,
+          web_fundamentals_state: 'measured',
           aeo_readiness_score: 72,
           aeo_measurement_coverage: 0.6,
           aeo_measurement_state: 'limited_evidence',
           crawl_coverage: {
             state: 'partial',
-            evidence: {},
+            evidence: { reasons: ['requested_page_limit_reached'] },
             denominator_kind: 'selected_intended_public_urls',
           },
           audited_page_count: 1,
           selected_page_count: 1,
           status_counts: { audited: 1 },
+          issue_count: 2,
+          technical_defect_count: 1,
+          technical_defect_affected_page_count: 1,
+          aeo_readiness_gap_count: 1,
+          aeo_readiness_gap_affected_page_count: 1,
+          severity_counts: { medium: 2 },
+          category_counts: { content: 2 },
+          measured_check_count: 6,
+          expected_check_count: 10,
           aeo_dimensions: [],
-          top_issues: [],
+          top_issues: [
+            {
+              rule_id: 'aeo.author_present',
+              finding_class: 'advisory',
+              severity: 'medium',
+              category: 'content',
+              description: 'Author attribution is missing',
+              remediation: 'Add a named author.',
+              score_roles: ['aeo_readiness'],
+              affected_pages: 1,
+              eligibility_blocker: false,
+              impact_band: 2,
+              impact_label: 'Authority · 10%',
+            },
+          ],
           web_fundamentals: {
             state: 'limited_evidence',
             areas: [
@@ -89,16 +151,43 @@ describe('OverviewPanel', () => {
             source_evaluation_ids: [SOURCE],
             limitations: ['HTTP evidence only; browser layout was not measured.'],
           },
-          trend: { state: 'unavailable', reason: 'no_comparable_snapshot' },
-          change_summary: { state: 'unavailable', reason: 'no_comparable_snapshot' },
+          trend: {
+            state: 'unavailable',
+            reason: 'no_comparable_snapshot',
+            metric: 'aeo_readiness_score',
+            series: [{ label: '2026-08-30', value: 72 }],
+          },
+          change_summary: {
+            state: 'unavailable',
+            reason: 'no_comparable_snapshot',
+            metrics: [],
+          },
           limitations: ['Audited pages only.'],
         }),
       ),
     );
     const user = userEvent.setup();
-    renderWithProviders(<OverviewPanel projectId={PROJECT} crawlId={CRAWL} />);
+    renderWithProviders(
+      <OverviewPanel
+        projectId={PROJECT}
+        crawlId={CRAWL}
+        crawl={{ status: 'completed' } as never}
+        dashboard={undefined}
+      />,
+    );
 
-    expect(await screen.findByText('Limited evidence')).toBeInTheDocument();
+    expect(await screen.findAllByText('60% measured · Moderate confidence')).toHaveLength(2);
+    expect(screen.getByText('100% analyzed · Partial coverage')).toBeInTheDocument();
+    expect(screen.queryByText('100% analyzed · Complete coverage')).not.toBeInTheDocument();
+    expect(screen.getByText(/requested page limit reached/)).toBeInTheDocument();
+    expect(screen.getByText('1 defect · 1 page affected')).toBeInTheDocument();
+    expect(screen.getByText('1 readiness gap · 1 page affected')).toBeInTheDocument();
+    expect(screen.getByText('Authority · 10%')).toBeInTheDocument();
+    expect(screen.queryByText('Medium')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Author attribution is missing' })).toHaveAttribute(
+      'href',
+      '/issues?rule=aeo.author_present&finding_class=advisory',
+    );
     await user.click(screen.getByRole('button', { name: 'View evidence' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('Images missing alt attributes');
     expect(screen.getByRole('dialog')).toHaveTextContent('mobile_layout');

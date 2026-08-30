@@ -21,36 +21,33 @@ from app.core.config.site_health_contracts import (
     SEVERITY_LOW,
     SEVERITY_MEDIUM,
 )
-from app.core.config.site_health_measurement import SCORE_ROLE_TECHNICAL
+from app.core.config.site_health_measurement import expected_checkpoints
+from app.core.config.site_health_readiness_rules import READINESS_EXPANSION_RULES
 from app.core.config.site_health_rule_types import (
     FINDING_CLASS_ADVISORY,
     FINDING_CLASS_DIAGNOSTIC,
     KIND_EVIDENCE_TRIGGERED,
+    RULE_SCOPE_CLUSTER,
+    RULE_SCOPE_GRAPH,
+    SCORE_ROLE_AEO,
+    SCORE_ROLE_WEB_FUNDAMENTALS,
     SiteHealthRule,
+    validate_triggered_rule_links,
 )
 from app.core.config.site_health_search_rules import SEARCH_ACCESS_RULES
 from app.core.config.site_health_taxonomy import (
-    PAGE_KIND_APPLICABILITY_PREFIX,
     PAGE_KIND_ARTICLE,
     PAGE_KIND_CASE_STUDY_REVIEW,
     PAGE_KIND_COMPARISON,
     PAGE_KIND_DOCS,
-    PAGE_KIND_EXPECTED_SCHEMA,
     PAGE_KIND_FAQ,
+    PAGE_KIND_FAQ_QUESTION_RATIO,
     PAGE_KIND_GUIDE,
-    PAGE_KIND_HOMEPAGE,
-    PAGE_KIND_PRODUCT,
     PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
+    PAGE_KINDS,
     _page_kinds,
 )
-from app.core.config.site_health_traits import PAGE_TRAIT_HAS_FAQ, _traits
 from app.core.config.site_health_web_fundamentals import WEB_FUNDAMENTALS_RULES
-
-DIMENSION_WEIGHT_TECHNICAL: Final = 0.5
-
-DIMENSION_WEIGHT_AEO: Final = 0.5
-
-SCORE_ROUNDING_DECIMALS: Final = 1
 
 SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
     SiteHealthRule(
@@ -67,7 +64,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description="Page has a non-empty <title>.",
         remediation="Add a concise, descriptive <title> element to the page.",
         display_label="Missing page title",
-        score_roles=(SCORE_ROLE_TECHNICAL,),
+        score_roles=(SCORE_ROLE_WEB_FUNDAMENTALS,),
     ),
     SiteHealthRule(
         rule_id="technical.meta_description_present",
@@ -113,7 +110,10 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description="Page is not blocked from indexing by a robots meta noindex.",
         remediation="Remove the noindex directive if the page should be indexed.",
         display_label="Page blocked from indexing",
-        score_roles=(SCORE_ROLE_TECHNICAL,),
+        score_roles=(SCORE_ROLE_WEB_FUNDAMENTALS, SCORE_ROLE_AEO),
+        checkpoint_family="indexability",
+        readiness_dimension="crawlability",
+        readiness_weight=1.0,
     ),
     SiteHealthRule(
         rule_id="technical.https",
@@ -126,7 +126,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description="Final URL is served over HTTPS.",
         remediation="Serve the page over HTTPS and redirect HTTP to HTTPS.",
         display_label="Not served over HTTPS",
-        score_roles=(SCORE_ROLE_TECHNICAL,),
+        score_roles=(SCORE_ROLE_WEB_FUNDAMENTALS,),
     ),
     SiteHealthRule(
         rule_id="technical.single_h1",
@@ -221,7 +221,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "declares hreflang alternates must canonicalise to itself."
         ),
         display_label="Canonical URL conflict",
-        score_roles=(SCORE_ROLE_TECHNICAL,),
+        score_roles=(SCORE_ROLE_WEB_FUNDAMENTALS,),
     ),
     SiteHealthRule(
         rule_id="technical.title_length_band",
@@ -296,27 +296,9 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         finding_class=FINDING_CLASS_DIAGNOSTIC,
         web_fundamentals_area="lab",
     ),
-    SiteHealthRule(
-        rule_id="technical.render_blocking",
-        rule_version=RULE_CATALOG_VERSION,
-        dimension=DIMENSION_TECHNICAL,
-        category=CATEGORY_PERFORMANCE,
-        severity=SEVERITY_LOW,
-        weight=1.0,
-        applicability_key="has_html",
-        description=(
-            "Synchronous scripts + stylesheets stay under the render-blocking "
-            "resource limit."
-        ),
-        remediation=(
-            "Defer/async non-critical scripts and reduce render-blocking stylesheets."
-        ),
-        display_label="Too many render-blocking resources",
-        finding_class=FINDING_CLASS_DIAGNOSTIC,
-        web_fundamentals_area="lab",
-    ),
     *WEB_FUNDAMENTALS_RULES,
     *SEARCH_ACCESS_RULES,
+    *READINESS_EXPANSION_RULES,
     # --- v2 P2: per-type schema validity (per-page) -------------------------
     SiteHealthRule(
         rule_id="aeo.schema_expected_for_type",
@@ -347,6 +329,10 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "(PAGE_KIND_EXPECTED_SCHEMA)."
         ),
         display_label="Missing expected schema type for page type",
+        score_roles=(SCORE_ROLE_AEO,),
+        checkpoint_family="structured_representation",
+        readiness_dimension="machine-readability",
+        readiness_weight=1.0,
     ),
     SiteHealthRule(
         rule_id="aeo.schema_required_valid",
@@ -366,6 +352,11 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         ),
         remediation="Add the missing required properties to the schema markup.",
         display_label="Required schema properties missing",
+        score_roles=(SCORE_ROLE_AEO,),
+        checkpoint_family="structured_representation",
+        readiness_dimension="machine-readability",
+        readiness_weight=1.0,
+        triggered_by="aeo.schema_expected_for_type",
     ),
     SiteHealthRule(
         rule_id="aeo.schema_recommended_present",
@@ -387,6 +378,11 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         ),
         remediation=("Add the recommended properties to strengthen the schema markup."),
         display_label="Recommended schema properties missing",
+        score_roles=(SCORE_ROLE_AEO,),
+        checkpoint_family="structured_representation",
+        readiness_dimension="machine-readability",
+        readiness_weight=0.5,
+        triggered_by="aeo.schema_expected_for_type",
     ),
     SiteHealthRule(
         rule_id="aeo.schema_matches_content",
@@ -408,6 +404,11 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "Align schema name/headline values with the visible page content."
         ),
         display_label="Schema markup does not match visible content",
+        score_roles=(SCORE_ROLE_AEO,),
+        checkpoint_family="structured_representation",
+        readiness_dimension="machine-readability",
+        readiness_weight=1.0,
+        triggered_by="aeo.schema_expected_for_type",
     ),
     # --- v2 P2: citability (per-page) ---------------------------------------
     SiteHealthRule(
@@ -434,32 +435,11 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         description=("Page exposes an author byline (visible, schema, or metadata)."),
         remediation="Add an author byline (visible, JSON-LD author, or meta).",
         display_label="Missing author byline",
-    ),
-    SiteHealthRule(
-        rule_id="aeo.date_present",
-        rule_version=RULE_CATALOG_VERSION,
-        dimension=DIMENSION_AEO,
-        category=CATEGORY_CITABILITY,
-        severity=SEVERITY_MEDIUM,
-        weight=1.5,
-        # Same editorial set as the byline, plus docs: a reader needs to know
-        # how current documentation is. Evergreen commercial pages (product,
-        # category, pricing, about) carry no such expectation.
-        applicability_key=_page_kinds(
-            PAGE_KIND_ARTICLE,
-            PAGE_KIND_GUIDE,
-            PAGE_KIND_CASE_STUDY_REVIEW,
-            PAGE_KIND_COMPARISON,
-            PAGE_KIND_DOCS,
-            reads_content=True,
-        ),
-        description="Page exposes a published or modified date.",
-        remediation=(
-            "Add machine-readable dates (JSON-LD datePublished/dateModified, "
-            "article:published_time, or <time datetime>)."
-        ),
-        display_label="Missing published/modified date",
-        finding_class=FINDING_CLASS_ADVISORY,
+        score_roles=(SCORE_ROLE_AEO,),
+        checkpoint_family="provenance",
+        content_addressable=True,
+        readiness_dimension="authority",
+        readiness_weight=1.0,
     ),
     SiteHealthRule(
         rule_id="aeo.outbound_citations",
@@ -475,26 +455,18 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             PAGE_KIND_GUIDE,
             PAGE_KIND_CASE_STUDY_REVIEW,
             PAGE_KIND_COMPARISON,
+            PAGE_KIND_DOCS,
             reads_content=True,
         ),
         description="Page links out to at least one non-social external domain.",
         remediation="Cite authoritative external sources relevant to the content.",
         display_label="No outbound citations",
+        score_roles=(SCORE_ROLE_AEO,),
+        checkpoint_family="source_support",
+        content_addressable=True,
+        readiness_dimension="evidence",
+        readiness_weight=1.0,
         finding_class=FINDING_CLASS_ADVISORY,
-    ),
-    SiteHealthRule(
-        rule_id="aeo.organization_identity",
-        rule_version=RULE_CATALOG_VERSION,
-        dimension=DIMENSION_AEO,
-        category=CATEGORY_CITABILITY,
-        severity=SEVERITY_MEDIUM,
-        weight=1.0,
-        applicability_key=f"{PAGE_KIND_APPLICABILITY_PREFIX}{PAGE_KIND_HOMEPAGE}",
-        description="Homepage Organization markup carries sameAs identity links.",
-        remediation=(
-            "Add sameAs links (official profiles) to the homepage Organization schema."
-        ),
-        display_label="Missing organization identity links",
     ),
     # --- v2 P2: extractability (per-page) -----------------------------------
     SiteHealthRule(
@@ -510,13 +482,18 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         # point. Kept where the reader genuinely arrived with a question --
         # and kept as an advisory even there, because "answer first" is a
         # recommendation about prose, not a reproducible fault.
-        applicability_key=_traits(PAGE_TRAIT_HAS_FAQ, reads_content=True),
+        applicability_key=_page_kinds(PAGE_KIND_FAQ, reads_content=True),
         description=(
             "The first block under the first heading is a substantive "
             "answer/definitional paragraph."
         ),
         remediation=("Open each section with a direct answer before elaborating."),
         display_label="No answer-first content structure",
+        score_roles=(SCORE_ROLE_AEO,),
+        checkpoint_family="answer_content",
+        content_addressable=True,
+        readiness_dimension="answerability",
+        readiness_weight=1.0,
         finding_class=FINDING_CLASS_ADVISORY,
     ),
     SiteHealthRule(
@@ -535,13 +512,15 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         # defect. A guide, a reference page or an essay has no such obligation:
         # API reference documentation has no subheadings at all, and demanding
         # question headings of it was inventing a fault.
-        applicability_key=_page_kinds(
-            PAGE_KIND_FAQ,
-            reads_content=True,
-        ),
+        applicability_key=_page_kinds(PAGE_KIND_FAQ),
         description="Page uses question-form h2/h3 headings.",
         remediation="Phrase section headings as the questions users ask.",
         display_label="No question-form headings",
+        score_roles=(SCORE_ROLE_AEO,),
+        checkpoint_family="semantic_structure",
+        content_addressable=True,
+        readiness_dimension="structure",
+        readiness_weight=1.0,
     ),
     SiteHealthRule(
         rule_id="aeo.server_rendered_content",
@@ -559,6 +538,10 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "extract it without executing JavaScript."
         ),
         display_label="Content not present in server HTML",
+        score_roles=(SCORE_ROLE_AEO,),
+        checkpoint_family="primary_content",
+        readiness_dimension="machine-readability",
+        readiness_weight=1.0,
         finding_class=FINDING_CLASS_DIAGNOSTIC,
     ),
     SiteHealthRule(
@@ -578,6 +561,11 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "answers behind expandable sections."
         ),
         display_label="Content behind expand controls",
+        score_roles=(SCORE_ROLE_AEO,),
+        checkpoint_family="content_structure",
+        content_addressable=True,
+        readiness_dimension="structure",
+        readiness_weight=0.5,
         # This measures the OPPOSITE of what it claims. ``expand_gated_ratio``
         # counts words inside closed <details> and aria-expanded=false nodes --
         # text that is present in the DOM and extractable without executing or
@@ -591,53 +579,66 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         # signal; until that exists this cannot honestly be a defect.
         finding_class=FINDING_CLASS_ADVISORY,
     ),
+    # --- crawl-finalize Web Fundamentals rules --------------------------
     SiteHealthRule(
-        rule_id="aeo.product_offer_details",
-        kind_evidence=KIND_EVIDENCE_TRIGGERED,
+        rule_id="technical.broken_internal_link",
         rule_version=RULE_CATALOG_VERSION,
-        dimension=DIMENSION_AEO,
-        category=CATEGORY_STRUCTURED_DATA,
-        severity=SEVERITY_MEDIUM,
-        weight=1.0,
-        applicability_key=_page_kinds(PAGE_KIND_PRODUCT, requires_html=True),
-        description="Product pages expose complete Product/Offer facts.",
-        remediation=(
-            "Add Product and Offer properties for identity, price, currency, "
-            "availability, variants, ratings, shipping, and returns."
-        ),
-        display_label="Incomplete Product/Offer details",
-    ),
-    SiteHealthRule(
-        rule_id="aeo.product_visible_schema_parity",
-        kind_evidence=KIND_EVIDENCE_TRIGGERED,
-        rule_version=RULE_CATALOG_VERSION,
-        dimension=DIMENSION_AEO,
-        category=CATEGORY_CONTENT,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_INDEXABILITY,
         severity=SEVERITY_HIGH,
-        weight=1.5,
-        applicability_key=_page_kinds(PAGE_KIND_PRODUCT, reads_content=True),
-        description="Visible product claims agree with Product/Offer schema.",
-        remediation=(
-            "Make visible product identity, price, and availability claims "
-            "agree with Product/Offer structured data before publishing."
-        ),
-        display_label="Visible product claims conflict with schema",
+        weight=3.0,
+        applicability_key=APPLICABILITY_CRAWL_FINALIZE,
+        scope=RULE_SCOPE_GRAPH,
+        description="Crawlable internal links resolve without an HTTP error.",
+        remediation="Repair or remove internal links whose targets return errors.",
+        display_label="Broken internal links",
+        score_roles=(SCORE_ROLE_WEB_FUNDAMENTALS,),
     ),
-    # --- v2 P2: crawl_finalize scope (weight 0; finalize-writer owned) ------
+    SiteHealthRule(
+        rule_id="technical.canonical_resolvable",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_INDEXABILITY,
+        severity=SEVERITY_HIGH,
+        weight=3.0,
+        applicability_key=APPLICABILITY_CRAWL_FINALIZE,
+        description="The declared or implicit canonical target resolves directly.",
+        remediation="Point the canonical at a fetched, non-error, non-redirecting URL.",
+        display_label="Canonical target does not resolve directly",
+        score_roles=(SCORE_ROLE_WEB_FUNDAMENTALS,),
+    ),
+    SiteHealthRule(
+        rule_id="technical.sitemap_url_unreachable",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_INDEXABILITY,
+        severity=SEVERITY_HIGH,
+        weight=3.0,
+        applicability_key=APPLICABILITY_CRAWL_FINALIZE,
+        description="Sitemap-listed URLs resolve without an HTTP error.",
+        remediation="Remove unreachable sitemap URLs or restore their resources.",
+        display_label="Unreachable sitemap URLs",
+        score_roles=(SCORE_ROLE_WEB_FUNDAMENTALS,),
+    ),
+    # --- crawl-finalize cluster rules --------------------------------------
+    # These use cross-page evidence. Their rows stay root/page-anchored for
+    # provenance, but their measurement ownership is the relevant URL cluster.
     SiteHealthRule(
         rule_id="technical.sitemap_orphan",
         rule_version=RULE_CATALOG_VERSION,
         dimension=DIMENSION_TECHNICAL,
         category=CATEGORY_INDEXABILITY,
         severity=SEVERITY_LOW,
-        weight=0.0,
+        weight=1.0,
         applicability_key=APPLICABILITY_CRAWL_FINALIZE,
+        scope=RULE_SCOPE_CLUSTER,
         description=(
             "Sitemap URLs are reachable through internal links (not "
             "sitemap-only orphans)."
         ),
         remediation=("Link sitemap-listed pages from crawlable internal navigation."),
         display_label="Sitemap orphan URLs",
+        score_roles=(SCORE_ROLE_WEB_FUNDAMENTALS,),
     ),
     SiteHealthRule(
         rule_id="technical.hreflang_conflict",
@@ -645,14 +646,16 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         dimension=DIMENSION_TECHNICAL,
         category=CATEGORY_INDEXABILITY,
         severity=SEVERITY_MEDIUM,
-        weight=0.0,
+        weight=2.0,
         applicability_key=APPLICABILITY_CRAWL_FINALIZE,
+        scope=RULE_SCOPE_CLUSTER,
         description="Hreflang alternates carry reciprocal return tags.",
         remediation=(
             "Add return hreflang annotations on every alternate page so "
             "clusters are reciprocal."
         ),
         display_label="Hreflang return-tag conflict",
+        score_roles=(SCORE_ROLE_WEB_FUNDAMENTALS,),
     ),
     *(SiteHealthRule(**spec) for spec in ARCHITECTURE_RULE_SPECS),
 )
@@ -661,22 +664,15 @@ SITE_HEALTH_RULES_BY_ID: Final[dict[str, SiteHealthRule]] = {
     rule.rule_id: rule for rule in SITE_HEALTH_RULES
 }
 
-STRUCTURED_DATA_REQUIRED_PROPERTIES: Final[dict[str, tuple[str, ...]]] = {
-    "Organization": ("name", "url"),
-    "WebSite": ("name", "url"),
-    "WebPage": ("name",),
-    "Article": ("headline", "author", "datePublished"),
-    "Product": ("name", "offers"),
-    "FAQPage": ("mainEntity",),
-    "BreadcrumbList": ("itemListElement",),
-}
 
-STRUCTURED_DATA_RECOGNIZED_TYPES: Final[frozenset[str]] = frozenset(
-    STRUCTURED_DATA_REQUIRED_PROPERTIES
-) | frozenset(
-    schema_type
-    for expectation in PAGE_KIND_EXPECTED_SCHEMA.values()
-    for schema_type in expectation.expected_types
+validate_triggered_rule_links(
+    SITE_HEALTH_RULES,
+    SITE_HEALTH_RULES_BY_ID,
+    tuple(
+        expected_checkpoints(page_kind, traits)
+        for page_kind in PAGE_KINDS
+        for traits in ((),)
+    ),
 )
 
 TITLE_LENGTH_BAND: Final[tuple[int, int]] = (30, 60)
@@ -684,8 +680,6 @@ TITLE_LENGTH_BAND: Final[tuple[int, int]] = (30, 60)
 META_DESCRIPTION_LENGTH_BAND: Final[tuple[int, int]] = (70, 160)
 
 TTFB_WARN_MS: Final = 800
-
-RENDER_BLOCKING_MAX_RESOURCES: Final = 2
 
 ANSWER_FIRST_MIN_WORDS: Final = 10
 
@@ -706,7 +700,7 @@ INLINE_SCRIPT_JAVASCRIPT_TYPES: Final[frozenset[str]] = frozenset(
     }
 )
 
-QUESTION_HEADINGS_MIN_RATIO: Final = 0.0
+QUESTION_HEADINGS_MIN_RATIO: Final = PAGE_KIND_FAQ_QUESTION_RATIO
 
 SOCIAL_DOMAINS: Final[frozenset[str]] = frozenset(
     {
@@ -720,8 +714,6 @@ SOCIAL_DOMAINS: Final[frozenset[str]] = frozenset(
         "pinterest.com",
     }
 )
-
-SCHEMA_CONTENT_MATCH_MAX_CANDIDATES: Final = 5
 
 TRACKING_QUERY_PARAMS: Final[frozenset[str]] = frozenset(
     {

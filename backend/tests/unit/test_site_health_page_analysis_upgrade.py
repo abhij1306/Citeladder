@@ -5,21 +5,32 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+from app.analysis.site_health.page_analysis import analyze_page
+
 from app.analysis.opportunities.detectors import _site_opportunity_rule_id
 from app.analysis.site_health.page_kinds import classify
+from app.analysis.site_health.page_traits import derive_traits
 from app.analysis.site_health.parser import extract_page_facts
 from app.analysis.site_health.rules import evaluate_all, rule_for
 from app.core.config.opportunities import SITE_ISSUE_TO_OPPORTUNITY_RULE_ID
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_CONFLICTING,
     RULE_OUTCOME_ERROR,
-    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_MISSING,
+    RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PARTIAL,
-    RULE_OUTCOME_PASS,
+    RULE_OUTCOME_SATISFIED,
+    RULE_OUTCOME_UNKNOWN,
+)
+from app.core.config.site_health_measurement import (
+    KNOWN_MEASUREMENT_GAPS,
+    expected_checkpoints,
+    relevant_dimensions,
 )
 from app.core.config.site_health_taxonomy import (
     PAGE_KIND_EXPECTED_SCHEMA,
     PAGE_KIND_PROFILES,
+    PAGE_KINDS,
 )
 from app.domain.site_health.service.issue_history import (
     _group_issue_history,
@@ -29,6 +40,25 @@ from app.domain.site_health.service.issue_history import (
 
 def _outcome(facts: dict, rule_id: str):
     return next(item for item in evaluate_all(facts) if item.rule_id == rule_id)
+
+
+def test_page_analysis_is_the_immutable_evaluation_interface() -> None:
+    facts = {
+        "has_html": True,
+        "title": "Acme",
+        "body": {"word_count": 40, "text": "word " * 40},
+        "delivery": {"final_url": "https://x.example/", "is_https": True},
+        "headings": {"h1_count": 1, "counts": {"h1": 1}, "h1_texts": ["Acme"]},
+        "structured_data": {"count": 0, "blocks": [], "types": []},
+    }
+
+    result = analyze_page(facts)
+
+    assert result.assessment.page_kind == "homepage"
+    assert result.assessment.tier
+    assert result.evaluations
+    assert all(row.reason_code != "crawl_finalize_scope" for row in result.evaluations)
+    assert {"page_kind", "page_kind_evidence", "page_traits"}.isdisjoint(facts)
 
 
 def test_classification_evidence_has_alternatives_conflicts_and_other_reason() -> None:
@@ -74,7 +104,29 @@ def test_all_configured_page_types_have_profile_and_schema_contract() -> None:
     }
 
 
-def test_product_offer_facts_and_visible_schema_parity_fixture() -> None:
+def test_every_relevant_dimension_has_a_checkpoint_or_named_gap() -> None:
+    missing_paths: set[tuple[str, str]] = set()
+    for page_kind in PAGE_KINDS:
+        expected = expected_checkpoints(
+            page_kind,
+            crawl_context={"is_site_root": page_kind == "homepage"},
+        )
+        dimensions = {
+            rule.readiness_dimension
+            for rule_id in expected
+            if (rule := rule_for(rule_id)) is not None
+        }
+        missing_paths.update(
+            (page_kind, dimension)
+            for dimension in relevant_dimensions(page_kind)
+            if dimension not in dimensions
+        )
+
+    assert missing_paths == set(KNOWN_MEASUREMENT_GAPS)
+    assert all(KNOWN_MEASUREMENT_GAPS.values())
+
+
+def test_product_offer_facts_fixture() -> None:
     facts = extract_page_facts(
         b"""<html><head><title>Widget Pro</title>
         <script type="application/ld+json">{
@@ -88,12 +140,17 @@ def test_product_offer_facts_and_visible_schema_parity_fixture() -> None:
           "shippingDetails":{"@type":"OfferShippingDetails"},
           "hasMerchantReturnPolicy":{"@type":"MerchantReturnPolicy"}}
         }</script></head><body><h1>Widget Pro</h1>
+        <label for="finish">Finish</label><select id="finish"><option>Oak</option>
+        <option>Walnut</option></select>
         <p>Acme Widget Pro, SKU W-100, GTIN 1234567890123, is in stock
         for 19.99 USD.</p>
         </body></html>""",
         final_url="https://example.test/products/widget-pro",
     )
     facts["page_kind"] = "product"
+    facts["page_traits"] = list(
+        derive_traits("https://example.test/products/widget-pro", facts)
+    )
 
     product = facts["structured_data"]["product"]
     assert product["sku"] == ["W-100"]
@@ -103,14 +160,17 @@ def test_product_offer_facts_and_visible_schema_parity_fixture() -> None:
     assert product["price_currency"] == ["USD"]
     assert product["ratings"] == ["4.8"]
     assert product["shipping"] is True and product["returns"] is True
-    assert _outcome(facts, "aeo.product_offer_details").outcome == RULE_OUTCOME_PASS
-    assert (
-        _outcome(facts, "aeo.product_visible_schema_parity").outcome
-        == RULE_OUTCOME_PASS
-    )
+    answer = _outcome(facts, "aeo.product_answer_facts")
+    assert answer.outcome == RULE_OUTCOME_SATISFIED
+    assert [atom["outcome"] for atom in answer.evidence["atoms"]] == [
+        "satisfied",
+        "satisfied",
+        "satisfied",
+        "satisfied",
+    ]
 
 
-def test_declared_product_offer_requires_all_offer_fields() -> None:
+def test_product_answer_requires_availability() -> None:
     facts = extract_page_facts(
         b"""<html><head><script type="application/ld+json">{
         "@context":"https://schema.org", "@type":"Product", "name":"Widget",
@@ -121,80 +181,159 @@ def test_declared_product_offer_requires_all_offer_fields() -> None:
     )
     facts["page_kind"] = "product"
 
-    outcome = _outcome(facts, "aeo.product_offer_details")
-    assert outcome.outcome == RULE_OUTCOME_FAIL
-    assert outcome.evidence["offer_declared"] is True
-    assert outcome.evidence["missing"] == ["offers.availability"]
+    outcome = _outcome(facts, "aeo.product_answer_facts")
+    assert outcome.outcome == RULE_OUTCOME_MISSING
+    availability = next(
+        atom for atom in outcome.evidence["atoms"] if atom["name"] == "availability"
+    )
+    assert availability["outcome"] == RULE_OUTCOME_MISSING
 
 
-def test_product_visible_schema_parity_fails_on_persisted_conflict() -> None:
+def test_product_answer_rejects_unqualified_visible_price() -> None:
+    facts = {
+        "has_html": True,
+        "page_kind": "product",
+        "headings": {"h1_texts": ["Widget"]},
+        "structured_data": {"product": {}},
+        "commerce": {
+            "visible_price": "$100",
+            "visible_price_context": "Free shipping over $100 on all orders",
+            "visible_availability": "In stock",
+        },
+        "entity": {"product": {"has_primary_price": False}},
+    }
+
+    outcome = _outcome(facts, "aeo.product_answer_facts")
+    offer = next(atom for atom in outcome.evidence["atoms"] if atom["name"] == "offer")
+
+    assert offer["outcome"] == RULE_OUTCOME_MISSING
+
+
+def test_product_variants_atom_uses_only_the_observed_trait() -> None:
     facts = extract_page_facts(
-        b"""<html><head><title>Widget Pro</title><script type="application/ld+json">
-        {"@context":"https://schema.org","@type":"Product","name":"Widget Pro",
-        "sku":"W-100","brand":"Acme","offers":{"@type":"Offer","price":"19.99",
-        "priceCurrency":"USD","availability":"InStock"}}</script></head>
-        <body><h1>Widget Pro</h1><p>Acme Widget Pro is currently unavailable
-        for 29.99 USD.</p></body></html>""",
-        final_url="https://example.test/products/widget-pro",
+        b"""<html><head><script type="application/ld+json">{
+        "@context":"https://schema.org", "@type":"Product", "name":"Widget",
+        "hasVariant":{"@type":"Product","name":"Blue"},
+        "offers":{"@type":"Offer","price":"19.99","availability":"InStock"}
+        }</script></head><body><h1>Widget</h1></body></html>""",
+        final_url="https://example.test/products/widget",
     )
     facts["page_kind"] = "product"
-    parity = _outcome(facts, "aeo.product_visible_schema_parity")
-    assert parity.outcome == RULE_OUTCOME_FAIL
-    assert parity.evidence["mismatch_count"] >= 1
+    facts["page_traits"] = list(
+        derive_traits("https://example.test/products/widget", facts)
+    )
+
+    no_trait = _outcome(facts, "aeo.product_answer_facts")
+    variants = next(
+        atom for atom in no_trait.evidence["atoms"] if atom["name"] == "variants"
+    )
+    assert variants["outcome"] == RULE_OUTCOME_NOT_APPLICABLE
+    assert variants["condition"] == "page_trait:has_variants"
+
+    facts["form_fields"] = ["Finish"]
+    facts["page_traits"] = list(
+        derive_traits("https://example.test/products/widget", facts)
+    )
+    trait_present = _outcome(facts, "aeo.product_answer_facts")
+    variants = next(
+        atom for atom in trait_present.evidence["atoms"] if atom["name"] == "variants"
+    )
+    assert variants["outcome"] == RULE_OUTCOME_SATISFIED
 
 
-def test_product_parity_does_not_match_inside_a_longer_field() -> None:
+def test_variant_selection_context_can_expose_missing_variant_evidence() -> None:
     facts = extract_page_facts(
-        b"""<html><head><title>Widget Pro</title>
-        <script type="application/ld+json">{
-          "@context":"https://schema.org", "@type":"Product",
-          "name":"Widget Pro", "sku":"W-10"
-        }</script></head><body><h1>Widget Pro</h1>
-        <p>SKU W-100</p></body></html>""",
-        final_url="https://example.test/products/widget-pro",
+        b"""<html><body><h1>Widget</h1><p>$19.99 In stock</p>
+        <label for="finish">Finish</label><input id="finish"></body></html>""",
+        final_url="https://example.test/products/widget",
     )
     facts["page_kind"] = "product"
-
-    parity = _outcome(facts, "aeo.product_visible_schema_parity")
-    assert parity.outcome == RULE_OUTCOME_FAIL
-    assert any(
-        check["field"] == "sku" and check["visible_match"] is False
-        for check in parity.evidence["checks"]
+    facts["page_traits"] = list(
+        derive_traits("https://example.test/products/widget", facts)
     )
 
-
-def test_in_stock_does_not_match_negated_available_phrase() -> None:
-    facts = extract_page_facts(
-        b"""<html><head><title>Widget Pro</title>
-        <script type="application/ld+json">{
-          "@context":"https://schema.org", "@type":"Product",
-          "name":"Widget Pro", "offers":{"@type":"Offer","availability":"InStock"}
-        }</script></head><body><h1>Widget Pro</h1>
-        <p>This item is not available.</p></body></html>""",
-        final_url="https://example.test/products/widget-pro",
+    outcome = _outcome(facts, "aeo.product_answer_facts")
+    variants = next(
+        atom for atom in outcome.evidence["atoms"] if atom["name"] == "variants"
     )
-    facts["page_kind"] = "product"
-    assert (
-        _outcome(facts, "aeo.product_visible_schema_parity").outcome
-        == RULE_OUTCOME_FAIL
-    )
+    assert facts["page_traits"] == ["has_variants"]
+    assert variants["outcome"] == RULE_OUTCOME_MISSING
+    assert outcome.outcome == RULE_OUTCOME_PARTIAL
 
 
-def test_out_of_stock_matches_negated_available_phrase() -> None:
-    facts = extract_page_facts(
-        b"""<html><head><title>Widget Pro</title>
-        <script type="application/ld+json">{
-          "@context":"https://schema.org", "@type":"Product",
-          "name":"Widget Pro", "offers":{"@type":"Offer","availability":"OutOfStock"}
-        }</script></head><body><h1>Widget Pro</h1>
-        <p>This item is not available.</p></body></html>""",
-        final_url="https://example.test/products/widget-pro",
+def test_freshness_requires_timestamp_and_offer_currency() -> None:
+    product = extract_page_facts(
+        b"""<html><head><script type="application/ld+json">{
+        "@context":"https://schema.org", "@type":"Product",
+        "offers":{"@type":"Offer","price":"19.99","priceCurrency":"USD",
+        "availability":"InStock"}}</script></head><body><h1>Widget</h1></body></html>""",
+        final_url="https://example.test/products/widget",
     )
-    facts["page_kind"] = "product"
-    assert (
-        _outcome(facts, "aeo.product_visible_schema_parity").outcome
-        == RULE_OUTCOME_PASS
-    )
+    product["page_kind"] = "product"
+    product["dates"] = {"published": "", "modified": "2026-08-30"}
+    current = _outcome(product, "aeo.offer_freshness_signal")
+    assert current.outcome == RULE_OUTCOME_SATISFIED
+    assert current.evidence == {
+        "offer": True,
+        "currency": ["USD"],
+        "timestamp": "2026-08-30",
+        "timestamp_source": "modified",
+    }
+
+    product["structured_data"]["product"]["price"] = []
+    product["entity"]["product"]["has_primary_price"] = False
+    product["commerce"]["visible_price"] = ""
+    unknown = _outcome(product, "aeo.offer_freshness_signal")
+    assert unknown.outcome == RULE_OUTCOME_UNKNOWN
+    assert unknown.evidence["reason"] == "offer_unavailable"
+
+    product["structured_data"]["product"]["price"] = ["19.99"]
+    product["structured_data"]["product"]["price_currency"] = []
+    unknown = _outcome(product, "aeo.offer_freshness_signal")
+    assert unknown.outcome == RULE_OUTCOME_UNKNOWN
+    assert unknown.evidence["reason"] == "currency_unavailable"
+
+
+def test_assortment_freshness_does_not_treat_item_count_as_current() -> None:
+    facts = {
+        "has_html": True,
+        "page_kind": "category",
+        "headings": {"h1_texts": ["Widgets"]},
+        "entity": {"listing": {"distinct_card_list_targets": 3}},
+        "commerce": {"product_cards": [{"title": "Widget", "url": "/widget"}]},
+        "dates": {"published": "", "modified": ""},
+    }
+    unknown = _outcome(facts, "aeo.assortment_freshness_signal")
+    assert unknown.outcome == RULE_OUTCOME_UNKNOWN
+    assert unknown.evidence["reason"] == "freshness_timestamp_unavailable"
+    assert "crawlable_item_count" not in unknown.evidence
+
+    facts["dates"]["published"] = "2026-08-01"
+    current = _outcome(facts, "aeo.assortment_freshness_signal")
+    assert current.outcome == RULE_OUTCOME_SATISFIED
+    assert current.evidence == {
+        "timestamp": "2026-08-01",
+        "timestamp_source": "published",
+    }
+
+
+def test_composite_contracts_are_attached_to_every_composite_evaluator() -> None:
+    expected = {
+        "aeo.entity_value_proposition": {
+            "entity_identity",
+            "contact_path",
+            "value_proposition",
+        },
+        "aeo.product_answer_facts": {"identity", "offer", "availability", "variants"},
+        "aeo.listing_answer_set": {"collection_purpose", "item_set"},
+    }
+    for rule_id, atom_names in expected.items():
+        rule = rule_for(rule_id)
+        assert rule is not None
+        contract = rule.composite_contract
+        assert contract is not None
+        assert {atom.name for atom in contract.atoms} == atom_names
+        assert contract.threshold
 
 
 def test_site_opportunity_mapping_covers_schema_and_content_catalog() -> None:
@@ -204,19 +343,28 @@ def test_site_opportunity_mapping_covers_schema_and_content_catalog() -> None:
         "aeo.schema_required_valid",
         "aeo.schema_recommended_present",
         "aeo.schema_matches_content",
-        "aeo.product_offer_details",
-        "aeo.product_visible_schema_parity",
+        "aeo.product_answer_facts",
+        "aeo.product_evidence_facts",
+        "aeo.product_brand_identity",
+        "aeo.offer_freshness_signal",
+        "aeo.listing_answer_set",
+        "aeo.listing_item_facts",
+        "aeo.assortment_freshness_signal",
+        "aeo.heading_hierarchy",
+        "aeo.editorial_lead_present",
+        "aeo.entity_value_proposition",
         "technical.thin_content",
         "aeo.answer_first",
         "aeo.question_headings",
         "aeo.author_present",
-        "aeo.date_present",
+        "aeo.content_date_present",
         "aeo.outbound_citations",
         "aeo.organization_identity",
+        "aeo.trust_path_present",
     }
     assert expected <= set(SITE_ISSUE_TO_OPPORTUNITY_RULE_ID)
     assert all(_site_opportunity_rule_id(rule_id) for rule_id in expected)
-    assert rule_for("aeo.product_offer_details") is not None
+    assert rule_for("aeo.product_answer_facts") is not None
 
 
 def test_grouped_issue_history_tracks_new_continuing_and_resolved() -> None:
@@ -238,7 +386,7 @@ def test_grouped_issue_history_tracks_new_continuing_and_resolved() -> None:
             remediation="Add missing properties.",
         )
         for index, outcome in enumerate(
-            (RULE_OUTCOME_FAIL, RULE_OUTCOME_FAIL, RULE_OUTCOME_PASS)
+            (RULE_OUTCOME_MISSING, RULE_OUTCOME_MISSING, RULE_OUTCOME_SATISFIED)
         )
     ]
 
@@ -271,7 +419,7 @@ def test_grouped_issue_history_uses_latest_nonempty_guidance() -> None:
             category="content",
             severity="medium",
             finding_class="defect",
-            outcome=RULE_OUTCOME_FAIL,
+            outcome=RULE_OUTCOME_MISSING,
             analyzer_version="analyzer-1",
             rule_version="rule-1",
             description=description,
@@ -291,7 +439,7 @@ def test_grouped_issue_history_uses_latest_nonempty_guidance() -> None:
 def test_grouped_issue_history_resolves_on_diagnostic_outcomes() -> None:
     start = datetime(2026, 1, 1, tzinfo=UTC)
     outcomes = (
-        RULE_OUTCOME_FAIL,
+        RULE_OUTCOME_MISSING,
         RULE_OUTCOME_PARTIAL,
         RULE_OUTCOME_CONFLICTING,
         RULE_OUTCOME_ERROR,

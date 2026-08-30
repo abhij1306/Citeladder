@@ -1,14 +1,16 @@
 # Site Health deep analysis package (Task 5).
 #
-# Pure, deterministic building blocks the ``site_health_worker`` composes to
-# turn one fetched page into durable analysis evidence:
+# Pure, deterministic building blocks composed by ``page_analysis`` to turn
+# one fetched page into analysis evidence that the worker persists:
 #
 #   - ``parser`` — bounded HTML/delivery fact extraction (lxml, hardened).
 #   - ``structured_data`` — JSON-LD / microdata parse + required-property
 #     validation against the config-owned schema map.
+#   - ``page_analysis`` — the classification, traits, evaluation, and scoring
+#     interface used by workers and end-to-end fixture contracts.
 #   - ``rules`` — evaluate the config-owned rule catalog into explicit
 #     measurement outcomes with exact evidence + provenance.
-#   - ``scoring`` — deterministic Technical Integrity and AEO Readiness
+#   - ``scoring`` — deterministic Web Fundamentals and AEO Readiness
 #     measurement plus crawl-level aggregation.
 #
 # Everything here is a PURE function (no I/O, no ORM): the worker owns all

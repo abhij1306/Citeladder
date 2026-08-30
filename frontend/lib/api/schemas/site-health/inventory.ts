@@ -13,9 +13,9 @@ import { cursorPageSchema } from './pagination';
 // has no classification yet (null — the UI renders `Not measured`, never a guessed type).
 export const analysisSummaryFields = {
   issue_count: z.number().int().nullable(),
-  technical_integrity_score: z.number().nullable(),
-  technical_integrity_coverage: z.number().nullable(),
-  technical_integrity_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  web_fundamentals_score: z.number().nullable(),
+  web_fundamentals_coverage: z.number().nullable(),
+  web_fundamentals_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
   aeo_readiness_score: z.number().nullable(),
   aeo_measurement_coverage: z.number().nullable(),
   aeo_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),

@@ -38,7 +38,7 @@ from app.core.config.site_health_contracts import (
     DISCOVERY_STATUS_RUNNING,
     DISCOVERY_STATUS_SAMPLE_COMPLETED,
     OBSERVATION_SOURCE_SITEMAP,
-    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_MISSING,
     RULE_OUTCOME_NOT_APPLICABLE,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
@@ -259,7 +259,6 @@ async def test_sitemap_observations_use_bounded_bulk_statements(
             sample_capped=False,
             site_url_ids=site_url_ids,
         ),
-        phase_run_id=None,
     )
 
     assert len(session.statements) == 3
@@ -315,7 +314,7 @@ async def test_full_allowance_discover_admits_children_and_completes(
         ).scalar_one()
         assert snapshot.selected_url_count == 0
         assert snapshot.analyzed_url_count == 0
-        assert snapshot.technical_integrity_score is None
+        assert snapshot.web_fundamentals_score is None
         assert snapshot.aeo_readiness_score is None
 
         # Root + 2 in-scope children admitted; external.org excluded.
@@ -1146,7 +1145,7 @@ async def test_discover_site_setup_llms_stance_sitemap_and_finalize_orphan(
     ``site_facts`` display copy on the crawl row. When the crawl terminalizes,
     the crawl_finalize pass runs: ``sitemap_orphan`` fails for the sitemap URL
     no internal link reaches, and ``hreflang_conflict`` is N/A — both at
-    weight 0.0, with the orphan issue in the snapshot rollup.
+    config-owned weights, with the orphan issue in the snapshot rollup.
     """
     root = "https://example.com/"
     seed = await _seed_root_branches(session_factory, root=root)
@@ -1278,7 +1277,7 @@ async def test_discover_site_setup_llms_stance_sitemap_and_finalize_orphan(
             .all()
         }
         orphan = evals["technical.sitemap_orphan"]
-        assert orphan.outcome == RULE_OUTCOME_FAIL
+        assert orphan.outcome == RULE_OUTCOME_MISSING
         assert orphan.evidence["orphan_count"] == 1
         assert orphan.evidence["orphan_urls"] == ["https://example.com/sm-2"]
         # Both admitted sitemap URLs carry the sitemap-source observation.
@@ -1288,9 +1287,9 @@ async def test_discover_site_setup_llms_stance_sitemap_and_finalize_orphan(
         assert hreflang.outcome == RULE_OUTCOME_NOT_APPLICABLE
         assert hreflang.evidence["reason"] == "no_hreflang"
 
-        # Every crawl_finalize rule is weight-0: issues, never denominators.
-        assert orphan.weight == 0.0
-        assert hreflang.weight == 0.0
+        # Cluster rules preserve their config-owned measurement weights.
+        assert orphan.weight == 1.0
+        assert hreflang.weight == 2.0
 
         # The orphan issue landed and the (single) snapshot counted it.
         issues = (

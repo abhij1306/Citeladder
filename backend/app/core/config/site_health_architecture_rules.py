@@ -12,6 +12,13 @@ from app.core.config.site_health_contracts import (
     SEVERITY_HIGH,
     SEVERITY_MEDIUM,
 )
+from app.core.config.site_health_rule_types import (
+    RULE_SCOPE_CLUSTER,
+    RULE_SCOPE_GRAPH,
+    SCORE_ROLE_WEB_FUNDAMENTALS,
+)
+
+_WEIGHTS = {SEVERITY_HIGH: 3.0, SEVERITY_MEDIUM: 2.0}
 
 
 def _rule(
@@ -21,6 +28,8 @@ def _rule(
     description: str,
     remediation: str,
     display_label: str,
+    scope: str = RULE_SCOPE_GRAPH,
+    scored: bool = True,
 ) -> dict[str, Any]:
     return {
         "rule_id": rule_id,
@@ -28,11 +37,13 @@ def _rule(
         "dimension": DIMENSION_TECHNICAL,
         "category": CATEGORY_ARCHITECTURE,
         "severity": severity,
-        "weight": 0.0,
+        "weight": _WEIGHTS[severity] if scored else 0.0,
         "applicability_key": APPLICABILITY_CRAWL_FINALIZE,
+        "scope": scope,
         "description": description,
         "remediation": remediation,
         "display_label": display_label,
+        "score_roles": (SCORE_ROLE_WEB_FUNDAMENTALS,) if scored else (),
     }
 
 
@@ -65,6 +76,8 @@ ARCHITECTURE_RULE_SPECS: Final[tuple[dict[str, Any], ...]] = (
         ),
         remediation=("Give each page metadata that describes its distinct purpose."),
         display_label="Duplicate metadata within a page kind",
+        scope=RULE_SCOPE_CLUSTER,
+        scored=False,
     ),
     _rule(
         "architecture.orphan_pages",

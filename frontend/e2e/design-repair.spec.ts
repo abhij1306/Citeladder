@@ -422,7 +422,6 @@ test('Site Health keeps its single crawl action and URLs above diagnostics', asy
     snapshot_id: null,
     quota: { used: 1, limit: 50 },
     root_errors: [],
-    phase_runs: { discovery: null, analysis: null },
   });
   await stubAuthedShell(page, [
     [
@@ -477,9 +476,9 @@ test('Site Health keeps its single crawl action and URLs above diagnostics', asy
             first_seen_at: null,
             last_seen_at: null,
             issue_count: null,
-            technical_integrity_score: null,
-            technical_integrity_coverage: null,
-            technical_integrity_state: 'not_measured',
+            web_fundamentals_score: null,
+            web_fundamentals_coverage: null,
+            web_fundamentals_state: 'not_measured',
             aeo_readiness_score: null,
             aeo_measurement_coverage: null,
             aeo_measurement_state: 'not_measured',

@@ -113,7 +113,7 @@ export function PagesTable({
           <TableHead>Type</TableHead>
           <TableHead>Status</TableHead>
           <TableHead numeric>Issues</TableHead>
-          <TableHead numeric>Technical Integrity</TableHead>
+          <TableHead numeric>Web Fundamentals</TableHead>
           <TableHead numeric>AEO Readiness</TableHead>
           <TableHead numeric>AEO Coverage</TableHead>
           {LINK_COLUMNS.map((column) =>
@@ -193,18 +193,23 @@ export function PagesTable({
             </TableCell>
             <TableCell
               numeric
-              className={cn('mono font-medium', scoreTextClass(page.technical_integrity_score))}
+              className={cn('mono font-medium', scoreTextClass(page.web_fundamentals_score))}
             >
-              {formatMeasurementScore(
-                page.technical_integrity_score,
-                page.technical_integrity_state,
-              )}
+              <MeasurementValue
+                score={page.web_fundamentals_score}
+                coverage={page.web_fundamentals_coverage}
+                state={page.web_fundamentals_state}
+              />
             </TableCell>
             <TableCell
               numeric
               className={cn('mono font-medium', scoreTextClass(page.aeo_readiness_score))}
             >
-              {formatMeasurementScore(page.aeo_readiness_score, page.aeo_measurement_state)}
+              <MeasurementValue
+                score={page.aeo_readiness_score}
+                coverage={page.aeo_measurement_coverage}
+                state={page.aeo_measurement_state}
+              />
             </TableCell>
             <TableCell numeric className="mono font-medium">
               {page.aeo_measurement_coverage === null
@@ -250,15 +255,32 @@ function formatIndexability(value: boolean | null) {
   return value ? 'Indexable' : 'Blocked';
 }
 
-function formatMeasurementScore(score: number | null, state: string): string {
-  if (score !== null && state === 'measured') {
-    return formatScore(score);
-  }
-  return measurementStateLabel(state);
+function MeasurementValue({
+  score,
+  coverage,
+  state,
+}: Readonly<{ score: number | null; coverage: number | null; state: string }>) {
+  if (score === null) return measurementStateLabel(state);
+  const coverageLabel =
+    coverage === null ? 'Coverage unavailable' : `${Math.round(coverage * 100)}% measured`;
+  return (
+    <span className="grid gap-0.5">
+      <span>{formatScore(score)}</span>
+      <span className="text-muted text-2xs font-normal normal-case">
+        {coverageLabel} · {measurementConfidence(state)}
+      </span>
+    </span>
+  );
 }
 
 function measurementStateLabel(state: string): string {
   if (state === 'limited_evidence') return 'Limited evidence';
   if (state === 'excluded') return 'Excluded';
   return PLACEHOLDER;
+}
+
+function measurementConfidence(state: string): string {
+  if (state === 'measured') return 'High confidence';
+  if (state === 'limited_evidence') return 'Moderate confidence';
+  return measurementStateLabel(state);
 }

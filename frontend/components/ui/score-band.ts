@@ -34,6 +34,14 @@ export const scoreBandText: Record<ScoreBand, string> = {
   high: 'text-score-high-text',
 };
 
+/** Horizontal meter fill per band, using the same visualization tokens as rings. */
+export const scoreBandFill: Record<ScoreBand, string> = {
+  low: 'bg-score-low-ring',
+  mid: 'bg-score-mid-ring',
+  good: 'bg-score-good-ring',
+  high: 'bg-score-high-ring',
+};
+
 /**
  * Null-aware text class for a score cell: muted for a missing score (which
  * renders the `Not measured` placeholder), the band colour otherwise. Shared by every

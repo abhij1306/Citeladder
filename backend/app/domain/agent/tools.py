@@ -57,7 +57,7 @@ async def _site_snapshot(
     return {
         "state": "available",
         "scores": {
-            "technical_integrity": row.technical_integrity_score,
+            "web_fundamentals": row.web_fundamentals_score,
             "aeo_readiness": row.aeo_readiness_score,
             "aeo_measurement_coverage": row.aeo_measurement_coverage,
         },

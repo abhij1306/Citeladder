@@ -94,7 +94,7 @@ coverage is not `complete`.
 
 The backend owns the current Site Health phase. The client renders the provided
 phase and action availability instead of reconstructing a cross-product of
-crawl, discovery, analysis, and phase-run states. That includes why a crawl is
+crawl, discovery, and analysis states. That includes why a crawl is
 partial: the client selects copy from the persisted `partial_reason` and never
 infers the cause from a counter. Links that could not be fetched are reported as
 an observation, not as an analysis failure.
@@ -116,12 +116,23 @@ Website uses one tablist on `/site`: **Overview**, **Pages**, **Architecture**,
 **AEO Readiness**, and **Changes**. Pages is the fallback outside the server's
 `dashboard` phase; Overview is the fallback in `dashboard`
 and reads the cohesive persisted snapshot projection: Search eligibility,
-Technical Integrity, qualified AEO Readiness, AEO Measurement Coverage, Crawl
+Web Fundamentals, qualified AEO Readiness, AEO Measurement Coverage, Crawl
 Coverage, seven pillars, top issues, Web Fundamentals, trend, and changes.
 Web Fundamentals opens an Overview drawer over the persisted Accessibility,
 Mobile, Security, and Lab areas; the client does not synthesize browser or
-field-performance evidence. Limited-evidence readiness ratios render as
-**Limited evidence**, while measurement coverage remains visible.
+field-performance evidence. A non-null readiness score always renders;
+`limited_evidence`, measurement coverage, and confidence are subordinate
+qualifiers beside the number, never a replacement label.
+Overview shares the screen's single dashboard poll while a crawl is active and
+updates its four mounted metric cards in place. It enables the immutable
+snapshot read only after terminalization. Dimension rows render the persisted
+label and description, score bar, and coverage. The snapshot retains ten ranked
+issues while Overview projects five; each row links to `/issues?rule=<rule_id>`.
+Technical defect and AEO-gap cards render their separate persisted role-aware
+issue and affected-page counts. Defects use severity for impact; advisories use
+their persisted readiness dimension/weight label and never borrow severity.
+Trend uses a bounded version-compatible snapshot series, and Change summary
+renders four persisted deltas with directions.
 **Pages** retains the crawl lifecycle and final per-URL metric surface.
 **AEO Readiness** renders the server's seven ordered dimensions, explicit
 applicability/state, uncertainty counts, catalog guidance, and bounded page
@@ -159,6 +170,10 @@ labels name occurrences and affected URLs. Switching views changes the
 headline to distinct advisory issue types and labels the supporting quantities
 as advisory evidence. Advisory rows are labelled as advisories rather than
 borrowing defect severity semantics.
+Its rule, search, dimension/severity, finding-class, page-kind, and cursor state
+is URL-backed so Overview deep links and browser back/forward restore the same
+server query. Filter edits remove the filter-bound cursor, and unrelated query
+parameters are preserved.
 
 ## Page-kind UX
 

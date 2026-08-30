@@ -39,7 +39,7 @@ from app.models.site_health.analysis import (
     SitePageAnalysis,
     SiteRuleEvaluation,
 )
-from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
+from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 
 # Deterministic severity ordering (critical worst). Used for the grouped-issue
@@ -161,10 +161,10 @@ def _score_summary(crawl: SiteCrawl) -> dict | None:
         values = values or {}
         by_page_kind[str(page_kind)] = {
             "analyzed_count": int(values.get("analyzed_count", 0) or 0),
-            "technical_integrity_score": values.get("technical_integrity_score"),
-            "technical_integrity_coverage": values.get("technical_integrity_coverage"),
-            "technical_integrity_state": values.get(
-                "technical_integrity_state", "not_measured"
+            "web_fundamentals_score": values.get("web_fundamentals_score"),
+            "web_fundamentals_coverage": values.get("web_fundamentals_coverage"),
+            "web_fundamentals_state": values.get(
+                "web_fundamentals_state", "not_measured"
             ),
             "aeo_readiness_score": values.get("aeo_readiness_score"),
             "aeo_measurement_coverage": values.get("aeo_measurement_coverage"),
@@ -173,11 +173,9 @@ def _score_summary(crawl: SiteCrawl) -> dict | None:
             ),
         }
     return {
-        "technical_integrity_score": summary.get("technical_integrity_score"),
-        "technical_integrity_coverage": summary.get("technical_integrity_coverage"),
-        "technical_integrity_state": summary.get(
-            "technical_integrity_state", "not_measured"
-        ),
+        "web_fundamentals_score": summary.get("web_fundamentals_score"),
+        "web_fundamentals_coverage": summary.get("web_fundamentals_coverage"),
+        "web_fundamentals_state": summary.get("web_fundamentals_state", "not_measured"),
         "aeo_readiness_score": summary.get("aeo_readiness_score"),
         "aeo_measurement_coverage": summary.get("aeo_measurement_coverage"),
         "aeo_measurement_state": summary.get("aeo_measurement_state", "not_measured"),
@@ -325,19 +323,6 @@ def project_crawl(
         "updated_at": _iso(crawl.updated_at),
         "started_at": _iso(crawl.started_at),
         "completed_at": _iso(crawl.completed_at),
-    }
-
-
-def project_phase_run(run: SiteCrawlPhaseRun) -> dict:
-    return {
-        "id": run.id,
-        "phase": run.phase,
-        "status": run.status,
-        "requested_count": run.requested_count,
-        "processed_count": run.processed_count,
-        "created_at": _iso(run.created_at),
-        "stopped_at": _iso(run.stopped_at),
-        "completed_at": _iso(run.completed_at),
     }
 
 

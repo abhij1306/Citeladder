@@ -1,210 +1,200 @@
-"""Product/Offer completeness and visible-schema parity checks."""
+"""Deterministic product and category readiness composites."""
 
 from __future__ import annotations
 
-import re
-
-from app.analysis.site_health.schema_rules import matches_by_tokens
 from app.core.config.site_health_contracts import (
-    RULE_OUTCOME_FAIL,
-    RULE_OUTCOME_NOT_APPLICABLE,
-    RULE_OUTCOME_PASS,
+    RULE_OUTCOME_MISSING,
+    RULE_OUTCOME_SATISFIED,
+    RULE_OUTCOME_UNKNOWN,
 )
-from app.core.config.site_health_page_profiles import (
-    PRODUCT_AVAILABILITY_VISIBLE_TERMS,
-    PRODUCT_NEGATIVE_AVAILABILITY_KEYS,
-    PRODUCT_PARITY_FIELDS,
-    PRODUCT_PARITY_NORMALIZATION_PATTERN,
-    PRODUCT_PARITY_SCHEMA_FACT_KEYS,
-    PRODUCT_SCHEMA_URI_SEPARATOR,
-)
+from app.core.config.site_health_rule_types import CompositeContract
 
 
-def _pass_fail(condition: bool) -> str:
-    return RULE_OUTCOME_PASS if condition else RULE_OUTCOME_FAIL
+def _present(value: object) -> str:
+    return RULE_OUTCOME_SATISFIED if bool(value) else RULE_OUTCOME_MISSING
 
 
-def _product_block(facts: dict) -> dict | None:
-    """The bounded Product fact, only when Product markup is actually present."""
-    product = (facts.get("structured_data") or {}).get("product") or {}
-    return product if int(product.get("schema_product_count", 0) or 0) else None
+def _product_signals(facts: dict) -> tuple[dict, dict, dict]:
+    entity = (facts.get("entity") or {}).get("product") or {}
+    schema = (facts.get("structured_data") or {}).get("product") or {}
+    commerce = facts.get("commerce") or {}
+    return entity, schema, commerce
 
 
-def check_product_offer_details(facts: dict) -> tuple[str, dict]:
-    """Validate Product/Offer completeness without inferring optional claims."""
-    product = _product_block(facts)
-    if product is None:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_product_schema"}
-    offer_declared = _product_offer_declared(facts)
-    missing = _missing_product_offer_fields(product, offer_declared=offer_declared)
-    return _pass_fail(not missing), _product_offer_evidence(
-        product, offer_declared=offer_declared, missing=missing
-    )
+def _availability(schema: dict, commerce: dict) -> list[str]:
+    values = [str(value) for value in schema.get("availability") or () if value]
+    visible = str(commerce.get("visible_availability") or "").strip()
+    if visible:
+        values.append(visible)
+    return list(dict.fromkeys(values))
 
 
-def _product_offer_declared(facts: dict) -> bool:
-    blocks = (facts.get("structured_data") or {}).get("blocks") or []
-    return any(
-        block.get("type") == "Product"
-        and "offers" in (block.get("props_present") or [])
-        for block in blocks
-    )
-
-
-def _missing_product_offer_fields(product: dict, *, offer_declared: bool) -> list[str]:
-    missing: list[str] = []
-    if not (product.get("sku") or product.get("gtin") or product.get("mpn")):
-        missing.append("identifier")
-    if not product.get("brand"):
-        missing.append("brand")
-    if offer_declared:
-        for field, key in (
-            ("price", "price"),
-            ("priceCurrency", "price_currency"),
-            ("availability", "availability"),
-        ):
-            if not product.get(key):
-                missing.append(f"offers.{field}")
-    return missing
-
-
-def _product_offer_evidence(
-    product: dict, *, offer_declared: bool, missing: list[str]
-) -> dict:
-    return {
-        "schema_product_count": product["schema_product_count"],
-        "offer_declared": offer_declared,
-        "missing": missing,
-        "sku": product.get("sku") or [],
-        "gtin": product.get("gtin") or [],
-        "brand": product.get("brand") or [],
-        "price": product.get("price") or [],
-        "price_currency": product.get("price_currency") or [],
-        "availability": product.get("availability") or [],
-        "variants": product.get("variants") or [],
-        "ratings": product.get("ratings") or [],
-        "shipping": bool(product.get("shipping")),
-        "returns": bool(product.get("returns")),
-    }
-
-
-def _parity_text(facts: dict) -> str:
+def check_product_answer_facts(
+    facts: dict, *, contract: CompositeContract
+) -> tuple[str, dict]:
+    """Score required PDP facts and a trait-gated variants atom."""
+    entity, schema, commerce = _product_signals(facts)
     headings = facts.get("headings") or {}
-    return " ".join(
-        [str(facts.get("title") or "")]
-        + [str(value) for value in (headings.get("h1_texts") or [])]
-        + [str((facts.get("body") or {}).get("text") or "")]
-    ).lower()
-
-
-def _parity_field_check(
-    parity_field: str, values: list, facts: dict, visible: str
-) -> dict[str, object] | None:
-    """Check whether the page shows any declared value for one field."""
-    matched: list[str] = []
-    unmatched: list[str] = []
-    for value in values:
-        result = _parity_match(parity_field, str(value), facts, visible)
-        if result is None:
-            continue
-        (matched if result else unmatched).append(str(value)[:256])
-    if not matched and not unmatched:
-        return None
-    return {
-        "field": parity_field,
-        "schema_value": (matched or unmatched)[0],
-        "declared_count": len(matched) + len(unmatched),
-        "visible_match": bool(matched),
+    identity = bool(headings.get("h1_texts") or schema.get("name"))
+    offer = bool(entity.get("has_primary_price") or schema.get("price"))
+    availability = _availability(schema, commerce)
+    variants = bool(entity.get("has_variant_control") or schema.get("variants"))
+    traits = facts.get("page_traits") or ()
+    atoms = [
+        contract.atom_detail(
+            "identity", satisfied=identity, evidence=identity, page_traits=traits
+        ),
+        contract.atom_detail(
+            "offer", satisfied=offer, evidence=offer, page_traits=traits
+        ),
+        contract.atom_detail(
+            "availability",
+            satisfied=bool(availability),
+            evidence=availability[:8],
+            page_traits=traits,
+        ),
+        contract.atom_detail(
+            "variants",
+            satisfied=variants,
+            evidence=variants,
+            page_traits=traits,
+        ),
+    ]
+    return contract.outcome_for(atoms), {
+        "atoms": atoms,
+        "threshold": contract.threshold,
     }
 
 
-def _parity_match(
-    parity_field: str, value: str, facts: dict, visible: str
-) -> bool | None:
-    normalized = re.sub(PRODUCT_PARITY_NORMALIZATION_PATTERN, "", value.lower())
-    if not normalized:
-        return None
-    if parity_field == "name":
-        return matches_by_tokens(value, _visible_name_text(facts))
-    if parity_field == "availability":
-        return _availability_visible(normalized, visible)
-    comparable = re.sub(
-        PRODUCT_PARITY_NORMALIZATION_PATTERN,
-        "",
-        value.rsplit(PRODUCT_SCHEMA_URI_SEPARATOR, 1)[-1].lower(),
+def check_offer_freshness_signal(facts: dict) -> tuple[str, dict]:
+    """Require dated, currency-qualified Offer evidence before claiming current."""
+    entity, schema, commerce = _product_signals(facts)
+    offer = bool(
+        entity.get("has_primary_price")
+        or schema.get("price")
+        or commerce.get("visible_price")
     )
-    return _normalized_field_visible(normalized, visible) or _normalized_field_visible(
-        comparable, visible
-    )
+    currency = [str(value) for value in schema.get("price_currency") or () if value]
+    timestamp, timestamp_source = _freshness_timestamp(facts)
+    evidence = {
+        "offer": offer,
+        "currency": list(dict.fromkeys(currency))[:8],
+        "timestamp": timestamp,
+        "timestamp_source": timestamp_source,
+    }
+    if not offer:
+        return RULE_OUTCOME_UNKNOWN, {**evidence, "reason": "offer_unavailable"}
+    if not currency:
+        return RULE_OUTCOME_UNKNOWN, {**evidence, "reason": "currency_unavailable"}
+    if not timestamp:
+        return RULE_OUTCOME_UNKNOWN, {
+            **evidence,
+            "reason": "freshness_timestamp_unavailable",
+        }
+    return RULE_OUTCOME_SATISFIED, evidence
 
 
-def _normalized_field_visible(normalized: str, visible: str) -> bool:
-    """Match a complete normalized value across complete visible tokens."""
-    target = re.sub(PRODUCT_PARITY_NORMALIZATION_PATTERN, "", normalized.lower())
-    if not target:
-        return False
-    tokens = re.findall(r"[a-z0-9]+", visible.lower())
-    for start in range(len(tokens)):
-        candidate = ""
-        for token in tokens[start:]:
-            candidate += token
-            if candidate == target:
-                return True
-            if len(candidate) >= len(target):
-                break
-    return False
+def check_product_evidence_facts(facts: dict) -> tuple[str, dict]:
+    """Require a stable visible or machine-readable product identifier."""
+    entity, schema, _commerce = _product_signals(facts)
+    identifiers = [
+        *schema.get("sku", ()),
+        *schema.get("gtin", ()),
+        *schema.get("mpn", ()),
+    ]
+    visible_marker = bool(entity.get("has_sku_marker"))
+    return _present(identifiers or visible_marker), {
+        "identifiers": [str(value) for value in identifiers[:12]],
+        "visible_identifier_marker": visible_marker,
+    }
 
 
-def _visible_name_text(facts: dict) -> str:
+def check_product_brand_identity(facts: dict) -> tuple[str, dict]:
+    """Require a product-owned brand or manufacturer identity."""
+    _entity, schema, _commerce = _product_signals(facts)
+    brands = [str(value) for value in schema.get("brand") or () if value]
+    return _present(brands), {"brands": brands[:8]}
+
+
+def _listing_signals(facts: dict) -> tuple[bool, int]:
     headings = facts.get("headings") or {}
-    return " ".join(
-        [str(facts.get("title") or "")]
-        + [str(value) for value in (headings.get("h1_texts") or [])]
+    entity = (facts.get("entity") or {}).get("listing") or {}
+    commerce = facts.get("commerce") or {}
+    purpose = bool(headings.get("h1_texts"))
+    item_count = max(
+        int(entity.get("distinct_card_list_targets", 0) or 0),
+        len(commerce.get("product_cards") or ()),
     )
+    return purpose, item_count
 
 
-def _availability_visible(normalized: str, visible: str) -> bool:
-    """Match a schema availability enum after checking negative states first."""
-    key = normalized.rsplit("schemaorg", 1)[-1]
-    negative_matches = {
-        enum_key: any(
-            _normalized_field_visible(term, visible)
-            for term in PRODUCT_AVAILABILITY_VISIBLE_TERMS[enum_key]
-        )
-        for enum_key in PRODUCT_NEGATIVE_AVAILABILITY_KEYS
+def check_listing_answer_set(
+    facts: dict, *, contract: CompositeContract
+) -> tuple[str, dict]:
+    """Require both a collection purpose and a crawlable item set."""
+    purpose, item_count = _listing_signals(facts)
+    traits = facts.get("page_traits") or ()
+    atoms = [
+        contract.atom_detail(
+            "collection_purpose",
+            satisfied=purpose,
+            evidence=purpose,
+            page_traits=traits,
+        ),
+        contract.atom_detail(
+            "item_set",
+            satisfied=bool(item_count),
+            evidence=item_count,
+            page_traits=traits,
+        ),
+    ]
+    return contract.outcome_for(atoms), {
+        "atoms": atoms,
+        "threshold": contract.threshold,
     }
-    if any(negative_matches.values()):
-        return any(
-            key.endswith(enum_key) and matched
-            for enum_key, matched in negative_matches.items()
-        )
-    for enum_key, terms in PRODUCT_AVAILABILITY_VISIBLE_TERMS.items():
-        if key.endswith(enum_key):
-            return any(_normalized_field_visible(term, visible) for term in terms)
-    return _normalized_field_visible(key, visible)
 
 
-def check_product_visible_schema_parity(facts: dict) -> tuple[str, dict]:
-    """Compare only populated Product claims with persisted visible facts."""
-    product = _product_block(facts)
-    if product is None:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_product_schema"}
-    visible = _parity_text(facts)
-    checks: list[dict[str, object]] = []
-    for parity_field in PRODUCT_PARITY_FIELDS:
-        values = (
-            product.get("name") or []
-            if parity_field == "name"
-            else product.get(PRODUCT_PARITY_SCHEMA_FACT_KEYS[parity_field]) or []
-        )
-        check = _parity_field_check(parity_field, values, facts, visible)
-        if check is not None:
-            checks.append(check)
-    if not checks:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_comparable_product_claims"}
-    mismatches = [check for check in checks if not check["visible_match"]]
-    return _pass_fail(not mismatches), {
-        "checked_claim_count": len(checks),
-        "mismatch_count": len(mismatches),
-        "checks": checks,
+def check_assortment_freshness_signal(facts: dict) -> tuple[str, dict]:
+    """Require a dated assortment observation; item count is not freshness."""
+    timestamp, timestamp_source = _freshness_timestamp(facts)
+    if not timestamp:
+        return RULE_OUTCOME_UNKNOWN, {
+            "reason": "freshness_timestamp_unavailable",
+            "timestamp": "",
+            "timestamp_source": "",
+        }
+    return RULE_OUTCOME_SATISFIED, {
+        "timestamp": timestamp,
+        "timestamp_source": timestamp_source,
     }
+
+
+def _freshness_timestamp(facts: dict) -> tuple[str, str]:
+    dates = facts.get("dates") or {}
+    for key in ("modified", "published"):
+        timestamp = str(dates.get(key) or "").strip()
+        if timestamp:
+            return timestamp[:128], key
+    return "", ""
+
+
+def check_listing_item_facts(facts: dict) -> tuple[str, dict]:
+    """Require crawlable category items with bounded labels and targets."""
+    cards = (facts.get("commerce") or {}).get("product_cards") or ()
+    complete = list(filter(None, map(_listing_item_fact, cards)))
+    listing = (facts.get("entity") or {}).get("listing") or {}
+    entity_count = int(listing.get("distinct_card_list_targets", 0) or 0)
+    item_count = max(len(complete), entity_count)
+    return _present(item_count), {
+        "item_fact_count": item_count,
+        "items": complete[:12],
+    }
+
+
+def _listing_item_fact(card: dict) -> dict | None:
+    """Normalize one complete crawlable listing card for persisted evidence."""
+    title = str(card.get("title") or "")
+    url = str(card.get("url") or "")
+    if not title.strip() or not url.strip():
+        return None
+    return {"title": title[:256], "url": url[:512]}

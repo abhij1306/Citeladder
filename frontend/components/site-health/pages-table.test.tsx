@@ -26,9 +26,9 @@ function page(overrides: Partial<PageSummary> = {}): PageSummary {
     analysis_status: 'completed',
     error_code: '',
     issue_count: 3,
-    technical_integrity_score: 46,
-    technical_integrity_coverage: 1,
-    technical_integrity_state: 'measured',
+    web_fundamentals_score: 46,
+    web_fundamentals_coverage: 1,
+    web_fundamentals_state: 'measured',
     aeo_readiness_score: 64,
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
@@ -51,14 +51,14 @@ describe('PagesTable', () => {
     expect(screen.getByText('64')).toBeInTheDocument();
   });
 
-  it('hides limited ratios and labels excluded measurements', () => {
+  it('shows a non-null limited-evidence score with subordinate coverage and confidence', () => {
     render(
       <PagesTable
         crawlId={CRAWL}
         pages={[
           page({
-            technical_integrity_state: 'limited_evidence',
-            technical_integrity_score: 46,
+            web_fundamentals_state: 'limited_evidence',
+            web_fundamentals_score: 46,
             aeo_measurement_state: 'excluded',
             aeo_readiness_score: null,
             aeo_measurement_coverage: null,
@@ -66,11 +66,11 @@ describe('PagesTable', () => {
         ]}
       />,
     );
-    expect(screen.getByText('Limited evidence')).toBeInTheDocument();
     expect(screen.getAllByText('Excluded')).toHaveLength(2);
     const row = screen.getByText('Homepage').closest('tr');
     expect(row).not.toBeNull();
-    expect(within(row!).queryByText('46')).not.toBeInTheDocument();
+    expect(within(row!).getByText('46')).toBeInTheDocument();
+    expect(within(row!).getByText('100% measured · Moderate confidence')).toBeInTheDocument();
   });
 
   it('renders the page-kind badge for a classified page', () => {
@@ -94,9 +94,9 @@ describe('PagesTable', () => {
             title: 'Admin Panel',
             analysis_status: 'blocked',
             issue_count: null,
-            technical_integrity_score: null,
-            technical_integrity_coverage: null,
-            technical_integrity_state: 'not_measured',
+            web_fundamentals_score: null,
+            web_fundamentals_coverage: null,
+            web_fundamentals_state: 'not_measured',
             aeo_readiness_score: null,
             aeo_measurement_coverage: null,
             aeo_measurement_state: 'not_measured',

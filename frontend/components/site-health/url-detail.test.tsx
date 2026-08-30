@@ -36,9 +36,9 @@ function detail(overrides: Partial<PageDetail> = {}): PageDetail {
     analysis_status: 'completed',
     error_code: '',
     field_cwv_available: false,
-    technical_integrity_score: 46,
-    technical_integrity_coverage: 1,
-    technical_integrity_state: 'measured',
+    web_fundamentals_score: 46,
+    web_fundamentals_coverage: 1,
+    web_fundamentals_state: 'measured',
     aeo_readiness_score: 64,
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
@@ -279,9 +279,9 @@ describe('UrlDetail', () => {
     mswServer.use(
       ...handlers(
         detail({
-          technical_integrity_score: null,
-          technical_integrity_coverage: null,
-          technical_integrity_state: 'not_measured',
+          web_fundamentals_score: null,
+          web_fundamentals_coverage: null,
+          web_fundamentals_state: 'not_measured',
           aeo_readiness_score: null,
           aeo_measurement_coverage: null,
           aeo_measurement_state: 'not_measured',
@@ -293,6 +293,29 @@ describe('UrlDetail', () => {
 
     await screen.findByRole('heading', { name: 'Best&Less Online', level: 1 });
     expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
+  });
+
+  it('renders limited-evidence scores with subordinate coverage and confidence', async () => {
+    mswServer.use(
+      ...handlers(
+        detail({
+          web_fundamentals_score: 46,
+          web_fundamentals_coverage: 0.5,
+          web_fundamentals_state: 'limited_evidence',
+          aeo_readiness_score: 64,
+          aeo_measurement_coverage: 0.75,
+          aeo_measurement_state: 'limited_evidence',
+        }),
+      ),
+    );
+
+    renderWithProviders(<UrlDetail crawlId={CRAWL} siteUrlId={URL_ID} />);
+
+    await screen.findByRole('heading', { name: 'Best&Less Online', level: 1 });
+    expect(screen.getByRole('img', { name: 'Web Fundamentals: 46' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'AEO Readiness: 64' })).toBeInTheDocument();
+    expect(screen.getByText('50% measured · Moderate confidence')).toBeInTheDocument();
+    expect(screen.getAllByText('75% measured · Moderate confidence')).toHaveLength(2);
   });
 
   it('preserves the AEO state when measurement coverage is unavailable', async () => {

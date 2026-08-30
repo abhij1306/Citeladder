@@ -5,8 +5,26 @@ from __future__ import annotations
 from typing import Final
 
 from app.core.config.site_health_taxonomy import (
+    PAGE_KIND_EXPECTED_SCHEMA,
     PAGE_KIND_PRODUCT,
     PageKindSchemaExpectation,
+)
+
+STRUCTURED_DATA_REQUIRED_PROPERTIES: Final[dict[str, tuple[str, ...]]] = {
+    "Organization": ("name", "url"),
+    "WebSite": ("name", "url"),
+    "WebPage": ("name",),
+    "Article": ("headline", "author", "datePublished"),
+    "Product": ("name", "offers"),
+    "FAQPage": ("mainEntity",),
+    "BreadcrumbList": ("itemListElement",),
+}
+STRUCTURED_DATA_RECOGNIZED_TYPES: Final[frozenset[str]] = frozenset(
+    STRUCTURED_DATA_REQUIRED_PROPERTIES
+) | frozenset(
+    schema_type
+    for expectation in PAGE_KIND_EXPECTED_SCHEMA.values()
+    for schema_type in expectation.expected_types
 )
 
 # Product / Offer property paths retained by the bounded structured-data
@@ -62,63 +80,12 @@ PRODUCT_SCHEMA_EXPECTATION: Final = PageKindSchemaExpectation(
     ),
 )
 
-# Claims a PDP is actually expected to SHOW. ``gtin`` is deliberately absent:
-# a barcode number is real, correct data that essentially no storefront prints
-# on the page, so parity-checking it reported a mismatch on every compliant
-# product page -- 36 of 37 PDPs on the reference crawl.
-PRODUCT_PARITY_FIELDS: Final[tuple[str, ...]] = (
-    "name",
-    "sku",
-    "brand",
-    "price",
-    "availability",
-)
-
-# ``availability`` is a schema.org URI enum; the page says it in English. The
-# raw value can never appear in visible text, so it is compared through this
-# map instead. Keys and values are matched after the same normalization the
-# parity check applies to visible text (non-alphanumerics removed).
-PRODUCT_AVAILABILITY_VISIBLE_TERMS: Final[dict[str, tuple[str, ...]]] = {
-    "instock": ("instock", "addtocart", "addtobag", "addtobasket", "available"),
-    "onlineonly": ("instock", "onlineonly", "available"),
-    "instoreonly": ("instoreonly", "availableinstore"),
-    "outofstock": (
-        "outofstock",
-        "soldout",
-        "unavailable",
-        "notavailable",
-        "notifyme",
-    ),
-    "soldout": ("soldout", "outofstock", "unavailable", "notavailable"),
-    "preorder": ("preorder", "preordernow"),
-    "presale": ("presale", "preorder"),
-    "backorder": ("backorder", "backordered"),
-    "discontinued": ("discontinued", "nolongeravailable"),
-    "limitedavailability": ("limitedstock", "lowstock", "limitedavailability"),
-}
-
-# These states must be checked before positive terms such as ``available``.
-# Otherwise "not available" can corroborate an ``InStock`` claim.
-PRODUCT_NEGATIVE_AVAILABILITY_KEYS: Final[tuple[str, ...]] = (
-    "outofstock",
-    "soldout",
-    "discontinued",
-)
-
 # A schema name and its visible heading rarely match character for character:
 # "Dillen Letter Carrier, Caramel" is the same product as the "Dillen Letter
 # Carrier" in the H1. Substring containment called that a mismatch on 36 of 37
 # PDPs, so comparison is by shared word tokens instead.
 SCHEMA_CONTENT_MATCH_MIN_TOKEN_OVERLAP: Final = 0.6
-PRODUCT_PARITY_NORMALIZATION_PATTERN: Final = r"[^a-z0-9]+"
-PRODUCT_SCHEMA_URI_SEPARATOR: Final = "/"
-PRODUCT_PARITY_SCHEMA_FACT_KEYS: Final[dict[str, str]] = {
-    "sku": "sku",
-    "gtin": "gtin",
-    "brand": "brand",
-    "price": "price",
-    "availability": "availability",
-}
+SCHEMA_CONTENT_MATCH_MAX_CANDIDATES: Final = 5
 
 # Stable reason tokens stored in classifier evidence.  They are config-owned
 # so a wording/policy revision is explicit and replayable.

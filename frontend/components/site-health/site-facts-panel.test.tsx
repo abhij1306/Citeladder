@@ -132,7 +132,6 @@ function dashboard(crawlValue: SiteCrawl | null): SiteHealthDashboard {
     snapshot_id: null,
     quota: { used: 4, limit: 50 },
     root_errors: [],
-    phase_runs: { discovery: null, analysis: null },
   };
 }
 

@@ -9,9 +9,9 @@ describe('ScoreSection', () => {
   it('preserves unavailable measurement states when scores are absent', () => {
     const dashboard = {
       score_summary: {
-        technical_integrity_score: null,
-        technical_integrity_coverage: 0.5,
-        technical_integrity_state: 'limited_evidence',
+        web_fundamentals_score: null,
+        web_fundamentals_coverage: 0.5,
+        web_fundamentals_state: 'limited_evidence',
         aeo_readiness_score: null,
         aeo_measurement_coverage: null,
         aeo_measurement_state: 'excluded',
@@ -24,12 +24,12 @@ describe('ScoreSection', () => {
     expect(screen.getAllByText(/Excluded/).length).toBeGreaterThan(0);
   });
 
-  it('hides readiness ratios but keeps evidence coverage visible when limited', () => {
+  it('shows observed scores with subordinate confidence when evidence is limited', () => {
     const dashboard = {
       score_summary: {
-        technical_integrity_score: 73,
-        technical_integrity_coverage: 0.6,
-        technical_integrity_state: 'limited_evidence',
+        web_fundamentals_score: 73,
+        web_fundamentals_coverage: 0.6,
+        web_fundamentals_state: 'limited_evidence',
         aeo_readiness_score: 61,
         aeo_measurement_coverage: 0.7,
         aeo_measurement_state: 'limited_evidence',
@@ -38,9 +38,10 @@ describe('ScoreSection', () => {
 
     render(<ScoreSection crawl={null} dashboard={dashboard} />);
 
-    expect(screen.queryByText('73 / 100')).not.toBeInTheDocument();
-    expect(screen.queryByText('61 / 100')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Limited evidence')).toHaveLength(4);
+    expect(screen.getByText('73 / 100')).toBeInTheDocument();
+    expect(screen.getByText('61 / 100')).toBeInTheDocument();
+    expect(screen.getByText('60% measured · Limited confidence')).toBeInTheDocument();
+    expect(screen.getByText('70% measured · Limited confidence')).toBeInTheDocument();
     expect(screen.getByText('70 / 100')).toBeInTheDocument();
   });
 });
