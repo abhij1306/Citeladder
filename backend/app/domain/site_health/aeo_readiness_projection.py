@@ -252,7 +252,6 @@ def build_aeo_readiness_descriptor(
     scoring_version: str,
     presentation_version: str,
     analyzer_version: str,
-    source_analysis_ids: Sequence[uuid.UUID],
 ) -> dict:
     readiness_rows = [
         row
@@ -288,7 +287,7 @@ def build_aeo_readiness_descriptor(
         "scoring_version": scoring_version,
         "presentation_version": presentation_version,
         "analyzer_version": analyzer_version,
-        "source_analysis_ids": [str(value) for value in source_analysis_ids],
+        "source_analysis_ids": [str(value) for value in pages],
         "analysis_count": len(pages),
         "affected_page_count": len(
             _failing_analysis_ids([row for row in bounded if row.scope == "page"])
@@ -336,7 +335,6 @@ def build_snapshot_aeo_readiness_descriptor(
         scoring_version=scoring_version,
         presentation_version=PRESENTATION_VERSION,
         analyzer_version=analyzer_version,
-        source_analysis_ids=[row.id for row in analysis_rows],
     )
 
 

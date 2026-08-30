@@ -149,7 +149,6 @@ async def _seed_readiness(session: AsyncSession, *, email: str):
         scoring_version="sh-scoring-1",
         presentation_version=PRESENTATION_VERSION,
         analyzer_version="sh-analyzer-1",
-        source_analysis_ids=[analysis.id],
     )
 
     snapshot = SiteHealthSnapshot(

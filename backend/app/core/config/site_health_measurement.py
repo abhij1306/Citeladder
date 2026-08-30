@@ -57,9 +57,7 @@ READINESS_DIMENSION_WEIGHTS: Final[dict[str, float]] = {
 # Site rollups are invariant to the page mix found by a crawl. Each relevant
 # page kind has one fixed vote within a page-scoped rule unless product policy
 # explicitly assigns a different config-owned weight later.
-PAGE_KIND_ROLLUP_WEIGHTS: Final[dict[str, float]] = {
-    page_kind: 1.0 for page_kind in PAGE_KINDS
-}
+PAGE_KIND_ROLLUP_WEIGHTS: Final[dict[str, float]] = dict.fromkeys(PAGE_KINDS, 1.0)
 
 
 # Search eligibility intentionally uses only the two determinate checks below.
@@ -190,9 +188,9 @@ KNOWN_MEASUREMENT_GAPS: Final[dict[tuple[str, str], str]] = {
 # Dimension relevance is independent from checkpoint availability. An empty
 # expression therefore remains applicable + unmeasured instead of disappearing
 # as semantic N/A. ``other`` is the deliberate abstention baseline.
-_PAGE_KIND_RELEVANT_DIMENSIONS: Final[dict[str, tuple[str, ...]]] = {
-    kind: _UNIVERSAL_RELEVANT_DIMENSIONS for kind in PAGE_KINDS
-}
+_PAGE_KIND_RELEVANT_DIMENSIONS: Final[dict[str, tuple[str, ...]]] = dict.fromkeys(
+    PAGE_KINDS, _UNIVERSAL_RELEVANT_DIMENSIONS
+)
 for _fully_measured_kind in (
     PAGE_KIND_ARTICLE,
     PAGE_KIND_GUIDE,

@@ -110,13 +110,15 @@ class CompositeContract:
         if atom is None:
             raise ValueError(f"Composite atom is not configured: {name}")
         applies = atom.applies(page_traits)
+        if not applies:
+            outcome = RULE_OUTCOME_NOT_APPLICABLE
+        elif satisfied:
+            outcome = RULE_OUTCOME_SATISFIED
+        else:
+            outcome = RULE_OUTCOME_MISSING
         return {
             "name": atom.name,
-            "outcome": RULE_OUTCOME_SATISFIED
-            if applies and satisfied
-            else RULE_OUTCOME_MISSING
-            if applies
-            else RULE_OUTCOME_NOT_APPLICABLE,
+            "outcome": outcome,
             "required": atom.required,
             "condition": atom.condition,
             "evidence": evidence,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 
 import { OverviewDetails, OverviewDetailsSkeleton } from './overview-details';
 import { OverviewMetricCards } from './overview-metrics';
@@ -30,6 +31,14 @@ export function OverviewPanel({
     enabled: terminal,
   });
   const data = overview.data;
+  let overviewBody: ReactNode = null;
+  if (overview.isError) {
+    overviewBody = <Alert tone="danger">Could not load the persisted Site Health Overview.</Alert>;
+  } else if (data) {
+    overviewBody = <OverviewDetails data={data} />;
+  } else if (terminal && overview.isLoading) {
+    overviewBody = <OverviewDetailsSkeleton />;
+  }
 
   return (
     <div className="grid min-w-0 gap-4" data-testid="site-health-overview">
@@ -40,13 +49,7 @@ export function OverviewPanel({
         </Alert>
       ) : null}
       <OverviewMetricCards overview={data} dashboard={dashboard} crawl={crawl} />
-      {overview.isError ? (
-        <Alert tone="danger">Could not load the persisted Site Health Overview.</Alert>
-      ) : data ? (
-        <OverviewDetails data={data} />
-      ) : terminal && overview.isLoading ? (
-        <OverviewDetailsSkeleton />
-      ) : null}
+      {overviewBody}
     </div>
   );
 }

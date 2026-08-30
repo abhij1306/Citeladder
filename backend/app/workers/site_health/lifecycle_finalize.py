@@ -8,7 +8,7 @@ for cross-page evaluation and projection persistence.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from typing import Any
 from urllib.parse import urljoin
@@ -336,7 +336,7 @@ def _resolution_set_evaluation(
     targets: Sequence[str],
     *,
     resolutions: dict[str, Resolution],
-    evaluator: Any,
+    evaluator: Callable[..., RuleEvaluation],
     failure_key: str,
 ) -> RuleEvaluation:
     """Run a URL-set resolution rule over canonicalized checked targets."""

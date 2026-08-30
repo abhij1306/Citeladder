@@ -53,9 +53,12 @@ def _change_metric(
         direction = "unavailable"
     else:
         delta = round(current - previous, 4)
-        direction = (
-            "increased" if delta > 0 else "decreased" if delta < 0 else "unchanged"
-        )
+        if delta > 0:
+            direction = "increased"
+        elif delta < 0:
+            direction = "decreased"
+        else:
+            direction = "unchanged"
     return {
         "key": key,
         "label": label,

@@ -113,13 +113,12 @@ def _entity_set_evaluation(
         )
     score = (checked - failures) / checked
     coverage = checked / total
-    outcome = (
-        RULE_OUTCOME_SATISFIED
-        if score == 1.0
-        else RULE_OUTCOME_MISSING
-        if score == 0.0
-        else RULE_OUTCOME_PARTIAL
-    )
+    if failures == 0:
+        outcome = RULE_OUTCOME_SATISFIED
+    elif failures == checked:
+        outcome = RULE_OUTCOME_MISSING
+    else:
+        outcome = RULE_OUTCOME_PARTIAL
     return _evaluation(
         rule,
         outcome,
