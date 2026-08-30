@@ -2,12 +2,14 @@
 # Finalize-scoped rules are evaluated and persisted only by ``finalize.py``.
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import urlsplit
 
+from app.analysis.site_health.identity_rules import (
+    check_organization_identity,
+    check_trust_path_present,
+)
 from app.analysis.site_health.indexing import (
     canonical_origin,
     evaluate_indexability,
@@ -82,7 +84,6 @@ from app.core.config.site_health_taxonomy import (
     CONTENT_SUFFICIENCY_PRICE_KINDS,
     CONTENT_SUFFICIENCY_TRAITS,
     MIN_MEANINGFUL_WORDS,
-    ORGANIZATION_BEARING_SCHEMA_TYPES,
     PAGE_KIND_OTHER,
     PAGE_KIND_PROFILES,
 )
@@ -437,52 +438,6 @@ def _check_outbound_citations(facts: dict) -> tuple[str, dict]:
     }
 
 
-def _check_organization_identity(facts: dict) -> tuple[str, dict]:
-    sd = facts.get("structured_data") or {}
-    org_blocks = list(filter(_is_organization_block, sd.get("blocks") or ()))
-    identities = list(filter(None, map(_organization_identity, org_blocks)))
-    return _pass_fail(bool(identities)), {
-        "has_organization": bool(org_blocks),
-        "complete_identity_count": len(identities),
-        "identities": identities[:4],
-    }
-
-
-def _is_organization_block(block: dict) -> bool:
-    return str(block.get("type") or "") in ORGANIZATION_BEARING_SCHEMA_TYPES
-
-
-def _organization_identity(block: dict) -> dict | None:
-    name = str(block.get("name") or "")
-    url = str(block.get("url") or "")
-    if not name.strip() or not url.strip():
-        return None
-    return {"name": name[:256], "url": url[:512]}
-
-
-_TRUST_PATH_TOKENS = ("about", "contact", "privacy", "policy", "terms")
-
-
-def _trust_terms(value: str) -> set[str]:
-    return set(re.findall(r"[a-z0-9]+", value.casefold()))
-
-
-def _check_trust_path_present(facts: dict) -> tuple[str, dict]:
-    paths: list[dict] = []
-    for anchor in (facts.get("links") or {}).get("anchors") or ():
-        if not anchor.get("is_internal"):
-            continue
-        url = str(anchor.get("url") or "")
-        label = str(anchor.get("anchor_text") or "")
-        try:
-            path_terms = _trust_terms(urlsplit(url).path)
-        except ValueError:
-            path_terms = set()
-        if (path_terms | _trust_terms(label)) & set(_TRUST_PATH_TOKENS):
-            paths.append({"url": url[:512], "label": label[:128]})
-    return _pass_fail(bool(paths)), {"trust_paths": paths[:12], "count": len(paths)}
-
-
 _SOFT_ERROR_PHRASES = ("page not found", "404 not found", "does not exist")
 
 
@@ -641,8 +596,8 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "aeo.author_present": _check_author_present,
     "aeo.content_date_present": _check_content_date_present,
     "aeo.outbound_citations": _check_outbound_citations,
-    "aeo.organization_identity": _check_organization_identity,
-    "aeo.trust_path_present": _check_trust_path_present,
+    "aeo.organization_identity": check_organization_identity,
+    "aeo.trust_path_present": check_trust_path_present,
     "aeo.answer_first": _check_answer_first,
     "aeo.editorial_lead_present": _check_editorial_lead_present,
     "aeo.entity_value_proposition": _check_entity_value_proposition,
