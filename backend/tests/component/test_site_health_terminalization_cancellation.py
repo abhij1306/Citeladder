@@ -19,6 +19,7 @@ from app.core.config.analytics import (
 )
 from app.core.config.site_health_contracts import (
     CRAWL_STATUS_CANCELLED,
+    RULE_OUTCOME_SATISFIED,
     TASK_KIND_ANALYZE,
     TASK_KIND_CHANGE_INTEL,
     TASK_KIND_LINK_METRICS,
@@ -35,6 +36,7 @@ from app.models.analytics import AnalyticsTask
 from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.analysis import (
     SitePageAnalysis,
+    SiteRuleEvaluation,
 )
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
@@ -182,21 +184,36 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
         )
         session.add(artifact)
         await session.flush()
+        analysis = SitePageAnalysis(
+            workspace_id=seed.workspace_id,
+            project_id=seed.project_id,
+            crawl_id=seed.crawl_id,
+            site_url_id=site_url_id,
+            artifact_id=artifact.id,
+            status=PAGE_ANALYSIS_STATUS_COMPLETED,
+            technical_integrity_score=72.0,
+            technical_integrity_coverage=1.0,
+            technical_integrity_state="measured",
+            technical_earned_weight=0.72,
+            technical_determinate_weight=1.0,
+            technical_expected_weight=1.0,
+            technical_critical_complete=True,
+        )
+        session.add(analysis)
+        await session.flush()
         session.add(
-            SitePageAnalysis(
+            SiteRuleEvaluation(
                 workspace_id=seed.workspace_id,
-                project_id=seed.project_id,
-                crawl_id=seed.crawl_id,
-                site_url_id=site_url_id,
-                artifact_id=artifact.id,
-                status=PAGE_ANALYSIS_STATUS_COMPLETED,
-                technical_integrity_score=72.0,
-                technical_integrity_coverage=1.0,
-                technical_integrity_state="measured",
-                technical_earned_weight=0.72,
-                technical_determinate_weight=1.0,
-                technical_expected_weight=1.0,
-                technical_critical_complete=True,
+                analysis_id=analysis.id,
+                source_artifact_id=artifact.id,
+                rule_id="technical.indexable",
+                dimension="technical",
+                category="indexability",
+                severity="critical",
+                weight=1.0,
+                outcome=RULE_OUTCOME_SATISFIED,
+                expected_profile_membership=True,
+                score_roles=["technical_integrity", "aeo_readiness"],
             )
         )
         # A still-queued analyze task for a second monitored URL — the run is

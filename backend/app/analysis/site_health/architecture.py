@@ -32,8 +32,8 @@ from app.core.config.site_health_archetypes import (
     COMMON_STRUCTURES,
 )
 from app.core.config.site_health_contracts import (
-    RULE_OUTCOME_FAIL,
-    RULE_OUTCOME_PASS,
+    RULE_OUTCOME_MISSING,
+    RULE_OUTCOME_SATISFIED,
     RULE_OUTCOME_UNAVAILABLE,
 )
 from app.core.config.site_health_link_metrics import COVERAGE_STATE_COMPLETE
@@ -491,6 +491,7 @@ def _evaluation(rule_id: str, outcome: str, evidence: dict) -> RuleEvaluation:
         category=rule.category,
         severity=rule.severity,
         finding_class=rule.finding_class,
+        scope=rule.scope,
         weight=float(rule.weight),
         outcome=outcome,
         evidence=evidence,
@@ -511,7 +512,11 @@ def _coverage_evaluation(
         )
     return _evaluation(
         rule_id,
-        RULE_OUTCOME_FAIL if int(evidence.get("count") or 0) else RULE_OUTCOME_PASS,
+        (
+            RULE_OUTCOME_MISSING
+            if int(evidence.get("count") or 0)
+            else RULE_OUTCOME_SATISFIED
+        ),
         evidence,
     )
 
@@ -622,17 +627,17 @@ def evaluate_architecture_rules(
     return [
         _evaluation(
             "architecture.excessive_depth",
-            RULE_OUTCOME_FAIL if deep else RULE_OUTCOME_PASS,
+            RULE_OUTCOME_MISSING if deep else RULE_OUTCOME_SATISFIED,
             evidence(deep, "pages"),
         ),
         _evaluation(
             "architecture.breadcrumb_hierarchy_conflict",
-            RULE_OUTCOME_FAIL if conflicts else RULE_OUTCOME_PASS,
+            RULE_OUTCOME_MISSING if conflicts else RULE_OUTCOME_SATISFIED,
             evidence(conflicts, "pages"),
         ),
         _evaluation(
             "architecture.duplicate_metadata_in_page_kind",
-            RULE_OUTCOME_FAIL if duplicate_page_kinds else RULE_OUTCOME_PASS,
+            RULE_OUTCOME_MISSING if duplicate_page_kinds else RULE_OUTCOME_SATISFIED,
             evidence(duplicate_page_kinds, "page_kinds"),
         ),
         _coverage_evaluation(

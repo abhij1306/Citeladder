@@ -232,25 +232,6 @@ export const siteCrawlSchema = responseObject({
   completed_at: z.string().nullable(),
 });
 
-export const phaseRunSchema = responseObject({
-  id: uuid(),
-  phase: z.enum(['discovery', 'analysis']),
-  status: z.enum(['running', 'stopped', 'completed', 'failed']),
-  requested_count: z.number().int(),
-  processed_count: z.number().int(),
-  created_at: z.string(),
-  stopped_at: z.string().nullable(),
-  completed_at: z.string().nullable(),
-});
-
-export const phaseMutationResponseSchema = responseObject({
-  crawl: siteCrawlSchema,
-  phase_run: phaseRunSchema.nullable(),
-  created_new_crawl: z.boolean(),
-  selection_version: z.number().int().nullable(),
-  scheduled_count: z.number().int(),
-});
-
 export const urlPreviewRowSchema = responseObject({
   row: z.number().int(),
   input: z.string(),

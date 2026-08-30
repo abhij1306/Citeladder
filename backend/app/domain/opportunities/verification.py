@@ -20,8 +20,8 @@ from app.core.config.opportunities import (
     IMPLEMENTATION_VERIFIER_VERSION,
 )
 from app.core.config.site_health_contracts import (
-    RULE_OUTCOME_FAIL,
-    RULE_OUTCOME_PASS,
+    RULE_OUTCOME_MISSING,
+    RULE_OUTCOME_SATISFIED,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.domain.opportunities.verification_result import build_verification_result
@@ -70,9 +70,9 @@ def _target_id(
 
 def _expected_rule_outcome(value: object) -> object:
     if value == "pass":
-        return RULE_OUTCOME_PASS
+        return RULE_OUTCOME_SATISFIED
     if value == "fail":
-        return RULE_OUTCOME_FAIL
+        return RULE_OUTCOME_MISSING
     return value
 
 
@@ -92,8 +92,8 @@ async def _evaluate_site_rule(
         )
     )
     if evaluation is None or evaluation.outcome not in {
-        RULE_OUTCOME_PASS,
-        RULE_OUTCOME_FAIL,
+        RULE_OUTCOME_SATISFIED,
+        RULE_OUTCOME_MISSING,
     }:
         result.limitations.append("site_rule: no applicable evaluation")
         return

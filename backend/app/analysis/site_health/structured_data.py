@@ -35,8 +35,6 @@ from app.core.config.site_health_page_profiles import (
     PRODUCT_NESTED_VALUE_KEYS,
     PRODUCT_RECOGNIZED_SCHEMA_TYPES,
     PRODUCT_SCHEMA_PROPERTY_PATHS,
-)
-from app.core.config.site_health_rules import (
     STRUCTURED_DATA_RECOGNIZED_TYPES,
     STRUCTURED_DATA_REQUIRED_PROPERTIES,
 )

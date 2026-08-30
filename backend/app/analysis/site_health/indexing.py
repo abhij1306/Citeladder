@@ -6,9 +6,9 @@ from typing import Any
 from urllib.parse import SplitResult, parse_qsl, urlencode, urljoin, urlsplit
 
 from app.core.config.site_health_contracts import (
-    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_MISSING,
     RULE_OUTCOME_NOT_APPLICABLE,
-    RULE_OUTCOME_PASS,
+    RULE_OUTCOME_SATISFIED,
 )
 from app.core.config.site_health_rules import TRACKING_QUERY_PARAMS
 
@@ -196,10 +196,10 @@ def evaluate_indexability(facts: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         "nofollow": bool(robots.get("nofollow")),
     }
     if not noindex:
-        return RULE_OUTCOME_PASS, evidence
+        return RULE_OUTCOME_SATISFIED, evidence
     intent, source = _resolve_intent(facts, evidence)
     evidence.update({"indexing_intent": intent, "intent_source": source})
     if intent == "intended_exclude":
         evidence["reason"] = "intentional_non_indexing"
         return RULE_OUTCOME_NOT_APPLICABLE, evidence
-    return RULE_OUTCOME_FAIL, evidence
+    return RULE_OUTCOME_MISSING, evidence

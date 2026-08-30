@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from app.core.config.site_health_contracts import RULE_OUTCOME_FAIL, RULE_OUTCOME_PASS
+from app.core.config.site_health_contracts import (
+    RULE_OUTCOME_MISSING,
+    RULE_OUTCOME_SATISFIED,
+)
 
 
 def _pass_fail(condition: bool) -> str:
-    return RULE_OUTCOME_PASS if condition else RULE_OUTCOME_FAIL
+    return RULE_OUTCOME_SATISFIED if condition else RULE_OUTCOME_MISSING
 
 
 def _image_alt(facts: dict) -> tuple[str, dict]:
@@ -30,7 +33,7 @@ def _form_names(facts: dict) -> tuple[str, dict]:
     }
 
 
-def _heading_order(facts: dict) -> tuple[str, dict]:
+def check_heading_order(facts: dict) -> tuple[str, dict]:
     accessibility = facts.get("accessibility") or {}
     skipped = int(accessibility.get("heading_level_skips", 0) or 0)
     return _pass_fail(skipped == 0), {
@@ -71,7 +74,7 @@ def _mixed_content(facts: dict) -> tuple[str, dict]:
 WEB_FUNDAMENTALS_CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "web.accessibility_image_alt": _image_alt,
     "web.accessibility_form_names": _form_names,
-    "web.accessibility_heading_order": _heading_order,
+    "web.accessibility_heading_order": check_heading_order,
     "web.accessibility_document_language": _document_language,
     "web.mobile_viewport": _mobile_viewport,
     "web.security_mixed_content": _mixed_content,

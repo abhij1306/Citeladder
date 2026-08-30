@@ -28,7 +28,7 @@ from app.core.config.site_health_contracts import (
     CRAWL_STATUS_COMPLETED,
     INITIAL_TASK_GENERATION,
     PAGE_ANALYSIS_STATUS_COMPLETED,
-    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_MISSING,
     TASK_KIND_ANALYZE,
 )
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
@@ -380,7 +380,7 @@ async def _add_issue(
         category="content",
         severity=severity,
         weight=1.0,
-        outcome=RULE_OUTCOME_FAIL,
+        outcome=RULE_OUTCOME_MISSING,
         evidence={"observed": "missing"},
         analyzer_version="v1",
         rule_version="v1",

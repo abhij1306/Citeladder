@@ -37,10 +37,6 @@ from app.core.config.site_health_contracts import (
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
 )
-from app.core.config.site_health_crawl_policy import (
-    PHASE_ANALYSIS,
-    PHASE_DISCOVERY,
-)
 from app.core.config.site_health_runtime import (
     CRAWL_CANCEL_DB_CONFLICT_RETRIES,
     site_health_settings,
@@ -72,7 +68,6 @@ from app.domain.site_health.service.presentation import (
     _score_summary,
     crawl_count_disclosure,
     project_crawl,
-    project_phase_run,
 )
 from app.domain.site_health.service.queries import (
     _failure_summary_for,
@@ -87,7 +82,7 @@ from app.domain.site_health.state_events import (
     record_crawl_event,
 )
 from app.models.site_health.analysis import SitePageAnalysis
-from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
+from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.events import SiteCrawlEvent
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.snapshot import SiteHealthSnapshot
@@ -340,43 +335,15 @@ async def _policy_excluded_url_count(session: AsyncSession, crawl_id: uuid.UUID)
     )
 
 
-def _empty_phase_runs() -> dict[str, dict | None]:
-    return {PHASE_DISCOVERY: None, PHASE_ANALYSIS: None}
-
-
-async def _latest_phase_runs(
-    session: AsyncSession, *, crawl_id: uuid.UUID
-) -> dict[str, dict | None]:
-    phase_runs = _empty_phase_runs()
-    latest_runs = (
-        await session.scalars(
-            select(SiteCrawlPhaseRun)
-            .where(
-                SiteCrawlPhaseRun.crawl_id == crawl_id,
-                SiteCrawlPhaseRun.phase.in_([PHASE_DISCOVERY, PHASE_ANALYSIS]),
-            )
-            .distinct(SiteCrawlPhaseRun.phase)
-            .order_by(
-                SiteCrawlPhaseRun.phase,
-                SiteCrawlPhaseRun.ordinal.desc(),
-            )
-        )
-    ).all()
-    for latest_run in latest_runs:
-        phase_runs[latest_run.phase] = project_phase_run(latest_run)
-    return phase_runs
-
-
 async def _dashboard_crawl_details(
     session: AsyncSession, crawl: SiteCrawl | None
-) -> tuple[dict | None, list[dict], dict | None, dict[str, dict | None]]:
+) -> tuple[dict | None, list[dict], dict | None]:
     if crawl is None:
-        return None, [], None, _empty_phase_runs()
+        return None, [], None
     return (
         await _failure_summary_for(session, crawl),
         await _root_errors_for(session, crawl),
         await _crawl_counters(session, crawl),
-        await _latest_phase_runs(session, crawl_id=crawl.id),
     )
 
 
@@ -566,7 +533,7 @@ async def get_dashboard(
     )
     # B1/B3 and counters stay bundled with the selected crawl projection; an
     # empty dashboard returns the same neutral values without branching here.
-    failure_summary, root_errors, counters, phase_runs = await _dashboard_crawl_details(
+    failure_summary, root_errors, counters = await _dashboard_crawl_details(
         session, crawl
     )
     score_summary = _score_summary(crawl) if crawl is not None else None
@@ -618,7 +585,6 @@ async def get_dashboard(
             "limit": int(runtime.monitored_url_limit),
         },
         "root_errors": root_errors,
-        "phase_runs": phase_runs,
     }
 
 

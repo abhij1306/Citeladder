@@ -16,7 +16,6 @@ def test_models_are_exported_and_registered_once() -> None:
         "WorkspaceSiteHealthRuntime": "workspace_site_health_runtime",
         "SiteHealthProfile": "site_health_profiles",
         "SiteCrawl": "site_crawls",
-        "SiteCrawlPhaseRun": "site_crawl_phase_runs",
         "SiteDiscoveryFrontier": "site_discovery_frontier",
         "SiteUrl": "site_urls",
         "SiteUrlObservation": "site_url_observations",
@@ -95,6 +94,10 @@ def test_site_health_critical_metadata_contracts() -> None:
 
     evaluation = models.SiteRuleEvaluation.__table__
     assert "source_architecture_id" in evaluation.c
+    assert "scope" in evaluation.c
+    assert "ck_site_rule_evaluations_scope" in {
+        constraint.name for constraint in evaluation.constraints
+    }
     evaluation_unique = next(
         constraint
         for constraint in evaluation.constraints

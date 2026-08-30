@@ -512,7 +512,6 @@ async def _persist_discover_success(
         crawl=crawl,
         candidates=_candidates_for(outcome.output, depth, input_mode=input_mode),
         enqueue_children=input_mode != INPUT_MODE_EXACT_URLS,
-        phase_run_id=task.phase_run_id,
         runtime=runtime,
     )
     await _dispose_fetched_page(
@@ -588,7 +587,6 @@ async def _dispose_fetched_page(
             url_hash_value=task.url_hash,
             depth=depth,
             value_priority=task.priority,
-            phase_run_id=task.phase_run_id,
         )
 
 
@@ -664,7 +662,6 @@ async def write_sitemap_observations(
     crawl: SiteCrawl,
     candidates: list[FrontierCandidate],
     admission,
-    phase_run_id: uuid.UUID | None,
 ) -> None:
     """Sparse admission-time observations for sitemap-sourced URLs.
 
@@ -686,7 +683,6 @@ async def write_sitemap_observations(
                 "project_id": crawl.project_id,
                 "crawl_id": crawl.id,
                 "site_url_id": site_url_id,
-                "phase_run_id": phase_run_id,
                 "source_kind": OBSERVATION_SOURCE_SITEMAP,
                 "depth": candidate.depth,
                 "observed_url": candidate.url,

@@ -50,7 +50,6 @@ async def _record_sample_admission(
     candidate: FrontierCandidate,
     site_url_id: uuid.UUID,
     progress: _AdmissionProgress,
-    phase_run_id: uuid.UUID | None,
 ) -> None:
     # A non-analyzable candidate (a document) is still inventoried and observed
     # so it stays in coverage, but the HTML analyzer never receives it: the
@@ -79,7 +78,6 @@ async def _record_sample_admission(
         source_kind=candidate.source_kind,
         analyze=analyze,
         selection_source=selection_source,
-        phase_run_id=phase_run_id,
         value_kind=candidate.value_kind,
         value_priority=candidate.value_priority,
         rewrite_reason=candidate.rewrite_reason,
@@ -99,7 +97,6 @@ async def _record_admission(
     position: int,
     enqueue_children: bool,
     progress: _AdmissionProgress,
-    phase_run_id: uuid.UUID | None,
 ) -> None:
     site_url_id, _created = await _upsert_site_url(
         session, crawl=crawl, candidate=candidate
@@ -114,7 +111,6 @@ async def _record_admission(
             candidate=candidate,
             site_url_id=site_url_id,
             progress=progress,
-            phase_run_id=phase_run_id,
         )
         return
     if (
@@ -131,7 +127,6 @@ async def _record_admission(
             depth=candidate.depth,
             source_kind=candidate.source_kind,
             selection_source=SELECTION_SOURCE_BOOTSTRAP,
-            phase_run_id=phase_run_id,
             value_kind=candidate.value_kind,
             value_priority=candidate.value_priority,
             rewrite_reason=candidate.rewrite_reason,
@@ -154,7 +149,6 @@ async def _record_admission(
             randomized_position=position,
             parent_site_url_id=None,
             priority=candidate.value_priority,
-            phase_run_id=phase_run_id,
         )
         if task_id is not None:
             progress.admitted += 1
@@ -362,7 +356,6 @@ async def admit_candidates(
     crawl: SiteCrawl,
     candidates: list[FrontierCandidate],
     enqueue_children: bool = True,
-    phase_run_id: uuid.UUID | None = None,
     runtime: WorkspaceSiteHealthRuntime | None = None,
 ) -> AdmissionResult:
     """Admit a deterministically-ordered batch of candidates.
@@ -413,7 +406,6 @@ async def admit_candidates(
             position=position,
             enqueue_children=enqueue_children,
             progress=progress,
-            phase_run_id=phase_run_id,
         )
         _mark_frontier_admitted(frontier)
 
@@ -433,20 +425,4 @@ async def admit_candidates(
         sample_capped=sample_capped,
         site_url_ids=progress.site_url_ids,
         observed=progress.observed,
-    )
-
-
-async def drain_discovery_frontier(
-    session: AsyncSession,
-    *,
-    crawl: SiteCrawl,
-    phase_run_id: uuid.UUID,
-) -> AdmissionResult:
-    """Activate persisted frontier rows for a resumed discovery batch."""
-    return await admit_candidates(
-        session,
-        crawl=crawl,
-        candidates=[],
-        enqueue_children=True,
-        phase_run_id=phase_run_id,
     )

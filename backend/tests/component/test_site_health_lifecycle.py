@@ -27,6 +27,7 @@ import pytest
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+import app.workers.site_health.lifecycle as lifecycle_module
 from app.core.config.analytics import ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH
 from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_PENDING,
@@ -36,15 +37,8 @@ from app.core.config.site_health_contracts import (
     CRAWL_STATUS_PAUSED,
     CRAWL_STATUS_RUNNING,
     DISCOVERY_STATUS_RUNNING,
-    DISCOVERY_STATUS_STOPPED,
     EVENT_CRAWL_COMPLETED,
     TASK_KIND_DISCOVER,
-)
-from app.core.config.site_health_crawl_policy import (
-    MANUAL_PHASE_LIFECYCLE_KEY,
-    PHASE_DISCOVERY,
-    PHASE_RUN_COMPLETED,
-    PHASE_RUN_RUNNING,
 )
 from app.core.config.site_health_runtime import (
     SITE_CRAWL_QUEUE_SPEC,
@@ -58,7 +52,7 @@ from app.core.config.task_queue import (
 from app.domain.site_health.service.lifecycle import load_events
 from app.models.analytics import AnalyticsTask
 from app.models.site_health.acquisition import SiteFetchArtifact
-from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
+from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.events import SiteCrawlEvent
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.snapshot import SiteHealthSnapshot
@@ -164,19 +158,34 @@ async def test_intermediate_analyze_success_skips_full_reconciliation(
 ) -> None:
     seed, task_id = await _seed_completed_analyze_task(session_factory, task_count=2)
     lifecycle = CrawlLifecycle(session_factory)
+    refreshed: list[tuple[uuid.UUID, uuid.UUID]] = []
 
     async def reject_full_reconcile(_crawl_id: uuid.UUID) -> None:
         raise AssertionError("intermediate analyze success took the aggregate path")
 
+    async def record_live_refresh(
+        _session_factory: async_sessionmaker[AsyncSession],
+        *,
+        crawl_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+    ) -> None:
+        refreshed.append((crawl_id, workspace_id))
+
     monkeypatch.setattr(lifecycle, "reconcile", reject_full_reconcile)
+    monkeypatch.setattr(
+        lifecycle_module,
+        "refresh_live_score_summary_for_crawl",
+        record_live_refresh,
+    )
 
     await lifecycle.reconcile_after_task(_task_reference(seed, task_id))
+    assert refreshed == [(seed.crawl_id, seed.workspace_id)]
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "unsafe_state",
-    ["missing_artifact", "failed", "pending", "sample", "manual", "discover"],
+    ["missing_artifact", "failed", "pending", "discover"],
 )
 async def test_intermediate_analyze_uses_full_reconcile_for_unsafe_states(
     session_factory: async_sessionmaker[AsyncSession],
@@ -195,13 +204,6 @@ async def test_intermediate_analyze_uses_full_reconcile_for_unsafe_states(
             task.status = TASK_STATUS_FAILED
         elif unsafe_state == "pending":
             crawl.analysis_status = ANALYSIS_STATUS_PENDING
-        elif unsafe_state == "sample":
-            crawl.sample_mode = True
-        elif unsafe_state == "manual":
-            crawl.configuration = {
-                **(crawl.configuration or {}),
-                MANUAL_PHASE_LIFECYCLE_KEY: True,
-            }
         elif unsafe_state == "discover":
             task.task_kind = TASK_KIND_DISCOVER
         await session.commit()
@@ -481,67 +483,6 @@ async def test_stalled_backstop_ignores_paused_phase_control_crawls(
 
     assert await CrawlLifecycle(session_factory).reconcile_stalled() == 0
     assert (await _crawl(session_factory, seed.crawl_id)).status == CRAWL_STATUS_PAUSED
-
-
-@pytest.mark.asyncio
-async def test_advanced_manual_phase_parks_without_terminal_side_effects(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    """A drained manual phase pauses cleanly and repeated reconciliation is inert."""
-    async with session_factory() as session:
-        seed = await seed_site_crawl(session, task_count=1)
-        crawl = await session.get(SiteCrawl, seed.crawl_id)
-        task = await session.get(SiteCrawlTask, seed.task_ids[0])
-        assert crawl is not None
-        assert task is not None
-        crawl.sample_mode = False
-        crawl.configuration = {MANUAL_PHASE_LIFECYCLE_KEY: True}
-        crawl.discovery_status = DISCOVERY_STATUS_RUNNING
-        crawl.discovered_url_count = 1
-        phase_run = SiteCrawlPhaseRun(
-            workspace_id=seed.workspace_id,
-            crawl_id=seed.crawl_id,
-            phase=PHASE_DISCOVERY,
-            ordinal=1,
-            status=PHASE_RUN_RUNNING,
-            requested_count=1,
-        )
-        session.add(phase_run)
-        await session.flush()
-        task.phase_run_id = phase_run.id
-        task.status = TASK_STATUS_SUCCEEDED
-        task.completed_at = datetime.now(UTC)
-        phase_run_id = phase_run.id
-        await session.commit()
-    lifecycle = CrawlLifecycle(session_factory)
-    await lifecycle.reconcile(seed.crawl_id)
-    await lifecycle.reconcile(seed.crawl_id)
-    async with session_factory() as session:
-        crawl = await session.get(SiteCrawl, seed.crawl_id)
-        phase_run = await session.get(SiteCrawlPhaseRun, phase_run_id)
-        assert crawl is not None
-        assert crawl.status == CRAWL_STATUS_PAUSED
-        assert crawl.discovery_status == DISCOVERY_STATUS_STOPPED
-        assert phase_run is not None
-        assert phase_run.status == PHASE_RUN_COMPLETED
-        assert (
-            await session.scalar(
-                select(SiteHealthSnapshot.id).where(
-                    SiteHealthSnapshot.crawl_id == seed.crawl_id
-                )
-            )
-            is None
-        )
-        assert (
-            await session.scalar(
-                select(SiteCrawlEvent.id).where(
-                    SiteCrawlEvent.crawl_id == seed.crawl_id,
-                    SiteCrawlEvent.event_type == EVENT_CRAWL_COMPLETED,
-                )
-            )
-            is None
-        )
-        assert await session.scalar(select(AnalyticsTask.id)) is None
 
 
 @pytest.mark.asyncio

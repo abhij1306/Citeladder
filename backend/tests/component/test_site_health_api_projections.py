@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config.site_health_contracts import (
     CRAWL_STATUS_COMPLETED,
     PAGE_ANALYSIS_STATUS_COMPLETED,
-    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_MISSING,
 )
 from app.core.config.site_health_crawl_policy import SELECTION_SOURCE_USER
 from app.models.site_health.analysis import (
@@ -324,7 +324,7 @@ async def test_issue_catalog_separates_defect_and_advisory_quantities(
             severity="high",
             finding_class="defect",
             weight=1.0,
-            outcome=RULE_OUTCOME_FAIL,
+            outcome=RULE_OUTCOME_MISSING,
             evidence={"observed": "defect"},
             analyzer_version="v1",
             rule_version="v1",

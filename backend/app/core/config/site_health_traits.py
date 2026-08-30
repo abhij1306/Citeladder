@@ -51,10 +51,14 @@ PAGE_TRAIT_SCHEMA_TYPES: Final[dict[str, tuple[str, ...]]] = {
 PAGE_TRAIT_CONTACT_FORM_FIELDS: Final[frozenset[str]] = frozenset(
     {"email", "e-mail", "phone", "telephone", "message", "enquiry", "inquiry"}
 )
+PAGE_TRAIT_VARIANT_FORM_FIELDS: Final[frozenset[str]] = frozenset(
+    {"colour", "color", "finish", "material", "size", "style"}
+)
 PAGE_TRAIT_PROCEDURAL_MIN_STEPS: Final = 3
 
 PAGE_TRAIT_APPLICABILITY_PREFIX: Final = "page_trait:"
 PAGE_TRAIT_CONTENT_APPLICABILITY_PREFIX: Final = "page_trait_content:"
+PAGE_KIND_OR_TRAIT_CONTENT_APPLICABILITY_PREFIX: Final = "page_kind_or_trait_content:"
 
 
 def _traits(*traits: str, reads_content: bool = False) -> str:
@@ -65,6 +69,11 @@ def _traits(*traits: str, reads_content: bool = False) -> str:
         else PAGE_TRAIT_APPLICABILITY_PREFIX
     )
     return f"{prefix}{'|'.join(traits)}"
+
+
+def _kinds_or_traits(*values: str) -> str:
+    """Build a content-reading key that accepts a page kind or additive trait."""
+    return f"{PAGE_KIND_OR_TRAIT_CONTENT_APPLICABILITY_PREFIX}{'|'.join(values)}"
 
 
 TRAITS_VERSION: Final = "sh-traits-1"

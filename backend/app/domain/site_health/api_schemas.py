@@ -15,9 +15,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.config.site_health_runtime import (
-    site_health_settings,
-)
 from app.domain.site_health.phase import SiteHealthPhase
 
 # Presentation-status literals (superset of the persisted page-analysis states,
@@ -40,7 +37,7 @@ IssueDimension = Literal["technical", "aeo"]
 SiteUrlSource = Literal["root", "link", "sitemap", "redirect"]
 SelectionSource = Literal["user", "free_sample", "bootstrap"]
 MeasurementState = Literal["measured", "limited_evidence", "not_measured", "excluded"]
-DimensionApplicability = Literal["applicable", "not_applicable", "unresolved"]
+DimensionApplicability = Literal["applicable", "not_applicable"]
 SearchEligibility = Literal["eligible", "blocked", "unknown", "excluded"]
 
 
@@ -127,19 +124,6 @@ class RerunPageResponse(_Model):
     task_id: uuid.UUID
     created_new_crawl: bool
     analysis_status: str
-
-
-class StartDiscoveryRequest(_Model):
-    additional_url_count: int = Field(ge=1)
-
-
-class StartAnalysisRequest(_Model):
-    requested_url_count: int = Field(ge=1)
-    site_url_ids: list[uuid.UUID] = Field(
-        default_factory=list,
-        max_length=site_health_settings.max_analysis_urls,
-    )
-    expected_selection_version: int = Field(ge=0)
 
 
 # =========================================================================
@@ -237,17 +221,6 @@ class CrawlCounters(_Model):
     by_page_kind: dict[str, int] = {}
 
 
-class PhaseRunResponse(_Model):
-    id: uuid.UUID
-    phase: Literal["discovery", "analysis"]
-    status: Literal["running", "stopped", "completed", "failed"]
-    requested_count: int
-    processed_count: int
-    created_at: str
-    stopped_at: str | None
-    completed_at: str | None
-
-
 class CrawlResponse(_Model):
     id: uuid.UUID
     workspace_id: uuid.UUID
@@ -296,14 +269,6 @@ class CrawlResponse(_Model):
     updated_at: str
     started_at: str | None
     completed_at: str | None
-
-
-class PhaseMutationResponse(_Model):
-    crawl: CrawlResponse
-    phase_run: PhaseRunResponse | None
-    created_new_crawl: bool
-    selection_version: int | None
-    scheduled_count: int
 
 
 class CrawlListPage(_Model):
@@ -727,7 +692,6 @@ class DashboardResponse(_Model):
     # B3: same root-failure projection as the pages response, so the failed
     # crawl's dashboard can render the failure block without a second fetch.
     root_errors: list[RootError] = []
-    phase_runs: dict[Literal["discovery", "analysis"], PhaseRunResponse | None] = {}
 
 
 class SiteHealthError(_Model):

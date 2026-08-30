@@ -39,7 +39,7 @@ from app.models.site_health.analysis import (
     SitePageAnalysis,
     SiteRuleEvaluation,
 )
-from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
+from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 
 # Deterministic severity ordering (critical worst). Used for the grouped-issue
@@ -325,19 +325,6 @@ def project_crawl(
         "updated_at": _iso(crawl.updated_at),
         "started_at": _iso(crawl.started_at),
         "completed_at": _iso(crawl.completed_at),
-    }
-
-
-def project_phase_run(run: SiteCrawlPhaseRun) -> dict:
-    return {
-        "id": run.id,
-        "phase": run.phase,
-        "status": run.status,
-        "requested_count": run.requested_count,
-        "processed_count": run.processed_count,
-        "created_at": _iso(run.created_at),
-        "stopped_at": _iso(run.stopped_at),
-        "completed_at": _iso(run.completed_at),
     }
 
 

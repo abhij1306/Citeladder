@@ -1,22 +1,5 @@
-# Deterministic rule evaluation (Task 5; page-kind scoped in sh-rules-3).
-#
-# Evaluates the config-owned ``SITE_HEALTH_RULES`` catalog against a page-facts
-# dict (produced by ``parser.extract_page_facts``) into one ``RuleEvaluation``
-# per rule. Each evaluation carries the explicit measurement outcome, a bounded
-# exact ``evidence`` dict, and rule/measurement metadata for provenance.
-#
-# PURE + deterministic (no I/O, no ORM). Applicability is driven by the rule's
-# ``applicability_key`` ("always" | "has_html" | "page_kind:<type>" (v2 P1) |
-# "site_root" | "crawl_finalize" (v2 P2, spec §5.2/§5.3)). ``site_root`` rules
-# resolve against the worker-injected ``facts["site"]`` (present only in the
-# crawl root's own analysis, so they evaluate exactly once per crawl);
-# ``crawl_finalize`` rules are NEVER applicable here — the finalize-writer in
-# the worker owns their rows (single-writer per rule scope), and the analyze
-# writer filters them out before persisting. If a rule's check raises, its
-# outcome is ERROR (preserved, given zero scoring credit) — a single broken
-# check never aborts the whole evaluation. Per-type thin-content minimums and
-# rule-weight overrides are config-owned (``PAGE_KIND_PROFILES``, invariant 1);
-# the v1 analysis-owned ``MIN_SUFFICIENT_WORDS`` constant moved there in v2.
+# Pure deterministic evaluation of the config-owned Site Health rule catalog.
+# Finalize-scoped rules are evaluated and persisted only by ``finalize.py``.
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -29,9 +12,15 @@ from app.analysis.site_health.indexing import (
     normalized_url_for_compare,
     resolve_canonical,
 )
+from app.analysis.site_health.page_traits import has_contact_form_fields
 from app.analysis.site_health.product_rules import (
-    check_product_offer_details,
-    check_product_visible_schema_parity,
+    check_assortment_freshness_signal,
+    check_listing_answer_set,
+    check_listing_item_facts,
+    check_offer_freshness_signal,
+    check_product_answer_facts,
+    check_product_brand_identity,
+    check_product_evidence_facts,
 )
 from app.analysis.site_health.rule_scope import (
     applicability,
@@ -46,30 +35,34 @@ from app.analysis.site_health.schema_rules import (
     check_schema_required_valid,
     schema_expectation_for,
 )
-from app.analysis.site_health.web_fundamentals import WEB_FUNDAMENTALS_CHECKS
+from app.analysis.site_health.web_fundamentals import (
+    WEB_FUNDAMENTALS_CHECKS,
+    check_heading_order,
+)
 from app.core.config.site_health_acquisition import (
     AI_CRAWLER_BOTS,
     AI_CRAWLER_STANCE_BLOCK,
     SEARCH_CITATION_CRAWLER_BOTS,
 )
 from app.core.config.site_health_contracts import (
+    RULE_FAILING_OUTCOMES,
     RULE_OUTCOME_ERROR,
-    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_MISSING,
     RULE_OUTCOME_NOT_APPLICABLE,
-    RULE_OUTCOME_PASS,
+    RULE_OUTCOME_SATISFIED,
     RULE_OUTCOME_UNAVAILABLE,
     RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_measurement import (
-    PAGE_KIND_READINESS_CHECKPOINTS,
-    READINESS_CHECKPOINTS,
-    SCORE_ROLE_AEO,
-    TRAIT_READINESS_CHECKPOINTS,
+    STRUCTURAL_NA_REASONS,
     UNAVAILABLE_REASONS,
     UNKNOWN_REASONS,
+    expected_checkpoints,
 )
 from app.core.config.site_health_rule_types import (
+    FINDING_CLASS_DIAGNOSTIC,
     KIND_EVIDENCE_TRIGGERED,
+    RULE_SCOPE_PAGE,
     SiteHealthRule,
 )
 from app.core.config.site_health_rules import (
@@ -77,7 +70,6 @@ from app.core.config.site_health_rules import (
     EXPAND_GATED_MAX_RATIO,
     META_DESCRIPTION_LENGTH_BAND,
     QUESTION_HEADINGS_MIN_RATIO,
-    RENDER_BLOCKING_MAX_RESOURCES,
     SITE_HEALTH_RULES,
     SITE_HEALTH_RULES_BY_ID,
     SOCIAL_DOMAINS,
@@ -105,12 +97,7 @@ def _has_price_evidence(facts: dict) -> bool:
 
 
 def _structural_sufficiency(facts: dict) -> tuple[str, bool]:
-    """``(signal, satisfied)`` for a short page that may still be complete.
-
-    Only ever ADDS a way to pass. Nothing here can fail a page the word floor
-    would have passed, so the check reports fewer pages than the floor alone
-    would, never more.
-    """
+    """Return a completeness signal that may satisfy a short page."""
     page_kind = str(facts.get("page_kind") or "").strip().lower()
     if page_kind in CONTENT_SUFFICIENCY_PRICE_KINDS:
         return "price", _has_price_evidence(facts)
@@ -122,12 +109,7 @@ def _structural_sufficiency(facts: dict) -> tuple[str, bool]:
 
 @dataclass(frozen=True)
 class RuleEvaluation:
-    """The bounded, deterministic result of evaluating one rule.
-
-    Immutable value type the worker persists as a ``SiteRuleEvaluation`` row.
-    ``outcome`` is a config ``RULE_OUTCOME_*`` token; ``evidence`` is a small
-    JSON-safe dict of exactly what drove the outcome.
-    """
+    """Immutable, bounded result the worker persists for one rule."""
 
     rule_id: str
     rule_version: str
@@ -148,37 +130,32 @@ class RuleEvaluation:
     checkpoint_family: str = ""
     readiness_dimension: str = ""
     readiness_weight: float = 0.0
+    scope: str = RULE_SCOPE_PAGE
+
+
+def creates_issue(evaluation: RuleEvaluation) -> bool:
+    """Only a failing observation that participates in a score is an issue."""
+    return (
+        evaluation.outcome in RULE_FAILING_OUTCOMES
+        and evaluation.finding_class != FINDING_CLASS_DIAGNOSTIC
+        and bool(evaluation.score_roles)
+    )
 
 
 def _pass_fail(condition: bool) -> str:
-    return RULE_OUTCOME_PASS if condition else RULE_OUTCOME_FAIL
+    return RULE_OUTCOME_SATISFIED if condition else RULE_OUTCOME_MISSING
 
 
-# --- individual checks: (facts) -> (outcome, evidence) --------------------
-
-
-def _check_title_present(facts: dict) -> tuple[str, dict]:
-    title = (facts.get("title") or "").strip()
-    return _pass_fail(bool(title)), {
-        "title_length": len(title),
-        "present": bool(title),
-    }
-
-
-def _check_meta_description_present(facts: dict) -> tuple[str, dict]:
-    desc = (facts.get("meta_description") or "").strip()
-    return _pass_fail(bool(desc)), {
-        "description_length": len(desc),
-        "present": bool(desc),
-    }
-
-
-def _check_canonical_present(facts: dict) -> tuple[str, dict]:
-    canonical = (facts.get("canonical_url") or "").strip()
-    return _pass_fail(bool(canonical)), {
-        "canonical_url": canonical,
-        "present": bool(canonical),
-    }
+def _check_present_field(
+    facts: dict, *, field: str, length_key: str | None = None
+) -> tuple[str, dict]:
+    value = (facts.get(field) or "").strip()
+    evidence: dict[str, Any] = {"present": bool(value)}
+    if length_key:
+        evidence[length_key] = len(value)
+    else:
+        evidence[field] = value
+    return _pass_fail(bool(value)), evidence
 
 
 def _check_indexable(facts: dict) -> tuple[str, dict]:
@@ -225,22 +202,7 @@ def _check_open_graph_present(facts: dict) -> tuple[str, dict]:
 
 
 def _check_thin_content(facts: dict) -> tuple[str, dict]:
-    """Report an EMPTY page, not a short one.
-
-    This used to compare the word count against a per-page-kind minimum
-    ranging from 40 to 300. Segmenting by kind beat one global threshold, but
-    the premise underneath was still that length proves substance, and it does
-    not: there is no magical minimum word count and no ideal page length. A
-    category page with 25 words over 60 well-organized products, a contact
-    page complete in 30 words, and a product page with 65 words plus price,
-    availability and specifications were all reported as thin.
-
-    The verdict is now emptiness, against one low universal floor, with word
-    count kept as EVIDENCE rather than as the judgement. Below the floor a
-    page can still prove itself structurally -- a listing that lists, a
-    location with findable details, a commercial page with a price -- which
-    only ever adds a way to pass.
-    """
+    """Fail only empty pages; a structural signal can satisfy a short page."""
     body = facts.get("body") or {}
     word_count = int(body.get("word_count", 0) or 0)
     profile = profile_for(facts) or PAGE_KIND_PROFILES[PAGE_KIND_OTHER]
@@ -250,14 +212,11 @@ def _check_thin_content(facts: dict) -> tuple[str, dict]:
         "page_kind": profile.page_kind,
     }
     if word_count >= MIN_MEANINGFUL_WORDS:
-        return RULE_OUTCOME_PASS, evidence
+        return RULE_OUTCOME_SATISFIED, evidence
     signal, satisfied = _structural_sufficiency(facts)
     evidence["structural_signal"] = signal
     evidence["structurally_sufficient"] = satisfied
     return _pass_fail(satisfied), evidence
-
-
-# --- v2 P2: hygiene checks -------------------------------------------------
 
 
 def _hreflang_alternate_urls(facts: dict) -> list[str]:
@@ -270,26 +229,9 @@ def _hreflang_alternate_urls(facts: dict) -> list[str]:
 
 
 def _check_canonical_conflict(facts: dict) -> tuple[str, dict]:
-    """Fail on a canonical that is BROKEN, not on one that merely points away.
-
-    The old check failed whenever the canonical was not the page's own final
-    URL. That is the ordinary, intended use of the element: consolidating a
-    sorted, filtered or paginated view onto its parent is what rel=canonical
-    exists to do, and a canonical declaration is not even mandatory.
-
-    Worse, it contradicted this package's own indexing logic, which reads the
-    identical condition as evidence that the page is DELIBERATELY excluded
-    (``_canonical_intent``). One module treated a cross-canonical as a mistake
-    while the other treated it as an intention.
-
-    So a plain cross-canonical passes, and only positive evidence of a broken
-    target fails. Evidence needing crawl-wide state -- a canonical pointing at
-    a 404 or at a noindex page -- is not available in the per-page pass and is
-    not guessed at here.
-    """
+    """Fail invalid or conflicting canonicals; permit same-origin consolidation."""
     declared = (facts.get("canonical_url") or "").strip()
     if not declared:
-        # No canonical declared: the presence rule owns that finding.
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_canonical"}
     delivery = facts.get("delivery") or {}
     final_url = str(delivery.get("final_url") or "")
@@ -304,44 +246,33 @@ def _check_canonical_conflict(facts: dict) -> tuple[str, dict]:
     ) == normalized_url_for_compare(final_url)
     evidence["self_canonical"] = self_canonical
     if self_canonical:
-        return RULE_OUTCOME_PASS, evidence
+        return RULE_OUTCOME_SATISFIED, evidence
 
     origin = canonical_origin(canonical)
     if not origin:
-        # Not an absolute http(s) URL even after resolution: this cannot
-        # consolidate anything.
         evidence["problem"] = "invalid_canonical"
-        return RULE_OUTCOME_FAIL, evidence
+        return RULE_OUTCOME_MISSING, evidence
 
     final_origin = canonical_origin(final_url)
     if final_origin and origin != final_origin:
-        # Handing indexing authority to another origin is almost never what a
-        # site owner meant, and it is not something consolidation requires.
         evidence["problem"] = "cross_origin_canonical"
-        return RULE_OUTCOME_FAIL, evidence
+        return RULE_OUTCOME_MISSING, evidence
 
     alternates = {
         normalized_url_for_compare(url) for url in _hreflang_alternate_urls(facts)
     }
     if alternates and normalized_url_for_compare(canonical) in alternates:
-        # A page in an hreflang cluster must canonicalise to ITSELF. Pointing
-        # at a sibling language tells the two systems opposite things about
-        # which URL represents this content.
         evidence["problem"] = "hreflang_canonical_conflict"
-        return RULE_OUTCOME_FAIL, evidence
+        return RULE_OUTCOME_MISSING, evidence
 
     evidence["reason"] = "intentional_consolidation"
-    return RULE_OUTCOME_PASS, evidence
+    return RULE_OUTCOME_SATISFIED, evidence
 
 
 def _length_band_check(
     value: object, *, band: tuple[int, int], empty_reason: str, length_key: str
 ) -> tuple[str, dict]:
-    """Shared body for the title / meta-description length-band rules.
-
-    N/A when the field is empty (the v1 presence rules own that finding);
-    otherwise pass when the length falls inside the inclusive config band.
-    """
+    """N/A for an absent field; otherwise check its inclusive config band."""
     text = (str(value or "")).strip()
     if not text:
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": empty_reason}
@@ -400,20 +331,6 @@ def _check_uncompressed_html(facts: dict) -> tuple[str, dict]:
         "content_encoding": delivery.get("content_encoding", ""),
         "is_compressed": compressed,
     }
-
-
-def _check_render_blocking(facts: dict) -> tuple[str, dict]:
-    blocking = facts.get("blocking_resources") or {}
-    total = int(blocking.get("total", 0) or 0)
-    return _pass_fail(total <= RENDER_BLOCKING_MAX_RESOURCES), {
-        "scripts": int(blocking.get("scripts", 0) or 0),
-        "stylesheets": int(blocking.get("stylesheets", 0) or 0),
-        "total": total,
-        "max_allowed": RENDER_BLOCKING_MAX_RESOURCES,
-    }
-
-
-# --- v2 P2: site_root checks (facts["site"] injected by the worker) --------
 
 
 def _check_ai_crawler_access(facts: dict) -> tuple[str, dict]:
@@ -482,9 +399,6 @@ def _check_snippet_access(facts: dict) -> tuple[str, dict]:
     }
 
 
-# --- v2 P2: citability checks -----------------------------------------------
-
-
 def _check_author_present(facts: dict) -> tuple[str, dict]:
     author = (facts.get("author") or "").strip()
     return _pass_fail(bool(author)), {
@@ -493,7 +407,7 @@ def _check_author_present(facts: dict) -> tuple[str, dict]:
     }
 
 
-def _check_date_present(facts: dict) -> tuple[str, dict]:
+def _check_content_date_present(facts: dict) -> tuple[str, dict]:
     dates = facts.get("dates") or {}
     published = bool((dates.get("published") or "").strip())
     modified = bool((dates.get("modified") or "").strip())
@@ -522,25 +436,58 @@ def _check_outbound_citations(facts: dict) -> tuple[str, dict]:
 
 def _check_organization_identity(facts: dict) -> tuple[str, dict]:
     sd = facts.get("structured_data") or {}
-    org_blocks = [
-        block
-        for block in (sd.get("blocks") or [])
-        if str(block.get("type") or "") == "Organization"
-    ]
-    same_as: list[str] = []
-    for block in org_blocks:
-        for entry in block.get("same_as") or []:
-            text = str(entry).strip()
-            if text and text not in same_as:
-                same_as.append(text)
-    return _pass_fail(bool(same_as)), {
+    org_blocks = list(filter(_is_organization_block, sd.get("blocks") or ()))
+    identities = list(filter(None, map(_organization_identity, org_blocks)))
+    return _pass_fail(bool(identities)), {
         "has_organization": bool(org_blocks),
-        "same_as_count": len(same_as),
-        "same_as": same_as[:8],
+        "complete_identity_count": len(identities),
+        "identities": identities[:4],
     }
 
 
-# --- v2 P2: extractability checks -------------------------------------------
+def _is_organization_block(block: dict) -> bool:
+    return str(block.get("type") or "") == "Organization"
+
+
+def _organization_identity(block: dict) -> dict | None:
+    name = str(block.get("name") or "")
+    url = str(block.get("url") or "")
+    if not name.strip() or not url.strip():
+        return None
+    return {"name": name[:256], "url": url[:512]}
+
+
+_TRUST_PATH_TOKENS = ("about", "contact", "privacy", "policy", "terms")
+
+
+def _check_trust_path_present(facts: dict) -> tuple[str, dict]:
+    paths: list[dict] = []
+    for anchor in (facts.get("links") or {}).get("anchors") or ():
+        if not anchor.get("is_internal"):
+            continue
+        url = str(anchor.get("url") or "").lower()
+        label = str(anchor.get("anchor_text") or "").lower()
+        if any(token in f"{url} {label}" for token in _TRUST_PATH_TOKENS):
+            paths.append({"url": url[:512], "label": label[:128]})
+    return _pass_fail(bool(paths)), {"trust_paths": paths[:12], "count": len(paths)}
+
+
+_SOFT_ERROR_PHRASES = ("page not found", "404 not found", "does not exist")
+
+
+def _check_soft_error(facts: dict) -> tuple[str, dict]:
+    status_code = (facts.get("delivery") or {}).get("status_code")
+    headings = facts.get("headings") or {}
+    text = " ".join(
+        [str(facts.get("title") or "")]
+        + [str(value) for value in headings.get("h1_texts") or ()]
+    ).lower()
+    matched = next((phrase for phrase in _SOFT_ERROR_PHRASES if phrase in text), "")
+    soft_error = status_code == 200 and bool(matched)
+    return _pass_fail(not soft_error), {
+        "status_code": status_code,
+        "matched_error_phrase": matched,
+    }
 
 
 def _check_answer_first(facts: dict) -> tuple[str, dict]:
@@ -550,7 +497,7 @@ def _check_answer_first(facts: dict) -> tuple[str, dict]:
         int(headings.get("h1_count", 0) or 0) > 0 or int(counts.get("h2", 0) or 0) > 0
     )
     if not has_heading:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_headings"}
+        return RULE_OUTCOME_MISSING, {"reason": "no_headings"}
     answer = str(facts.get("first_answer_text") or "")
     word_count = len(answer.split())
     return _pass_fail(word_count >= ANSWER_FIRST_MIN_WORDS), {
@@ -560,18 +507,73 @@ def _check_answer_first(facts: dict) -> tuple[str, dict]:
     }
 
 
+def _check_editorial_lead_present(facts: dict) -> tuple[str, dict]:
+    lead = str(facts.get("first_answer_text") or "")
+    word_count = len(lead.split())
+    return _pass_fail(word_count >= ANSWER_FIRST_MIN_WORDS), {
+        "lead_word_count": word_count,
+        "minimum_words": ANSWER_FIRST_MIN_WORDS,
+        "lead_preview": lead[:256],
+    }
+
+
+def _check_entity_value_proposition(facts: dict) -> tuple[str, dict]:
+    headings = facts.get("headings") or {}
+    identity = bool(headings.get("h1_texts"))
+    traits = facts.get("page_traits") or ()
+    contact_path = bool(facts.get("contact_points") or has_contact_form_fields(facts))
+    lead = str(facts.get("first_answer_text") or "")
+    value_proposition = len(lead.split()) >= ANSWER_FIRST_MIN_WORDS
+    contract = _composite_contract("aeo.entity_value_proposition")
+    atoms = [
+        contract.atom_detail(
+            "entity_identity", satisfied=identity, evidence=identity, page_traits=traits
+        ),
+        contract.atom_detail(
+            "contact_path",
+            satisfied=contact_path,
+            evidence=contact_path,
+            page_traits=traits,
+        ),
+        contract.atom_detail(
+            "value_proposition",
+            satisfied=value_proposition,
+            evidence={"word_count": len(lead.split())},
+            page_traits=traits,
+        ),
+    ]
+    return contract.outcome_for(atoms), {
+        "atoms": atoms,
+        "threshold": contract.threshold,
+    }
+
+
+def _composite_contract(rule_id: str):
+    rule = SITE_HEALTH_RULES_BY_ID.get(rule_id)
+    if rule is None or rule.composite_contract is None:
+        raise RuntimeError(f"Composite contract missing for {rule_id}")
+    return rule.composite_contract
+
+
+def _check_product_answer_facts(facts: dict) -> tuple[str, dict]:
+    return check_product_answer_facts(
+        facts, contract=_composite_contract("aeo.product_answer_facts")
+    )
+
+
+def _check_listing_answer_set(facts: dict) -> tuple[str, dict]:
+    return check_listing_answer_set(
+        facts, contract=_composite_contract("aeo.listing_answer_set")
+    )
+
+
 def _check_question_headings(facts: dict) -> tuple[str, dict]:
     headings = facts.get("headings") or {}
     subheadings = len(headings.get("h2_texts") or []) + len(
         headings.get("h3_texts") or []
     )
     if not subheadings:
-        # ``question_heading_ratio`` is questions / subheadings and is 0.0 when
-        # there are NO subheadings at all -- indistinguishable, to the ratio
-        # alone, from subheadings that are all badly phrased. A page with no
-        # sections is not a page with poorly written sections, so there is
-        # nothing here to judge.
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_subheadings"}
+        return RULE_OUTCOME_MISSING, {"reason": "no_subheadings"}
     ratio = float(facts.get("question_heading_ratio", 0.0) or 0.0)
     return _pass_fail(ratio > QUESTION_HEADINGS_MIN_RATIO), {
         "question_heading_ratio": ratio,
@@ -593,14 +595,17 @@ def _check_no_expand_gating(facts: dict) -> tuple[str, dict]:
     }
 
 
-# Map each config rule_id to its concrete check. A rule in the catalog with no
-# mapped check evaluates to ERROR (a wiring bug, preserved with zero credit).
-# ``crawl_finalize`` rules are deliberately ABSENT here: their checks live in
-# ``analysis/site_health/finalize.py`` (the finalize-writer owns those rows).
+# Unmapped rules become ERROR; finalize-scoped rules belong to ``finalize.py``.
 _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
-    "technical.title_present": _check_title_present,
-    "technical.meta_description_present": _check_meta_description_present,
-    "technical.canonical_present": _check_canonical_present,
+    "technical.title_present": lambda facts: _check_present_field(
+        facts, field="title", length_key="title_length"
+    ),
+    "technical.meta_description_present": lambda facts: _check_present_field(
+        facts, field="meta_description", length_key="description_length"
+    ),
+    "technical.canonical_present": lambda facts: _check_present_field(
+        facts, field="canonical_url"
+    ),
     "technical.indexable": _check_indexable,
     "technical.https": _check_https,
     "technical.single_h1": _check_single_h1,
@@ -611,7 +616,6 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "technical.hsts_present": _check_hsts_present,
     "technical.ttfb_band": _check_ttfb_band,
     "technical.uncompressed_html": _check_uncompressed_html,
-    "technical.render_blocking": _check_render_blocking,
     **WEB_FUNDAMENTALS_CHECKS,
     "technical.ai_crawler_access": _check_ai_crawler_access,
     "search.crawler_access": _check_search_crawler_access,
@@ -624,24 +628,30 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "aeo.schema_recommended_present": check_schema_recommended_present,
     "aeo.schema_matches_content": check_schema_matches_content,
     "aeo.author_present": _check_author_present,
-    "aeo.date_present": _check_date_present,
+    "aeo.content_date_present": _check_content_date_present,
     "aeo.outbound_citations": _check_outbound_citations,
     "aeo.organization_identity": _check_organization_identity,
+    "aeo.trust_path_present": _check_trust_path_present,
     "aeo.answer_first": _check_answer_first,
+    "aeo.editorial_lead_present": _check_editorial_lead_present,
+    "aeo.entity_value_proposition": _check_entity_value_proposition,
     "aeo.question_headings": _check_question_headings,
     "aeo.server_rendered_content": _check_server_rendered_content,
     "aeo.no_expand_gating": _check_no_expand_gating,
-    "aeo.product_offer_details": check_product_offer_details,
-    "aeo.product_visible_schema_parity": check_product_visible_schema_parity,
+    "aeo.heading_hierarchy": check_heading_order,
+    "aeo.product_answer_facts": _check_product_answer_facts,
+    "aeo.product_evidence_facts": check_product_evidence_facts,
+    "aeo.product_brand_identity": check_product_brand_identity,
+    "aeo.offer_freshness_signal": check_offer_freshness_signal,
+    "aeo.listing_answer_set": _check_listing_answer_set,
+    "aeo.listing_item_facts": check_listing_item_facts,
+    "aeo.assortment_freshness_signal": check_assortment_freshness_signal,
+    "technical.soft_error": _check_soft_error,
 }
 
 
 def _weight_for(rule: SiteHealthRule, facts: dict) -> float:
-    """The rule's weight, with any per-(rule_id, page_kind) config override.
-
-    Resolved at evaluation time from ``PAGE_KIND_PROFILES`` so the emitted
-    ``RuleEvaluation`` carries exactly the weight scoring will credit.
-    """
+    """Resolve config-owned per-page-kind weight overrides."""
     profile = profile_for(facts)
     if profile is not None:
         override = profile.rule_weight_overrides.get(rule.rule_id)
@@ -655,7 +665,7 @@ def _normalized_outcome(
 ) -> tuple[str, str]:
     if (
         rule.rule_id == "technical.indexable"
-        and outcome == RULE_OUTCOME_FAIL
+        and outcome == RULE_OUTCOME_MISSING
         and evidence.get("indexing_intent") == "unknown"
     ):
         evidence["reason"] = "insufficient_evidence"
@@ -667,7 +677,11 @@ def _normalized_outcome(
         return RULE_OUTCOME_UNAVAILABLE, reason
     if reason in UNKNOWN_REASONS:
         return RULE_OUTCOME_UNKNOWN, reason
-    return outcome, reason
+    if reason in STRUCTURAL_NA_REASONS:
+        return outcome, reason
+    bounded_reason = reason or "insufficient_evidence"
+    evidence["reason"] = bounded_reason
+    return RULE_OUTCOME_UNKNOWN, bounded_reason
 
 
 def _triggered_evidence_present(rule: SiteHealthRule, facts: dict) -> bool:
@@ -675,59 +689,40 @@ def _triggered_evidence_present(rule: SiteHealthRule, facts: dict) -> bool:
         expectation = schema_expectation_for(facts)
         found_types = set((facts.get("structured_data") or {}).get("types") or ())
         return bool(found_types.intersection(expectation.expected_types))
-    if rule.rule_id.startswith("aeo.product_"):
-        return "Product" in set((facts.get("structured_data") or {}).get("types") or ())
     return True
 
 
 def _profile_membership(rule: SiteHealthRule, facts: dict) -> bool:
-    """Freeze expected membership from facts before the evaluator outcome."""
-    tier = str((facts.get("page_kind_evidence") or {}).get("tier") or "")
-    profile_member = True
-    checkpoint = READINESS_CHECKPOINTS.get(rule.rule_id)
+    """Freeze expected membership from structural context before evaluation."""
     page_kind = str(facts.get("page_kind") or "other")
-    expected = set(PAGE_KIND_READINESS_CHECKPOINTS.get(page_kind, ()))
-    for trait in observed_traits(facts):
-        expected.update(TRAIT_READINESS_CHECKPOINTS.get(trait, ()))
-    if checkpoint is not None:
-        profile_member = rule.rule_id in expected
-    if checkpoint is not None and rule.kind_evidence != KIND_EVIDENCE_TRIGGERED:
-        profile_member = profile_member and tier in ("", "structural")
-    if checkpoint is not None and rule.kind_evidence == KIND_EVIDENCE_TRIGGERED:
-        profile_member = profile_member and _triggered_evidence_present(rule, facts)
+    expected = expected_checkpoints(
+        page_kind,
+        observed_traits(facts),
+        {"is_site_root": facts.get("site") is not None},
+    )
+    if not rule.readiness_dimension:
+        return True
+    profile_member = rule.rule_id in expected
+    if rule.kind_evidence == KIND_EVIDENCE_TRIGGERED:
+        return profile_member and _triggered_evidence_present(rule, facts)
     return profile_member
 
 
-def _score_roles(rule: SiteHealthRule, profile_member: bool) -> tuple[str, ...]:
-    score_roles = list(rule.score_roles if profile_member else ())
-    if rule.rule_id in READINESS_CHECKPOINTS and profile_member:
-        score_roles.append(SCORE_ROLE_AEO)
-    return tuple(score_roles)
-
-
-def _measurement_metadata(
-    rule: SiteHealthRule, facts: dict, outcome: str, reason: str
-) -> dict[str, Any]:
-    checkpoint = READINESS_CHECKPOINTS.get(rule.rule_id)
+def _measurement_metadata(rule: SiteHealthRule, facts: dict) -> dict[str, Any]:
     profile_member = _profile_membership(rule, facts)
-    score_roles = _score_roles(rule, profile_member)
+    score_roles = rule.score_roles if profile_member else ()
     return {
         "score_applicability": bool(score_roles),
         "expected_profile_membership": profile_member,
         "score_roles": score_roles,
-        "checkpoint_family": checkpoint.family if checkpoint else "",
-        "readiness_dimension": checkpoint.dimension if checkpoint else "",
-        "readiness_weight": checkpoint.weight if checkpoint else 0.0,
+        "checkpoint_family": rule.checkpoint_family,
+        "readiness_dimension": rule.readiness_dimension,
+        "readiness_weight": rule.readiness_weight,
     }
 
 
 def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
-    """Evaluate one rule against ``facts`` into a ``RuleEvaluation``.
-
-    Not-applicable rules short-circuit to NOT_APPLICABLE (excluded from
-    scoring). A check that raises yields ERROR (preserved, zero credit). Never
-    raises.
-    """
+    """Evaluate one rule; preserve check failures as explicit ERROR outcomes."""
     base: dict[str, Any] = dict(
         rule_id=rule.rule_id,
         rule_version=rule.rule_version,
@@ -735,17 +730,28 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
         category=rule.category,
         severity=rule.severity,
         finding_class=rule.finding_class,
+        scope=rule.scope,
         weight=_weight_for(rule, facts),
         description=rule.description,
         remediation=rule.remediation,
     )
     applicable, skip_reason = applicability(rule, facts)
     if not applicable:
+        evidence = {"reason": skip_reason or "unknown_applicability"}
+        outcome, reason = _normalized_outcome(
+            rule, RULE_OUTCOME_NOT_APPLICABLE, evidence
+        )
+        metadata = (
+            _measurement_metadata(rule, facts)
+            if outcome != RULE_OUTCOME_NOT_APPLICABLE
+            else {}
+        )
         return RuleEvaluation(
-            outcome=RULE_OUTCOME_NOT_APPLICABLE,
-            evidence={"reason": skip_reason or "not_applicable"},
-            display_applicability=False,
-            reason_code=skip_reason or "not_applicable",
+            outcome=outcome,
+            evidence=evidence,
+            display_applicability=outcome != RULE_OUTCOME_NOT_APPLICABLE,
+            reason_code=reason,
+            **metadata,
             **base,
         )
     check = _CHECKS.get(rule.rule_id)
@@ -755,23 +761,19 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
             outcome=RULE_OUTCOME_ERROR,
             evidence={"error": reason},
             reason_code=reason,
-            **_measurement_metadata(rule, facts, RULE_OUTCOME_ERROR, reason),
+            **_measurement_metadata(rule, facts),
             **base,
         )
     try:
         outcome, evidence = check(facts)
-    # The one blind catch this package keeps, because it does not swallow:
-    # ANY failure of a rule check becomes an explicit RULE_OUTCOME_ERROR
-    # carrying the exception type, which invariant 7 keeps distinct from a
-    # pass, a fail, and a not-applicable. Narrowing it would let an
-    # unanticipated defect crash the whole page evaluation instead.
+    # Preserve unexpected check failures as evidence instead of aborting the page.
     except Exception as exc:  # noqa: BLE001
         reason = "check_error"
         return RuleEvaluation(
             outcome=RULE_OUTCOME_ERROR,
             evidence={"error": f"{type(exc).__name__}: {exc}"[:512]},
             reason_code=reason,
-            **_measurement_metadata(rule, facts, RULE_OUTCOME_ERROR, reason),
+            **_measurement_metadata(rule, facts),
             **base,
         )
     outcome, reason = _normalized_outcome(rule, outcome, evidence)
@@ -780,7 +782,7 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
         evidence=evidence,
         display_applicability=True,
         reason_code=reason,
-        **_measurement_metadata(rule, facts, outcome, reason),
+        **_measurement_metadata(rule, facts),
         **base,
     )
 

@@ -130,11 +130,18 @@ def _has_reviews(facts: dict[str, Any]) -> bool:
 
 
 def _has_variants(facts: dict[str, Any]) -> bool:
-    entity_product = _mapping(_mapping(facts.get("entity")).get("product"))
-    if entity_product.get("has_variant_control"):
-        return True
-    product = _mapping(_mapping(facts.get("structured_data")).get("product"))
-    return bool(_sequence(product.get("variants")))
+    """Identify a variant-selection context without reading variant evidence.
+
+    The product-answer atom validates a real selector or Product variant
+    declaration. Its applicability instead comes from the visible choice a
+    reader is offered, persisted independently in ``form_fields``.
+    """
+    fields = {str(field).casefold() for field in _sequence(facts.get("form_fields"))}
+    return any(
+        token in field
+        for field in fields
+        for token in _config.PAGE_TRAIT_VARIANT_FORM_FIELDS
+    )
 
 
 def _listing(facts: dict[str, Any]) -> bool:
@@ -150,15 +157,19 @@ def _local_intent(facts: dict[str, Any]) -> bool:
     return bool(location.get("has_phone") or location.get("has_hours"))
 
 
+def has_contact_form_fields(facts: dict[str, Any]) -> bool:
+    raw_fields = _sequence(facts.get("form_fields"))
+    fields = {str(field).strip().lower() for field in raw_fields}
+    tokens = {token for field in fields for token in field.split()}
+    return bool(tokens & _config.PAGE_TRAIT_CONTACT_FORM_FIELDS)
+
+
 def _contact_intent(final_url: str, facts: dict[str, Any]) -> bool:
     # An authored mailto:/tel: is proof on its own -- the page hands the
     # reader a way to make contact, whatever it calls itself.
     if _sequence(facts.get("contact_points")):
         return True
-    raw_fields = _sequence(facts.get("form_fields"))
-    fields = {str(field).strip().lower() for field in raw_fields}
-    tokens = {token for field in fields for token in field.split()}
-    if tokens & _config.PAGE_TRAIT_CONTACT_FORM_FIELDS:
+    if has_contact_form_fields(facts):
         return True
     return _intent(_config.PAGE_TRAIT_CONTACT_INTENT, final_url, facts)
 

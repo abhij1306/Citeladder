@@ -267,11 +267,7 @@ RULE_DIMENSIONS: Final[frozenset[str]] = frozenset({DIMENSION_TECHNICAL, DIMENSI
 
 RULE_OUTCOME_SATISFIED: Final = "satisfied"
 
-RULE_OUTCOME_PASS: Final = RULE_OUTCOME_SATISFIED
-
 RULE_OUTCOME_MISSING: Final = "missing"
-
-RULE_OUTCOME_FAIL: Final = RULE_OUTCOME_MISSING
 
 RULE_OUTCOME_PARTIAL: Final = "partial"
 
@@ -289,15 +285,15 @@ RULE_OUTCOME_ERROR: Final = "error"
 
 RULE_FAILING_OUTCOMES: Final[frozenset[str]] = frozenset(
     {
-        RULE_OUTCOME_FAIL,
+        RULE_OUTCOME_MISSING,
         RULE_OUTCOME_PARTIAL,
     }
 )
 
 RULE_OUTCOMES: Final[frozenset[str]] = frozenset(
     {
-        RULE_OUTCOME_PASS,
-        RULE_OUTCOME_FAIL,
+        RULE_OUTCOME_SATISFIED,
+        RULE_OUTCOME_MISSING,
         RULE_OUTCOME_PARTIAL,
         RULE_OUTCOME_UNKNOWN,
         RULE_OUTCOME_UNAVAILABLE,
@@ -362,7 +358,6 @@ APPLICABILITY_OBSERVED_CONTENT: Final = "observed_content"
 # never be converted into a defect.
 SKIP_REASON_INSUFFICIENT_EVIDENCE: Final = "insufficient_evidence"
 
-SKIP_REASON_LOW_CONFIDENCE_KIND: Final = "low_confidence_kind"
 
 CODE_MONITORING_NOT_ALLOWED: Final = "monitoring_not_allowed"
 
@@ -372,17 +367,7 @@ CODE_STALE_SELECTION_VERSION: Final = "stale_selection_version"
 
 CODE_CRAWL_ALREADY_ACTIVE: Final = "crawl_already_active"
 
-CODE_DISCOVERY_LIMIT_EXCEEDED: Final = "site_health_discovery_limit_exceeded"
-
-CODE_ANALYSIS_LIMIT_EXCEEDED: Final = "site_health_analysis_limit_exceeded"
-
-CODE_PHASE_ALREADY_RUNNING: Final = "site_health_phase_already_running"
-
-CODE_PHASE_NOT_RESUMABLE: Final = "site_health_phase_not_resumable"
-
 CODE_ADVANCED_CONTROLS_UNAVAILABLE: Final = "advanced_controls_unavailable"
-
-CANCELLED_DISCOVERY_TASK_CLONE_LIMIT: Final = 32
 
 EVENT_CRAWL_CREATED: Final = "crawl.created"
 

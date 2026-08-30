@@ -118,7 +118,6 @@ from app.models.site_health.analysis import (
 from app.models.site_health.architecture import SiteObservedArchitecture
 from app.models.site_health.crawl import (
     SiteCrawl,
-    SiteCrawlPhaseRun,
     SiteDiscoveryFrontier,
 )
 from app.models.site_health.events import SiteCrawlEvent
@@ -218,7 +217,6 @@ __all__ = [
     "SiteChangeSnapshot",
     "SiteCrawl",
     "SiteCrawlEvent",
-    "SiteCrawlPhaseRun",
     "SiteCrawlTask",
     "SiteDiscoveryFrontier",
     "SiteFetchArtifact",

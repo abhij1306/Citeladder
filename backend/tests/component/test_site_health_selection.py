@@ -31,7 +31,6 @@ from app.core.config.site_health_contracts import (
     TASK_KIND_SITE_SETUP,
 )
 from app.core.config.site_health_crawl_policy import (
-    AUTOMATIC_MONITOR_LIMIT_KEY,
     CORPUS_DISPOSITION_INVENTORY_ONLY,
     INVENTORY_SOURCE_CRAWL_IDS_KEY,
     SELECTION_SOURCE_FREE_SAMPLE,
@@ -778,7 +777,7 @@ async def test_create_recrawl_freezes_prior_inventory_lineage(
 
 
 @pytest.mark.asyncio
-async def test_create_recrawl_does_not_conflict_with_parked_paused_crawl(
+async def test_paused_crawl_still_blocks_a_second_active_crawl(
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -791,41 +790,25 @@ async def test_create_recrawl_does_not_conflict_with_parked_paused_crawl(
     async with session_factory() as session:
         seed = await _seed_workspace(session, projects=[{"name": "a", "url_count": 1}])
         proj = seed.projects[0]
-        paused = SiteCrawl(
-            workspace_id=seed.workspace_id,
-            project_id=proj.project_id,
-            profile_id=proj.profile_id,
-            status=CRAWL_STATUS_PAUSED,
-            root_url="https://example.com/",
-            random_seed="1",
-        )
-        session.add(paused)
-        await session.commit()
-        paused_id = paused.id
-
-    async with session_factory() as session:
-        recrawl = await create_crawl(
-            session,
-            workspace_id=seed.workspace_id,
-            project_id=proj.project_id,
-        )
-
-    assert recrawl.id != paused_id
-    assert recrawl.status in CRAWL_ACTIVE_STATUSES
-    assert recrawl.configuration is not None
-    assert (
-        recrawl.discovery_requested_count == site_health_settings.automatic_page_limit
-    )
-    assert recrawl.configuration[AUTOMATIC_MONITOR_LIMIT_KEY] == 50
-    async with session_factory() as session:
-        root_analysis = await session.scalar(
-            select(SiteCrawlTask).where(
-                SiteCrawlTask.crawl_id == recrawl.id,
-                SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
-                SiteCrawlTask.requested_url == "https://example.com/",
+        session.add(
+            SiteCrawl(
+                workspace_id=seed.workspace_id,
+                project_id=proj.project_id,
+                profile_id=proj.profile_id,
+                status=CRAWL_STATUS_PAUSED,
+                root_url="https://example.com/",
+                random_seed="1",
             )
         )
-    assert root_analysis is not None
+        await session.commit()
+
+    async with session_factory() as session:
+        with pytest.raises(CrawlAlreadyActiveError):
+            await create_crawl(
+                session,
+                workspace_id=seed.workspace_id,
+                project_id=proj.project_id,
+            )
 
 
 @pytest.mark.asyncio

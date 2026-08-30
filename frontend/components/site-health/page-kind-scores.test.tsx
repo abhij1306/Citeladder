@@ -34,7 +34,6 @@ function dashboard(scoreSummary: SiteScoreSummary | null): SiteHealthDashboard {
     snapshot_id: null,
     quota: { used: 4, limit: 50 },
     root_errors: [],
-    phase_runs: { discovery: null, analysis: null },
   };
 }
 
@@ -194,7 +193,7 @@ describe('PageKindScores', () => {
     expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
   });
 
-  it('preserves limited and excluded measurement states', () => {
+  it('shows a non-null limited score with subordinate coverage and preserves excluded state', () => {
     render(
       <PageKindScores
         crawl={null}
@@ -203,7 +202,7 @@ describe('PageKindScores', () => {
             by_page_kind: {
               docs: {
                 analyzed_count: 2,
-                technical_integrity_score: null,
+                technical_integrity_score: 46,
                 technical_integrity_coverage: 0.5,
                 technical_integrity_state: 'limited_evidence',
                 aeo_readiness_score: null,
@@ -216,7 +215,8 @@ describe('PageKindScores', () => {
       />,
     );
 
-    expect(screen.getByText('Limited evidence')).toBeInTheDocument();
+    expect(screen.getByText('46')).toBeInTheDocument();
+    expect(screen.getByText('50% measured · Moderate confidence')).toBeInTheDocument();
     expect(screen.getByText('Excluded')).toBeInTheDocument();
   });
 

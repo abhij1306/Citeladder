@@ -16,6 +16,8 @@ from app.core.config.site_health_contracts import (
 )
 from app.core.config.site_health_rule_types import (
     FINDING_CLASS_DIAGNOSTIC,
+    RULE_SCOPE_SITE,
+    SCORE_ROLE_AEO,
     SiteHealthRule,
 )
 
@@ -30,6 +32,7 @@ SEARCH_ACCESS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         severity=SEVERITY_HIGH,
         weight=0.0,
         applicability_key=APPLICABILITY_SITE_ROOT,
+        scope=RULE_SCOPE_SITE,
         description="robots.txt records the configured AI-agent role stances.",
         remediation=(
             "Review search/citation, training, and user-triggered agent policy "
@@ -46,12 +49,17 @@ SEARCH_ACCESS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         severity=SEVERITY_HIGH,
         weight=1.0,
         applicability_key=APPLICABILITY_SITE_ROOT,
+        scope=RULE_SCOPE_SITE,
         description="robots.txt permits configured search and citation crawlers.",
         remediation=(
             "Allow the search and citation crawler roles you expect to surface "
             "the site; manage training and user-triggered agents separately."
         ),
         display_label="Search or citation crawlers blocked",
+        score_roles=(SCORE_ROLE_AEO,),
+        checkpoint_family="crawler_access",
+        readiness_dimension="crawlability",
+        readiness_weight=1.0,
     ),
     SiteHealthRule(
         rule_id="search.snippet_access",
@@ -67,6 +75,10 @@ SEARCH_ACCESS_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "should be eligible for search and answer citations."
         ),
         display_label="Search snippets blocked",
+        score_roles=(SCORE_ROLE_AEO,),
+        checkpoint_family="snippet_access",
+        readiness_dimension="crawlability",
+        readiness_weight=1.0,
     ),
     SiteHealthRule(
         rule_id="aeo.llms_txt_present",
@@ -76,6 +88,7 @@ SEARCH_ACCESS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         severity=SEVERITY_LOW,
         weight=0.0,
         applicability_key=APPLICABILITY_SITE_ROOT,
+        scope=RULE_SCOPE_SITE,
         description="Site serves an optional llms.txt discovery file at the root.",
         remediation="Publish /llms.txt only when it supports your chosen workflow.",
         display_label="Optional llms.txt not present",

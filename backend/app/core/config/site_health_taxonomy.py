@@ -130,9 +130,9 @@ PAGE_KIND_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
     (PAGE_KIND_PRICING, r"^/(?:[^/]+/)*?(pricing|plans)(/|$)"),
     (
         PAGE_KIND_DOCS,
-        r"^/(?:[^/]+/)*?(docs|documentation|reference|api)(/|$)",
+        r"^/(?:[^/]+/)*?(docs|documentation|reference|api|help|support)(/|$)",
     ),
-    (PAGE_KIND_FAQ, r"^/(?:[^/]+/)*?(faqs?|help|support)(/|$)"),
+    (PAGE_KIND_FAQ, r"^/(?:[^/]+/)*?faqs?(/|$)"),
     (
         PAGE_KIND_ABOUT_CONTACT,
         r"^/(?:[^/]+/)*?(about|about-us|company|our-story|contact|contact-us|request-demo|book-demo)(/|$)",
@@ -653,7 +653,7 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
         # else is valid markup, so treating those two as REQUIRED reported a
         # correct block as a malformed one. They remain worth adding, which is
         # exactly what a recommendation says -- and the visible byline/date
-        # rules (``aeo.author_present`` / ``aeo.date_present``) already own the
+        # rules (``aeo.author_present`` / ``aeo.content_date_present``) own the
         # separate question of whether the page attributes itself at all.
         required_properties=("headline",),
         recommended_properties=("author", "datePublished", "image", "dateModified"),

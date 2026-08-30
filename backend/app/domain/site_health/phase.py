@@ -2,9 +2,9 @@
 #
 # This used to live in the browser (`frontend/lib/site-health/status.ts`) as a
 # 14-clause ordered precedence chain over six independently-loading inputs:
-# `crawl.status` (9 values), `discovery_status` (7), `analysis_status` (7),
-# the phase-run statuses, the resolved access mode, and whether the project had
-# a committed monitored set. Three of those arrived from three separate HTTP
+# `crawl.status`, `discovery_status`, `analysis_status`, the resolved access
+# mode, and whether the project had a committed monitored set. Three of those
+# arrived from three separate HTTP
 # requests, so the client resolved against whichever landed first and corrected
 # itself afterwards — which is what made the screen visibly flip between the URL
 # list and the analysis view. Each such incident added another clause.

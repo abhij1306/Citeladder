@@ -40,8 +40,6 @@ from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_PARTIALLY_COMPLETED,
     ANALYSIS_STATUS_PENDING,
     ANALYSIS_STATUS_RUNNING,
-    ANALYSIS_STATUS_STOPPED,
-    APPLICABILITY_CRAWL_FINALIZE,
     CRAWL_ACTIVE_STATUSES,
     CRAWL_PARTIAL_REASON_ANALYSIS,
     CRAWL_PARTIAL_REASON_BOTH,
@@ -58,7 +56,6 @@ from app.core.config.site_health_contracts import (
     DISCOVERY_STATUS_COMPLETED,
     DISCOVERY_STATUS_FAILED,
     DISCOVERY_STATUS_RUNNING,
-    DISCOVERY_STATUS_STOPPED,
     EVENT_CRAWL_COMPLETED,
     EVENT_CRAWL_FAILED,
     SITE_ACQUISITION_TASK_KINDS,
@@ -66,16 +63,6 @@ from app.core.config.site_health_contracts import (
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
     TASK_KIND_SITE_SETUP,
-)
-from app.core.config.site_health_crawl_policy import (
-    MANUAL_PHASE_LIFECYCLE_KEY,
-    PHASE_ANALYSIS,
-    PHASE_DISCOVERY,
-    PHASE_RUN_COMPLETED,
-    PHASE_RUN_RUNNING,
-)
-from app.core.config.site_health_rules import (
-    SITE_HEALTH_RULES_BY_ID,
 )
 from app.core.config.site_health_runtime import (
     site_health_settings,
@@ -89,6 +76,10 @@ from app.core.config.task_queue import (
 from app.domain.site_health.change_queue import enqueue_change_refresh
 from app.domain.site_health.failure import load_root_failure_summary
 from app.domain.site_health.link_queue import enqueue_link_metric_refresh
+from app.domain.site_health.score_summary import (
+    refresh_live_score_summary,
+    refresh_live_score_summary_for_crawl,
+)
 from app.domain.site_health.state_events import (
     apply_analysis_status,
     apply_crawl_status,
@@ -97,7 +88,7 @@ from app.domain.site_health.state_events import (
 )
 from app.domain.site_health.task_guards import crawl_is_active
 from app.domain.site_health.terminal_refresh import enqueue_terminal_analytics_refresh
-from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
+from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.urls import SiteUrlObservation
 from app.workers.site_health.lifecycle_finalize import (
@@ -251,50 +242,6 @@ def _advance_drained_crawl_to_running(crawl: SiteCrawl) -> None:
         apply_crawl_status(crawl, step)
 
 
-def _stop_drained_phases(crawl: SiteCrawl) -> None:
-    """Stop phase sub-states left RUNNING once every task has drained.
-
-    An advanced-control crawl is parked between user-started phases, so its
-    phases terminalize to STOPPED (resumable) rather than COMPLETED. Callers
-    must only reach this once no non-terminal task of any kind remains: a
-    RUNNING sub-state with no work behind it is not a live phase, it is a lie
-    the dashboard renders as an in-flight run.
-    """
-    if crawl.discovery_status == DISCOVERY_STATUS_RUNNING:
-        apply_discovery_status(crawl, DISCOVERY_STATUS_STOPPED)
-    if crawl.analysis_status == ANALYSIS_STATUS_RUNNING:
-        apply_analysis_status(crawl, ANALYSIS_STATUS_STOPPED)
-
-
-def _pause_running_crawl(crawl: SiteCrawl) -> None:
-    """Park a drained advanced-control crawl until another phase is started."""
-    if crawl.status == CRAWL_STATUS_RUNNING:
-        apply_crawl_status(crawl, CRAWL_STATUS_PAUSED)
-
-
-def _stop_completed_manual_phase(crawl: SiteCrawl, phase: str) -> None:
-    """Stop a drained user-controlled phase without parking sample crawls."""
-    if crawl.sample_mode:
-        return
-    if phase == PHASE_DISCOVERY and crawl.discovery_status == DISCOVERY_STATUS_RUNNING:
-        apply_discovery_status(crawl, DISCOVERY_STATUS_STOPPED)
-    elif phase == PHASE_ANALYSIS and crawl.analysis_status == ANALYSIS_STATUS_RUNNING:
-        apply_analysis_status(crawl, ANALYSIS_STATUS_STOPPED)
-
-
-def _uses_phase_lifecycle(crawl: SiteCrawl) -> bool:
-    """Whether persisted phase-run bookkeeping participates in reconciliation."""
-    return crawl.sample_mode or bool(
-        (crawl.configuration or {}).get(MANUAL_PHASE_LIFECYCLE_KEY)
-    )
-
-
-def _is_crawl_finalize_rule(rule_id: str) -> bool:
-    """Whether a catalog rule is scoped ``crawl_finalize`` (finalize-owned)."""
-    rule = SITE_HEALTH_RULES_BY_ID.get(rule_id)
-    return rule is not None and rule.applicability_key == APPLICABILITY_CRAWL_FINALIZE
-
-
 class CrawlLifecycle(CrawlFinalizeMixin):
     """Owns crawl status reconciliation, the finalize pass, and the snapshot."""
 
@@ -320,7 +267,14 @@ class CrawlLifecycle(CrawlFinalizeMixin):
             task_id=task.id,
             workspace_id=task.workspace_id,
         )
-        if can_skip is None or can_skip:
+        if can_skip is None:
+            return
+        if can_skip:
+            await refresh_live_score_summary_for_crawl(
+                self._session_factory,
+                crawl_id=task.crawl_id,
+                workspace_id=task.workspace_id,
+            )
             return
         await self.reconcile(task.crawl_id)
 
@@ -359,8 +313,6 @@ class CrawlLifecycle(CrawlFinalizeMixin):
                         SiteCrawlTask.result_artifact_id.label("artifact_id"),
                         SiteCrawl.status.label("crawl_status"),
                         SiteCrawl.analysis_status.label("analysis_status"),
-                        SiteCrawl.sample_mode.label("sample_mode"),
-                        SiteCrawl.configuration.label("crawl_configuration"),
                         has_outstanding_work.label("has_outstanding_work"),
                     )
                     .join(SiteCrawl, SiteCrawl.id == SiteCrawlTask.crawl_id)
@@ -374,17 +326,12 @@ class CrawlLifecycle(CrawlFinalizeMixin):
             ).one_or_none()
         if row is None:
             return None
-        configuration = (
-            row.crawl_configuration if isinstance(row.crawl_configuration, dict) else {}
-        )
         return bool(
             row.task_kind == TASK_KIND_ANALYZE
             and row.task_status == TASK_STATUS_SUCCEEDED
             and row.artifact_id is not None
             and row.crawl_status == CRAWL_STATUS_RUNNING
             and row.analysis_status == ANALYSIS_STATUS_RUNNING
-            and not row.sample_mode
-            and not configuration.get(MANUAL_PHASE_LIFECYCLE_KEY)
             and row.has_outstanding_work
         )
 
@@ -423,12 +370,6 @@ class CrawlLifecycle(CrawlFinalizeMixin):
             summary = _TaskSummary.from_counts(counts)
             await self._refresh_derived_counters(session, crawl=crawl, summary=summary)
 
-            if await self._reconcile_advanced_phase_runs(
-                session, crawl=crawl, counts=counts
-            ):
-                await session.commit()
-                return
-
             fully_failed, discovery_partial = _reconcile_discovery_state(crawl, summary)
             _start_planned_analysis(crawl, analyze_total=summary.analyze_total)
             # Discovery can still admit fresh analyze tasks, so analysis is
@@ -438,6 +379,7 @@ class CrawlLifecycle(CrawlFinalizeMixin):
                     crawl, summary=summary, fully_failed=fully_failed
                 )
             if not summary.all_drained:
+                await refresh_live_score_summary(session, crawl=crawl)
                 await session.commit()
                 return
 
@@ -541,101 +483,6 @@ class CrawlLifecycle(CrawlFinalizeMixin):
             await enqueue_terminal_analytics_refresh(
                 session, crawl=crawl, change_snapshot_id=None
             )
-
-    async def _reconcile_advanced_phase_runs(
-        self,
-        session: AsyncSession,
-        *,
-        crawl: SiteCrawl,
-        counts: dict[str, int],
-    ) -> bool:
-        if not _uses_phase_lifecycle(crawl):
-            return False
-        phase_runs = list(
-            (
-                await session.scalars(
-                    select(SiteCrawlPhaseRun)
-                    .where(
-                        SiteCrawlPhaseRun.crawl_id == crawl.id,
-                        SiteCrawlPhaseRun.status == PHASE_RUN_RUNNING,
-                    )
-                    .order_by(SiteCrawlPhaseRun.ordinal.desc())
-                    .with_for_update()
-                )
-            ).all()
-        )
-        for phase_run in phase_runs:
-            if phase_run.phase == PHASE_DISCOVERY:
-                phase_run.processed_count = int(
-                    await session.scalar(
-                        select(func.count())
-                        .select_from(SiteUrlObservation)
-                        .where(
-                            SiteUrlObservation.crawl_id == crawl.id,
-                            SiteUrlObservation.phase_run_id == phase_run.id,
-                        )
-                    )
-                    or 0
-                )
-                drained = counts["discover_non_terminal"] == 0
-            else:
-                phase_run.processed_count = int(
-                    await session.scalar(
-                        select(func.count())
-                        .select_from(SiteCrawlTask)
-                        .where(
-                            SiteCrawlTask.phase_run_id == phase_run.id,
-                            SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
-                            SiteCrawlTask.status.in_(
-                                [TASK_STATUS_SUCCEEDED, TASK_STATUS_FAILED]
-                            ),
-                        )
-                    )
-                    or 0
-                )
-                remaining_phase_tasks = await session.scalar(
-                    select(func.count())
-                    .select_from(SiteCrawlTask)
-                    .where(
-                        SiteCrawlTask.phase_run_id == phase_run.id,
-                        SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
-                        SiteCrawlTask.status.not_in(list(TASK_TERMINAL_STATUSES)),
-                    )
-                )
-                drained = int(remaining_phase_tasks or 0) == 0
-            if drained:
-                phase_run.status = PHASE_RUN_COMPLETED
-                phase_run.completed_at = _utcnow()
-                _stop_completed_manual_phase(crawl, phase_run.phase)
-
-        outstanding = sum(
-            counts[key]
-            for key in (
-                "discover_non_terminal",
-                "analyze_non_terminal",
-            )
-        )
-        if outstanding:
-            return False
-        # Sample crawls are an automatic bounded run, even when the local
-        # development controls are enabled. Their initial discovery phase-run
-        # is bookkeeping for progress; it must not turn a fully successful
-        # sample into PAUSED/STOPPED before the normal lifecycle persists its
-        # snapshot and completed event. Manual full-inventory phase batches
-        # still park below so the user can explicitly continue them.
-        if crawl.sample_mode:
-            return False
-        # The loop above only sees phase runs still marked RUNNING. Once an
-        # earlier reconcile completed them, a later drained reconcile finds no
-        # rows, skips the loop, and used to park the crawl PAUSED with the phase
-        # sub-states left exactly as they were — so a crawl whose work had fully
-        # drained kept reporting ``analysis_status=running`` forever, and the UI
-        # kept rendering a live run with no non-terminal task behind it. The
-        # phase sub-states are derived from the drained task counts, not from
-        # the presence of a RUNNING phase-run row.
-        _stop_drained_phases(crawl)
-        _pause_running_crawl(crawl)
-        return True
 
     async def reconcile_stalled(self) -> int:
         """Force-reconcile active crawls that have no outstanding work left.

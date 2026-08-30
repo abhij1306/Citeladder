@@ -588,6 +588,7 @@ def _empty_facts() -> dict[str, Any]:
             "category_links": [],
             "category_role": "unknown",
             "visible_price": "",
+            "visible_availability": "",
         },
     }
 

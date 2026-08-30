@@ -30,7 +30,6 @@ from app.core.database import Base
 from .common import (
     _FK_PROJECT,
     _FK_SITE_CRAWL,
-    _FK_SITE_CRAWL_PHASE_RUN,
     _FK_SITE_FETCH_ARTIFACT,
     _FK_SITE_HEALTH_PROFILE,
     _FK_SITE_URL,
@@ -196,12 +195,6 @@ class SiteUrlObservation(Base):
         PGUUID(as_uuid=True),
         ForeignKey(_FK_SITE_FETCH_ARTIFACT, ondelete=_ON_DELETE_SET_NULL),
         nullable=True,
-    )
-    phase_run_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_SITE_CRAWL_PHASE_RUN, ondelete=_ON_DELETE_SET_NULL),
-        nullable=True,
-        index=True,
     )
     value_kind: Mapped[str] = mapped_column(String(32), default="other")
     value_priority: Mapped[int] = mapped_column(Integer, default=0)

@@ -190,6 +190,10 @@ class SiteRuleEvaluation(Base):
             "'unavailable', 'conflicting', 'error', 'not_applicable', 'excluded')",
             name="ck_site_rule_evaluations_outcome",
         ),
+        CheckConstraint(
+            "scope IN ('page', 'site', 'cluster', 'graph')",
+            name="ck_site_rule_evaluations_scope",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -221,6 +225,7 @@ class SiteRuleEvaluation(Base):
     category: Mapped[str] = mapped_column(String(32), default="")
     severity: Mapped[str] = mapped_column(String(16), default="")
     finding_class: Mapped[str] = mapped_column(String(16), default="defect")
+    scope: Mapped[str] = mapped_column(String(16), default="page")
     weight: Mapped[float] = mapped_column(Float, default=0.0)
     outcome: Mapped[str] = mapped_column(String(16), default="")
     display_applicability: Mapped[bool] = mapped_column(Boolean, default=True)

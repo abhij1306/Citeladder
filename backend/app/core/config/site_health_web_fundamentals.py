@@ -12,7 +12,7 @@ from app.core.config.site_health_contracts import (
     SEVERITY_HIGH,
     SEVERITY_MEDIUM,
 )
-from app.core.config.site_health_rule_types import SiteHealthRule
+from app.core.config.site_health_rule_types import SCORE_ROLE_TECHNICAL, SiteHealthRule
 
 WEB_FUNDAMENTALS_RULES: Final[tuple[SiteHealthRule, ...]] = (
     SiteHealthRule(
@@ -21,11 +21,12 @@ WEB_FUNDAMENTALS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         dimension=DIMENSION_TECHNICAL,
         category=CATEGORY_CONTENT,
         severity=SEVERITY_MEDIUM,
-        weight=0.0,
+        weight=2.0,
         applicability_key="has_html",
         description="Informative images declare alternative text.",
         remediation='Add alt text to informative images; use alt="" for decoration.',
         display_label="Images missing alt attributes",
+        score_roles=(SCORE_ROLE_TECHNICAL,),
         web_fundamentals_area="accessibility",
     ),
     SiteHealthRule(
@@ -34,11 +35,12 @@ WEB_FUNDAMENTALS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         dimension=DIMENSION_TECHNICAL,
         category=CATEGORY_CONTENT,
         severity=SEVERITY_HIGH,
-        weight=0.0,
+        weight=3.0,
         applicability_key="has_html",
         description="Form controls have a deterministic accessible name.",
         remediation="Associate each form control with a label or ARIA name.",
         display_label="Form controls missing accessible names",
+        score_roles=(SCORE_ROLE_TECHNICAL,),
         web_fundamentals_area="accessibility",
     ),
     SiteHealthRule(
@@ -47,11 +49,12 @@ WEB_FUNDAMENTALS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         dimension=DIMENSION_TECHNICAL,
         category=CATEGORY_CONTENT,
         severity=SEVERITY_MEDIUM,
-        weight=0.0,
+        weight=2.0,
         applicability_key="has_html",
         description="Heading levels form a coherent document outline.",
         remediation="Do not skip heading levels when structuring page sections.",
         display_label="Heading levels are skipped",
+        score_roles=(SCORE_ROLE_TECHNICAL,),
         web_fundamentals_area="accessibility",
     ),
     SiteHealthRule(
@@ -60,11 +63,12 @@ WEB_FUNDAMENTALS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         dimension=DIMENSION_TECHNICAL,
         category=CATEGORY_CONTENT,
         severity=SEVERITY_MEDIUM,
-        weight=0.0,
+        weight=2.0,
         applicability_key="has_html",
         description="The HTML document declares its language.",
         remediation="Set a valid lang attribute on the html element.",
         display_label="Document language missing",
+        score_roles=(SCORE_ROLE_TECHNICAL,),
         web_fundamentals_area="accessibility",
     ),
     SiteHealthRule(
@@ -73,11 +77,12 @@ WEB_FUNDAMENTALS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         dimension=DIMENSION_TECHNICAL,
         category=CATEGORY_CONTENT,
         severity=SEVERITY_HIGH,
-        weight=0.0,
+        weight=3.0,
         applicability_key="has_html",
         description="The document declares a mobile viewport.",
         remediation="Add a responsive viewport meta declaration.",
         display_label="Mobile viewport missing",
+        score_roles=(SCORE_ROLE_TECHNICAL,),
         web_fundamentals_area="mobile",
     ),
     SiteHealthRule(
@@ -86,11 +91,12 @@ WEB_FUNDAMENTALS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         dimension=DIMENSION_TECHNICAL,
         category=CATEGORY_SECURITY,
         severity=SEVERITY_HIGH,
-        weight=0.0,
+        weight=3.0,
         applicability_key="has_html",
         description="HTTPS pages do not reference absolute HTTP assets.",
         remediation="Serve every page asset over HTTPS.",
         display_label="Mixed-content assets found",
+        score_roles=(SCORE_ROLE_TECHNICAL,),
         web_fundamentals_area="security",
     ),
 )

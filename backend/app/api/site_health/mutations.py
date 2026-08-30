@@ -1,28 +1,20 @@
-"""Site Health entitlement, crawl, phase-control, inventory, and selection routes.
+"""Site Health entitlement, crawl, inventory, and selection routes.
 
 Every route is workspace-authorized through ``_WorkspaceDep``. Coded planner,
-phase-control, and selection failures are mapped here onto their stable HTTP
+planner and selection failures are mapped here onto their stable HTTP
 statuses and bodies by the module-local ``_*_error_response`` helpers.
 """
 
 from __future__ import annotations
 
 import uuid
-from typing import Annotated, Literal
+from typing import Annotated
 
 from fastapi import Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.usage_limits import enforce_workspace_request
 from app.core.config.abuse import abuse_settings
-from app.core.config.site_health_contracts import (
-    CODE_ADVANCED_CONTROLS_UNAVAILABLE,
-    CODE_ANALYSIS_LIMIT_EXCEEDED,
-    CODE_CRAWL_ALREADY_ACTIVE,
-    CODE_DISCOVERY_LIMIT_EXCEEDED,
-    CODE_PHASE_ALREADY_RUNNING,
-    CODE_PHASE_NOT_RESUMABLE,
-)
+from app.core.config.site_health_contracts import CODE_CRAWL_ALREADY_ACTIVE
 from app.core.errors import ApiException
 from app.domain.site_health import service
 from app.domain.site_health.api_schemas import (
@@ -32,25 +24,10 @@ from app.domain.site_health.api_schemas import (
     CreateCrawlRequest,
     InventoryPage,
     MonitoredUrlsResponse,
-    PhaseMutationResponse,
     ReplaceMonitoredRequest,
     SiteHealthEntitlementResponse,
-    StartAnalysisRequest,
-    StartDiscoveryRequest,
     UrlPreviewRequest,
     UrlPreviewResponse,
-)
-from app.domain.site_health.phase_analysis import (
-    start_analysis,
-    stop_analysis,
-)
-from app.domain.site_health.phase_common import (
-    PhaseControlError,
-    PhaseMutationResult,
-)
-from app.domain.site_health.phase_control import (
-    start_discovery,
-    stop_discovery,
 )
 from app.domain.site_health.planner import (
     CrawlAlreadyActiveError,
@@ -69,7 +46,6 @@ from app.domain.site_health.selection import (
 from app.domain.site_health.service import (
     InvalidCursorError,
     SiteHealthNotFoundError,
-    project_phase_run,
 )
 
 from .common import _bad_cursor, _not_found, _SessionDep, _WorkspaceDep, router
@@ -104,84 +80,6 @@ def _selection_error_response(exc: Exception) -> ApiException:
     # SelectionValidationError (and any other coded selection error) -> 422.
     code = getattr(exc, "code", "invalid_selection")
     return ApiException.coded(status.HTTP_422_UNPROCESSABLE_CONTENT, code, str(exc))
-
-
-def _phase_error_response(exc: PhaseControlError) -> ApiException:
-    if exc.code == "not_found":
-        return _not_found(str(exc))
-    if exc.code in {
-        CODE_PHASE_ALREADY_RUNNING,
-        CODE_PHASE_NOT_RESUMABLE,
-        "stale_selection_version",
-    }:
-        return ApiException.coded(status.HTTP_409_CONFLICT, exc.code, str(exc))
-    if exc.code == "site_health_quota_exceeded":
-        return ApiException.coded(status.HTTP_403_FORBIDDEN, exc.code, str(exc))
-    if exc.code in {CODE_DISCOVERY_LIMIT_EXCEEDED, CODE_ANALYSIS_LIMIT_EXCEEDED}:
-        return ApiException.coded(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, exc.code, str(exc)
-        )
-    return ApiException.coded(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.code, str(exc))
-
-
-async def _phase_mutation_view(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    result: PhaseMutationResult,
-) -> dict:
-    try:
-        dashboard = await service.get_dashboard(
-            session,
-            workspace_id=workspace_id,
-            project_id=result.crawl.project_id,
-            crawl_id=result.crawl.id,
-        )
-    except SiteHealthNotFoundError as exc:
-        raise _not_found(str(exc)) from exc
-    run = result.phase_run
-    return {
-        "crawl": dashboard["crawl"],
-        "phase_run": (project_phase_run(run) if run is not None else None),
-        "created_new_crawl": result.created_new_crawl,
-        "selection_version": result.selection_version,
-        "scheduled_count": result.scheduled_count,
-    }
-
-
-async def _require_advanced_controls(
-    session: AsyncSession, *, workspace_id: uuid.UUID
-) -> None:
-    entitlement = await service.get_entitlement_view(session, workspace_id=workspace_id)
-    if not entitlement["advanced_controls_enabled"]:
-        raise ApiException.coded(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            CODE_ADVANCED_CONTROLS_UNAVAILABLE,
-            "Advanced Site Health controls are unavailable",
-        )
-
-
-async def _enforce_phase_mutation_request(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    phase: Literal["discovery", "analysis"],
-) -> None:
-    if phase == "discovery":
-        operation = "site_health.discovery_phase_mutation"
-        limit = abuse_settings.discovery_phase_mutation_limit
-        window_seconds = abuse_settings.discovery_phase_mutation_window_seconds
-    else:
-        operation = "site_health.analysis_phase_mutation"
-        limit = abuse_settings.analysis_phase_mutation_limit
-        window_seconds = abuse_settings.analysis_phase_mutation_window_seconds
-    await enforce_workspace_request(
-        session,
-        workspace_id=workspace_id,
-        operation=operation,
-        limit=limit,
-        window_seconds=window_seconds,
-    )
 
 
 def _crawl_requested_page_limit(payload: CreateCrawlRequest) -> int | None:
@@ -239,124 +137,6 @@ async def create_crawl_endpoint(
             status.HTTP_422_UNPROCESSABLE_CONTENT, exc.code, str(exc)
         ) from exc
     return CrawlResponse.model_validate(service.project_crawl(crawl))
-
-
-@router.post(
-    "/site-crawls/{crawl_id}/discovery/start",
-    response_model=PhaseMutationResponse,
-)
-async def start_discovery_endpoint(
-    crawl_id: uuid.UUID,
-    payload: StartDiscoveryRequest,
-    ctx: _WorkspaceDep,
-    session: _SessionDep,
-) -> PhaseMutationResponse:
-    await _require_advanced_controls(session, workspace_id=ctx.workspace_id)
-    await _enforce_phase_mutation_request(
-        session,
-        workspace_id=ctx.workspace_id,
-        phase="discovery",
-    )
-    try:
-        result = await start_discovery(
-            session,
-            workspace_id=ctx.workspace_id,
-            crawl_id=crawl_id,
-            additional_url_count=payload.additional_url_count,
-        )
-    except PhaseControlError as exc:
-        raise _phase_error_response(exc) from exc
-    return PhaseMutationResponse.model_validate(
-        await _phase_mutation_view(
-            session, workspace_id=ctx.workspace_id, result=result
-        )
-    )
-
-
-@router.post(
-    "/site-crawls/{crawl_id}/discovery/stop",
-    response_model=PhaseMutationResponse,
-)
-async def stop_discovery_endpoint(
-    crawl_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
-) -> PhaseMutationResponse:
-    await _require_advanced_controls(session, workspace_id=ctx.workspace_id)
-    await _enforce_phase_mutation_request(
-        session,
-        workspace_id=ctx.workspace_id,
-        phase="discovery",
-    )
-    try:
-        result = await stop_discovery(
-            session, workspace_id=ctx.workspace_id, crawl_id=crawl_id
-        )
-    except PhaseControlError as exc:
-        raise _phase_error_response(exc) from exc
-    return PhaseMutationResponse.model_validate(
-        await _phase_mutation_view(
-            session, workspace_id=ctx.workspace_id, result=result
-        )
-    )
-
-
-@router.post(
-    "/site-crawls/{crawl_id}/analysis/start",
-    response_model=PhaseMutationResponse,
-)
-async def start_analysis_endpoint(
-    crawl_id: uuid.UUID,
-    payload: StartAnalysisRequest,
-    ctx: _WorkspaceDep,
-    session: _SessionDep,
-) -> PhaseMutationResponse:
-    await _require_advanced_controls(session, workspace_id=ctx.workspace_id)
-    await _enforce_phase_mutation_request(
-        session,
-        workspace_id=ctx.workspace_id,
-        phase="analysis",
-    )
-    try:
-        result = await start_analysis(
-            session,
-            workspace_id=ctx.workspace_id,
-            crawl_id=crawl_id,
-            requested_url_count=payload.requested_url_count,
-            site_url_ids=payload.site_url_ids,
-            expected_selection_version=payload.expected_selection_version,
-        )
-    except PhaseControlError as exc:
-        raise _phase_error_response(exc) from exc
-    return PhaseMutationResponse.model_validate(
-        await _phase_mutation_view(
-            session, workspace_id=ctx.workspace_id, result=result
-        )
-    )
-
-
-@router.post(
-    "/site-crawls/{crawl_id}/analysis/stop",
-    response_model=PhaseMutationResponse,
-)
-async def stop_analysis_endpoint(
-    crawl_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
-) -> PhaseMutationResponse:
-    await _require_advanced_controls(session, workspace_id=ctx.workspace_id)
-    await _enforce_phase_mutation_request(
-        session,
-        workspace_id=ctx.workspace_id,
-        phase="analysis",
-    )
-    try:
-        result = await stop_analysis(
-            session, workspace_id=ctx.workspace_id, crawl_id=crawl_id
-        )
-    except PhaseControlError as exc:
-        raise _phase_error_response(exc) from exc
-    return PhaseMutationResponse.model_validate(
-        await _phase_mutation_view(
-            session, workspace_id=ctx.workspace_id, result=result
-        )
-    )
 
 
 @router.post("/site-crawls/url-preview", response_model=UrlPreviewResponse)

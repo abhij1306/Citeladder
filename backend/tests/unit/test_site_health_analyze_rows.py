@@ -8,7 +8,10 @@ from typing import Any, cast
 
 import pytest
 
-from app.core.config.site_health_contracts import RULE_OUTCOME_FAIL, RULE_OUTCOME_PASS
+from app.core.config.site_health_contracts import (
+    RULE_OUTCOME_MISSING,
+    RULE_OUTCOME_SATISFIED,
+)
 from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
@@ -16,7 +19,6 @@ from app.models.site_health.analysis import (
 )
 from app.workers.site_health.phases.analyze_rows import (
     _persist_evaluations_and_issues,
-    _prepare_page_evaluation,
 )
 
 
@@ -40,6 +42,7 @@ def _evaluation(rule_id: str, outcome: str) -> SimpleNamespace:
         category="delivery",
         severity="high",
         finding_class="defect",
+        scope="page",
         weight=1.0,
         outcome=outcome,
         display_applicability=True,
@@ -69,8 +72,8 @@ async def test_evaluations_and_issues_flush_as_two_ordered_batches() -> None:
     analysis = SitePageAnalysis(id=uuid.uuid4())
     artifact_id = uuid.uuid4()
     evaluations = [
-        _evaluation("technical.first", RULE_OUTCOME_PASS),
-        _evaluation("technical.second", RULE_OUTCOME_FAIL),
+        _evaluation("technical.first", RULE_OUTCOME_SATISFIED),
+        _evaluation("technical.second", RULE_OUTCOME_MISSING),
     ]
 
     await _persist_evaluations_and_issues(
@@ -92,6 +95,7 @@ async def test_evaluations_and_issues_flush_as_two_ordered_batches() -> None:
         "technical.second",
     ]
     assert analysis.source_evaluation_ids == [row.id for row in persisted_evaluations]
+    assert [row.scope for row in persisted_evaluations] == ["page", "page"]
     assert len(persisted_issues) == 1
     assert persisted_issues[0].evaluation_id == persisted_evaluations[1].id
 
@@ -107,7 +111,7 @@ async def test_failed_diagnostic_persists_without_creating_an_issue() -> None:
         analyzer_version="analyzer-v1",
     )
     analysis = SitePageAnalysis(id=uuid.uuid4())
-    diagnostic = _evaluation("aeo.server_rendered_content", RULE_OUTCOME_FAIL)
+    diagnostic = _evaluation("aeo.server_rendered_content", RULE_OUTCOME_MISSING)
     diagnostic.finding_class = "diagnostic"
 
     await _persist_evaluations_and_issues(
@@ -125,41 +129,27 @@ async def test_failed_diagnostic_persists_without_creating_an_issue() -> None:
     assert not [row for row in session.added if isinstance(row, SiteIssue)]
 
 
-def test_prepare_page_evaluation_injects_classifier_evidence() -> None:
-    """The evaluation copy must carry the tier the confidence gate reads.
-
-    ``_kind_expectation_allowed`` opens when ``page_kind_evidence`` is absent,
-    so if this injection were ever dropped the gate would silently stop
-    gating. Asserting the injection here is what makes that fail-open safe.
-    """
+@pytest.mark.asyncio
+async def test_non_scoring_guidance_does_not_create_an_issue() -> None:
+    session = _RecordingSession()
     crawl = SimpleNamespace(
         id=uuid.uuid4(),
         workspace_id=uuid.uuid4(),
         project_id=uuid.uuid4(),
-        root_url="https://x.example/",
-        site_facts=None,
-        analyzer_version="",
-        scoring_version="",
+        extractor_version="extractor-v1",
+        analyzer_version="analyzer-v1",
     )
-    task = SimpleNamespace(url_hash="whatever")
-    facts = {
-        "has_html": True,
-        "title": "Acme",
-        "body": {"word_count": 40, "text": "word " * 40},
-        "delivery": {"final_url": "https://x.example/", "is_https": True},
-        "headings": {"h1_count": 1, "counts": {"h1": 1}, "h1_texts": ["Acme"]},
-        "structured_data": {"count": 0, "blocks": [], "types": []},
-    }
+    guidance = _evaluation("technical.title_length_band", RULE_OUTCOME_MISSING)
+    guidance.finding_class = "advisory"
+    guidance.score_roles = ()
 
-    assessment, traits, evaluations, _scores = _prepare_page_evaluation(
-        crawl=cast(Any, crawl), task=cast(Any, task), facts=facts
+    await _persist_evaluations_and_issues(
+        cast(Any, session),
+        crawl=cast(Any, crawl),
+        analysis=SitePageAnalysis(id=uuid.uuid4()),
+        artifact_id=uuid.uuid4(),
+        site_url_id=uuid.uuid4(),
+        evaluations=cast(Any, [guidance]),
     )
 
-    assert assessment.tier
-    assert "tier" in assessment.to_evidence()
-    # The artifact's own facts are never mutated by the evaluation copy.
-    assert "page_kind" not in facts
-    assert "page_kind_evidence" not in facts
-    assert "page_traits" not in facts
-    assert isinstance(traits, tuple)
-    assert evaluations
+    assert not [row for row in session.added if isinstance(row, SiteIssue)]

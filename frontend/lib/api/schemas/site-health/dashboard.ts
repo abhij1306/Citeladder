@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { phaseRunSchema, siteCrawlSchema, siteScoreSummarySchema } from './crawl';
+import { siteCrawlSchema, siteScoreSummarySchema } from './crawl';
 import { responseObject, uuid } from './core';
 import { monitoredQuotaSchema } from './inventory';
 import { findingClassSchema, issueDimensionSchema, issueSeveritySchema } from './issues';
@@ -54,10 +54,6 @@ export const siteHealthDashboardSchema = responseObject({
   // B3: same root-failure projection as the pages response — the failed
   // crawl's dashboard renders the failure block without a second fetch.
   root_errors: z.array(rootErrorSchema),
-  phase_runs: responseObject({
-    discovery: phaseRunSchema.nullable(),
-    analysis: phaseRunSchema.nullable(),
-  }),
 });
 
 export const changeStateSchema = z.enum(['available', 'unavailable', 'non_comparable']);
@@ -129,6 +125,7 @@ export const readinessEvidencePageSchema = responseObject({
 // One mapped rule rolled up, carrying the catalog title and the fix.
 export const readinessCheckSchema = responseObject({
   rule_id: z.string(),
+  scope: z.enum(['page', 'site', 'cluster', 'graph']),
   title: z.string(),
   remediation: z.string(),
   satisfied_count: z.number().int(),
@@ -139,7 +136,7 @@ export const readinessCheckSchema = responseObject({
   conflicting_count: z.number().int(),
   not_applicable_count: z.number().int(),
   error_count: z.number().int(),
-  failing_page_count: z.number().int(),
+  failing_entity_count: z.number().int(),
   checkpoint_family: z.string(),
   readiness_weight: z.number(),
   content_addressable: z.boolean(),
@@ -157,7 +154,7 @@ export const readinessDimensionSchema = responseObject({
   ]),
   label: z.string(),
   description: z.string(),
-  dimension_applicability: z.enum(['applicable', 'not_applicable', 'unresolved']),
+  dimension_applicability: z.enum(['applicable', 'not_applicable']),
   dimension_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
   score: z.number().nullable(),
   reason: z.string(),
@@ -204,7 +201,7 @@ export const aeoReadinessSchema = responseObject({
 });
 
 const measurementStateSchema = z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']);
-const dimensionApplicabilitySchema = z.enum(['applicable', 'not_applicable', 'unresolved']);
+const dimensionApplicabilitySchema = z.enum(['applicable', 'not_applicable']);
 const searchEligibilitySchema = z.enum(['eligible', 'blocked', 'unknown', 'excluded']);
 const acquisitionEligibilityCheckpointSchema = responseObject({
   checkpoint_id: z.literal('acquisition.public_representation'),
@@ -230,6 +227,8 @@ const searchPolicyEligibilityCheckpointSchema = responseObject({
 });
 const overviewDimensionSchema = responseObject({
   key: z.string(),
+  label: z.string(),
+  description: z.string(),
   dimension_applicability: dimensionApplicabilitySchema,
   dimension_measurement_state: measurementStateSchema,
   score: z.number().nullable(),
@@ -248,9 +247,13 @@ const overviewIssueSchema = responseObject({
   category: z.string(),
   description: z.string(),
   remediation: z.string(),
+  // Which site score the rule feeds — `technical_integrity` (Web Fundamentals)
+  // and/or `aeo_readiness`. Drives the Effect column on Top issues.
+  score_roles: z.array(z.string()),
   affected_pages: z.number().int(),
   eligibility_blocker: z.boolean(),
   impact_band: z.number().int(),
+  impact_label: z.string(),
 });
 
 export const siteHealthOverviewSchema = responseObject({
@@ -279,13 +282,22 @@ export const siteHealthOverviewSchema = responseObject({
   aeo_measurement_coverage: z.number().nullable(),
   aeo_measurement_state: measurementStateSchema,
   crawl_coverage: responseObject({
-    state: z.string(),
+    state: z.enum(['complete', 'partial', 'unknown']),
     evidence: z.record(z.string(), z.unknown()),
     denominator_kind: z.literal('selected_intended_public_urls'),
   }),
   audited_page_count: z.number().int(),
   selected_page_count: z.number().int(),
   status_counts: z.record(z.string(), z.number().int()),
+  issue_count: z.number().int(),
+  technical_defect_count: z.number().int(),
+  technical_defect_affected_page_count: z.number().int(),
+  aeo_readiness_gap_count: z.number().int(),
+  aeo_readiness_gap_affected_page_count: z.number().int(),
+  severity_counts: z.record(z.string(), z.number().int()),
+  category_counts: z.record(z.string(), z.number().int()),
+  measured_check_count: z.number().int(),
+  expected_check_count: z.number().int(),
   aeo_dimensions: z.array(overviewDimensionSchema),
   top_issues: z.array(overviewIssueSchema),
   web_fundamentals: responseObject({
@@ -323,8 +335,31 @@ export const siteHealthOverviewSchema = responseObject({
     source_evaluation_ids: z.array(uuid()),
     limitations: z.array(z.string()),
   }),
-  trend: responseObject({ state: z.string(), reason: z.string() }),
-  change_summary: responseObject({ state: z.string(), reason: z.string() }),
+  trend: responseObject({
+    state: z.enum(['unavailable', 'measured']),
+    reason: z.enum(['no_comparable_snapshot', 'comparable_snapshot']),
+    metric: z.literal('aeo_readiness_score'),
+    series: z.array(responseObject({ label: z.string(), value: z.number().nullable() })),
+  }),
+  change_summary: responseObject({
+    state: z.enum(['unavailable', 'measured']),
+    reason: z.enum(['no_comparable_snapshot', 'comparable_snapshot']),
+    metrics: z.array(
+      responseObject({
+        key: z.enum([
+          'technical_integrity_score',
+          'technical_integrity_coverage',
+          'aeo_readiness_score',
+          'aeo_measurement_coverage',
+        ]),
+        label: z.string(),
+        previous: z.number().nullable(),
+        current: z.number().nullable(),
+        delta: z.number().nullable(),
+        direction: z.enum(['increased', 'decreased', 'unchanged', 'unavailable']),
+      }),
+    ),
+  }),
   limitations: z.array(z.string()),
 });
 

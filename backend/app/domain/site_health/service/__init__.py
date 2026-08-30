@@ -71,7 +71,6 @@ from app.domain.site_health.service.presentation import (
     display_label_for,
     presentation_status_for,
     project_crawl,
-    project_phase_run,
 )
 from app.domain.site_health.service.queries import (
     get_crawl_summary,
@@ -117,5 +116,4 @@ __all__ = [
     "load_events",
     "presentation_status_for",
     "project_crawl",
-    "project_phase_run",
 ]

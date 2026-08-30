@@ -1641,53 +1641,6 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_table(
-        "site_crawl_phase_runs",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("workspace_id", sa.UUID(), nullable=False),
-        sa.Column("crawl_id", sa.UUID(), nullable=False),
-        sa.Column("phase", sa.String(length=16), nullable=False),
-        sa.Column("ordinal", sa.Integer(), nullable=False),
-        sa.Column("status", sa.String(length=16), nullable=False),
-        sa.Column("requested_count", sa.Integer(), nullable=False),
-        sa.Column("processed_count", sa.Integer(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("stopped_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "crawl_id", "phase", "ordinal", name="uq_site_phase_run_ordinal"
-        ),
-    )
-    op.create_index(
-        "ix_site_phase_runs_crawl_phase",
-        "site_crawl_phase_runs",
-        ["crawl_id", "phase", "status"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_site_crawl_phase_runs_crawl_id"),
-        "site_crawl_phase_runs",
-        ["crawl_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_site_crawl_phase_runs_status"),
-        "site_crawl_phase_runs",
-        ["status"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_site_crawl_phase_runs_workspace_id"),
-        "site_crawl_phase_runs",
-        ["workspace_id"],
-        unique=False,
-    )
-    op.create_table(
         "site_discovery_frontier",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
@@ -2401,6 +2354,11 @@ def upgrade() -> None:
         sa.Column(
             "readiness_dimensions", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
+        sa.Column(
+            "aeo_readiness_diagnostic",
+            postgresql.JSONB(astext_type=Text()),
+            nullable=False,
+        ),
         sa.Column("search_eligibility", sa.String(length=16), nullable=False),
         sa.Column(
             "eligibility_totals", postgresql.JSONB(astext_type=Text()), nullable=True
@@ -2418,6 +2376,14 @@ def upgrade() -> None:
             "change_summary", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
         sa.Column("issue_count", sa.Integer(), nullable=False),
+        sa.Column("technical_defect_count", sa.Integer(), nullable=False),
+        sa.Column(
+            "technical_defect_affected_page_count", sa.Integer(), nullable=False
+        ),
+        sa.Column("aeo_readiness_gap_count", sa.Integer(), nullable=False),
+        sa.Column(
+            "aeo_readiness_gap_affected_page_count", sa.Integer(), nullable=False
+        ),
         sa.Column(
             "severity_counts", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
@@ -3023,7 +2989,6 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("crawl_id", sa.UUID(), nullable=False),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
-        sa.Column("phase_run_id", sa.UUID(), nullable=True),
         sa.Column("site_url_id", sa.UUID(), nullable=True),
         sa.Column("task_kind", sa.String(length=16), nullable=False),
         sa.Column("requested_url", sa.String(length=2048), nullable=False),
@@ -3050,9 +3015,6 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["phase_run_id"], ["site_crawl_phase_runs.id"], ondelete="SET NULL"
-        ),
         sa.ForeignKeyConstraint(
             ["parent_site_url_id"], ["site_urls.id"], ondelete="SET NULL"
         ),
@@ -3103,12 +3065,6 @@ def upgrade() -> None:
         op.f("ix_site_crawl_tasks_site_url_id"),
         "site_crawl_tasks",
         ["site_url_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_site_crawl_tasks_phase_run_id"),
-        "site_crawl_tasks",
-        ["phase_run_id"],
         unique=False,
     )
     op.create_index(
@@ -3802,7 +3758,6 @@ def upgrade() -> None:
         sa.Column("source_kind", sa.String(length=16), nullable=False),
         sa.Column("parent_site_url_id", sa.UUID(), nullable=True),
         sa.Column("source_artifact_id", sa.UUID(), nullable=True),
-        sa.Column("phase_run_id", sa.UUID(), nullable=True),
         sa.Column("value_kind", sa.String(length=32), nullable=False),
         sa.Column("value_priority", sa.Integer(), nullable=False),
         sa.Column("depth", sa.Integer(), nullable=False),
@@ -3819,9 +3774,6 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(
             ["source_artifact_id"], ["site_fetch_artifacts.id"], ondelete="SET NULL"
-        ),
-        sa.ForeignKeyConstraint(
-            ["phase_run_id"], ["site_crawl_phase_runs.id"], ondelete="SET NULL"
         ),
         sa.ForeignKeyConstraint(
             ["workspace_id", "project_id", "crawl_id"],
@@ -3851,12 +3803,6 @@ def upgrade() -> None:
         op.f("ix_site_url_observations_project_id"),
         "site_url_observations",
         ["project_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_site_url_observations_phase_run_id"),
-        "site_url_observations",
-        ["phase_run_id"],
         unique=False,
     )
     op.create_index(
@@ -4205,6 +4151,7 @@ def upgrade() -> None:
         sa.Column("category", sa.String(length=32), nullable=False),
         sa.Column("severity", sa.String(length=16), nullable=False),
         sa.Column("finding_class", sa.String(length=16), nullable=False),
+        sa.Column("scope", sa.String(length=16), nullable=False),
         sa.Column("weight", sa.Float(), nullable=False),
         sa.Column("outcome", sa.String(length=16), nullable=False),
         sa.Column("display_applicability", sa.Boolean(), nullable=False),
@@ -4242,6 +4189,10 @@ def upgrade() -> None:
             "outcome IN ('satisfied', 'partial', 'missing', 'unknown', "
             "'unavailable', 'conflicting', 'error', 'not_applicable', 'excluded')",
             name="ck_site_rule_evaluations_outcome",
+        ),
+        sa.CheckConstraint(
+            "scope IN ('page', 'site', 'cluster', 'graph')",
+            name="ck_site_rule_evaluations_scope",
         ),
         sa.UniqueConstraint(
             "analysis_id",
@@ -5358,7 +5309,6 @@ def downgrade() -> None:
         "site_health_snapshots",
         "site_fetch_attempts",
         "site_discovery_frontier",
-        "site_crawl_phase_runs",
         "site_crawl_events",
         "site_change_snapshots",
         "opportunities",

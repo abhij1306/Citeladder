@@ -6,8 +6,12 @@
 # I/O and again immediately before evidence is written.
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from typing import TypeGuard
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.site_health_contracts import (
     CRAWL_ACTIVE_STATUSES,
@@ -43,6 +47,18 @@ def crawl_is_active(crawl: SiteCrawl | None) -> TypeGuard[SiteCrawl]:
     persisting evidence (invariant 3 — no artifact for a cancelled task).
     """
     return crawl is not None and crawl.status in CRAWL_ACTIVE_STATUSES
+
+
+async def lock_crawl_for_evidence_commit(
+    session: AsyncSession, *, workspace_id: uuid.UUID, crawl_id: uuid.UUID
+) -> SiteCrawl | None:
+    """Lock crawl counters without conflicting with child evidence inserts."""
+    return await session.scalar(
+        select(SiteCrawl)
+        .where(SiteCrawl.id == crawl_id, SiteCrawl.workspace_id == workspace_id)
+        .execution_options(populate_existing=True)
+        .with_for_update(key_share=True)
+    )
 
 
 def lease_is_owned(

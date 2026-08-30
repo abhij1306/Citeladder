@@ -27,7 +27,6 @@ from app.models.queue_mixins import QueueLeaseStateMixin
 
 from .common import (
     _FK_SITE_CRAWL,
-    _FK_SITE_CRAWL_PHASE_RUN,
     _FK_SITE_CRAWL_TASK,
     _FK_SITE_FETCH_ARTIFACT,
     _FK_SITE_URL,
@@ -93,12 +92,6 @@ class SiteCrawlTask(QueueLeaseStateMixin, Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    phase_run_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_SITE_CRAWL_PHASE_RUN, ondelete=_ON_DELETE_SET_NULL),
-        nullable=True,
         index=True,
     )
     # Nullable: a discover task may enqueue before a SiteUrl identity exists.

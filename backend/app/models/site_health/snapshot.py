@@ -63,6 +63,9 @@ class SiteHealthSnapshot(Base):
         String(24), default="not_measured"
     )
     readiness_dimensions: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    aeo_readiness_diagnostic: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict
+    )
     search_eligibility: Mapped[str] = mapped_column(String(16), default="unknown")
     eligibility_totals: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     eligibility_reasons: Mapped[list | None] = mapped_column(JSONB, nullable=True)
@@ -72,6 +75,14 @@ class SiteHealthSnapshot(Base):
     trend: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     change_summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     issue_count: Mapped[int] = mapped_column(Integer, default=0)
+    technical_defect_count: Mapped[int] = mapped_column(Integer, default=0)
+    technical_defect_affected_page_count: Mapped[int] = mapped_column(
+        Integer, default=0
+    )
+    aeo_readiness_gap_count: Mapped[int] = mapped_column(Integer, default=0)
+    aeo_readiness_gap_affected_page_count: Mapped[int] = mapped_column(
+        Integer, default=0
+    )
     severity_counts: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     category_counts: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     coverage_state: Mapped[str] = mapped_column(String(16), default="unknown")

@@ -5,15 +5,15 @@ from __future__ import annotations
 import re
 
 from app.core.config.site_health_contracts import (
-    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_MISSING,
     RULE_OUTCOME_NOT_APPLICABLE,
-    RULE_OUTCOME_PASS,
+    RULE_OUTCOME_SATISFIED,
 )
 from app.core.config.site_health_page_profiles import (
     PRODUCT_SCHEMA_EXPECTATION,
+    SCHEMA_CONTENT_MATCH_MAX_CANDIDATES,
     SCHEMA_CONTENT_MATCH_MIN_TOKEN_OVERLAP,
 )
-from app.core.config.site_health_rules import SCHEMA_CONTENT_MATCH_MAX_CANDIDATES
 from app.core.config.site_health_taxonomy import (
     PAGE_KIND_EXPECTED_SCHEMA,
     PAGE_KIND_OTHER,
@@ -59,7 +59,7 @@ def matches_by_tokens(claim: str, visible: str) -> bool:
 
 
 def _pass_fail(condition: bool) -> str:
-    return RULE_OUTCOME_PASS if condition else RULE_OUTCOME_FAIL
+    return RULE_OUTCOME_SATISFIED if condition else RULE_OUTCOME_MISSING
 
 
 def schema_expectation_for(facts: dict) -> PageKindSchemaExpectation:

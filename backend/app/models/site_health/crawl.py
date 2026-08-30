@@ -28,10 +28,7 @@ from app.core.config.site_health_contracts import (
     CRAWL_STATUS_DRAFT,
     DISCOVERY_STATUS_PENDING,
 )
-from app.core.config.site_health_crawl_policy import (
-    FRONTIER_PENDING,
-    PHASE_RUN_RUNNING,
-)
+from app.core.config.site_health_crawl_policy import FRONTIER_PENDING
 from app.core.database import Base
 from app.models.constants import CASCADE_ALL_DELETE_ORPHAN
 
@@ -158,51 +155,6 @@ class SiteCrawl(Base):
         cascade=CASCADE_ALL_DELETE_ORPHAN,
         passive_deletes=True,
         order_by="SiteCrawlEvent.created_at",
-    )
-
-
-class SiteCrawlPhaseRun(Base):
-    """One user-started discovery or analysis batch within a resumable crawl."""
-
-    __tablename__ = "site_crawl_phase_runs"
-    __table_args__ = (
-        UniqueConstraint(
-            "crawl_id", "phase", "ordinal", name="uq_site_phase_run_ordinal"
-        ),
-        Index("ix_site_phase_runs_crawl_phase", "crawl_id", "phase", "status"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    crawl_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_SITE_CRAWL, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    phase: Mapped[str] = mapped_column(String(16))
-    ordinal: Mapped[int] = mapped_column(Integer)
-    status: Mapped[str] = mapped_column(
-        String(16), default=PHASE_RUN_RUNNING, index=True
-    )
-    requested_count: Mapped[int] = mapped_column(Integer)
-    processed_count: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
-    )
-    stopped_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
     )
 
 

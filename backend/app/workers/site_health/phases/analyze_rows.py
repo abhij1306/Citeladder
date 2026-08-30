@@ -3,22 +3,18 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.analysis.site_health.page_kinds import PageKindAssessment, classify
-from app.analysis.site_health.page_traits import derive_traits
-from app.analysis.site_health.rules import RuleEvaluation, evaluate_all
-from app.analysis.site_health.scoring import AnalysisScores, score_analysis
+from app.analysis.site_health.page_analysis import PageAnalysisResult, analyze_page
+from app.analysis.site_health.rules import RuleEvaluation, creates_issue
 from app.core.config.site_health_contracts import (
     ANALYZER_VERSION,
     DISCOVERY_STATUS_COMPLETED,
     EXTRACTOR_VERSION,
     OBSERVATION_SOURCE_SITEMAP,
     PAGE_ANALYSIS_STATUS_COMPLETED,
-    RULE_FAILING_OUTCOMES,
     SCORING_VERSION,
 )
 from app.core.config.site_health_measurement import (
@@ -26,7 +22,6 @@ from app.core.config.site_health_measurement import (
     PROFILE_VERSION,
     SCHEMA_CONTRACT_VERSION,
 )
-from app.core.config.site_health_rule_types import FINDING_CLASS_DIAGNOSTIC
 from app.core.config.site_health_traits import TRAITS_VERSION
 from app.models.site_health.analysis import (
     SiteIssue,
@@ -36,10 +31,7 @@ from app.models.site_health.analysis import (
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.urls import SiteUrl, SiteUrlObservation
-from app.workers.site_health.helpers import (
-    _is_crawl_finalize_rule,
-    _utcnow,
-)
+from app.workers.site_health.helpers import _utcnow
 from app.workers.site_health.lifecycle_finalize import crawl_root_identity
 from app.workers.site_health.phases.contracts import PhaseContext
 
@@ -76,9 +68,8 @@ async def _write_page_analysis(
             .limit(1)
         )
     )
-    assessment, traits, evaluations, scores = _prepare_page_evaluation(
-        crawl=crawl, task=task, facts=facts, sitemap_member=sitemap_member
-    )
+    site_facts = _root_site_facts(crawl, task)
+    result = analyze_page(facts, sitemap_member=sitemap_member, site_facts=site_facts)
     await _refresh_analyzed_url_state(
         session,
         crawl=crawl,
@@ -90,9 +81,7 @@ async def _write_page_analysis(
         crawl=crawl,
         site_url_id=site_url_id,
         artifact_id=artifact_id,
-        assessment=assessment,
-        traits=traits,
-        scores=scores,
+        result=result,
     )
     await _supersede_and_store_analysis(session, analysis=analysis)
     await _persist_evaluations_and_issues(
@@ -101,71 +90,16 @@ async def _write_page_analysis(
         analysis=analysis,
         artifact_id=artifact_id,
         site_url_id=site_url_id,
-        evaluations=evaluations,
+        evaluations=result.evaluations,
     )
     return analysis.id, analysis.page_kind
 
 
-def _prepare_page_evaluation(
-    *,
-    crawl: SiteCrawl,
-    task: SiteCrawlTask,
-    facts: dict[str, Any],
-    sitemap_member: bool = False,
-) -> tuple[PageKindAssessment, tuple[str, ...], list[RuleEvaluation], AnalysisScores]:
-    """Classify and score a shallow evaluation-only copy of fetched facts."""
-    # Evaluation-time enrichment goes onto a SHALLOW COPY, never the facts
-    # dict the caller handed ``_write_artifact``: that dict IS the artifact's
-    # ``normalized_facts``, and the persisted evidence must carry only what
-    # the extractor produced (the injected keys below are provenance of this
-    # analysis, not of the fetch). Copying makes that independent of insert
-    # ordering / JSON-mutation tracking rather than relying on the flush
-    # having already serialized the pre-injection value.
-    eval_facts = dict(facts)
-    # v2 P1: classify the page type and inject it into the facts dict
-    # BEFORE rule evaluation, so page_kind applicability tokens, per-type
-    # thin-content minimums, and weight overrides resolve against it
-    # (spec §5.1 pipeline slot; evaluate_all keeps its pure (facts)
-    # signature). The type + classifier version persist on the analysis
-    # row for provenance (invariant 4).
-    assessment = classify(
-        str((facts.get("delivery") or {}).get("final_url") or ""), facts
-    )
-    eval_facts["page_kind"] = assessment.page_kind
-    eval_facts["page_kind_evidence"] = assessment.to_evidence()
-    # Traits are derived from the SAME facts but never from the page kind, so
-    # they stay independent observations rather than consequences of the
-    # classification. A product page with an FAQ block carries both.
-    traits = derive_traits(
-        str((facts.get("delivery") or {}).get("final_url") or ""), facts
-    )
-    eval_facts["page_traits"] = list(traits)
-    eval_facts["sitemap_member"] = sitemap_member
-    # v2 P2 (spec §5.3): inside the crawl ROOT's own analysis only, inject
-    # the crawl's site_facts so site_root-scoped rules (AI-crawler access,
-    # llms.txt) evaluate exactly once per crawl, anchored on this analysis.
-    # Injected into the copy only, so the persisted normalized_facts
-    # deliberately do NOT carry it (same as page_kind).
-    if crawl.site_facts:
-        _root_canonical, root_hash = crawl_root_identity(crawl)
-        if root_hash and root_hash == task.url_hash:
-            eval_facts["site"] = crawl.site_facts
-    evaluations: list[RuleEvaluation] = [
-        ev
-        for ev in evaluate_all(eval_facts)
-        # The analyze writer NEVER persists crawl_finalize-scoped
-        # evaluations (no placeholder not_applicable rows): the unique
-        # ordinary analysis/rule scope stays free for the finalize pass,
-        # which solely owns those rules' rows (single-writer per scope).
-        if not _is_crawl_finalize_rule(ev.rule_id)
-    ]
-    scores = score_analysis(
-        evaluations,
-        page_kind=assessment.page_kind,
-        page_traits=traits,
-        page_kind_evidence=assessment.to_evidence(),
-    )
-    return assessment, traits, evaluations, scores
+def _root_site_facts(crawl: SiteCrawl, task: SiteCrawlTask) -> dict | None:
+    if not crawl.site_facts:
+        return None
+    _root_canonical, root_hash = crawl_root_identity(crawl)
+    return crawl.site_facts if root_hash and root_hash == task.url_hash else None
 
 
 async def _refresh_analyzed_url_state(
@@ -217,9 +151,7 @@ def _new_page_analysis(
     crawl: SiteCrawl,
     site_url_id: uuid.UUID,
     artifact_id: uuid.UUID,
-    assessment: PageKindAssessment,
-    traits: tuple[str, ...],
-    scores: AnalysisScores,
+    result: PageAnalysisResult,
 ) -> SitePageAnalysis:
     """Build the immutable analysis row before it becomes current."""
     return SitePageAnalysis(
@@ -230,30 +162,32 @@ def _new_page_analysis(
         site_url_id=site_url_id,
         artifact_id=artifact_id,
         status=PAGE_ANALYSIS_STATUS_COMPLETED,
-        technical_integrity_score=scores.technical_integrity_score,
-        technical_integrity_coverage=scores.technical_integrity_coverage,
-        technical_integrity_state=scores.technical_integrity_state,
-        technical_earned_weight=scores.technical_earned_weight,
-        technical_determinate_weight=scores.technical_determinate_weight,
-        technical_expected_weight=scores.technical_expected_weight,
-        technical_critical_complete=scores.technical_critical_complete,
-        aeo_readiness_score=scores.aeo_readiness_score,
-        aeo_measurement_coverage=scores.aeo_measurement_coverage,
-        aeo_measurement_state=scores.aeo_measurement_state,
-        expected_checkpoint_profile=list(scores.expected_checkpoint_profile),
-        readiness_dimensions=[item.to_dict() for item in scores.readiness_dimensions],
+        technical_integrity_score=result.scores.technical_integrity_score,
+        technical_integrity_coverage=result.scores.technical_integrity_coverage,
+        technical_integrity_state=result.scores.technical_integrity_state,
+        technical_earned_weight=result.scores.technical_earned_weight,
+        technical_determinate_weight=result.scores.technical_determinate_weight,
+        technical_expected_weight=result.scores.technical_expected_weight,
+        technical_critical_complete=result.scores.technical_critical_complete,
+        aeo_readiness_score=result.scores.aeo_readiness_score,
+        aeo_measurement_coverage=result.scores.aeo_measurement_coverage,
+        aeo_measurement_state=result.scores.aeo_measurement_state,
+        expected_checkpoint_profile=list(result.scores.expected_checkpoint_profile),
+        readiness_dimensions=[
+            item.to_dict() for item in result.scores.readiness_dimensions
+        ],
         profile_version=PROFILE_VERSION,
         schema_contract_version=SCHEMA_CONTRACT_VERSION,
         presentation_version=PRESENTATION_VERSION,
-        main_content_indexable=scores.main_content_indexable,
+        main_content_indexable=result.scores.main_content_indexable,
         analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
         scoring_version=crawl.scoring_version or SCORING_VERSION,
-        page_kind=assessment.page_kind,
-        classifier_version=assessment.classifier_version,
+        page_kind=result.assessment.page_kind,
+        classifier_version=result.assessment.classifier_version,
         # Persist the bounded classifier evidence with the row (the
         # evaluation-time copy above is never persisted, by design).
-        page_kind_evidence=assessment.to_evidence(),
-        page_traits=list(traits),
+        page_kind_evidence=result.assessment.to_evidence(),
+        page_traits=list(result.traits),
         traits_version=TRAITS_VERSION,
         source_artifact_ids=[artifact_id],
         finalized_at=_utcnow(),
@@ -293,7 +227,7 @@ async def _persist_evaluations_and_issues(
     analysis: SitePageAnalysis,
     artifact_id: uuid.UUID,
     site_url_id: uuid.UUID,
-    evaluations: list[RuleEvaluation],
+    evaluations: tuple[RuleEvaluation, ...],
 ) -> None:
     """Persist ordered evaluations and issues in two dependency batches."""
     evaluation_ids: list[uuid.UUID] = []
@@ -310,6 +244,7 @@ async def _persist_evaluations_and_issues(
             category=ev.category,
             severity=ev.severity,
             finding_class=ev.finding_class,
+            scope=ev.scope,
             weight=ev.weight,
             outcome=ev.outcome,
             display_applicability=ev.display_applicability,
@@ -328,10 +263,7 @@ async def _persist_evaluations_and_issues(
         )
         session.add(evaluation)
         evaluation_ids.append(evaluation_id)
-        if (
-            ev.outcome in RULE_FAILING_OUTCOMES
-            and ev.finding_class != FINDING_CLASS_DIAGNOSTIC
-        ):
+        if creates_issue(ev):
             failed.append((ev, evaluation_id))
     analysis.source_evaluation_ids = evaluation_ids
     # Evaluation rows depend on the already-flushed analysis. Flush them as
