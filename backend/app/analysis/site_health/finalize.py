@@ -88,7 +88,8 @@ def _entity_set_evaluation(
     rule = _catalog_rule(rule_id)
     total = max(0, int(total_count))
     checked = min(total, max(0, int(checked_count)))
-    failures = min(checked, len(failing_urls))
+    deduplicated_failures = list(dict.fromkeys(failing_urls))
+    failures = min(checked, len(deduplicated_failures))
     if total == 0:
         return _evaluation(
             rule,
@@ -126,7 +127,7 @@ def _entity_set_evaluation(
             "total_count": total,
             "checked_count": checked,
             "failure_count": failures,
-            "failing_urls": _bounded_urls(list(dict.fromkeys(failing_urls))),
+            "failing_urls": _bounded_urls(deduplicated_failures),
             "normalized_score": score,
             "normalized_coverage": coverage,
         },

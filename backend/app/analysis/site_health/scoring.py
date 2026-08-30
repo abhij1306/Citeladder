@@ -574,8 +574,10 @@ def _normalized_override(
         raise ValueError(f"Rule {rule_id} has conflicting normalized results")
     score, coverage = next(iter(values))
     if (
-        score is None
-        or coverage is None
+        not isinstance(score, (int, float))
+        or isinstance(score, bool)
+        or not isinstance(coverage, (int, float))
+        or isinstance(coverage, bool)
         or not (0.0 <= score <= 1.0 and 0.0 <= coverage <= 1.0)
     ):
         raise ValueError(f"Rule {rule_id} has an invalid normalized result")
@@ -648,6 +650,15 @@ def _dimension_rules(key: str, rules: list[_NormalizedRule]) -> list[_Normalized
     ]
 
 
+def _has_site_scoped_dimension(key: str) -> bool:
+    return any(
+        rule.scope == RULE_SCOPE_SITE
+        and SCORE_ROLE_AEO in rule.score_roles
+        and rule.readiness_dimension == key
+        for rule in SITE_HEALTH_RULES_BY_ID.values()
+    )
+
+
 def _measured_rules(rules: list[_NormalizedRule]) -> list[_NormalizedRule]:
     return [rule for rule in rules if rule.score is not None and rule.coverage > 0]
 
@@ -665,7 +676,13 @@ def _aggregate_dimension(
     if not expected:
         if key in relevant:
             return _empty_dimension(
-                key, DIMENSION_APPLICABLE, "no_expected_checkpoint_evaluator"
+                key,
+                DIMENSION_APPLICABLE,
+                (
+                    MEASURED_AT_SITE_SCOPE_REASON
+                    if _has_site_scoped_dimension(key)
+                    else "no_expected_checkpoint_evaluator"
+                ),
             )
         return _empty_dimension(
             key, DIMENSION_NOT_APPLICABLE, "dimension_determinately_irrelevant"

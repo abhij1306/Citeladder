@@ -397,6 +397,63 @@ async def test_overview_reads_the_same_persisted_snapshot(
     assert len(body["change_summary"]["metrics"]) == 4
 
 
+async def test_overview_backfills_legacy_issue_and_null_history_fields(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _register(client, "legacy-overview@example.com")
+    async with session_factory() as session:
+        scenario, _analysis, snapshot = await _seed_readiness(
+            session, email="legacy-overview@example.com"
+        )
+        legacy_issue = {
+            **snapshot.top_issues[0],
+            "rule_id": "technical.indexable",
+            "finding_class": "defect",
+            "severity": "critical",
+        }
+        for field in ("score_roles", "impact_band", "impact_label"):
+            legacy_issue.pop(field, None)
+        complete_issue = {
+            **snapshot.top_issues[1],
+            "score_roles": [],
+            "impact_band": 99,
+            "impact_label": "Frozen",
+        }
+        snapshot.top_issues = [legacy_issue, complete_issue]
+        snapshot.trend = None
+        snapshot.change_summary = None
+        await session.commit()
+
+    response = await client.get(
+        f"/api/v1/projects/{scenario.project_id}/site-health/overview",
+        headers={"X-Workspace-Id": str(scenario.workspace_id)},
+        params={"crawl_id": scenario.crawl_id},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["top_issues"][0]["score_roles"] == [
+        "aeo_readiness",
+        "technical_integrity",
+    ]
+    assert body["top_issues"][0]["impact_band"] == 4
+    assert body["top_issues"][0]["impact_label"] == "Critical"
+    assert body["top_issues"][1]["impact_band"] == 99
+    assert body["top_issues"][1]["impact_label"] == "Frozen"
+    assert body["trend"] == {
+        "state": "unavailable",
+        "reason": "no_comparable_snapshot",
+        "metric": "aeo_readiness_score",
+        "series": [],
+    }
+    assert body["change_summary"] == {
+        "state": "unavailable",
+        "reason": "no_comparable_snapshot",
+        "metrics": [],
+    }
+
+
 async def test_overview_history_requires_the_complete_measurement_identity(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],

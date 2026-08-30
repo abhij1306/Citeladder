@@ -105,9 +105,9 @@ def test_broken_internal_link_evidence_deduplicates_weighted_targets():
         ],
     )
 
-    assert ev.evidence["failure_count"] == 2
+    assert ev.evidence["failure_count"] == 1
     assert ev.evidence["failing_urls"] == ["https://example.test/broken"]
-    assert ev.evidence["normalized_score"] == pytest.approx(1 / 3)
+    assert ev.evidence["normalized_score"] == pytest.approx(2 / 3)
 
 
 def test_broken_internal_links_remain_unknown_without_checked_targets():

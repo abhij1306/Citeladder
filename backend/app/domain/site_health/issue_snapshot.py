@@ -42,7 +42,7 @@ class IssueSnapshot:
     aeo_readiness_gap_affected_page_count: int
 
 
-def _impact(rule_id: str, finding_class: str, severity: str) -> tuple[int, str]:
+def issue_impact(rule_id: str, finding_class: str, severity: str) -> tuple[int, str]:
     if finding_class == FINDING_CLASS_DEFECT:
         return _DEFECT_IMPACT_BANDS.get(severity, 0), severity.replace("_", " ").title()
     rule = SITE_HEALTH_RULES_BY_ID.get(rule_id)
@@ -100,7 +100,7 @@ def _rollup(rows: Sequence[Row]) -> IssueSnapshot:
         group["affected_pages"] = len(group.pop("affected_site_url_ids"))
         group["score_roles"] = sorted(group["score_roles"])
         group["eligibility_blocker"] = group["rule_id"] == "technical.indexable"
-        group["impact_band"], group["impact_label"] = _impact(
+        group["impact_band"], group["impact_label"] = issue_impact(
             group["rule_id"], group["finding_class"], group["severity"]
         )
         top_issues.append(group)
@@ -161,4 +161,4 @@ async def build_issue_snapshot(
     return _rollup(rows)
 
 
-__all__ = ["IssueSnapshot", "build_issue_snapshot"]
+__all__ = ["IssueSnapshot", "build_issue_snapshot", "issue_impact"]

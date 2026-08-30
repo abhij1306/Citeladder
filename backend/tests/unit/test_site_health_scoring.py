@@ -326,6 +326,40 @@ def test_duplicate_site_evidence_does_not_change_rule_or_dimension() -> None:
     assert first["coverage"] == 1.0
 
 
+def test_aggregate_marks_site_only_dimension_as_measured_at_site_scope() -> None:
+    authority = _dimension(
+        aggregate_measurements(_analyses(["homepage"]), []), "authority"
+    )
+
+    assert authority["reason"] == "measured_at_site_scope"
+    assert authority["coverage"] == 0.0
+
+
+def test_normalized_result_rejects_non_numeric_json_values() -> None:
+    analysis = _analyses(["article"])[0]
+    invalid = _rule_input(
+        analysis,
+        rule_id="aeo.invalid_normalized",
+        outcome="satisfied",
+    )
+    invalid = RuleMeasurementInput(
+        **{
+            **invalid.__dict__,
+            "normalized_score": "1.0",
+            "normalized_coverage": 1.0,
+        }
+    )
+
+    try:
+        aggregate_measurements([analysis], [invalid])
+    except ValueError as error:
+        assert str(error) == (
+            "Rule aeo.invalid_normalized has an invalid normalized result"
+        )
+    else:
+        raise AssertionError("non-numeric normalized result was accepted")
+
+
 def test_page_mix_does_not_weight_a_rule_by_crawl_composition() -> None:
     balanced = _analyses(["article"] * 10 + ["product"] * 10 + ["category"] * 10)
     skewed = _analyses(["article"] * 10 + ["product"] * 10 + ["category"] * 110)

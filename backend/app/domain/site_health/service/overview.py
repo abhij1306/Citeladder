@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.site_health_rules import SITE_HEALTH_RULES_BY_ID
+from app.domain.site_health.issue_snapshot import issue_impact
 from app.domain.site_health.service.common import (
     SiteHealthNotFoundError,
     resolve_usable_crawl,
@@ -20,20 +21,23 @@ def _stored(value: object, fallback: object) -> object:
 
 
 def _top_issues(value: object) -> list:
-    """Read the frozen top-issue rollup, filling `score_roles` for snapshots
-    persisted before it was recorded. The catalog is the only source able to
-    answer which score a rule feeds once the evaluation rows are behind us."""
+    """Backfill fields absent from older frozen top-issue rollups."""
     issues = []
     for issue in _stored_list(value)[:5]:
         if not isinstance(issue, dict):
             continue
-        if "score_roles" in issue:
-            issues.append(issue)
-            continue
-        rule = SITE_HEALTH_RULES_BY_ID.get(str(issue.get("rule_id", "")))
-        issues.append(
-            {**issue, "score_roles": sorted(rule.score_roles) if rule else []}
+        enriched = {**issue}
+        rule_id = str(issue.get("rule_id", ""))
+        rule = SITE_HEALTH_RULES_BY_ID.get(rule_id)
+        enriched.setdefault("score_roles", sorted(rule.score_roles) if rule else [])
+        impact_band, impact_label = issue_impact(
+            rule_id,
+            str(issue.get("finding_class", "")),
+            str(issue.get("severity", "")),
         )
+        enriched.setdefault("impact_band", impact_band)
+        enriched.setdefault("impact_label", impact_label)
+        issues.append(enriched)
     return issues
 
 
@@ -144,11 +148,20 @@ async def get_overview(
         ),
         "trend": _stored(
             snapshot.trend,
-            {"state": "unavailable", "reason": "projection_unavailable"},
+            {
+                "state": "unavailable",
+                "reason": "no_comparable_snapshot",
+                "metric": "aeo_readiness_score",
+                "series": [],
+            },
         ),
         "change_summary": _stored(
             snapshot.change_summary,
-            {"state": "unavailable", "reason": "projection_unavailable"},
+            {
+                "state": "unavailable",
+                "reason": "no_comparable_snapshot",
+                "metrics": [],
+            },
         ),
         "limitations": _overview_limitations(snapshot),
     }

@@ -28,6 +28,33 @@ def _created_tables(source: str) -> set[str]:
     return tables
 
 
+def _created_table_columns(source: str) -> dict[str, set[str]]:
+    tree = ast.parse(source)
+    tables: dict[str, set[str]] = {}
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "create_table"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
+            continue
+        columns = {
+            argument.args[0].value
+            for argument in node.args[1:]
+            if isinstance(argument, ast.Call)
+            and isinstance(argument.func, ast.Attribute)
+            and argument.func.attr == "Column"
+            and argument.args
+            and isinstance(argument.args[0], ast.Constant)
+            and isinstance(argument.args[0].value, str)
+        }
+        tables[node.args[0].value] = columns
+    return tables
+
+
 def test_0001_initial_is_the_only_migration_revision() -> None:
     revisions = sorted(_VERSIONS_DIR.glob("*.py"))
 
@@ -35,7 +62,9 @@ def test_0001_initial_is_the_only_migration_revision() -> None:
     source = _BASELINE.read_text(encoding="utf-8")
     assert 'revision = "0001_initial"' in source
     assert "down_revision = None" in source
-    assert len(_created_tables(source)) == 110
+    tables = _created_tables(source)
+    assert len(tables) == 110
+    assert "site_crawl_phase_runs" not in tables
     assert "industry_pack_id" not in source
     assert "from app.models" not in source
 
@@ -85,6 +114,6 @@ def test_baseline_contains_site_health_guidance_and_commerce_schema() -> None:
         "acquisition_policy_version",
         "source_artifact_id",
         "source_architecture_id",
-        "scope",
     ):
         assert f'"{column}"' in source
+    assert "scope" in _created_table_columns(source)["site_rule_evaluations"]
