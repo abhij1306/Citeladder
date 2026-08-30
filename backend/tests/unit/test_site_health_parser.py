@@ -122,6 +122,48 @@ def test_accessibility_viewport_and_snippet_facts_are_distinct() -> None:
     assert facts["mobile"]["viewport"]["declared"] is True
 
 
+def test_header_robots_directives_survive_an_empty_body() -> None:
+    facts = _facts(
+        b"",
+        redacted_headers={
+            "X-Robots-Tag": "googlebot: noindex, nofollow, max-snippet:0"
+        },
+    )
+
+    assert facts["has_html"] is False
+    assert facts["robots"]["noindex"] is True
+    assert facts["robots"]["nofollow"] is True
+    assert facts["robots"]["max_snippet"] == 0
+
+
+def test_robots_merge_preserves_bounded_meta_facts_and_restrictive_snippet() -> None:
+    filler = ",".join(f"a-directive-{index:02d}" for index in range(40))
+    facts = _facts(
+        (
+            '<html><head><meta name="robots" content="'
+            f'{filler},noindex,max-snippet:-1,max-snippet:50">'
+            "</head><body></body></html>"
+        ).encode(),
+        redacted_headers={"x-robots-tag": "max-snippet:0"},
+    )
+
+    assert len(facts["robots"]["directives"]) == 32
+    assert facts["robots"]["noindex"] is True
+    assert facts["robots"]["max_snippet"] == 0
+
+
+def test_accessible_names_resolve_labelledby_and_native_buttons() -> None:
+    facts = _facts(
+        b'<html><body><span id="valid">Search</span><span id="empty"></span>'
+        b'<input aria-labelledby="valid"><input aria-labelledby="missing">'
+        b'<input aria-labelledby="empty"><button>Save</button><button></button>'
+        b"</body></html>"
+    )
+
+    assert facts["accessibility"]["control_count"] == 5
+    assert facts["accessibility"]["controls_missing_accessible_name"] == 3
+
+
 def test_structured_data_extraction_and_validation():
     facts = _facts(_FULL_PAGE)
     sd = facts["structured_data"]

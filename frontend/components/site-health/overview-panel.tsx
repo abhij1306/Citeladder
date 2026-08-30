@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/table';
 import { siteHealthQueries } from '@/lib/api/site-health';
 import type { SiteHealthOverview } from '@/lib/api/types';
-import { PLACEHOLDER } from '@/lib/site-health/status';
+import { PLACEHOLDER, statusLabel } from '@/lib/site-health/status';
 
 function percent(value: number | null): string {
   return value === null ? PLACEHOLDER : `${Math.round(value * 100)}%`;
@@ -177,6 +177,10 @@ function WebFundamentalsDrawer({
             </CardContent>
           </Card>
         ))}
+        <Alert tone="info">
+          Field Core Web Vitals: {statusLabel(data.field_data.state)} —{' '}
+          {statusLabel(data.field_data.reason)}.
+        </Alert>
         <Alert tone="info">{data.limitations.join(' ')}</Alert>
       </div>
     </Drawer>

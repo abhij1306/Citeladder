@@ -381,6 +381,9 @@ def score_analysis(
     page_kind_evidence: dict | None = None,
 ) -> AnalysisScores:
     rows = list(evaluations)
+    effective_page_kind = (
+        page_kind if page_kind in PAGE_KIND_READINESS_CHECKPOINTS else PAGE_KIND_OTHER
+    )
     structural = str((page_kind_evidence or {}).get("tier") or "") in ("", "structural")
     (
         technical_score,
@@ -395,14 +398,14 @@ def score_analysis(
         _dimension_measurement(
             key,
             evaluations=rows,
-            page_kind=page_kind,
+            page_kind=effective_page_kind,
             page_traits=frozenset(page_traits),
             structural=structural,
         )
         for key in AEO_READINESS_DIMENSIONS
     )
     aeo_score, aeo_coverage, aeo_state = _overall_aeo(
-        dimensions, allow_measured=page_kind != PAGE_KIND_OTHER
+        dimensions, allow_measured=effective_page_kind != PAGE_KIND_OTHER
     )
     profile = tuple(
         {

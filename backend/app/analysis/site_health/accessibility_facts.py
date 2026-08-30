@@ -8,23 +8,57 @@ from typing import Any
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
 
 
-def _has_programmatic_name(root: Any, control: Any) -> bool:
-    if control.get("aria-label") or control.get("aria-labelledby"):
+def _has_labelledby_text(root: Any, control: Any) -> bool:
+    labelled_by = str(control.get("aria-labelledby") or "").split()
+    try:
+        return any(
+            " ".join(node.itertext()).strip()
+            for reference in labelled_by
+            for node in root.xpath("//*[@id=$id]", id=reference)
+        )
+    except DOM_ERRORS as exc:
+        dom_failure("extract_accessibility_facts", exc)
+        return False
+
+
+def _has_native_name(control: Any) -> bool:
+    tag = str(control.tag or "").lower()
+    if tag == "button" and " ".join(control.itertext()).strip():
         return True
+    input_type = str(control.get("type") or "").lower()
+    if tag == "input" and input_type in ("button", "submit", "reset"):
+        return True
+    image_alt = str(control.get("alt") or "").strip()
+    return tag == "input" and input_type == "image" and bool(image_alt)
+
+
+def _has_associated_label(root: Any, control: Any) -> bool:
     control_id = str(control.get("id") or "").strip()
     if control_id:
         try:
-            if root.xpath("//label[@for=$id]", id=control_id):
-                return True
+            return bool(root.xpath("//label[@for=$id]", id=control_id))
         except DOM_ERRORS as exc:
             dom_failure("extract_accessibility_facts", exc)
+            return False
     parent = control.getparent()
     return parent is not None and parent.tag == "label"
 
 
+def _has_programmatic_name(root: Any, control: Any) -> bool:
+    return (
+        bool(str(control.get("aria-label") or "").strip())
+        or _has_labelledby_text(root, control)
+        or _has_native_name(control)
+        or _has_associated_label(root, control)
+    )
+
+
 def _controls(root: Any) -> tuple[int, int]:
     try:
-        controls = root.xpath("//input[not(@type='hidden')] | //select | //textarea")
+        controls = root.xpath(
+            "//input[translate(@type,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')"
+            "!='hidden'] | //select | //textarea | //button"
+        )
     except DOM_ERRORS as exc:
         dom_failure("extract_accessibility_facts", exc)
         controls = []

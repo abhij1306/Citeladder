@@ -103,5 +103,8 @@ describe('OverviewPanel', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('Images missing alt attributes');
     expect(screen.getByRole('dialog')).toHaveTextContent('mobile_layout');
     expect(screen.getByRole('dialog')).toHaveTextContent('HTTP evidence only');
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      'Field Core Web Vitals: Unavailable — Provider Not Configured.',
+    );
   });
 });

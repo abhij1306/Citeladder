@@ -13,6 +13,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_PARTIAL,
 )
 from app.core.config.site_health_measurement import (
+    PAGE_KIND_READINESS_CHECKPOINTS,
     READINESS_CHECKPOINTS,
     READINESS_DIMENSION_WEIGHTS,
     STRUCTURAL_NA_REASONS,
@@ -30,7 +31,7 @@ from app.domain.site_health.service.aeo_readiness import (
 from app.models.site_health.analysis import SiteRuleEvaluation
 
 
-def test_pr2_manifest_uses_known_rules_and_scored_dimensions() -> None:
+def test_readiness_manifest_uses_known_rules_and_scored_dimensions() -> None:
     assert set(READINESS_CHECKPOINTS) <= set(SITE_HEALTH_RULES_BY_ID)
     assert set(READINESS_DIMENSION_WEIGHTS) == set(AEO_READINESS_DIMENSIONS)
     assert sum(READINESS_DIMENSION_WEIGHTS.values()) == pytest.approx(1.0)
@@ -40,6 +41,8 @@ def test_pr2_manifest_uses_known_rules_and_scored_dimensions() -> None:
         "machine-readability",
         "authority",
         "crawlability",
+        "evidence",
+        "freshness",
     }
 
 
@@ -71,8 +74,25 @@ def test_only_declared_content_gaps_can_cross_the_content_boundary() -> None:
         "aeo.answer_first",
         "aeo.question_headings",
         "aeo.author_present",
+        "aeo.date_present",
+        "aeo.no_expand_gating",
         "aeo.organization_identity",
+        "aeo.outbound_citations",
+        "aeo.product_offer_details",
+        "aeo.product_visible_schema_parity",
     }
+
+
+def test_readiness_profiles_match_editorial_rule_applicability() -> None:
+    docs = set(PAGE_KIND_READINESS_CHECKPOINTS["docs"])
+    case_study = set(PAGE_KIND_READINESS_CHECKPOINTS["case_study_review"])
+
+    assert "aeo.author_present" not in docs
+    assert "aeo.outbound_citations" not in docs
+    assert "aeo.date_present" in docs
+    assert "aeo.author_present" not in case_study
+    assert "aeo.date_present" in case_study
+    assert "aeo.outbound_citations" in case_study
 
 
 def test_removed_readiness_checkpoints_are_filtered_from_projections() -> None:

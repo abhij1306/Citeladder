@@ -19,6 +19,8 @@ from app.core.config.site_health_rule_types import (
     SiteHealthRule,
 )
 
+SEARCH_ROBOTS_HEADER_AGENTS: Final[frozenset[str]] = frozenset({"googlebot"})
+
 SEARCH_ACCESS_RULES: Final[tuple[SiteHealthRule, ...]] = (
     SiteHealthRule(
         rule_id="technical.ai_crawler_access",

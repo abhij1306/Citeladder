@@ -174,6 +174,31 @@ def test_healthy_non_faq_marks_deterministically_irrelevant_dimensions_na() -> N
     assert scores.aeo_measurement_coverage == 0.75
 
 
+def test_unknown_page_kind_uses_the_universal_other_profile() -> None:
+    scores = score_analysis(
+        [
+            _aeo(
+                "technical.indexable",
+                "satisfied",
+                "indexability",
+                "crawlability",
+            ),
+            _aeo(
+                "aeo.server_rendered_content",
+                "satisfied",
+                "primary_content",
+                "machine-readability",
+            ),
+        ],
+        page_kind="unknown-kind",
+    )
+
+    dimensions = {row.key: row for row in scores.readiness_dimensions}
+    assert dimensions["crawlability"].applicability == "applicable"
+    assert dimensions["machine-readability"].applicability == "applicable"
+    assert scores.aeo_measurement_state == MEASUREMENT_STATE_LIMITED
+
+
 def _aggregate_input(
     technical_score: float,
     earned: float,

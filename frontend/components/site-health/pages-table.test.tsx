@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 
 import { PagesTable } from './pages-table';
 import type { PageSummary } from '@/lib/api/types';
@@ -68,6 +68,9 @@ describe('PagesTable', () => {
     );
     expect(screen.getByText('Limited evidence')).toBeInTheDocument();
     expect(screen.getAllByText('Excluded')).toHaveLength(2);
+    const row = screen.getByText('Homepage').closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row!).queryByText('46')).not.toBeInTheDocument();
   });
 
   it('renders the page-kind badge for a classified page', () => {

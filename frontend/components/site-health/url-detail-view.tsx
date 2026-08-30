@@ -84,7 +84,7 @@ export function UrlDetailView({
           value={
             detail.aeo_measurement_coverage === null ? null : detail.aeo_measurement_coverage * 100
           }
-          state="measured"
+          state={detail.aeo_measurement_state}
         />
       </div>
       <DeliveryMetrics delivery={detail.delivery} />
@@ -362,7 +362,7 @@ function ScoreTile({
       <CardContent className="flex flex-col items-center gap-2 py-[var(--card-padding)]">
         {value === null ? (
           <div className="mono border-border-subtle text-muted flex size-16 items-center justify-center rounded-full border text-base">
-            {state === 'limited_evidence' ? 'Limited' : PLACEHOLDER}
+            {scoreStateLabel(state)}
           </div>
         ) : (
           <ScoreRing value={value} size={64} label={`${label}: ${Math.round(value)}`} />
@@ -371,6 +371,12 @@ function ScoreTile({
       </CardContent>
     </Card>
   );
+}
+
+function scoreStateLabel(state: string): string {
+  if (state === 'limited_evidence') return 'Limited';
+  if (state === 'excluded') return 'Excluded';
+  return PLACEHOLDER;
 }
 
 function DeliveryMetrics({ delivery }: Readonly<{ delivery: DeliveryFacts }>) {

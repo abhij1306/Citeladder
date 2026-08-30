@@ -150,11 +150,14 @@ PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_HOMEPAGE] += ("aeo.organization_identi
 for _editorial_kind in (
     PAGE_KIND_ARTICLE,
     PAGE_KIND_GUIDE,
-    PAGE_KIND_DOCS,
     PAGE_KIND_COMPARISON,
-    PAGE_KIND_CASE_STUDY_REVIEW,
 ):
     PAGE_KIND_READINESS_CHECKPOINTS[_editorial_kind] += _EDITORIAL_READINESS
+PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_DOCS] += ("aeo.date_present",)
+PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_CASE_STUDY_REVIEW] += (
+    "aeo.date_present",
+    "aeo.outbound_citations",
+)
 PAGE_KIND_READINESS_CHECKPOINTS[PAGE_KIND_FAQ] += (
     "aeo.answer_first",
     "aeo.question_headings",

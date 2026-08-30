@@ -223,15 +223,33 @@ function ScoredInventory({
   crawl: SiteCrawl;
   active: boolean;
 }>) {
+  const requestedSort = useSearchParams().get('sort');
+  return (
+    <ScoredInventoryState
+      key={requestedSort ?? ''}
+      crawl={crawl}
+      active={active}
+      requestedSort={requestedSort}
+    />
+  );
+}
+
+function ScoredInventoryState({
+  crawl,
+  active,
+  requestedSort,
+}: Readonly<{
+  crawl: SiteCrawl;
+  active: boolean;
+  requestedSort: string | null;
+}>) {
   const queryClient = useQueryClient();
-  const searchParams = useSearchParams();
   const [tab, setTab] = useState<TabKey>('monitored');
   // Shared page-kind filter (v2 P1): one server-backed value that composes
   // with whichever tab is active — never a client filter over the page window.
   const [pageKind, setPageKind] = useState('');
   // Shared server-side ordering. Like the filter, it is part of the cursor
   // fingerprint, so changing it must restart every tab's paging.
-  const requestedSort = searchParams.get('sort');
   const [sort, setSort] = useState<PagesSort>(initialPagesSort(requestedSort));
   // Per-tab cursor stack so Prev/Next walk keyset pages without offsets.
   const monitoredPager = useCursorStack();

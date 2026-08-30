@@ -38,7 +38,7 @@ def _area_state(
     ]
     expected = len(applicable) + unavailable
     coverage = round(len(determinate) / expected, 4) if expected else None
-    if not rows and not unavailable:
+    if expected == 0:
         return MEASUREMENT_STATE_NOT_MEASURED, coverage
     if len(determinate) == expected:
         return MEASUREMENT_STATE_MEASURED, coverage
@@ -122,8 +122,13 @@ async def web_fundamentals_projection(
         if rule is not None and rule.web_fundamentals_area in by_area:
             by_area[rule.web_fundamentals_area].append(evaluation)
     areas = [_area_row(area, by_area[area]) for area in WEB_FUNDAMENTALS_AREAS]
+    has_http_evidence = any(by_area.values())
     return {
-        "state": _overall_state(areas),
+        "state": (
+            _overall_state(areas)
+            if has_http_evidence
+            else MEASUREMENT_STATE_NOT_MEASURED
+        ),
         "areas": areas,
         "field_data": {
             "state": "unavailable",

@@ -295,6 +295,23 @@ describe('UrlDetail', () => {
     expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
   });
 
+  it('preserves the AEO state when measurement coverage is unavailable', async () => {
+    mswServer.use(
+      ...handlers(
+        detail({
+          aeo_readiness_score: null,
+          aeo_measurement_coverage: null,
+          aeo_measurement_state: 'excluded',
+        }),
+      ),
+    );
+
+    renderWithProviders(<UrlDetail crawlId={CRAWL} siteUrlId={URL_ID} />);
+
+    await screen.findByRole('heading', { name: 'Best&Less Online', level: 1 });
+    expect(screen.getAllByText('Excluded')).toHaveLength(2);
+  });
+
   it('renders the placeholder (not "no-cache") for a missing Cache-Control header', async () => {
     mswServer.use(
       ...handlers(

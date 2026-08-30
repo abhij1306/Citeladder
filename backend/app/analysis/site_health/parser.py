@@ -729,6 +729,11 @@ def extract_page_facts(
         wire_bytes=wire_bytes,
         decoded_bytes=decoded_bytes,
     )
+    normalized_headers = {
+        str(key).lower(): str(value) for key, value in (redacted_headers or {}).items()
+    }
+    header_robots = normalized_headers.get("x-robots-tag", "")
+    facts["robots"] = merge_x_robots_tag(facts["robots"], header_robots)
 
     if not body:
         return facts
@@ -751,6 +756,6 @@ def extract_page_facts(
     )
     facts["robots"] = merge_x_robots_tag(
         facts.get("robots") or {},
-        str((redacted_headers or {}).get("x-robots-tag") or ""),
+        header_robots,
     )
     return facts
