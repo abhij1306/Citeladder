@@ -14,7 +14,21 @@ describe('Switch', () => {
 
   it('reflects the checked state', () => {
     render(<Switch checked onCheckedChange={() => {}} label="Toggle" />);
-    expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+    const toggle = screen.getByRole('switch');
+    const track = toggle.firstElementChild;
+    const thumb = track?.firstElementChild;
+
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(track).toHaveClass('border-accent', 'bg-accent');
+    expect(thumb).toHaveClass('translate-x-5');
+  });
+
+  it('keeps the unchecked track visible on the light canvas', () => {
+    render(<Switch checked={false} onCheckedChange={() => {}} label="Toggle" />);
+    const track = screen.getByRole('switch').firstElementChild;
+
+    expect(track).toHaveClass('border-border-bold', 'bg-active');
+    expect(track?.firstElementChild).toHaveClass('translate-x-px');
   });
 
   it('toggles on click', async () => {

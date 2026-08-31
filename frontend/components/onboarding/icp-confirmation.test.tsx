@@ -47,9 +47,15 @@ describe('IcpConfirmation', () => {
   it('asks three questions, all answerable by clicking', () => {
     render(<IcpConfirmation profile={profile()} onChange={vi.fn()} />);
 
-    expect(screen.getByText('What you sell')).toBeVisible();
-    expect(screen.getByText('Who buys it')).toBeVisible();
-    expect(screen.getByText('Where they buy it')).toBeVisible();
+    const what = screen.getByRole('heading', { name: 'What you sell' });
+    const who = screen.getByRole('heading', { name: 'Who buys it' });
+    const where = screen.getByRole('heading', { name: 'Where they buy it' });
+    expect(what).toHaveClass('text-foreground');
+    expect(who).toHaveClass('text-foreground');
+    expect(where).toHaveClass('text-foreground');
+    expect(who.closest('section')?.parentElement).toBe(where.closest('section')?.parentElement);
+    expect(who.closest('section')?.parentElement).toHaveClass('md:grid-cols-2');
+    expect(where.closest('section')).toHaveClass('border-border-subtle', 'md:border-l');
     expect(screen.queryByLabelText(/positioning/i)).toBeNull();
     expect(screen.queryByLabelText(/description/i)).toBeNull();
   });
@@ -87,15 +93,18 @@ describe('IcpConfirmation', () => {
     expect(screen.getByRole('radio', { name: 'Other' })).toBeVisible();
   });
 
-  it('keeps every choice on screen after picking a market scope', async () => {
+  it('offers one regional choice and keeps every choice on screen after selection', async () => {
     // Regression: selecting a scope made the rest of the options vanish.
     const onChange = vi.fn();
     const { rerender } = render(<IcpConfirmation profile={profile()} onChange={onChange} />);
 
-    await userEvent.click(screen.getByRole('radio', { name: 'City by city' }));
+    expect(screen.queryByRole('radio', { name: 'City by city' })).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'Across a region' })).toBeNull();
+    await userEvent.click(screen.getByRole('radio', { name: 'Regional' }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ market_scope: 'regional' }));
     rerender(<IcpConfirmation profile={profile({ market_scope: 'local' })} onChange={onChange} />);
 
-    expect(screen.getByRole('radio', { name: 'City by city' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Regional' })).toBeChecked();
     expect(screen.getByRole('radio', { name: 'Worldwide' })).toBeVisible();
     expect(screen.getByRole('radio', { name: 'Businesses' })).toBeVisible();
     expect(screen.getByText('What you sell')).toBeVisible();

@@ -1,7 +1,6 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
 
 import { projectsApi } from '@/lib/api/projects';
 import { queryKeys } from '@/lib/api/query-keys';
@@ -9,20 +8,19 @@ import type { SessionUser } from '@/lib/api/types';
 import { clearAccountScopedClientState } from '@/lib/auth/account-transition';
 import { hasPendingIntent } from '@/lib/billing/pending-pricing-intent';
 import { PRICING_RESUME_QUERY_PARAM, PRICING_RETURN_PATH } from '@/lib/config/billing';
+import { hardNavigate } from '@/lib/navigation/hard-navigate';
 
 /**
  * Login mutation wiring (F4): on success, prime the `me` cache
  * with the returned user and route directly to the right authed screen — no
  * marketing-landing bounce. The project list is fetched through the query
- * client (so it lands in the `projects.list` cache for the app shell) and
- * awaited, which keeps the mutation pending — and the submit button spinning —
- * until the redirect fires: no projects yet → `/onboarding`, otherwise
- * `/projects`. A failed lookup falls back to `/onboarding` rather than stranding
- * the user on the auth screen. The submit handler swallows the rejection —
- * the error surfaces via `mutation.isError` in the page's inline alert.
+ * client and awaited, which keeps the mutation pending until the destination is
+ * known: no projects yet → `/onboarding`, otherwise `/projects`. The confirmed
+ * identity boundary uses a full-page navigation so the protected layout reads
+ * the new cookie and session state from a clean document instead of reusing a
+ * prefetched anonymous shell. A failed lookup falls back to `/onboarding`.
  */
 export function useAuthMutation<TValues>(mutationFn: (values: TValues) => Promise<SessionUser>) {
-  const router = useRouter();
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -40,7 +38,7 @@ export function useAuthMutation<TValues>(mutationFn: (values: TValues) => Promis
       // travels — the intent itself stays in storage and is revalidated
       // against the live catalog before anything is purchased.
       if (hasPendingIntent()) {
-        router.replace(`${PRICING_RETURN_PATH}?${PRICING_RESUME_QUERY_PARAM}=1`);
+        hardNavigate(`${PRICING_RETURN_PATH}?${PRICING_RESUME_QUERY_PARAM}=1`);
         return;
       }
 
@@ -54,7 +52,7 @@ export function useAuthMutation<TValues>(mutationFn: (values: TValues) => Promis
       } catch {
         // Projects lookup failed — `/onboarding` is the safe default.
       }
-      router.replace(destination);
+      hardNavigate(destination);
     },
   });
 

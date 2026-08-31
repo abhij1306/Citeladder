@@ -58,14 +58,8 @@ export function Dialog({
             returnTarget.focus();
             returnFocusRef.current = null;
           }}
-          style={{
-            width: '42rem',
-            maxWidth: 'calc(100vw - 2rem)',
-            minWidth: 0,
-            boxSizing: 'border-box',
-          }}
           className={cn(
-            'dialog-panel border-border-subtle bg-elevated shadow-modal-value z-modal fixed top-1/2 left-1/2 flex max-h-5/6 -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-overlay)] border focus:outline-none',
+            'dialog-panel border-border-subtle bg-elevated shadow-modal-value z-modal fixed top-1/2 left-1/2 flex max-h-5/6 w-[42rem] max-w-[calc(100vw-2rem)] min-w-0 -translate-x-1/2 -translate-y-1/2 flex-col box-border rounded-[var(--radius-overlay)] border focus:outline-none',
             className,
           )}
         >

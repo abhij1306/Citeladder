@@ -7,17 +7,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { getActiveWorkspaceId, setActiveWorkspaceId } from '@/lib/api/client';
 import { createAppQueryClient } from '@/lib/api/query-client';
 import { queryKeys } from '@/lib/api/query-keys';
+import { hardNavigate } from '@/lib/navigation/hard-navigate';
 import { ACTIVE_PROJECT_STORAGE_KEY } from '@/lib/project/active-project-storage';
 import { mswServer } from '@/test/msw-server';
 
 import { useAuthMutation } from './use-auth-mutation';
 
-// next/navigation is not available in jsdom — stub the router so we can assert
-// on the post-success redirect (mirrors the auth page tests).
-const replace = vi.fn();
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace, push: vi.fn(), refresh: vi.fn() }),
-}));
+vi.mock('@/lib/navigation/hard-navigate', () => ({ hardNavigate: vi.fn() }));
+const navigate = vi.mocked(hardNavigate);
 
 const sessionUser = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -64,7 +61,7 @@ function setup(mutationFn: () => Promise<typeof sessionUser> = () => Promise.res
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => {
   mswServer.resetHandlers();
-  replace.mockReset();
+  navigate.mockReset();
   window.localStorage.clear();
   setActiveWorkspaceId(null);
 });
@@ -79,7 +76,7 @@ describe('useAuthMutation', () => {
       void result.current.submit({});
     });
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/onboarding'));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/onboarding'));
     expect(queryClient.getQueryData(queryKeys.auth.me())).toMatchObject({ id: sessionUser.id });
   });
 
@@ -119,7 +116,7 @@ describe('useAuthMutation', () => {
       void result.current.submit({});
     });
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/onboarding'));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/onboarding'));
     await oldRequest;
     expect(wasAborted).toBe(true);
     expect(queryClient.getQueryData(['old-account', 'private'])).toBeUndefined();
@@ -143,7 +140,7 @@ describe('useAuthMutation', () => {
     expect(queryClient.getQueryData(['old-account', 'private'])).toEqual({ stays: true });
     expect(window.localStorage.getItem(ACTIVE_PROJECT_STORAGE_KEY)).toBe(project.id);
     expect(getActiveWorkspaceId()).toBe(project.workspace_id);
-    expect(replace).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('routes to /projects when the workspace already has a project', async () => {
@@ -154,7 +151,7 @@ describe('useAuthMutation', () => {
       void result.current.submit({});
     });
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/projects'));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/projects'));
   });
 
   // A pricing selection captured before signing in was the visitor's last
@@ -181,10 +178,10 @@ describe('useAuthMutation', () => {
       void result.current.submit({});
     });
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/pricing?resumeActivation=1'));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/pricing?resumeActivation=1'));
     // No intent field may leak into the auth URL — the record stays in
     // storage and is revalidated against the live catalog before any purchase.
-    expect(replace).not.toHaveBeenCalledWith(expect.stringContaining('tier_2'));
+    expect(navigate).not.toHaveBeenCalledWith(expect.stringContaining('tier_2'));
     globalThis.sessionStorage.clear();
   });
 
@@ -197,7 +194,7 @@ describe('useAuthMutation', () => {
       void result.current.submit({});
     });
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/projects'));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/projects'));
     globalThis.sessionStorage.clear();
   });
 
@@ -215,7 +212,7 @@ describe('useAuthMutation', () => {
       void result.current.submit({});
     });
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/onboarding'));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/onboarding'));
     expect(result.current.mutation.isError).toBe(false);
   });
 
@@ -237,14 +234,14 @@ describe('useAuthMutation', () => {
     });
 
     await waitFor(() => expect(result.current.mutation.isPending).toBe(true));
-    expect(replace).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
 
     // isPending flips before the MSW handler has necessarily assigned
     // `respond` — wait for the request to actually arrive before resolving.
     await waitFor(() => expect(respond).toBeTypeOf('function'));
     if (!respond) throw new Error('Projects request did not start');
     respond(HttpResponse.json([]));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/onboarding'));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/onboarding'));
     await waitFor(() => expect(result.current.mutation.isPending).toBe(false));
   });
 });

@@ -55,6 +55,7 @@
 
 @starting-style {
   .tooltip-panel[data-state='delayed-open'],
+  .tooltip-panel[data-state='instant-open'],
   .toast-panel[data-state='open'] {
     opacity: 0;
     transform: translateY(2px);

@@ -47,8 +47,8 @@ export function BrandCanvas({
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         <div className="from-brand-canvas-glow/20 via-brand-canvas/80 to-brand-canvas absolute -top-1/4 -left-1/4 size-[150%] rounded-full bg-radial blur-3xl" />
         <div className="bg-accent/10 absolute top-1/2 left-1/2 size-96 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[100px]" />
-        <div className="border-brand-canvas-border/40 absolute top-1/3 -left-20 h-96 w-[600px] -rotate-12 rounded-[100px] border-2" />
-        <div className="border-brand-canvas-border/30 absolute top-1/4 -left-10 h-96 w-[650px] -rotate-12 rounded-[120px] border" />
+        <div className="border-brand-canvas-border/40 absolute top-1/3 -left-20 h-96 w-[min(600px,90vw)] -rotate-12 rounded-[100px] border-2" />
+        <div className="border-brand-canvas-border/30 absolute top-1/4 -left-10 h-96 w-[min(650px,92vw)] -rotate-12 rounded-[120px] border" />
       </div>
       {children}
     </div>

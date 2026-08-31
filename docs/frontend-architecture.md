@@ -206,7 +206,7 @@ finished; **All Discovered** remains available for the full inventory. Once the
 crawl terminalizes, the first tab returns to the complete **Monitored** view.
 
 The Issues surface has separate server-backed **Defects** and **Advisories**
-views. Defects are the default and the only class with severity chips. Its
+views. Defects are the default and show severity as compact unboxed metadata. Its
 headline explicitly counts distinct defect issue types, while supporting
 labels name occurrences and affected URLs. Switching views changes the
 headline to distinct advisory issue types and labels the supporting quantities

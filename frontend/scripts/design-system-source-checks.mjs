@@ -29,6 +29,7 @@ const CSS_BLOCK_CONTRACTS = new Map([
   ['.website-section-heading', []],
   ['.website-feature-heading', []],
   ['.website-small-heading', []],
+  ['.auth-form-title', ['font-size: 1.375rem', 'letter-spacing: -0.01em']],
   ['.website-lead', []],
   ['.website-body', []],
   ['.website-nav', []],
@@ -58,7 +59,7 @@ const JSX_ROLE_CONTRACTS = new Map([
     'components/marketing/primitives/section.tsx',
     ['website-section-heading', 'website-feature-heading'],
   ],
-  ['components/auth/auth-form.tsx', ['website-small-heading', 'website-body']],
+  ['components/auth/auth-form.tsx', ['auth-form-title', 'website-body']],
 ]);
 
 function staticBindings(sourceFile) {
@@ -266,6 +267,12 @@ export function productControlViolations(source, label, ownsProductUi) {
       const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
       if (tag === 'select') {
         violations.push(`${label}:${line}: native select must use components/ui/select`);
+      }
+      if (tag === 'input') {
+        violations.push(`${label}:${line}: raw product input must use a components/ui owner`);
+      }
+      if (tag === 'textarea') {
+        violations.push(`${label}:${line}: raw product textarea must use components/ui/textarea`);
       }
       if (tag === 'button') {
         violations.push(`${label}:${line}: raw product button must use Button or Pressable`);

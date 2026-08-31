@@ -52,13 +52,15 @@ describe('directRadixImportViolations', () => {
 });
 
 describe('productControlViolations', () => {
-  it('rejects native selects, raw buttons, and cosmetic Button overrides', () => {
+  it('rejects native controls and cosmetic Button overrides', () => {
     const source = `
       <select><option>One</option></select>
+      <input aria-label="Name" />
+      <textarea aria-label="Notes" />
       <button type="button">Open</button>
       <Button className="rounded-full bg-panel text-muted shadow-sm">Save</Button>
     `;
-    expect(productControlViolations(source, 'components/example.tsx', true)).toHaveLength(3);
+    expect(productControlViolations(source, 'components/example.tsx', true)).toHaveLength(5);
   });
 
   it('allows shared controls and semantic Button layout classes', () => {

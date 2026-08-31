@@ -18,7 +18,7 @@
 import { Check, Pencil, Plus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Pressable } from '@/components/ui/pressable';
+import { FilterChip } from '@/components/ui/filter-chip';
 import { cn } from '@/lib/utils';
 
 /**
@@ -32,31 +32,19 @@ export function ReviewSection({
   title,
   meta,
   action,
-  emphasis = false,
+  className,
   children,
 }: Readonly<{
   title: string;
   meta?: React.ReactNode;
   action?: React.ReactNode;
-  /** The answer everything downstream is derived from. */
-  emphasis?: boolean;
+  className?: string;
   children: React.ReactNode;
 }>) {
   return (
-    <section className="space-y-1.5 py-2.5 first:pt-0 last:pb-0">
+    <section className={cn('space-y-1.5 py-2.5', className)}>
       <div className="flex min-h-5 items-center justify-between gap-2">
-        {/* Product label role — 14px, the screen's baseline. Section titles are structure, not display
-            type: a heading two steps up the scale made a four-question form
-            read like four separate pages. Colour and weight are stated here
-            because the role defaults to muted. */}
-        <h2
-          className={cn(
-            'text-sm',
-            emphasis ? 'text-foreground font-semibold' : 'text-secondary font-medium',
-          )}
-        >
-          {title}
-        </h2>
+        <h2 className="text-foreground text-sm font-semibold">{title}</h2>
         <div className="flex shrink-0 items-center gap-2">
           {meta ? (
             <span className="text-muted text-xs font-medium tabular-nums">{meta}</span>
@@ -82,40 +70,11 @@ export function ChipRow({ children }: Readonly<{ children: React.ReactNode }>) {
  * reflowed the whole row and the neighbour you were about to compare against
  * moved out from under the cursor.
  */
-const chipBase =
-  'group inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium leading-tight transition-all duration-150 select-none';
-const chipSelected =
-  'border-accent bg-accent-subtle text-accent-text font-semibold shadow-xs ring-1 ring-accent/30';
-const chipIdle =
-  'border-border bg-panel text-secondary hover:border-accent/50 hover:bg-background-alt hover:text-foreground shadow-2xs';
-
 function ChipMark({ selected, idle }: Readonly<{ selected: boolean; idle?: React.ReactNode }>) {
   return (
     <span aria-hidden className="flex size-3.5 shrink-0 items-center justify-center">
       {selected ? <Check className="text-accent-text size-3.5" strokeWidth={2.5} /> : idle}
     </span>
-  );
-}
-
-/** One mutually exclusive option, rendered as a radio the whole chip toggles. */
-export function ChoiceChip({
-  label,
-  selected,
-  onSelect,
-  name,
-}: Readonly<{ label: string; selected: boolean; onSelect: () => void; name: string }>) {
-  return (
-    <label
-      className={cn(
-        chipBase,
-        'focus-within:ring-accent cursor-pointer focus-within:ring-2 focus-within:ring-offset-1',
-        selected ? chipSelected : chipIdle,
-      )}
-    >
-      <input type="radio" name={name} className="sr-only" checked={selected} onChange={onSelect} />
-      <ChipMark selected={selected} />
-      {label}
-    </label>
   );
 }
 
@@ -149,20 +108,12 @@ export function ToggleChip({
   editLabel?: string;
 }>) {
   return (
-    <span
-      className={cn(
-        chipBase,
-        'max-w-full pr-1.5',
-        selected ? chipSelected : chipIdle,
-        disabled && !selected && 'opacity-60',
-      )}
-    >
-      <Pressable
-        type="button"
+    <span className="inline-flex max-w-full items-center gap-1">
+      <FilterChip
+        active={selected}
         onClick={onToggle}
         disabled={disabled && !selected}
-        aria-pressed={selected}
-        className="flex w-auto min-w-0 cursor-pointer items-center gap-1.5 disabled:cursor-not-allowed"
+        className="group min-w-0"
       >
         <ChipMark
           selected={selected}
@@ -174,7 +125,7 @@ export function ToggleChip({
             on whether it was on — and a voice-control user could not say the
             word they could see. */}
         <span className="truncate">{label}</span>
-      </Pressable>
+      </FilterChip>
       {onEdit ? (
         <Button
           type="button"

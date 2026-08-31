@@ -10,6 +10,7 @@
   --radius-control: var(--radius-sm);
   --radius-card: var(--radius-sm);
   --radius-overlay: var(--radius-md);
+  --radius-auth-control: 12px;
   --shadow-card:
     0 0 0 1px rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.03),
     0 6px 16px -4px rgb(15 23 42 / 0.05);
@@ -44,6 +45,21 @@
   --leading-relaxed: 1.5;
   font-size: 1rem;
   line-height: 1.5;
+}
+
+/* Authentication is a focused, touch-friendly form surface. Its controls use
+   the documented auth geometry without changing the denser public navigation
+   controls that share this typography scope. */
+.website-type [data-auth-form] {
+  --radius-control: var(--radius-auth-control);
+}
+
+.auth-form-title {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .website-type :where(h1, h2, h3, h4, h5, h6):not(.app-type-scale *) {
@@ -249,6 +265,10 @@
     inset 0 0 0 1px rgb(255 255 255 / 0.32),
     0 2px 4px rgb(16 24 40 / 0.1),
     0 10px 20px -9px rgb(38 103 255 / 0.58);
+}
+
+.website-type [data-auth-form] [data-button-size='lg'] {
+  border-radius: var(--radius-auth-control);
 }
 
 /* A coded product preview is product UI, not oversized marketing copy. */

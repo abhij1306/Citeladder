@@ -219,8 +219,8 @@ export function ReviewStage({
           Deselect anything you don&apos;t want — you can change all of it after setup.
         </p>
       </div>
-      <div className="grid gap-3 lg:grid-cols-2">
-        <div className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-md border p-4">
+      <div className="grid gap-3">
+        <section className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-[var(--radius-card)] border p-4">
           <div className="border-border-subtle flex items-center justify-between border-b pb-2">
             <span className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">
               Brand Positioning &amp; Market
@@ -231,8 +231,8 @@ export function ReviewStage({
             </span>
           </div>
           {profile ? <IcpConfirmation profile={profile} onChange={setProfile} /> : null}
-        </div>
-        <div className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-md border p-4">
+        </section>
+        <section className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-[var(--radius-card)] border p-4">
           <div className="border-border-subtle flex items-center justify-between border-b pb-2">
             <span className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">
               Online Footprint &amp; Peers
@@ -252,7 +252,7 @@ export function ReviewStage({
             onAddCompetitor={() => addCompetitor(setCompetitors, maximumCompetitors)}
             maximumCompetitors={maximumCompetitors}
           />
-        </div>
+        </section>
       </div>
       {catalog.isError ? (
         <Alert tone="warning">
@@ -274,7 +274,10 @@ export function ReviewStage({
       {!hasConfirmedIcp(profile) ? (
         <Alert tone="warning">Choose or describe what you sell.</Alert>
       ) : null}
-      <div className="flex items-center gap-3 pt-1">
+      <div className="border-border-subtle flex items-center justify-between gap-3 border-t pt-3">
+        <Button variant="secondary" size="md" onClick={() => setStep(1)} disabled={isCompleting}>
+          Back
+        </Button>
         <Button
           size="md"
           onClick={() => complete.mutate()}
@@ -283,9 +286,6 @@ export function ReviewStage({
           }
         >
           {isCompleting ? 'Creating…' : 'Create project'}
-        </Button>
-        <Button variant="ghost" size="md" onClick={() => setStep(1)} disabled={isCompleting}>
-          Back
         </Button>
       </div>
     </div>

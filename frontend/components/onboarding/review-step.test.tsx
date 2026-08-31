@@ -5,6 +5,30 @@ import { describe, expect, it, vi } from 'vitest';
 import { ReviewStep } from './review-step';
 
 describe('ReviewStep competitor limit', () => {
+  it('places websites and competitors in equal columns with matching headings', () => {
+    render(
+      <ReviewStep
+        domains={[]}
+        competitors={[]}
+        maximumCompetitors={5}
+        onToggleDomain={vi.fn()}
+        onToggleCompetitor={vi.fn()}
+        onEditCompetitorDomain={vi.fn()}
+        onAddCompetitor={vi.fn()}
+      />,
+    );
+
+    const websites = screen.getByRole('heading', { name: 'Your websites' });
+    const competitors = screen.getByRole('heading', { name: 'Competitors' });
+    expect(websites).toHaveClass('text-foreground');
+    expect(competitors).toHaveClass('text-foreground');
+    expect(websites.closest('section')?.parentElement).toBe(
+      competitors.closest('section')?.parentElement,
+    );
+    expect(websites.closest('section')?.parentElement).toHaveClass('md:grid-cols-2');
+    expect(competitors.closest('section')).toHaveClass('border-border-subtle', 'md:border-l');
+  });
+
   it('shows only the competitor URL beneath its name', () => {
     render(
       <ReviewStep

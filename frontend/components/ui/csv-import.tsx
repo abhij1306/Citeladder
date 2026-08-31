@@ -82,7 +82,11 @@ export function CsvImportFileInput({
         type="file"
         accept=".csv,text/csv"
         aria-label="CSV file"
-        onChange={(event) => onSelect(event.target.files?.[0])}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          onSelect(file);
+          event.currentTarget.value = '';
+        }}
         className="focus-ring border-border bg-well text-foreground file:bg-background-alt file:text-foreground block w-full rounded-[var(--radius-control)] border px-2 py-1.5 text-sm file:me-2 file:rounded-[var(--radius-control)] file:border-0 file:px-2 file:py-1 file:text-sm"
       />
     </label>

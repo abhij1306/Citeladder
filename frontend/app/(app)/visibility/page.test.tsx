@@ -18,7 +18,7 @@ import {
 } from '@/test/fixtures/visibility';
 import { mswServer } from '@/test/msw-server';
 
-let replaceStateSpy: ReturnType<typeof vi.spyOn>;
+let pushStateSpy: ReturnType<typeof vi.spyOn>;
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), back: vi.fn(), forward: vi.fn() }),
   usePathname: () => '/visibility',
@@ -26,9 +26,9 @@ vi.mock('next/navigation', () => ({
 }));
 
 setupVisibilityPageTests(() => {
-  replaceStateSpy = vi.spyOn(window.history, 'replaceState');
+  pushStateSpy = vi.spyOn(window.history, 'pushState');
   window.history.replaceState(null, '', '/visibility');
-  replaceStateSpy.mockClear();
+  pushStateSpy.mockClear();
 });
 
 function setVisibilitySearch(search: string) {
@@ -102,7 +102,7 @@ describe('VisibilityPage — tablist', () => {
     );
   });
 
-  it('syncs ?tab= via a shallow history.replaceState when a tab is clicked', async () => {
+  it('pushes shallow tab history so browser Back can restore the prior view', async () => {
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility`, () =>
         HttpResponse.json(makeVisibility(AUDIT_LATEST, 67)),
@@ -116,7 +116,7 @@ describe('VisibilityPage — tablist', () => {
     await user.click(screen.getByRole('tab', { name: 'Mentions' }));
 
     await waitFor(() =>
-      expect(replaceStateSpy).toHaveBeenCalledWith(
+      expect(pushStateSpy).toHaveBeenCalledWith(
         null,
         '',
         expect.stringContaining('tab=mentions-citations'),

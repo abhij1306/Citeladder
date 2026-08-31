@@ -117,10 +117,11 @@ export function ReviewStep({
     maximumCompetitors === undefined || selectedCompetitors >= maximumCompetitors;
 
   return (
-    <div className="divide-border-subtle divide-y">
+    <div className="grid md:grid-cols-2">
       <ReviewSection
         title="Your websites"
         meta={domains.length > 0 ? `${selectedDomains} of ${domains.length}` : undefined}
+        className="pt-0 md:pr-4"
       >
         {domains.length === 0 ? (
           <p className="text-muted text-sm font-medium">No websites were found.</p>
@@ -141,13 +142,13 @@ export function ReviewStep({
       <ReviewSection
         title="Competitors"
         meta={`${selectedCompetitors} of ${maximumCompetitors ?? '…'} tracked`}
+        className="border-border-subtle border-t pb-0 md:border-t-0 md:border-l md:pt-0 md:pl-4"
         action={
           <Button
             variant="tonal"
             size="sm"
             onClick={onAddCompetitor}
             disabled={competitorLimitReached}
-            className="h-6.5 gap-1 px-2.5"
           >
             <Plus className="size-3.5" aria-hidden />
             Add

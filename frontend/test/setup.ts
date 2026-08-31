@@ -67,9 +67,15 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
 // implement it, but component tests only need the observer contract, not
 // layout measurements.
 class ResizeObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
+  observe() {
+    return undefined;
+  }
+  unobserve() {
+    return undefined;
+  }
+  disconnect() {
+    return undefined;
+  }
 }
 globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
 

@@ -6,8 +6,10 @@ import { Check, Minus } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
+type VisibleCheckboxLabel = Exclude<ReactNode, null | undefined | boolean>;
+
 type AccessibleCheckbox =
-  | { label: ReactNode; 'aria-label'?: never }
+  | { label: VisibleCheckboxLabel; 'aria-label'?: never }
   | { label?: never; 'aria-label': string };
 
 export type CheckboxProps = AccessibleCheckbox & {
@@ -31,6 +33,10 @@ export function Checkbox({
   required,
   'aria-label': ariaLabel,
 }: Readonly<CheckboxProps>) {
+  if ((label == null || typeof label === 'boolean') && !ariaLabel) {
+    throw new Error('Checkbox requires a visible label or aria-label.');
+  }
+
   const control = (
     <CheckboxPrimitive.Root
       id={id}
@@ -54,7 +60,9 @@ export function Checkbox({
     </CheckboxPrimitive.Root>
   );
 
-  if (label === undefined) return <span className={className}>{control}</span>;
+  if (label == null || typeof label === 'boolean') {
+    return <span className={className}>{control}</span>;
+  }
 
   return (
     <label className={cn('inline-flex items-center gap-2 text-sm', className)}>

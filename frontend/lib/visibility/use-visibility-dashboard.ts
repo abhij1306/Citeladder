@@ -40,9 +40,7 @@ const VISIBILITY_TAB_CODEC = stringUrlCodec(
  * evidence tabs; granularity → Trends only.
  */
 export function useVisibilityFilters() {
-  const [activeTab, setActiveTab] = useUrlState('tab', VISIBILITY_TAB_CODEC, {
-    history: 'replace',
-  });
+  const [activeTab, setActiveTab] = useUrlState('tab', VISIBILITY_TAB_CODEC);
 
   // Shared filter state (persists across tab switches).
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -53,9 +51,9 @@ export function useVisibilityFilters() {
   const [cohort, setCohort] = useState<'core' | 'comparison'>('core');
 
   function selectTab(tab: VisibilityTab) {
-    // The shared URL-state owner performs a shallow history update and emits
-    // one subscription event, avoiding an App Router round trip and a mirrored
-    // local tab store.
+    // The shared URL-state owner pushes a shallow history entry and emits one
+    // subscription event, avoiding an App Router round trip and a mirrored
+    // local tab store while preserving browser Back across visible views.
     setActiveTab(tab);
   }
 

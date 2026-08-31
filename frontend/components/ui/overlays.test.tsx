@@ -46,6 +46,17 @@ describe('Dialog', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('allows a consumer width utility to replace the default width', () => {
+    render(
+      <Dialog open onOpenChange={() => {}} title="CSV preview" className="w-205">
+        Preview
+      </Dialog>,
+    );
+
+    expect(screen.getByRole('dialog')).toHaveClass('w-205');
+    expect(screen.getByRole('dialog')).not.toHaveClass('w-[42rem]');
+  });
+
   it('restores focus to the control that opened it', async () => {
     const user = userEvent.setup();
 

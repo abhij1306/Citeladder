@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 
+import { menuPanelClasses } from '@/components/ui/menu-variants';
 import { cn } from '@/lib/utils';
 
 const EMPTY_VALUE = '__citeladder_empty_value__';
@@ -66,7 +67,7 @@ export function Select<T extends string>({
         aria-required={required || undefined}
         id={id}
         className={cn(
-          'focus-ring border-input bg-input-bg text-foreground data-[placeholder]:text-muted flex h-[var(--control-height)] min-w-0 items-center justify-between gap-2 rounded-[var(--radius-control)] border px-3 text-sm shadow-xs transition-[border-color,background-color,box-shadow] hover:border-border-strong disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-danger',
+          'focus-ring border-border-strong/80 bg-input text-foreground data-[placeholder]:text-muted flex h-[var(--control-height)] min-w-0 items-center justify-between gap-2 rounded-[var(--radius-control)] border px-2.5 text-sm transition-[border-color,box-shadow] hover:border-border-bold focus:border-accent disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger',
           className,
         )}
       >
@@ -80,7 +81,10 @@ export function Select<T extends string>({
           position="popper"
           sideOffset={6}
           collisionPadding={8}
-          className="menu-panel border-border bg-elevated shadow-elevated z-[var(--z-index-overlay)] max-h-[min(20rem,var(--radix-select-content-available-height))] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-[var(--radius-overlay)] border p-1"
+          className={cn(
+            menuPanelClasses,
+            'max-h-[min(20rem,var(--radix-select-content-available-height))] min-w-[var(--radix-select-trigger-width)]',
+          )}
         >
           <SelectPrimitive.ScrollUpButton className="text-muted flex h-7 items-center justify-center">
             <ChevronUp className="size-4" aria-hidden />

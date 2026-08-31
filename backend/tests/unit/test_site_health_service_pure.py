@@ -64,6 +64,13 @@ def test_web_fundamentals_na_only_area_is_not_measured() -> None:
     assert coverage is None
 
 
+def test_web_fundamentals_partial_outcome_is_determinate() -> None:
+    state, coverage = _area_state([SimpleNamespace(outcome="partial")])
+
+    assert state == "measured"
+    assert coverage == 1.0
+
+
 def test_fingerprint_is_stable_and_ignores_empty_values() -> None:
     a = filter_fingerprint("pages", {"status": "completed", "monitored": None})
     b = filter_fingerprint("pages", {"status": "completed"})

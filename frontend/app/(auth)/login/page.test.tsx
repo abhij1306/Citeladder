@@ -5,15 +5,16 @@ import userEvent from '@testing-library/user-event';
 
 import { mswServer } from '@/test/msw-server';
 import { renderWithProviders } from '@/test/render';
+import { hardNavigate } from '@/lib/navigation/hard-navigate';
 
-// next/navigation is not available in jsdom — stub the router so we can assert
-// on the post-success redirect.
-const replace = vi.fn();
+// next/navigation is not available in jsdom; the hard-navigation seam makes
+// the post-login document transition directly assertable.
 const searchParams = new URLSearchParams();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace, push: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => searchParams,
 }));
+vi.mock('@/lib/navigation/hard-navigate', () => ({ hardNavigate: vi.fn() }));
+const navigate = vi.mocked(hardNavigate);
 
 import LoginPage from './page';
 
@@ -29,7 +30,7 @@ const sessionUser = {
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => {
   mswServer.resetHandlers();
-  replace.mockReset();
+  navigate.mockReset();
   searchParams.delete('registered');
 });
 afterAll(() => mswServer.close());
@@ -67,7 +68,7 @@ describe('LoginPage', () => {
     expect(await screen.findByText(/email is required/i)).toBeInTheDocument();
     expect(screen.getByText(/password is required/i)).toBeInTheDocument();
     expect(loginHandler).not.toHaveBeenCalled();
-    expect(replace).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('logs in and routes to /onboarding when the workspace has no projects', async () => {
@@ -82,7 +83,7 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText(/password/i, { selector: 'input' }), 'sup3rsecret');
     await user.click(screen.getByRole('button', { name: /^continue$/i }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/onboarding'));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/onboarding'));
   });
 
   it('surfaces the ApiError message inline on a 401', async () => {
@@ -99,6 +100,6 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: /^continue$/i }));
 
     expect(await screen.findByText(/invalid email or password/i)).toBeInTheDocument();
-    expect(replace).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

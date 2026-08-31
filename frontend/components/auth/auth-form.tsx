@@ -8,6 +8,7 @@ import { Alert as MktAlert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Pressable } from '@/components/ui/pressable';
 import { authApi } from '@/lib/api/auth';
 import { ApiError } from '@/lib/api/errors';
 import { assignLocation } from '@/lib/navigate';
@@ -77,30 +78,28 @@ export function AuthPasswordField({
   return (
     <Field label={label} required error={error}>
       {(props) => (
-        <div className="relative">
-          <Input
-            {...props}
-            {...inputProps}
-            type={visible ? 'text' : 'password'}
-            autoComplete={autoComplete}
-            placeholder={placeholder}
-            size="lg"
-            // Room for the visibility toggle that sits inside the field.
-            className="pr-9"
-          />
-          <button
-            type="button"
-            onClick={() => setVisible((current) => !current)}
-            className="text-muted hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 p-1 transition-colors"
-            aria-label={`${visible ? 'Hide' : 'Show'} ${visibilityLabel}`}
-          >
-            {visible ? (
-              <EyeOff className="size-4" aria-hidden />
-            ) : (
-              <Eye className="size-4" aria-hidden />
-            )}
-          </button>
-        </div>
+        <Input
+          {...props}
+          {...inputProps}
+          type={visible ? 'text' : 'password'}
+          autoComplete={autoComplete}
+          placeholder={placeholder}
+          size="lg"
+          endContent={
+            <Pressable
+              type="button"
+              onClick={() => setVisible((current) => !current)}
+              className="text-muted hover:text-foreground grid size-7 place-items-center rounded-[var(--radius-control)] transition-colors"
+              aria-label={`${visible ? 'Hide' : 'Show'} ${visibilityLabel}`}
+            >
+              {visible ? (
+                <EyeOff className="size-4" aria-hidden />
+              ) : (
+                <Eye className="size-4" aria-hidden />
+              )}
+            </Pressable>
+          }
+        />
       )}
     </Field>
   );
@@ -159,9 +158,9 @@ export function AuthFormShell({
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full" data-auth-form>
       <div className="text-center">
-        <h1 className="website-small-heading text-foreground">{title}</h1>
+        <h1 className="auth-form-title text-foreground">{title}</h1>
         <p className="website-body text-muted mt-1">{description}</p>
       </div>
 

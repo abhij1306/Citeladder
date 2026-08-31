@@ -57,7 +57,11 @@ export function OnboardingSidebar({ step }: Readonly<{ step: OnboardingStep }>) 
           </p>
         </div>
         <div className="relative my-auto">
-          <ol className="border-brand-canvas-border ml-5 list-none space-y-[var(--storytelling-gap)] border-l-2 p-0">
+          <div
+            className="bg-brand-canvas-border absolute top-4 bottom-4 left-4.5 w-0.5"
+            aria-hidden="true"
+          />
+          <ol className="relative list-none space-y-[var(--storytelling-gap)] p-0 pl-1">
             {STEPS.map((stage, index) => {
               const isDone = index < step;
               const isCurrent = index === step;
@@ -65,7 +69,7 @@ export function OnboardingSidebar({ step }: Readonly<{ step: OnboardingStep }>) 
                 <li
                   key={stage.id}
                   aria-current={isCurrent ? 'step' : undefined}
-                  className="-ml-5 flex items-center gap-4"
+                  className="relative flex items-center gap-4"
                 >
                   <StepMarker index={index} step={step} />
                   <div className="space-y-1">

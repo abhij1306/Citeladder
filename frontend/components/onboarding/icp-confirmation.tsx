@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 
-import { ChipRow, ChoiceChip, ReviewSection } from '@/components/onboarding/choice-controls';
+import { ReviewSection } from '@/components/onboarding/choice-controls';
 import { Input } from '@/components/ui/input';
+import { RadioGroup } from '@/components/ui/radio-group';
 import type { DiscoveryProfile } from '@/lib/api/brand-discoveries';
 
 /**
@@ -30,9 +31,8 @@ export function hasConfirmedIcp(profile: DiscoveryProfile | null): profile is Di
 }
 
 const MARKET_SCOPE_CHOICES = [
-  { value: 'local', label: 'City by city' },
   { value: 'national', label: 'Nationwide' },
-  { value: 'regional', label: 'Across a region' },
+  { value: 'regional', label: 'Regional' },
   { value: 'global', label: 'Worldwide' },
 ] as const;
 
@@ -43,6 +43,7 @@ const BUYER_TYPE_CHOICES = [
 ] as const;
 
 const MAX_CATEGORY_CHOICES = 3;
+const OTHER_CATEGORY = '__other__';
 
 /** Suggestions come only from model-supplied fields, never the live value. */
 function categoryChoices(profile: DiscoveryProfile): string[] {
@@ -73,42 +74,29 @@ export function IcpConfirmation({
   const [isOther, setIsOther] = useState(() => !choices.includes(profile.category));
 
   return (
-    <div className="divide-border-subtle divide-y">
-      <ReviewSection title="What you sell" emphasis>
+    <div>
+      <ReviewSection title="What you sell" className="pt-0">
         <p className="text-muted -mt-1 mb-1 text-sm font-medium">
           Your competitors and tracked questions are built from this.
         </p>
-        <ChipRow>
-          {choices.map((option) => (
-            <ChoiceChip
-              key={option}
-              name="category"
-              label={option}
-              selected={!isOther && profile.category === option}
-              onSelect={() => {
-                setIsOther(false);
-                update('category', option);
-              }}
-            />
-          ))}
-          {/* Separated from the suggestions: an escape hatch is not a fourth
-              peer option, and reading it as one made a wrong guess look like a
-              menu the right answer was simply missing from. */}
-          <span aria-hidden className="bg-border-strong mx-1.5 h-4 w-px self-center" />
-          <ChoiceChip
-            name="category"
-            label={choices.length > 0 ? 'None of these' : 'Other'}
-            selected={isOther}
-            onSelect={() => {
+        <RadioGroup
+          variant="chip"
+          ariaLabel="What you sell"
+          value={isOther ? OTHER_CATEGORY : profile.category}
+          options={[
+            ...choices.map((option) => ({ value: option, label: option })),
+            { value: OTHER_CATEGORY, label: choices.length > 0 ? 'None of these' : 'Other' },
+          ]}
+          onValueChange={(value) => {
+            if (value === OTHER_CATEGORY) {
               setIsOther(true);
-              // Rejecting the suggestions has to DROP the rejected one, or the
-              // empty-looking text field submits the very suggestion the user
-              // just said was wrong. Cleared on the same condition the field
-              // blanks itself on, so re-clicking never wipes typed text.
               if (choices.includes(profile.category)) update('category', '');
-            }}
-          />
-        </ChipRow>
+            } else {
+              setIsOther(false);
+              update('category', value);
+            }
+          }}
+        />
 
         {isOther ? (
           <div className="pt-1">
@@ -125,33 +113,30 @@ export function IcpConfirmation({
         ) : null}
       </ReviewSection>
 
-      <ReviewSection title="Who buys it">
-        <ChipRow>
-          {BUYER_TYPE_CHOICES.map((choice) => (
-            <ChoiceChip
-              key={choice.value}
-              name="buyer_type"
-              label={choice.label}
-              selected={profile.business_type === choice.value}
-              onSelect={() => update('business_type', choice.value)}
-            />
-          ))}
-        </ChipRow>
-      </ReviewSection>
+      <div className="border-border-subtle grid border-t md:grid-cols-2">
+        <ReviewSection title="Who buys it" className="md:pr-4">
+          <RadioGroup
+            variant="chip"
+            ariaLabel="Who buys it"
+            value={profile.business_type}
+            options={BUYER_TYPE_CHOICES}
+            onValueChange={(value) => update('business_type', value)}
+          />
+        </ReviewSection>
 
-      <ReviewSection title="Where they buy it">
-        <ChipRow>
-          {MARKET_SCOPE_CHOICES.map((choice) => (
-            <ChoiceChip
-              key={choice.value}
-              name="market_scope"
-              label={choice.label}
-              selected={profile.market_scope === choice.value}
-              onSelect={() => update('market_scope', choice.value)}
-            />
-          ))}
-        </ChipRow>
-      </ReviewSection>
+        <ReviewSection
+          title="Where they buy it"
+          className="border-border-subtle border-t md:border-t-0 md:border-l md:pl-4"
+        >
+          <RadioGroup
+            variant="chip"
+            ariaLabel="Where they buy it"
+            value={profile.market_scope === 'local' ? 'regional' : profile.market_scope}
+            options={MARKET_SCOPE_CHOICES}
+            onValueChange={(value) => update('market_scope', value)}
+          />
+        </ReviewSection>
+      </div>
     </div>
   );
 }

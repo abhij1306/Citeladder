@@ -32,6 +32,7 @@ function withBrandKnowledgeDefaults(profile: DiscoveryProfile): DiscoveryProfile
     positioning: profile.positioning.trim() || category,
     target_audience: profile.target_audience.trim() || `Buyers searching for ${category}`,
     products_services: products.length > 0 ? products : [category],
+    market_scope: profile.market_scope === 'local' ? 'regional' : profile.market_scope,
   };
 }
 
