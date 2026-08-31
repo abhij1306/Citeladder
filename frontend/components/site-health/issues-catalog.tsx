@@ -426,15 +426,10 @@ function OccurrenceList({
 }
 
 function IssueMetadata({ issue }: Readonly<{ issue: SiteIssue }>) {
-  const severityTone =
-    issue.severity === 'critical' || issue.severity === 'high'
-      ? 'text-danger-text'
-      : issue.severity === 'medium'
-        ? 'text-warning-text'
-        : 'text-info-text';
+  const tone = issueSeverityTone(issue.severity);
   return (
     <span className="flex flex-wrap items-center gap-1.5 text-xs font-medium uppercase">
-      <span className={issue.finding_class === 'defect' ? severityTone : 'text-secondary'}>
+      <span className={issue.finding_class === 'defect' ? tone : 'text-secondary'}>
         {issue.finding_class === 'defect' ? severityLabel(issue.severity) : 'Advisory'}
       </span>
       <span className="text-muted" aria-hidden>
@@ -445,6 +440,12 @@ function IssueMetadata({ issue }: Readonly<{ issue: SiteIssue }>) {
       </span>
     </span>
   );
+}
+
+function issueSeverityTone(severity: SiteIssue['severity']): string {
+  if (severity === 'critical' || severity === 'high') return 'text-danger-text';
+  if (severity === 'medium') return 'text-warning-text';
+  return 'text-info-text';
 }
 
 function buildFixPrompt(issue: SiteIssue): string {
