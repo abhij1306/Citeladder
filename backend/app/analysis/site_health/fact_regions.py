@@ -30,6 +30,7 @@ from __future__ import annotations
 from typing import Any, Final
 
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
+from app.core.config import site_health_acquisition as _acquisition
 from app.core.config import site_health_taxonomy as _config
 
 # One XPath predicate naming every excluded ancestor. Built from config so the
@@ -65,26 +66,75 @@ _SOURCE_ROOT: Final = "root"
 
 
 def primary_region(root: Any) -> tuple[Any, str]:
-    """Return ``(region_node, source_label)`` for the page's primary content.
+    """Return the strongest structural primary-content candidate.
 
-    Structure only: the first ``<main>`` / ``[role=main]``, else the first
-    ``<article>``, else ``<body>``. The chrome landmarks are not removed here;
-    they are excluded at read time by :data:`_EXCLUDED_PREDICATE`, so the
-    caller's tree is never mutated and later extractors are unaffected.
+    Invalid documents often contain several ``<main>`` elements for drawers,
+    search overlays, navigation panels, and the actual document. Select the
+    visible candidate with the most page-content evidence instead of trusting
+    document order. ``<body>`` remains the fallback when no main/article
+    candidate survives.
     """
-    for expression, source in (
-        ("//main | //*[@role='main']", _SOURCE_MAIN),
-        ("//article", _SOURCE_ARTICLE),
-        ("//body", _SOURCE_BODY),
-    ):
-        try:
-            found = root.xpath(expression)
-        except DOM_ERRORS as exc:
-            dom_failure("primary_region", exc)
+    try:
+        candidates = root.xpath("//main | //*[@role='main'] | //article")
+    except DOM_ERRORS as exc:
+        dom_failure("primary_region", exc)
+        candidates = []
+    eligible: list[tuple[Any, str]] = []
+    for candidate in candidates[: _config.REGION_MAX_PRIMARY_CANDIDATES]:
+        if not region_node_is_visible(candidate):
             continue
-        if found:
-            return found[0], source
-    return root, _SOURCE_ROOT
+        eligible.append((candidate, _primary_candidate_source(candidate)))
+    if len(eligible) == 1:
+        node, source = eligible[0]
+        return node, source
+    if eligible:
+        ranked = [
+            (_primary_candidate_rank(candidate, source), candidate, source)
+            for candidate, source in eligible
+        ]
+        _rank, node, source = max(ranked, key=lambda item: item[0])
+        return node, source
+    try:
+        bodies = root.xpath("//body")
+    except DOM_ERRORS as exc:
+        dom_failure("primary_region", exc)
+        bodies = []
+    return (bodies[0], _SOURCE_BODY) if bodies else (root, _SOURCE_ROOT)
+
+
+def _primary_candidate_source(node: Any) -> str:
+    try:
+        tag = str(getattr(node, "tag", "") or "").lower()
+        role = str(node.get("role") or "").strip().lower()
+    except DOM_ERRORS as exc:
+        dom_failure("_primary_candidate_source", exc)
+        return _SOURCE_ARTICLE
+    return _SOURCE_MAIN if tag == "main" or role == "main" else _SOURCE_ARTICLE
+
+
+def _primary_candidate_rank(node: Any, source: str) -> tuple[int, int, int, int]:
+    """Bounded content rank; source priority breaks otherwise equal candidates."""
+    heading_count = 0
+    try:
+        headings = node.xpath(".//h1 | .//h2 | .//h3 | .//h4 | .//h5 | .//h6")
+    except DOM_ERRORS as exc:
+        dom_failure("_primary_candidate_rank", exc)
+        headings = []
+    for heading in headings[: _config.REGION_MAX_PRIMARY_CANDIDATES]:
+        if region_node_is_visible(heading):
+            heading_count += 1
+    text_chars = 0
+    for part in visible_region_text_nodes(node):
+        text_chars += len(str(part).strip())
+        if text_chars >= _config.REGION_PRIMARY_RANK_TEXT_CHARS:
+            text_chars = _config.REGION_PRIMARY_RANK_TEXT_CHARS
+            break
+    return (
+        int(heading_count > 0),
+        heading_count,
+        text_chars,
+        int(source == _SOURCE_MAIN),
+    )
 
 
 def visible_region_text_nodes(node: Any) -> list[Any]:
@@ -291,3 +341,139 @@ def _contains_link(node: Any) -> bool:
     except DOM_ERRORS as exc:
         dom_failure("_contains_link", exc)
         return False
+
+
+def bounded_container_name(container: Any) -> dict[str, str]:
+    """Return a bounded, serializable name for a collection container.
+
+    The name intentionally omits IDs, classes, and selectors.  A semantic
+    label plus the element tag is enough to explain which observed collection
+    an affordance was bound to without persisting DOM implementation details.
+    """
+    tag = getattr(container, "tag", "")
+    normalized_tag = str(tag).lower() if isinstance(tag, str) else ""
+    label = _container_label(container)
+    return {
+        "tag": normalized_tag[:32],
+        "label": label[: _acquisition.SITE_HEALTH_MAX_HEADING_CHARS],
+    }
+
+
+def bounded_structural_relation(node: Any, container: Any) -> str:
+    """Name the bounded structural relation between an affordance and collection."""
+    if _has_ancestor(node, container):
+        return "contained"
+    if _has_ancestor(container, node):
+        return "contains"
+    if _targets_container(node, container):
+        return "targets"
+    if _labels_container(node, container):
+        return "labelled"
+    if _adjacent_branches(node, container):
+        return "adjacent"
+    return ""
+
+
+def _has_ancestor(node: Any, ancestor: Any) -> bool:
+    current = node
+    for _depth in range(_config.REGION_MAX_ANCESTOR_DEPTH):
+        if current is ancestor:
+            return True
+        try:
+            current = current.getparent()
+        except DOM_ERRORS as exc:
+            dom_failure("_has_ancestor", exc)
+            return False
+        if current is None:
+            return False
+    return False
+
+
+def _targets_container(node: Any, container: Any) -> bool:
+    try:
+        container_id = str(container.get("id") or "").strip()
+        if not container_id:
+            return False
+        references = " ".join(
+            str(node.get(name) or "")
+            for name in ("aria-controls", "aria-owns", "for", "href")
+        )
+    except DOM_ERRORS as exc:
+        dom_failure("_targets_container", exc)
+        return False
+    tokens = {token.lstrip("#") for token in references.split()}
+    return container_id in tokens
+
+
+def _labels_container(node: Any, container: Any) -> bool:
+    try:
+        node_id = str(node.get("id") or "").strip()
+        labelled_by = str(container.get("aria-labelledby") or "").split()
+        described_by = str(container.get("aria-describedby") or "").split()
+        node_label = " ".join(
+            str(node.get(name) or "") for name in ("aria-label", "title", "name")
+        ).casefold()
+    except DOM_ERRORS as exc:
+        dom_failure("_labels_container", exc)
+        return False
+    if node_id and node_id in {*labelled_by, *described_by}:
+        return True
+    label = _container_label(container).casefold()
+    return bool(label and len(label) >= 3 and label in node_label)
+
+
+def _adjacent_branches(node: Any, container: Any) -> bool:
+    left = _bounded_ancestors(node)
+    right = _bounded_ancestors(container)
+    for left_node in left:
+        try:
+            parent = left_node.getparent()
+        except DOM_ERRORS as exc:
+            dom_failure("_adjacent_branches", exc)
+            return False
+        if parent is None:
+            continue
+        for right_node in right:
+            try:
+                if right_node.getparent() is not parent:
+                    continue
+                siblings = list(parent)
+                if abs(siblings.index(left_node) - siblings.index(right_node)) == 1:
+                    return True
+            except DOM_ERRORS as exc:
+                dom_failure("_adjacent_branches", exc)
+                return False
+    return False
+
+
+def _bounded_ancestors(node: Any) -> list[Any]:
+    ancestors: list[Any] = []
+    current = node
+    for _depth in range(3):
+        if current is None:
+            break
+        ancestors.append(current)
+        try:
+            current = current.getparent()
+        except DOM_ERRORS as exc:
+            dom_failure("_bounded_ancestors", exc)
+            break
+    return ancestors
+
+
+def _container_label(container: Any) -> str:
+    try:
+        explicit = " ".join(str(container.get("aria-label") or "").split())
+        if explicit:
+            return explicit
+        for heading in container.xpath(".//h1 | .//h2 | .//h3"):
+            text = " ".join(str(heading.text_content() or "").split())
+            if text:
+                return text
+        for sibling in container.itersiblings(preceding=True):
+            if getattr(sibling, "tag", None) not in ("h1", "h2", "h3"):
+                continue
+            return " ".join(str(sibling.text_content() or "").split())
+    except DOM_ERRORS as exc:
+        dom_failure("_container_label", exc)
+    return ""

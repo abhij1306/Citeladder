@@ -73,6 +73,20 @@ def _has_analyzable_outcome(outcome: _AnalyzeOutcome) -> bool:
     )
 
 
+async def _mark_classification_expected(
+    ctx: PhaseContext, *, task_id: uuid.UUID
+) -> bool:
+    """Commit the supported-HTML classification cohort before parsing."""
+    async with ctx.session_factory() as session:
+        task = await session.get(SiteCrawlTask, task_id)
+        if task is None or not lease_is_owned(task, owner=ctx.owner):
+            await session.rollback()
+            return False
+        task.classification_expected = True
+        await session.commit()
+        return True
+
+
 async def run(ctx: PhaseContext, claimed: SiteCrawlTask) -> None:
     """Fetch + deep-analyze one monitored URL, persisting evidence atomically.
 
@@ -172,6 +186,8 @@ async def _acquire_analyze_outcome(
         if not await ctx.queue.mark_running(task_id=task_id, owner=ctx.owner):
             return None
         artifact_id, facts = reusable
+        if facts.get("has_html"):
+            await _mark_classification_expected(ctx, task_id=task_id)
         return _AnalyzeOutcome(facts=facts, reused_artifact_id=artifact_id)
     # Host politeness belongs to actual acquisition, not the task kind.
     async with ctx.host_slot(requested_url):
@@ -179,6 +195,7 @@ async def _acquire_analyze_outcome(
             return None
         return await _fetch_analyze(
             ctx,
+            task_id=task_id,
             requested_url=requested_url,
             root_registrable_domain=root_registrable_domain,
         )
@@ -301,6 +318,7 @@ async def _lock_guarded_analyze_task(
 async def _fetch_analyze(
     ctx: PhaseContext,
     *,
+    task_id: uuid.UUID,
     requested_url: str,
     root_registrable_domain: str,
 ) -> _AnalyzeOutcome:
@@ -375,6 +393,7 @@ async def _fetch_analyze(
             status_code=status,
             attempts=result.attempts,
         )
+    await _mark_classification_expected(ctx, task_id=task_id)
 
     facts = extract_page_facts(
         result.body,

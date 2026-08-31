@@ -192,6 +192,35 @@ def test_valid_numeric_counts_still_convert() -> None:
         ), value
 
 
+def test_listing_trait_falls_back_to_legacy_collection_size() -> None:
+    size = config.LISTING_MIN_CARD_ITEMS
+    legacy = {"entity": {"listing": {"largest_card_list_size": size}}}
+    missing_count = {
+        "entity": {
+            "listing": {
+                "largest_card_list_size": size,
+                "collection_evidence": {"container": {}},
+            }
+        }
+    }
+
+    assert "listing" in derive_traits("https://x.example/", legacy)
+    assert "listing" in derive_traits("https://x.example/", missing_count)
+
+
+def test_listing_trait_prefers_new_collection_count_including_zero() -> None:
+    facts = {
+        "entity": {
+            "listing": {
+                "largest_card_list_size": config.LISTING_MIN_CARD_ITEMS,
+                "collection_evidence": {"container": {"item_count": 0}},
+            }
+        }
+    }
+
+    assert "listing" not in derive_traits("https://x.example/", facts)
+
+
 def test_route_segments_match_exactly() -> None:
     # /aboutery is not /about, the same discipline the page-kind route
     # patterns already use.

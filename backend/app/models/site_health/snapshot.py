@@ -60,6 +60,22 @@ class SiteHealthSnapshot(Base):
     aeo_measurement_state: Mapped[str] = mapped_column(
         String(24), default="not_measured"
     )
+    classified_page_count: Mapped[int] = mapped_column(Integer, default=0)
+    other_page_count: Mapped[int] = mapped_column(Integer, default=0)
+    classification_error_page_count: Mapped[int] = mapped_column(Integer, default=0)
+    classification_expected_page_count: Mapped[int] = mapped_column(Integer, default=0)
+    classification_coverage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    classification_state: Mapped[str] = mapped_column(
+        String(24), default="not_measured"
+    )
+    classification_reason_groups: Mapped[dict | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    classification_formula_version: Mapped[str] = mapped_column(String(32), default="")
+    scored_page_kind_set: Mapped[list | None] = mapped_column(
+        ARRAY(String), nullable=True
+    )
+    scored_page_count_by_kind: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     readiness_dimensions: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     aeo_readiness_diagnostic: Mapped[dict] = mapped_column(
         JSONB, nullable=False, default=dict
@@ -99,6 +115,15 @@ class SiteHealthSnapshot(Base):
         ARRAY(PGUUID(as_uuid=True)), nullable=True
     )
     source_attempt_ids: Mapped[list | None] = mapped_column(
+        ARRAY(PGUUID(as_uuid=True)), nullable=True
+    )
+    classification_source_analysis_ids: Mapped[list | None] = mapped_column(
+        ARRAY(PGUUID(as_uuid=True)), nullable=True
+    )
+    classification_source_artifact_ids: Mapped[list | None] = mapped_column(
+        ARRAY(PGUUID(as_uuid=True)), nullable=True
+    )
+    classification_source_task_ids: Mapped[list | None] = mapped_column(
         ARRAY(PGUUID(as_uuid=True)), nullable=True
     )
     analyzer_version: Mapped[str] = mapped_column(String(32), default="")

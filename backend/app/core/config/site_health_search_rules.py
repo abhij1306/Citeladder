@@ -57,9 +57,6 @@ SEARCH_ACCESS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         ),
         display_label="Search or citation crawlers blocked",
         score_roles=(SCORE_ROLE_AEO,),
-        checkpoint_family="crawler_access",
-        readiness_dimension="crawlability",
-        readiness_weight=1.0,
     ),
     SiteHealthRule(
         rule_id="search.snippet_access",
@@ -76,9 +73,6 @@ SEARCH_ACCESS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         ),
         display_label="Search snippets blocked",
         score_roles=(SCORE_ROLE_AEO,),
-        checkpoint_family="snippet_access",
-        readiness_dimension="crawlability",
-        readiness_weight=1.0,
     ),
     SiteHealthRule(
         rule_id="aeo.llms_txt_present",

@@ -6,6 +6,7 @@ import uuid
 from typing import Literal
 
 from app.domain.site_health.api_schemas import (
+    ClassificationState,
     DimensionApplicability,
     MeasurementState,
     SearchEligibility,
@@ -38,8 +39,6 @@ class ReadinessCheckResponse(_Model):
     partial_count: int
     missing_count: int
     unknown_count: int
-    unavailable_count: int
-    conflicting_count: int
     not_applicable_count: int
     error_count: int
     failing_entity_count: int
@@ -66,8 +65,6 @@ class ReadinessDimensionResponse(_Model):
     partial_count: int
     missing_count: int
     unknown_count: int
-    unavailable_count: int
-    conflicting_count: int
     not_applicable_count: int
     error_count: int
     coverage: float | None
@@ -206,6 +203,13 @@ class WebFundamentalsResponse(_Model):
     limitations: list[str]
 
 
+class CohortCompositionResponse(_Model):
+    added_page_kinds: list[str]
+    removed_page_kinds: list[str]
+    previous_page_count_by_kind: dict[str, int]
+    current_page_count_by_kind: dict[str, int]
+
+
 class OverviewTrendPointResponse(_Model):
     label: str
     value: float | None
@@ -213,9 +217,14 @@ class OverviewTrendPointResponse(_Model):
 
 class OverviewTrendResponse(_Model):
     state: Literal["unavailable", "measured"]
-    reason: Literal["no_comparable_snapshot", "comparable_snapshot"]
+    reason: Literal[
+        "no_comparable_snapshot",
+        "comparable_snapshot",
+        "cohort_composition_changed",
+    ]
     metric: Literal["aeo_readiness_score"]
     series: list[OverviewTrendPointResponse]
+    cohort_composition: CohortCompositionResponse
 
 
 class OverviewChangeMetricResponse(_Model):
@@ -234,8 +243,13 @@ class OverviewChangeMetricResponse(_Model):
 
 class OverviewChangeSummaryResponse(_Model):
     state: Literal["unavailable", "measured"]
-    reason: Literal["no_comparable_snapshot", "comparable_snapshot"]
+    reason: Literal[
+        "no_comparable_snapshot",
+        "comparable_snapshot",
+        "cohort_composition_changed",
+    ]
     metrics: list[OverviewChangeMetricResponse]
+    cohort_composition: CohortCompositionResponse
 
 
 class SiteHealthOverviewResponse(_Model):
@@ -251,6 +265,19 @@ class SiteHealthOverviewResponse(_Model):
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
     aeo_measurement_state: MeasurementState
+    classified_page_count: int
+    other_page_count: int
+    classification_error_page_count: int
+    classification_expected_page_count: int
+    classification_coverage: float | None
+    classification_state: ClassificationState
+    classification_reason_groups: dict[str, int]
+    classification_formula_version: str
+    classification_source_analysis_ids: list[uuid.UUID]
+    classification_source_artifact_ids: list[uuid.UUID]
+    classification_source_task_ids: list[uuid.UUID]
+    scored_page_kind_set: list[str]
+    scored_page_count_by_kind: dict[str, int]
     crawl_coverage: CrawlCoverageResponse
     audited_page_count: int
     selected_page_count: int

@@ -13,7 +13,7 @@ from app.analysis.site_health.architecture import (
 )
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_MISSING,
-    RULE_OUTCOME_UNAVAILABLE,
+    RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_link_metrics import (
     COVERAGE_STATE_COMPLETE,
@@ -280,21 +280,33 @@ def test_structural_rules_fire_positive_observations_and_abstain_on_absence() ->
         coverage_state=COVERAGE_STATE_PARTIAL,
         business_context=_context(),
     )
-    outcomes = {
-        evaluation.rule_id: evaluation.outcome
+    partial_evaluations = {
+        evaluation.rule_id: evaluation
         for evaluation in evaluate_architecture_rules(
             model=partial,
             source_pages=pages,
             coverage_state=COVERAGE_STATE_PARTIAL,
         )
     }
-    assert outcomes["architecture.excessive_depth"] == RULE_OUTCOME_MISSING
-    assert (
-        outcomes["architecture.duplicate_metadata_in_page_kind"] == RULE_OUTCOME_MISSING
+    assert partial_evaluations["architecture.excessive_depth"].outcome == (
+        RULE_OUTCOME_MISSING
     )
-    assert outcomes["architecture.orphan_pages"] == RULE_OUTCOME_UNAVAILABLE
-    assert outcomes["architecture.parentless_detail_pages"] == RULE_OUTCOME_UNAVAILABLE
-    assert outcomes["architecture.unhubbed_page_kind"] == RULE_OUTCOME_UNAVAILABLE
+    assert (
+        partial_evaluations["architecture.duplicate_metadata_in_page_kind"].outcome
+        == RULE_OUTCOME_MISSING
+    )
+    for rule_id in (
+        "architecture.orphan_pages",
+        "architecture.parentless_detail_pages",
+        "architecture.unhubbed_page_kind",
+    ):
+        evaluation = partial_evaluations[rule_id]
+        assert evaluation.outcome == RULE_OUTCOME_UNKNOWN
+        assert evaluation.reason_code == "coverage_not_complete"
+        assert evaluation.evidence == {
+            "reason": "coverage_not_complete",
+            "coverage_state": COVERAGE_STATE_PARTIAL,
+        }
 
     complete = build_observed_architecture(
         pages=pages,

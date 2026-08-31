@@ -10,7 +10,11 @@ from sqlalchemy import Row, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.site_health_contracts import AEO_READINESS_DIMENSION_LABELS
-from app.core.config.site_health_measurement import READINESS_DIMENSION_WEIGHTS
+from app.core.config.site_health_measurement import (
+    CAPABILITY_FAMILY_MANIFEST,
+    CLASSIFIED_KIND_FAMILY_PROFILE,
+    READINESS_DIMENSION_WEIGHTS,
+)
 from app.core.config.site_health_rule_types import (
     FINDING_CLASS_ADVISORY,
     FINDING_CLASS_DEFECT,
@@ -46,19 +50,33 @@ def issue_impact(rule_id: str, finding_class: str, severity: str) -> tuple[int, 
     if finding_class == FINDING_CLASS_DEFECT:
         return _DEFECT_IMPACT_BANDS.get(severity, 0), severity.replace("_", " ").title()
     rule = SITE_HEALTH_RULES_BY_ID.get(rule_id)
+    family = next(
+        (item for item in CAPABILITY_FAMILY_MANIFEST if rule_id in item.checkpoint_ids),
+        None,
+    )
     if (
-        finding_class == FINDING_CLASS_ADVISORY
-        and rule is not None
-        and rule.readiness_dimension in READINESS_DIMENSION_WEIGHTS
-        and SCORE_ROLE_AEO in rule.score_roles
+        finding_class != FINDING_CLASS_ADVISORY
+        or rule is None
+        or family is None
+        or SCORE_ROLE_AEO not in rule.score_roles
     ):
-        weighted_impact = (
-            READINESS_DIMENSION_WEIGHTS[rule.readiness_dimension]
-            * rule.readiness_weight
-        )
-        label = AEO_READINESS_DIMENSION_LABELS[rule.readiness_dimension]
-        return max(1, round(weighted_impact * 10)), f"{label} · {weighted_impact:.0%}"
-    return 0, "Advisory"
+        return 0, "Advisory"
+    internal_weight = max(
+        (
+            expression.internal_weight
+            for row in CLASSIFIED_KIND_FAMILY_PROFILE
+            for expression in row.checkpoints
+            if expression.checkpoint_id == rule_id
+        ),
+        default=0.0,
+    )
+    weighted_impact = (
+        READINESS_DIMENSION_WEIGHTS[family.dimension_id]
+        * family.budget
+        * internal_weight
+    )
+    label = AEO_READINESS_DIMENSION_LABELS[family.dimension_id]
+    return max(1, round(weighted_impact * 10)), f"{label} · {weighted_impact:.0%}"
 
 
 def _rollup(rows: Sequence[Row]) -> IssueSnapshot:

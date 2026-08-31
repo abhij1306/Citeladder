@@ -32,6 +32,7 @@ function page(overrides: Partial<PageSummary> = {}): PageSummary {
     aeo_readiness_score: 64,
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
+    aeo_measurement_reason: '',
     main_content_indexable: true,
     last_audited: '2026-07-16T00:00:00Z',
     // Distinct from `title` so badge-text assertions stay unambiguous.
@@ -83,6 +84,28 @@ describe('PagesTable', () => {
     render(<PagesTable pages={[page({ page_kind: null })]} crawlId={CRAWL} />);
     expect(screen.queryByText('Article')).not.toBeInTheDocument();
     expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
+  });
+
+  it('uses the persisted unresolved-purpose reason for Other pages', () => {
+    render(
+      <PagesTable
+        crawlId={CRAWL}
+        pages={[
+          page({
+            page_kind: 'other',
+            aeo_readiness_score: null,
+            aeo_measurement_coverage: null,
+            aeo_measurement_state: 'not_measured',
+            aeo_measurement_reason: 'page_purpose_unresolved',
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('Other')).toBeInTheDocument();
+    expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/purpose unresolved/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
   });
 
   it('renders the not-measured state for a blocked page — never a fabricated zero', () => {

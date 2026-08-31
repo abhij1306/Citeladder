@@ -1,4 +1,4 @@
-"""PR2 Site Health measurement formula and aggregation fixtures."""
+"""PR4 Site Health family-normalized scoring and aggregation fixtures."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ from app.analysis.site_health.scoring import (
 from app.core.config.site_health_measurement import (
     MEASUREMENT_STATE_LIMITED,
     MEASUREMENT_STATE_MEASURED,
+    MEASUREMENT_STATE_NOT_MEASURED,
 )
 from app.core.config.site_health_rule_types import (
     RULE_SCOPE_PAGE,
-    RULE_SCOPE_SITE,
     SCORE_ROLE_AEO,
     SCORE_ROLE_WEB_FUNDAMENTALS,
 )
@@ -75,7 +75,7 @@ def _aeo(
     readiness_dimension: str,
     *,
     weight: float = 1.0,
-    scope: str = "page",
+    scope: str = RULE_SCOPE_PAGE,
 ) -> RuleEvaluation:
     return _evaluation(
         rule_id,
@@ -92,8 +92,8 @@ def test_technical_boundary_requires_coverage_and_critical_completeness() -> Non
     below = score_analysis(
         [
             _technical("technical.indexable", "satisfied", severity="critical"),
-            _technical("technical.title", "satisfied"),
-            _technical("technical.description", "unknown"),
+            _technical("technical.title_present", "satisfied"),
+            _technical("technical.meta_description_present", "unknown"),
         ]
     )
     assert below.web_fundamentals_score == 100.0
@@ -103,10 +103,10 @@ def test_technical_boundary_requires_coverage_and_critical_completeness() -> Non
     boundary = score_analysis(
         [
             _technical("technical.indexable", "satisfied", severity="critical"),
-            _technical("technical.a", "satisfied"),
-            _technical("technical.b", "satisfied"),
-            _technical("technical.c", "missing"),
-            _technical("technical.d", "unknown"),
+            _technical("technical.title_present", "satisfied"),
+            _technical("technical.meta_description_present", "satisfied"),
+            _technical("technical.canonical_present", "missing"),
+            _technical("technical.https", "unknown"),
         ]
     )
     assert boundary.web_fundamentals_score == 75.0
@@ -114,131 +114,267 @@ def test_technical_boundary_requires_coverage_and_critical_completeness() -> Non
     assert boundary.web_fundamentals_state == MEASUREMENT_STATE_MEASURED
 
 
-def test_qualifying_faq_needs_breadth_and_coverage() -> None:
-    scores = score_analysis(
+def _page_dimension(scores, key: str):
+    return next(row for row in scores.readiness_dimensions if row.key == key)
+
+
+def test_duplicate_checkpoint_observation_does_not_change_family_or_dimension() -> None:
+    observations = [
+        _aeo(
+            "aeo.heading_hierarchy",
+            "missing",
+            "semantic_structure",
+            "structure",
+        ),
+        _aeo(
+            "aeo.question_headings",
+            "satisfied",
+            "semantic_structure",
+            "structure",
+        ),
+    ]
+    baseline = score_analysis(observations, page_kind="faq")
+    duplicated = score_analysis(
         [
-            _aeo("aeo.answer_first", "satisfied", "answer_content", "answerability"),
+            *observations,
             _aeo(
                 "aeo.question_headings",
-                "partial",
+                "satisfied",
                 "semantic_structure",
                 "structure",
-            ),
-            _aeo(
-                "aeo.schema_expected_for_type",
-                "satisfied",
-                "structured_representation",
-                "machine-readability",
-            ),
-            _aeo("aeo.author_present", "satisfied", "provenance", "authority"),
-            _aeo(
-                "technical.indexable",
-                "satisfied",
-                "indexability",
-                "crawlability",
             ),
         ],
         page_kind="faq",
     )
-    assert scores.aeo_measurement_coverage == 1.0
-    assert scores.aeo_measurement_state == MEASUREMENT_STATE_MEASURED
-    structure = next(
-        row for row in scores.readiness_dimensions if row.key == "structure"
+
+    baseline_structure = _page_dimension(baseline, "structure")
+    duplicated_structure = _page_dimension(duplicated, "structure")
+
+    assert baseline_structure == duplicated_structure
+    assert baseline_structure.score == 50.0
+    assert baseline_structure.coverage == 1.0
+    assert baseline_structure.measurement_state == MEASUREMENT_STATE_MEASURED
+    assert baseline_structure.earned_points == 0.5
+    assert baseline_structure.determinate_points == 1.0
+    assert baseline_structure.expected_points == 1.0
+    assert baseline_structure.checkpoint_families == ("semantic_structure",)
+    assert baseline_structure.determinate_checkpoint_ids == (
+        "aeo.heading_hierarchy",
+        "aeo.question_headings",
     )
-    assert structure.score == 50.0
-    assert scores.expected_checkpoint_profile
+    assert baseline.aeo_readiness_score == duplicated.aeo_readiness_score
+    assert baseline.aeo_measurement_coverage == duplicated.aeo_measurement_coverage
+    assert baseline.aeo_measurement_state == duplicated.aeo_measurement_state
 
 
-def test_homepage_keeps_relevant_unsupported_evidence_in_coverage() -> None:
-    scores = score_analysis(
+def test_structured_guard_and_weighted_validators_keep_one_family_budget() -> None:
+    guard = score_analysis(
         [
             _aeo(
                 "aeo.schema_expected_for_type",
+                "missing",
+                "structured_representation",
+                "machine-readability",
+            )
+        ],
+        page_kind="article",
+        crawl_context={"primary_schema_present": False},
+    )
+    validators = score_analysis(
+        [
+            _aeo(
+                "aeo.schema_required_valid",
                 "satisfied",
                 "structured_representation",
                 "machine-readability",
             ),
             _aeo(
-                "aeo.organization_identity",
+                "aeo.schema_matches_content",
                 "satisfied",
-                "provenance",
-                "authority",
-                scope="site",
+                "structured_representation",
+                "machine-readability",
             ),
             _aeo(
-                "technical.indexable",
+                "aeo.schema_recommended_present",
                 "satisfied",
-                "indexability",
-                "crawlability",
+                "structured_representation",
+                "machine-readability",
             ),
         ],
-        page_kind="homepage",
+        page_kind="article",
+        crawl_context={"primary_schema_present": True},
     )
-    assert scores.aeo_measurement_state == MEASUREMENT_STATE_LIMITED
-    dimensions = {row.key: row for row in scores.readiness_dimensions}
-    assert dimensions["evidence"].applicability == "applicable"
-    assert dimensions["freshness"].applicability == "not_applicable"
-    assert dimensions["evidence"].coverage == 0.0
-    assert dimensions["evidence"].reason == "no_expected_checkpoint_evaluator"
-    assert dimensions["authority"].reason == "measured_at_site_scope"
-    assert scores.aeo_measurement_coverage == 0.4118
+
+    guard_machine = _page_dimension(guard, "machine-readability")
+    validator_machine = _page_dimension(validators, "machine-readability")
+
+    assert guard_machine.score == 0.0
+    assert validator_machine.score == 100.0
+    assert guard_machine.coverage == validator_machine.coverage == 1.0
+    assert (
+        guard_machine.measurement_state
+        == validator_machine.measurement_state
+        == MEASUREMENT_STATE_MEASURED
+    )
+    assert guard_machine.expected_points == validator_machine.expected_points == 1.0
+    assert (
+        guard_machine.determinate_points == validator_machine.determinate_points == 1.0
+    )
+    assert guard_machine.earned_points == 0.0
+    assert validator_machine.earned_points == 1.0
+    assert guard_machine.checkpoint_families == validator_machine.checkpoint_families
+    assert guard_machine.determinate_checkpoint_ids == ("aeo.schema_expected_for_type",)
+    assert validator_machine.determinate_checkpoint_ids == (
+        "aeo.schema_matches_content",
+        "aeo.schema_recommended_present",
+        "aeo.schema_required_valid",
+    )
+    assert guard.aeo_readiness_score == 0.0
+    assert validators.aeo_readiness_score == 100.0
+    assert guard.aeo_measurement_coverage == validators.aeo_measurement_coverage == 0.25
+    assert (
+        guard.aeo_measurement_state
+        == validators.aeo_measurement_state
+        == MEASUREMENT_STATE_LIMITED
+    )
 
 
-def test_unknown_page_kind_uses_the_universal_other_profile() -> None:
-    scores = score_analysis(
+def test_other_has_no_aeo_profile_or_scalar_even_with_aeo_observations() -> None:
+    page_scores = score_analysis(
         [
             _aeo(
                 "technical.indexable",
                 "satisfied",
                 "indexability",
                 "crawlability",
-            ),
-            _aeo(
-                "aeo.server_rendered_content",
-                "satisfied",
-                "primary_content",
-                "machine-readability",
-            ),
+            )
         ],
-        page_kind="unknown-kind",
+        page_kind="other",
+    )
+    analysis = AnalysisMeasurementInput(
+        analysis_id="other",
+        page_kind="other",
+        expected_family_profile=page_scores.expected_checkpoint_profile,
+    )
+    aggregate = aggregate_measurements(
+        [analysis],
+        [
+            RuleMeasurementInput(
+                analysis_id=analysis.analysis_id,
+                page_kind=analysis.page_kind,
+                rule_id="technical.indexable",
+                scope=RULE_SCOPE_PAGE,
+                outcome="satisfied",
+                expected=True,
+                score_roles=(SCORE_ROLE_AEO,),
+                weight=1.0,
+                severity="critical",
+                checkpoint_family="indexability",
+                readiness_dimension="crawlability",
+                readiness_weight=1.0,
+            )
+        ],
     )
 
-    dimensions = {row.key: row for row in scores.readiness_dimensions}
-    assert dimensions["crawlability"].applicability == "applicable"
-    assert dimensions["machine-readability"].applicability == "applicable"
-    assert scores.aeo_measurement_state == MEASUREMENT_STATE_LIMITED
+    assert page_scores.expected_checkpoint_profile == ()
+    assert page_scores.aeo_readiness_score is None
+    assert page_scores.aeo_measurement_coverage is None
+    assert page_scores.aeo_measurement_state == MEASUREMENT_STATE_NOT_MEASURED
+    assert page_scores.aeo_measurement_reason == "page_purpose_unresolved"
+    assert aggregate.aeo_readiness_score is None
+    assert aggregate.aeo_measurement_coverage is None
+    assert aggregate.aeo_measurement_state == MEASUREMENT_STATE_NOT_MEASURED
+    for dimension in aggregate.readiness_dimensions:
+        assert dimension["score"] is None
+        assert dimension["coverage"] is None
+        assert (
+            dimension["dimension_measurement_state"] == MEASUREMENT_STATE_NOT_MEASURED
+        )
+        assert dimension["expected_points"] == 0.0
 
 
-def _analyses(kinds: list[str]) -> list[AnalysisMeasurementInput]:
+def _analysis(
+    analysis_id: str,
+    page_kind: str,
+    *,
+    crawl_context: dict[str, object] | None = None,
+) -> AnalysisMeasurementInput:
+    scores = score_analysis(
+        [],
+        page_kind=page_kind,
+        crawl_context=crawl_context,
+    )
+    return AnalysisMeasurementInput(
+        analysis_id=analysis_id,
+        page_kind=page_kind,
+        expected_family_profile=scores.expected_checkpoint_profile,
+    )
+
+
+def _analyses(
+    kinds: list[str],
+    *,
+    crawl_context: dict[str, object] | None = None,
+) -> list[AnalysisMeasurementInput]:
     return [
-        AnalysisMeasurementInput(analysis_id=str(index), page_kind=kind)
+        _analysis(str(index), kind, crawl_context=crawl_context)
         for index, kind in enumerate(kinds)
     ]
 
 
-def _rule_input(
+def _aeo_input(
+    analysis: AnalysisMeasurementInput,
+    checkpoint_id: str,
+    outcome: str,
+) -> RuleMeasurementInput:
+    family = next(
+        row
+        for row in analysis.expected_family_profile
+        if any(
+            checkpoint["checkpoint_id"] == checkpoint_id
+            for checkpoint in row["checkpoints"]
+        )
+    )
+    checkpoint = next(
+        checkpoint
+        for checkpoint in family["checkpoints"]
+        if checkpoint["checkpoint_id"] == checkpoint_id
+    )
+    return RuleMeasurementInput(
+        analysis_id=analysis.analysis_id,
+        page_kind=analysis.page_kind,
+        rule_id=checkpoint_id,
+        scope=family["scope"],
+        outcome=outcome,
+        expected=True,
+        score_roles=(SCORE_ROLE_AEO,),
+        weight=1.0,
+        severity="medium",
+        checkpoint_family=family["family_id"],
+        readiness_dimension=family["dimension_id"],
+        readiness_weight=checkpoint["internal_weight"],
+    )
+
+
+def _technical_input(
     analysis: AnalysisMeasurementInput,
     *,
     rule_id: str,
     outcome: str,
-    dimension: str = "authority",
-    scope: str = RULE_SCOPE_PAGE,
-    role: str = SCORE_ROLE_AEO,
-    weight: float = 1.0,
 ) -> RuleMeasurementInput:
     return RuleMeasurementInput(
         analysis_id=analysis.analysis_id,
         page_kind=analysis.page_kind,
         rule_id=rule_id,
-        scope=scope,
+        scope=RULE_SCOPE_PAGE,
         outcome=outcome,
         expected=True,
-        score_roles=(role,),
-        weight=weight,
+        score_roles=(SCORE_ROLE_WEB_FUNDAMENTALS,),
+        weight=1.0,
         severity="medium",
-        checkpoint_family="fixture",
-        readiness_dimension=dimension if role == SCORE_ROLE_AEO else "",
-        readiness_weight=weight if role == SCORE_ROLE_AEO else 0.0,
+        checkpoint_family="",
+        readiness_dimension="",
+        readiness_weight=0.0,
     )
 
 
@@ -246,100 +382,301 @@ def _dimension(aggregate, key: str) -> dict:
     return next(row for row in aggregate.readiness_dimensions if row["key"] == key)
 
 
-def test_coverage_increase_does_not_mechanically_improve_component_score() -> None:
-    analyses = _analyses(["article"] * 10)
-    thin = [
-        _rule_input(
-            analysis,
-            rule_id="aeo.coverage_fixture",
-            outcome="satisfied" if index == 0 else "unknown",
-        )
-        for index, analysis in enumerate(analyses)
-    ]
-    broad = [
-        _rule_input(
-            analysis,
-            rule_id="aeo.coverage_fixture",
-            outcome="unknown" if index == 9 else "satisfied",
-        )
-        for index, analysis in enumerate(analyses)
+def _family_observations(
+    analyses: list[AnalysisMeasurementInput],
+    checkpoint_id: str,
+    outcomes: list[str],
+) -> list[RuleMeasurementInput]:
+    return [
+        _aeo_input(analysis, checkpoint_id, outcome)
+        for analysis, outcome in zip(analyses, outcomes, strict=True)
     ]
 
-    thin_dimension = _dimension(aggregate_measurements(analyses, thin), "authority")
-    broad_dimension = _dimension(aggregate_measurements(analyses, broad), "authority")
 
-    assert thin_dimension["score"] == broad_dimension["score"] == 100.0
-    assert thin_dimension["coverage"] == 0.1
-    assert broad_dimension["coverage"] == 0.9
-
-
-def test_rule_contributions_are_weighted_by_their_own_coverage() -> None:
-    analyses = _analyses(["article"] * 10)
-    rules = [
-        _rule_input(
-            analysis,
-            rule_id="aeo.thin_high",
-            outcome="satisfied" if index == 0 else "unknown",
-        )
-        for index, analysis in enumerate(analyses)
-    ]
-    rules.extend(
-        _rule_input(
-            analysis,
-            rule_id="aeo.full_low",
-            outcome="satisfied" if index < 4 else "missing",
-        )
-        for index, analysis in enumerate(analyses)
+def test_repeating_page_kind_cohort_preserves_mean_and_equal_macro_vote() -> None:
+    baseline_analyses = _analyses(["article", "article", "product"])
+    baseline_rules = _family_observations(
+        baseline_analyses,
+        "aeo.heading_hierarchy",
+        ["missing", "satisfied", "satisfied"],
+    )
+    repeated_analyses = _analyses(
+        ["article", "article"] * 5 + ["product"],
+    )
+    repeated_rules = _family_observations(
+        repeated_analyses,
+        "aeo.heading_hierarchy",
+        ["missing", "satisfied"] * 5 + ["satisfied"],
     )
 
-    authority = _dimension(aggregate_measurements(analyses, rules), "authority")
+    baseline = aggregate_measurements(baseline_analyses, baseline_rules)
+    repeated = aggregate_measurements(repeated_analyses, repeated_rules)
+    baseline_structure = _dimension(baseline, "structure")
+    repeated_structure = _dimension(repeated, "structure")
 
-    assert authority["score"] == 45.5
-    assert authority["coverage"] == 0.55
-
-
-def test_duplicate_site_evidence_does_not_change_rule_or_dimension() -> None:
-    analyses = _analyses(["homepage"] * 100)
-    one = [
-        _rule_input(
-            analyses[0],
-            rule_id="aeo.organization_identity",
-            outcome="satisfied",
-            scope=RULE_SCOPE_SITE,
-        )
-    ]
-    repeated = [
-        _rule_input(
-            analysis,
-            rule_id="aeo.organization_identity",
-            outcome="satisfied",
-            scope=RULE_SCOPE_SITE,
-        )
-        for analysis in analyses
-    ]
-
-    first = _dimension(aggregate_measurements(analyses, one), "authority")
-    duplicated = _dimension(aggregate_measurements(analyses, repeated), "authority")
-
-    assert first == duplicated
-    assert first["score"] == 100.0
-    assert first["coverage"] == 1.0
-
-
-def test_aggregate_marks_site_only_dimension_as_measured_at_site_scope() -> None:
-    authority = _dimension(
-        aggregate_measurements(_analyses(["homepage"]), []), "authority"
+    assert baseline_structure == repeated_structure
+    assert baseline_structure["score"] == 75.0
+    assert baseline_structure["coverage"] == 1.0
+    assert (
+        baseline_structure["dimension_measurement_state"] == MEASUREMENT_STATE_MEASURED
+    )
+    assert baseline_structure["earned_points"] == 0.75
+    assert baseline_structure["determinate_points"] == 1.0
+    assert baseline_structure["expected_points"] == 1.0
+    assert baseline.aeo_readiness_score == repeated.aeo_readiness_score == 75.0
+    assert (
+        baseline.aeo_measurement_coverage == repeated.aeo_measurement_coverage == 0.15
+    )
+    assert (
+        baseline.aeo_measurement_state
+        == repeated.aeo_measurement_state
+        == MEASUREMENT_STATE_LIMITED
     )
 
-    assert authority["reason"] == "measured_at_site_scope"
-    assert authority["coverage"] == 0.0
+
+def test_distinct_page_changes_only_its_kind_mean_not_macro_weight() -> None:
+    baseline_analyses = _analyses(["article", "product"])
+    baseline = aggregate_measurements(
+        baseline_analyses,
+        _family_observations(
+            baseline_analyses,
+            "aeo.heading_hierarchy",
+            ["missing", "satisfied"],
+        ),
+    )
+    expanded_analyses = _analyses(["article", "article", "product"])
+    expanded = aggregate_measurements(
+        expanded_analyses,
+        _family_observations(
+            expanded_analyses,
+            "aeo.heading_hierarchy",
+            ["missing", "satisfied", "satisfied"],
+        ),
+    )
+
+    baseline_structure = _dimension(baseline, "structure")
+    expanded_structure = _dimension(expanded, "structure")
+
+    assert baseline_structure["score"] == 50.0
+    assert expanded_structure["score"] == 75.0
+    assert baseline_structure["coverage"] == expanded_structure["coverage"] == 1.0
+    assert (
+        baseline_structure["dimension_measurement_state"]
+        == expanded_structure["dimension_measurement_state"]
+        == MEASUREMENT_STATE_MEASURED
+    )
+    assert (
+        baseline_structure["expected_points"]
+        == expanded_structure["expected_points"]
+        == 1.0
+    )
+    assert (
+        baseline_structure["determinate_points"]
+        == expanded_structure["determinate_points"]
+        == 1.0
+    )
+    assert baseline.aeo_readiness_score == 50.0
+    assert expanded.aeo_readiness_score == 75.0
+    assert (
+        baseline.aeo_measurement_coverage == expanded.aeo_measurement_coverage == 0.15
+    )
+    assert (
+        baseline.aeo_measurement_state
+        == expanded.aeo_measurement_state
+        == MEASUREMENT_STATE_LIMITED
+    )
+
+
+def test_missing_and_unknown_split_quality_from_coverage() -> None:
+    analysis = _analysis("article", "article")
+    missing = aggregate_measurements(
+        [analysis],
+        [_aeo_input(analysis, "aeo.visible_attribution", "missing")],
+    )
+    unknown = aggregate_measurements(
+        [analysis],
+        [_aeo_input(analysis, "aeo.visible_attribution", "unknown")],
+    )
+
+    missing_authority = _dimension(missing, "authority")
+    unknown_authority = _dimension(unknown, "authority")
+
+    assert missing_authority["score"] == 0.0
+    assert missing_authority["coverage"] == 0.5
+    assert missing_authority["dimension_measurement_state"] == MEASUREMENT_STATE_LIMITED
+    assert missing_authority["earned_points"] == 0.0
+    assert missing_authority["determinate_points"] == 0.5
+    assert missing_authority["expected_points"] == 1.0
+    assert unknown_authority["score"] is None
+    assert unknown_authority["coverage"] == 0.0
+    assert (
+        unknown_authority["dimension_measurement_state"]
+        == MEASUREMENT_STATE_NOT_MEASURED
+    )
+    assert unknown_authority["earned_points"] == 0.0
+    assert unknown_authority["determinate_points"] == 0.0
+    assert unknown_authority["expected_points"] == 1.0
+    assert missing.aeo_readiness_score == 0.0
+    assert missing.aeo_measurement_coverage == 0.0625
+    assert missing.aeo_measurement_state == MEASUREMENT_STATE_LIMITED
+    assert unknown.aeo_readiness_score is None
+    assert unknown.aeo_measurement_coverage == 0.0
+    assert unknown.aeo_measurement_state == MEASUREMENT_STATE_NOT_MEASURED
+
+
+def test_readiness_is_measured_only_when_every_expected_point_is_determinate() -> None:
+    context = {"is_site_root": True}
+    profile = score_analysis(
+        [],
+        page_kind="article",
+        crawl_context=context,
+    ).expected_checkpoint_profile
+    checkpoints = sorted(
+        (
+            (
+                row["family_id"],
+                row["dimension_id"],
+                checkpoint["checkpoint_id"],
+                float(row["budget"]) * float(checkpoint["internal_weight"]),
+            )
+            for row in profile
+            if row["status"] == "measured" and row["evaluation_scope"]
+            for checkpoint in row["checkpoints"]
+        ),
+        key=lambda row: row[3],
+    )
+    complete = [
+        _aeo(checkpoint_id, "satisfied", family_id, dimension_id)
+        for family_id, dimension_id, checkpoint_id, _weight in checkpoints
+    ]
+    incomplete = [
+        _aeo(
+            checkpoint_id,
+            "unknown" if index == 0 else "satisfied",
+            family_id,
+            dimension_id,
+        )
+        for index, (family_id, dimension_id, checkpoint_id, _weight) in enumerate(
+            checkpoints
+        )
+    ]
+
+    complete_scores = score_analysis(
+        complete,
+        page_kind="article",
+        crawl_context=context,
+    )
+    incomplete_scores = score_analysis(
+        incomplete,
+        page_kind="article",
+        crawl_context=context,
+    )
+
+    assert complete_scores.aeo_measurement_coverage == 1.0
+    assert complete_scores.aeo_measurement_state == MEASUREMENT_STATE_MEASURED
+    assert 0.8 <= (incomplete_scores.aeo_measurement_coverage or 0.0) < 1.0
+    assert incomplete_scores.aeo_measurement_state == MEASUREMENT_STATE_LIMITED
+
+
+def test_site_scoped_family_evidence_is_not_multiplied_by_page_count() -> None:
+    single_analysis = _analyses(
+        ["article"],
+        crawl_context={"is_site_root": True},
+    )
+    repeated_analyses = _analyses(
+        ["article"] * 50,
+        crawl_context={"is_site_root": True},
+    )
+
+    def site_identity(
+        analyses: list[AnalysisMeasurementInput],
+    ) -> list[RuleMeasurementInput]:
+        return [
+            observation
+            for analysis in analyses
+            for observation in (
+                _aeo_input(analysis, "aeo.organization_identity", "satisfied"),
+                _aeo_input(analysis, "aeo.trust_path_present", "missing"),
+            )
+        ]
+
+    single = aggregate_measurements(
+        single_analysis,
+        site_identity(single_analysis),
+    )
+    repeated = aggregate_measurements(
+        repeated_analyses,
+        site_identity(repeated_analyses),
+    )
+    single_authority = _dimension(single, "authority")
+    repeated_authority = _dimension(repeated, "authority")
+
+    assert single_authority == repeated_authority
+    assert single_authority["score"] == 50.0
+    assert single_authority["coverage"] == 0.5
+    assert single_authority["dimension_measurement_state"] == MEASUREMENT_STATE_LIMITED
+    assert single_authority["earned_points"] == 0.25
+    assert single_authority["determinate_points"] == 0.5
+    assert single_authority["expected_points"] == 1.0
+    assert single_authority["checkpoint_families"] == ["site_identity"]
+    assert single_authority["determinate_checkpoint_ids"] == [
+        "aeo.organization_identity",
+        "aeo.trust_path_present",
+    ]
+    assert single.aeo_readiness_score == repeated.aeo_readiness_score == 50.0
+    assert (
+        single.aeo_measurement_coverage == repeated.aeo_measurement_coverage == 0.0625
+    )
+    assert (
+        single.aeo_measurement_state
+        == repeated.aeo_measurement_state
+        == MEASUREMENT_STATE_LIMITED
+    )
+
+
+def test_site_family_uses_root_evidence_when_root_page_kind_is_other() -> None:
+    article = _analysis(
+        "article",
+        "article",
+        crawl_context={"is_site_root": False},
+    )
+    root = _analysis(
+        "root",
+        "other",
+        crawl_context={"is_site_root": True},
+    )
+
+    def root_observation(checkpoint_id: str, outcome: str) -> RuleMeasurementInput:
+        template = _aeo_input(article, checkpoint_id, outcome)
+        return RuleMeasurementInput(
+            **{
+                **template.__dict__,
+                "analysis_id": root.analysis_id,
+                "page_kind": root.page_kind,
+            }
+        )
+
+    aggregate = aggregate_measurements(
+        [article, root],
+        [
+            root_observation("aeo.organization_identity", "satisfied"),
+            root_observation("aeo.trust_path_present", "missing"),
+        ],
+    )
+    authority = _dimension(aggregate, "authority")
+
+    assert "site_identity" in authority["checkpoint_families"]
+    assert authority["determinate_checkpoint_ids"] == [
+        "aeo.organization_identity",
+        "aeo.trust_path_present",
+    ]
 
 
 def test_normalized_result_rejects_non_numeric_json_values() -> None:
-    analysis = _analyses(["article"])[0]
-    invalid = _rule_input(
+    analysis = _analysis("article", "article")
+    invalid = _technical_input(
         analysis,
-        rule_id="aeo.invalid_normalized",
+        rule_id="technical.title_present",
         outcome="satisfied",
     )
     invalid = RuleMeasurementInput(
@@ -354,33 +691,7 @@ def test_normalized_result_rejects_non_numeric_json_values() -> None:
         aggregate_measurements([analysis], [invalid])
     except ValueError as error:
         assert str(error) == (
-            "Rule aeo.invalid_normalized has an invalid normalized result"
+            "Rule technical.title_present has an invalid normalized result"
         )
     else:
         raise AssertionError("non-numeric normalized result was accepted")
-
-
-def test_page_mix_does_not_weight_a_rule_by_crawl_composition() -> None:
-    balanced = _analyses(["article"] * 10 + ["product"] * 10 + ["category"] * 10)
-    skewed = _analyses(["article"] * 10 + ["product"] * 10 + ["category"] * 110)
-
-    def observations(analyses: list[AnalysisMeasurementInput]):
-        outcome = {"article": "missing", "product": "partial", "category": "satisfied"}
-        return [
-            _rule_input(
-                analysis,
-                rule_id="aeo.page_mix_fixture",
-                outcome=outcome[analysis.page_kind],
-            )
-            for analysis in analyses
-        ]
-
-    balanced_aggregate = aggregate_measurements(balanced, observations(balanced))
-    skewed_aggregate = aggregate_measurements(skewed, observations(skewed))
-
-    assert _dimension(balanced_aggregate, "authority") == _dimension(
-        skewed_aggregate, "authority"
-    )
-    assert (
-        balanced_aggregate.aeo_readiness_score == skewed_aggregate.aeo_readiness_score
-    )

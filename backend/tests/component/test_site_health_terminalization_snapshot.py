@@ -22,6 +22,8 @@ from app.core.config.site_health_contracts import (
 )
 from app.core.config.site_health_rules import SITE_HEALTH_RULES_BY_ID
 from app.core.config.task_queue import (
+    TASK_STATUS_CANCELLED,
+    TASK_STATUS_FAILED,
     TASK_STATUS_SUCCEEDED,
 )
 from app.domain.site_health.score_summary import (
@@ -41,8 +43,10 @@ from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.workers.site_health.lifecycle_finalize import (
     _canonical_resolution_evaluations,
 )
+from app.workers.site_health.phases import analyze as analyze_phase
 from tests.component.site_health_worker_helpers import (
     _analyses_by_page_url,
+    _rich_html,
     _seed_analyze_phase_crawl,
     _seed_analyze_ready,
     _worker,
@@ -232,9 +236,21 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
                     "value": snapshot.aeo_readiness_score,
                 }
             ],
+            "cohort_composition": {
+                "added_page_kinds": [],
+                "removed_page_kinds": [],
+                "previous_page_count_by_kind": {},
+                "current_page_count_by_kind": {},
+            },
         }
         assert snapshot.change_summary["state"] == "unavailable"
         assert len(snapshot.change_summary["metrics"]) == 4
+        assert snapshot.change_summary["cohort_composition"] == {
+            "added_page_kinds": [],
+            "removed_page_kinds": [],
+            "previous_page_count_by_kind": {},
+            "current_page_count_by_kind": {},
+        }
         assert snapshot.aeo_readiness_diagnostic["crawl_id"] == str(seed.crawl_id)
         assert snapshot.aeo_readiness_diagnostic["source_analysis_ids"] == [
             str(high_analysis_id)
@@ -282,6 +298,164 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
         assert snapshot.web_fundamentals_score == 0.0
         assert crawl.score_summary == original_summary
         assert crawl.score_summary["web_fundamentals_score"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_classification_only_terminal_snapshot_survives_without_analysis(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    seed, _site_url_id, task_id = await _seed_analyze_ready(session_factory)
+
+    async with session_factory() as session:
+        task = await session.get(SiteCrawlTask, task_id)
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert task is not None
+        assert crawl is not None
+        task.status = TASK_STATUS_CANCELLED
+        task.error_code = ""
+        task.classification_expected = True
+
+        assert await persist_crawl_snapshot(session, crawl=crawl)
+        await session.commit()
+
+    async with session_factory() as session:
+        snapshot = await session.scalar(
+            select(SiteHealthSnapshot).where(
+                SiteHealthSnapshot.crawl_id == seed.crawl_id
+            )
+        )
+        assert snapshot is not None
+        assert snapshot.source_analysis_ids == []
+        assert snapshot.classification_expected_page_count == 1
+        assert snapshot.classification_error_page_count == 1
+        assert snapshot.classification_coverage == 0.0
+        assert snapshot.classification_state == "partial"
+        assert snapshot.classification_reason_groups == {"classification_failed": 1}
+        assert snapshot.classification_source_task_ids == [task_id]
+
+
+@pytest.mark.asyncio
+async def test_terminal_snapshot_freezes_classification_cohort_and_provenance(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    article_url = "https://example.com/blog/classified"
+    other_url = "https://example.com/unclassified"
+    failed_url = "https://example.com/parser-failure"
+    async with session_factory() as session:
+        seed, ids = await _seed_analyze_phase_crawl(
+            session,
+            root=article_url,
+            urls=(article_url, other_url, failed_url),
+        )
+    task_ids = [task_id for _site_url_id, task_id in ids]
+    original_extract = analyze_phase.extract_page_facts
+
+    def fail_one_page(body, **kwargs):
+        if kwargs["final_url"] == failed_url:
+            raise RuntimeError("classification parser failure")
+        return original_extract(body, **kwargs)
+
+    monkeypatch.setattr(analyze_phase, "extract_page_facts", fail_one_page)
+    worker = _worker(
+        session_factory,
+        {
+            "/blog/classified": _rich_html(),
+            "/unclassified": _rich_html(),
+            "/parser-failure": _rich_html(),
+        },
+        owner="classification-terminal-snapshot",
+    )
+    await worker.run_until_idle()
+
+    async with session_factory() as session:
+        tasks = [
+            task
+            for task_id in task_ids
+            if (task := await session.get(SiteCrawlTask, task_id)) is not None
+        ]
+        analyses = await _analyses_by_page_url(session, seed)
+        snapshot = await session.scalar(
+            select(SiteHealthSnapshot).where(
+                SiteHealthSnapshot.crawl_id == seed.crawl_id
+            )
+        )
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+
+        assert len(tasks) == 3
+        assert all(task.classification_expected for task in tasks)
+        failed_task = next(task for task in tasks if task.requested_url == failed_url)
+        assert failed_task.status == TASK_STATUS_FAILED
+        assert failed_task.error_code == "crawl_task_crashed"
+        assert set(analyses) == {article_url, other_url}
+        assert analyses[article_url].page_kind == "article"
+        assert analyses[other_url].page_kind == "other"
+        other_evidence = analyses[other_url].page_kind_evidence
+        assert other_evidence is not None
+        assert other_evidence["other_reason"] == "no_classification_signals"
+        assert snapshot is not None
+        assert crawl is not None
+
+        expected_analysis_ids = sorted(
+            [analyses[article_url].id, analyses[other_url].id], key=str
+        )
+        expected_artifact_ids = sorted(
+            [
+                analyses[article_url].artifact_id,
+                analyses[other_url].artifact_id,
+            ],
+            key=str,
+        )
+        expected_task_ids = sorted(task_ids, key=str)
+        assert snapshot.classified_page_count == 1
+        assert snapshot.other_page_count == 1
+        assert snapshot.classification_error_page_count == 1
+        assert snapshot.classification_expected_page_count == 3
+        assert snapshot.classification_coverage == pytest.approx(1 / 3, abs=0.0001)
+        assert snapshot.classification_state == "partial"
+        assert snapshot.classification_reason_groups == {
+            "crawl_task_crashed": 1,
+            "no_classification_signals": 1,
+        }
+        assert snapshot.classification_formula_version == "sh-classification-1"
+        assert snapshot.classification_source_analysis_ids == expected_analysis_ids
+        assert snapshot.classification_source_artifact_ids == expected_artifact_ids
+        assert snapshot.classification_source_task_ids == expected_task_ids
+        assert snapshot.scored_page_kind_set == ["article"]
+        assert snapshot.scored_page_count_by_kind == {"article": 1}
+
+        summary = crawl.score_summary
+        assert summary is not None
+        assert summary["classified_page_count"] == 1
+        assert summary["other_page_count"] == 1
+        assert summary["classification_error_page_count"] == 1
+        assert summary["classification_expected_page_count"] == 3
+        assert summary["classification_coverage"] == pytest.approx(1 / 3, abs=0.0001)
+        assert summary["classification_state"] == "partial"
+        assert summary["classification_reason_groups"] == {
+            "crawl_task_crashed": 1,
+            "no_classification_signals": 1,
+        }
+        assert summary["classification_formula_version"] == "sh-classification-1"
+        assert summary["classification_source_analysis_ids"] == [
+            str(value) for value in expected_analysis_ids
+        ]
+        assert summary["classification_source_artifact_ids"] == [
+            str(value) for value in expected_artifact_ids
+        ]
+        assert summary["classification_source_task_ids"] == [
+            str(value) for value in expected_task_ids
+        ]
+        assert summary["scored_page_kind_set"] == ["article"]
+        assert summary["scored_page_count_by_kind"] == {"article": 1}
+        assert set(summary["by_page_kind"]) == {"article", "other"}
+        assert summary["by_page_kind"]["article"]["aeo_readiness_score"] is not None
+        assert summary["by_page_kind"]["other"]["aeo_readiness_score"] is None
+        assert snapshot.aeo_readiness_score == summary["aeo_readiness_score"]
+        assert (
+            snapshot.aeo_readiness_score
+            != summary["by_page_kind"]["article"]["aeo_readiness_score"]
+        )
 
 
 @pytest.mark.asyncio

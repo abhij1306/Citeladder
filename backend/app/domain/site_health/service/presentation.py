@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+from typing import TypedDict, cast
 
 from app.analysis.site_health.rules import rule_for
 from app.core.config.site_health_acquisition import (
@@ -150,9 +151,83 @@ def _page_kind_buckets(summary: dict) -> dict:
     return summary.get("by_page_kind") or {}
 
 
+class _ClassificationProjection(TypedDict):
+    classified_page_count: int
+    other_page_count: int
+    classification_error_page_count: int
+    classification_expected_page_count: int
+    classification_coverage: float | None
+    classification_state: str
+    classification_reason_groups: dict[str, int]
+    classification_formula_version: str
+    classification_source_analysis_ids: list[str]
+    classification_source_artifact_ids: list[str]
+    classification_source_task_ids: list[str]
+    scored_page_kind_set: list[str]
+    scored_page_count_by_kind: dict[str, int]
+
+
+_CLASSIFICATION_COUNT_FIELDS = (
+    "classified_page_count",
+    "other_page_count",
+    "classification_error_page_count",
+    "classification_expected_page_count",
+)
+_CLASSIFICATION_MAP_FIELDS = (
+    "classification_reason_groups",
+    "scored_page_count_by_kind",
+)
+_CLASSIFICATION_LIST_FIELDS = (
+    "classification_source_analysis_ids",
+    "classification_source_artifact_ids",
+    "classification_source_task_ids",
+    "scored_page_kind_set",
+)
+
+
+def _classification_defaults() -> _ClassificationProjection:
+    return {
+        "classified_page_count": 0,
+        "other_page_count": 0,
+        "classification_error_page_count": 0,
+        "classification_expected_page_count": 0,
+        "classification_coverage": None,
+        "classification_state": "not_measured",
+        "classification_reason_groups": {},
+        "classification_formula_version": "",
+        "classification_source_analysis_ids": [],
+        "classification_source_artifact_ids": [],
+        "classification_source_task_ids": [],
+        "scored_page_kind_set": [],
+        "scored_page_count_by_kind": {},
+    }
+
+
+def _classification_projection(summary: dict) -> _ClassificationProjection:
+    """Fill classification fields absent from pre-projection summaries."""
+    projection = dict(_classification_defaults())
+    for field in _CLASSIFICATION_COUNT_FIELDS:
+        projection[field] = int(summary.get(field, projection[field]) or 0)
+    projection["classification_coverage"] = summary.get(
+        "classification_coverage", projection["classification_coverage"]
+    )
+    projection["classification_state"] = summary.get(
+        "classification_state", projection["classification_state"]
+    )
+    projection["classification_formula_version"] = str(
+        summary.get("classification_formula_version")
+        or projection["classification_formula_version"]
+    )
+    for field in _CLASSIFICATION_MAP_FIELDS:
+        projection[field] = summary.get(field) or projection[field]
+    for field in _CLASSIFICATION_LIST_FIELDS:
+        projection[field] = summary.get(field) or projection[field]
+    return cast(_ClassificationProjection, projection)
+
+
 def _score_summary(crawl: SiteCrawl) -> dict | None:
     """Project the worker-written ``score_summary`` into the strict shape."""
-    summary = crawl.score_summary or None
+    summary = crawl.score_summary
     if not summary:
         return None
     # v2 P1 per-page-kind breakdown; absent on pre-P1 summaries (empty map).
@@ -171,6 +246,7 @@ def _score_summary(crawl: SiteCrawl) -> dict | None:
             "aeo_measurement_state": values.get(
                 "aeo_measurement_state", "not_measured"
             ),
+            "aeo_measurement_reason": str(values.get("aeo_measurement_reason") or ""),
         }
     return {
         "web_fundamentals_score": summary.get("web_fundamentals_score"),
@@ -188,6 +264,7 @@ def _score_summary(crawl: SiteCrawl) -> dict | None:
         "scoring_version": str(
             summary.get("scoring_version") or crawl.scoring_version or SCORING_VERSION
         ),
+        **_classification_projection(summary),
         "by_page_kind": by_page_kind,
     }
 

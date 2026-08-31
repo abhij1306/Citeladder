@@ -206,6 +206,7 @@ def _enrichment(obj: dict) -> dict[str, Any]:
             if isinstance(entry, str) and entry.strip():
                 same_as.append(entry.strip()[:_MAX_SAME_AS_CHARS])
     return {
+        "schema_id": _relationship_url(obj.get("@id"))[:_MAX_SAME_AS_CHARS],
         "name": name[:_MAX_NAME_CHARS],
         "author": author[:_MAX_AUTHOR_CHARS],
         "date_published": date_published[:_MAX_DATE_CHARS],
@@ -213,9 +214,13 @@ def _enrichment(obj: dict) -> dict[str, Any]:
         "same_as": same_as,
         "props_present": _props_present(obj),
         "description": _first_string(obj.get("description"))[:_MAX_NAME_CHARS],
-        "url": _first_string(obj.get("url"))[:_MAX_SAME_AS_CHARS],
+        "url": _relationship_url(obj.get("url"))[:_MAX_SAME_AS_CHARS],
         "category": _first_string(obj.get("category"))[:_MAX_NAME_CHARS],
         "is_part_of_url": _relationship_url(obj.get("isPartOf"))[:_MAX_SAME_AS_CHARS],
+        "main_entity_id": _relationship_url(obj.get("mainEntity"))[:_MAX_SAME_AS_CHARS],
+        "main_entity_of_page_id": _relationship_url(obj.get("mainEntityOfPage"))[
+            :_MAX_SAME_AS_CHARS
+        ],
         "breadcrumb_items": _breadcrumb_item_urls(obj.get("itemListElement")),
         "product": _product_enrichment(obj),
     }
@@ -371,12 +376,16 @@ def validate_microdata_types(itemtypes: list[str], *, max_blocks: int) -> list[d
                     "present": [],
                     "missing": list(required),
                     "valid": not required,
+                    "schema_id": "",
                     "name": "",
                     "author": "",
                     "date_published": "",
                     "date_modified": "",
                     "same_as": [],
                     "props_present": [],
+                    "url": "",
+                    "main_entity_id": "",
+                    "main_entity_of_page_id": "",
                     "product": {},
                 }
             )

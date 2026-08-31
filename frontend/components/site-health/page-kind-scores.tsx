@@ -20,13 +20,13 @@ import { cn } from '@/lib/utils';
 
 /**
  * Dashboard per-page-kind score breakdown.
- *
- * Renders `score_summary.by_page_kind` — one row per classified page kind with
- * its analyzed count and mean Web Fundamentals and AEO scores. The
- * panel is data-driven: it appears once a score summary exists (a mid-run
- * projection included) and follows the same dashboard-then-crawl fallback as
- * the score cards. An empty breakdown means analysis has not classified any
- * page yet; missing mean scores render `Not measured`, never a fabricated zero.
+ * Renders `score_summary.by_page_kind` — one row per observed page-kind
+ * bucket with its analyzed count and mean Web Fundamentals and AEO scores.
+ * The panel is data-driven and follows the same dashboard-then-crawl fallback
+ * as the score cards. Classification completeness and the exact scored cohort
+ * come from their own persisted fields; an `other` bucket remains visible but
+ * never enters the AEO scored composition.
+ * Missing means render `Not measured`, never a fabricated zero.
  *
  * READ-ONLY by design. This used to expand each row into an accordion holding
  * its own paginated URL list, checkboxes, and a "Re-analyze selected" button —
@@ -44,8 +44,6 @@ export function PageKindScores({
   if (summary === null) return null;
 
   const rows = byPageKindRows(summary.by_page_kind);
-  const unclassified = summary.by_page_kind.other?.analyzed_count ?? 0;
-  const measured = rows.reduce((total, row) => total + row.analyzed_count, 0);
 
   return (
     <Card data-testid="page-kind-scores">
@@ -53,9 +51,7 @@ export function PageKindScores({
         <div className="grid gap-0.5">
           <Label>Scores by Page Kind</Label>
           <span className="text-secondary text-sm">
-            {unclassified > 0
-              ? `${unclassified} of ${measured} analyzed pages could not be classified; their AEO score is not measured.`
-              : 'Mean scores across the analyzed pages of each type.'}
+            Mean scores across the analyzed pages of each type.
           </span>
         </div>
         {rows.length === 0 ? (

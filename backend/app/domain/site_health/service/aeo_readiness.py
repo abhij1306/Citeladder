@@ -13,6 +13,7 @@ from app.core.config.site_health_contracts import (
     SCORING_VERSION,
 )
 from app.core.config.site_health_measurement import (
+    CHECKPOINT_DIMENSION_BY_ID,
     PRESENTATION_VERSION,
     PROFILE_VERSION,
     SCHEMA_CONTRACT_VERSION,
@@ -78,7 +79,7 @@ def _allowed_content_checkpoints(dimension: str, checkpoint_ids: list[str]) -> s
         for checkpoint_id in checkpoint_ids
         if checkpoint_id in SITE_HEALTH_RULES_BY_ID
         and SITE_HEALTH_RULES_BY_ID[checkpoint_id].content_addressable
-        and SITE_HEALTH_RULES_BY_ID[checkpoint_id].readiness_dimension == dimension
+        and CHECKPOINT_DIMENSION_BY_ID.get(checkpoint_id) == dimension
     }
     if allowed and allowed == set(checkpoint_ids):
         return allowed

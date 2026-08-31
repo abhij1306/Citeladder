@@ -172,6 +172,7 @@ def _new_page_analysis(
         aeo_readiness_score=result.scores.aeo_readiness_score,
         aeo_measurement_coverage=result.scores.aeo_measurement_coverage,
         aeo_measurement_state=result.scores.aeo_measurement_state,
+        aeo_measurement_reason=result.scores.aeo_measurement_reason,
         expected_checkpoint_profile=list(result.scores.expected_checkpoint_profile),
         readiness_dimensions=[
             item.to_dict() for item in result.scores.readiness_dimensions

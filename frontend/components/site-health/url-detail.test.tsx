@@ -42,6 +42,7 @@ function detail(overrides: Partial<PageDetail> = {}): PageDetail {
     aeo_readiness_score: 64,
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
+    aeo_measurement_reason: '',
     main_content_indexable: true,
     issue_count: 2,
     last_audited: '2026-07-16T00:00:00Z',
@@ -273,6 +274,27 @@ describe('UrlDetail', () => {
     // The badge still renders; only the disclosure is withheld.
     expect(screen.getByText('Product')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /why this page kind/i })).not.toBeInTheDocument();
+  });
+
+  it('renders a persisted unresolved-purpose state simply as not measured', async () => {
+    mswServer.use(
+      ...handlers(
+        detail({
+          page_kind: 'other',
+          aeo_readiness_score: null,
+          aeo_measurement_coverage: null,
+          aeo_measurement_state: 'not_measured',
+          aeo_measurement_reason: 'page_purpose_unresolved',
+        }),
+      ),
+    );
+
+    renderWithProviders(<UrlDetail crawlId={CRAWL} siteUrlId={URL_ID} />);
+
+    await screen.findByRole('heading', { name: 'Best&Less Online', level: 1 });
+    expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/purpose unresolved/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /^AEO Readiness:/ })).not.toBeInTheDocument();
   });
 
   it('renders the not-measured state for a missing score, never a zero', async () => {

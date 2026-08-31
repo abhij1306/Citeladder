@@ -13,6 +13,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_MISSING,
 )
 from app.core.config.site_health_crawl_policy import SELECTION_SOURCE_USER
+from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
@@ -99,6 +100,140 @@ async def test_crawl_summary_and_list(
     )
     assert listing.status_code == 200
     assert any(row["id"] == str(scn.crawl_id) for row in listing.json()["items"])
+
+
+async def test_dashboard_projects_persisted_classification_and_scored_cohort(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _register(client, "dashboard-classification@example.com")
+    async with session_factory() as session:
+        scn = await _seed_scenario(
+            session, email="dashboard-classification@example.com"
+        )
+        crawl = await session.get(SiteCrawl, scn.crawl_id)
+        analyses = list(
+            (
+                await session.scalars(
+                    select(SitePageAnalysis)
+                    .where(SitePageAnalysis.crawl_id == scn.crawl_id)
+                    .order_by(SitePageAnalysis.id)
+                )
+            ).all()
+        )
+        assert crawl is not None and len(analyses) == 2
+        artifacts: list[SiteFetchArtifact] = []
+        for analysis in analyses:
+            artifact = await session.get(SiteFetchArtifact, analysis.artifact_id)
+            assert artifact is not None
+            artifacts.append(artifact)
+        source_analysis_ids = [str(analysis.id) for analysis in analyses]
+        source_artifact_ids = [str(artifact.id) for artifact in artifacts]
+        source_task_ids = [str(artifact.task_id) for artifact in artifacts]
+        other_analysis = next(
+            analysis for analysis in analyses if analysis.page_kind == "product"
+        )
+        other_analysis.page_kind = "other"
+        other_analysis.aeo_readiness_score = None
+        other_analysis.aeo_measurement_coverage = None
+        other_analysis.aeo_measurement_state = "not_measured"
+        other_analysis.aeo_measurement_reason = "page_purpose_unresolved"
+        crawl.score_summary = {
+            "web_fundamentals_score": 90.0,
+            "web_fundamentals_coverage": 1.0,
+            "web_fundamentals_state": "measured",
+            "aeo_readiness_score": 80.0,
+            "aeo_measurement_coverage": 0.8,
+            "aeo_measurement_state": "measured",
+            "search_eligibility": "eligible",
+            "selected_count": 2,
+            "analyzed_count": 2,
+            "issue_count": 1,
+            "scoring_version": "1",
+            "classified_page_count": 1,
+            "other_page_count": 1,
+            "classification_error_page_count": 0,
+            "classification_expected_page_count": 2,
+            "classification_coverage": 0.5,
+            "classification_state": "partial",
+            "classification_reason_groups": {"page_purpose_unresolved": 1},
+            "classification_formula_version": "1",
+            "classification_source_analysis_ids": source_analysis_ids,
+            "classification_source_artifact_ids": source_artifact_ids,
+            "classification_source_task_ids": source_task_ids,
+            "scored_page_kind_set": ["article"],
+            "scored_page_count_by_kind": {"article": 1},
+            "by_page_kind": {
+                "article": {
+                    "analyzed_count": 1,
+                    "web_fundamentals_score": 90.0,
+                    "web_fundamentals_coverage": 1.0,
+                    "web_fundamentals_state": "measured",
+                    "aeo_readiness_score": 80.0,
+                    "aeo_measurement_coverage": 0.8,
+                    "aeo_measurement_state": "measured",
+                    "aeo_measurement_reason": "",
+                },
+                "other": {
+                    "analyzed_count": 1,
+                    "web_fundamentals_score": 90.0,
+                    "web_fundamentals_coverage": 1.0,
+                    "web_fundamentals_state": "measured",
+                    "aeo_readiness_score": None,
+                    "aeo_measurement_coverage": None,
+                    "aeo_measurement_state": "not_measured",
+                    "aeo_measurement_reason": "page_purpose_unresolved",
+                },
+            },
+        }
+        await session.commit()
+
+    response = await client.get(
+        f"/api/v1/projects/{scn.project_id}/site-health",
+        headers={"X-Workspace-Id": str(scn.workspace_id)},
+        params={"crawl_id": scn.crawl_id},
+    )
+
+    assert response.status_code == 200
+    summary = response.json()["score_summary"]
+    assert summary is not None
+    assert {
+        key: summary[key]
+        for key in (
+            "classified_page_count",
+            "other_page_count",
+            "classification_error_page_count",
+            "classification_expected_page_count",
+            "classification_coverage",
+            "classification_state",
+            "classification_reason_groups",
+            "classification_formula_version",
+            "classification_source_analysis_ids",
+            "classification_source_artifact_ids",
+            "classification_source_task_ids",
+            "scored_page_kind_set",
+            "scored_page_count_by_kind",
+        )
+    } == {
+        "classified_page_count": 1,
+        "other_page_count": 1,
+        "classification_error_page_count": 0,
+        "classification_expected_page_count": 2,
+        "classification_coverage": 0.5,
+        "classification_state": "partial",
+        "classification_reason_groups": {"page_purpose_unresolved": 1},
+        "classification_formula_version": "1",
+        "classification_source_analysis_ids": source_analysis_ids,
+        "classification_source_artifact_ids": source_artifact_ids,
+        "classification_source_task_ids": source_task_ids,
+        "scored_page_kind_set": ["article"],
+        "scored_page_count_by_kind": {"article": 1},
+    }
+    assert summary["by_page_kind"]["other"]["aeo_measurement_reason"] == (
+        "page_purpose_unresolved"
+    )
+    assert "unavailable_count" not in summary
+    assert "conflicting_count" not in summary
 
 
 async def test_inventory_monitored_filter(
@@ -527,6 +662,54 @@ async def test_page_type_projection_filters_and_exports(
     )
     assert inventory_md.status_code == 200
     assert "| page_kind |" in inventory_md.text
+
+
+async def test_page_projections_expose_persisted_aeo_measurement_reason(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _register(client, "page-measurement-reason@example.com")
+    async with session_factory() as session:
+        scn = await _seed_scenario(session, email="page-measurement-reason@example.com")
+        analysis = await session.scalar(
+            select(SitePageAnalysis).where(
+                SitePageAnalysis.crawl_id == scn.crawl_id,
+                SitePageAnalysis.site_url_id == scn.monitored_url_id,
+            )
+        )
+        assert analysis is not None
+        analysis.page_kind = "other"
+        analysis.aeo_readiness_score = None
+        analysis.aeo_measurement_coverage = None
+        analysis.aeo_measurement_state = "not_measured"
+        analysis.aeo_measurement_reason = "page_purpose_unresolved"
+        await session.commit()
+
+    headers = {"X-Workspace-Id": str(scn.workspace_id)}
+    pages = await client.get(
+        f"/api/v1/site-crawls/{scn.crawl_id}/pages?page_kind=other",
+        headers=headers,
+    )
+    inventory = await client.get(
+        f"/api/v1/site-crawls/{scn.crawl_id}/inventory?page_kind=other",
+        headers=headers,
+    )
+    detail = await client.get(
+        f"/api/v1/site-crawls/{scn.crawl_id}/pages/{scn.monitored_url_id}",
+        headers=headers,
+    )
+
+    assert pages.status_code == inventory.status_code == detail.status_code == 200
+    for item in (
+        pages.json()["items"][0],
+        inventory.json()["items"][0],
+        detail.json(),
+    ):
+        assert item["page_kind"] == "other"
+        assert item["aeo_readiness_score"] is None
+        assert item["aeo_measurement_coverage"] is None
+        assert item["aeo_measurement_state"] == "not_measured"
+        assert item["aeo_measurement_reason"] == "page_purpose_unresolved"
 
 
 async def test_page_detail_and_history(

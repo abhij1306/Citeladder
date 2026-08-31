@@ -266,6 +266,26 @@ def test_score_summary_projects_by_page_kind() -> None:
             "analyzed_count": 3,
             "issue_count": 2,
             "scoring_version": "sh-scoring-4",
+            "classified_page_count": 2,
+            "other_page_count": 1,
+            "classification_error_page_count": 1,
+            "classification_expected_page_count": 4,
+            "classification_coverage": 0.5,
+            "classification_state": "partial",
+            "classification_reason_groups": {
+                "classification_failed": 1,
+                "page_purpose_unresolved": 1,
+            },
+            "classification_formula_version": "1",
+            "classification_source_analysis_ids": [
+                "00000000-0000-0000-0000-000000000001"
+            ],
+            "classification_source_artifact_ids": [
+                "00000000-0000-0000-0000-000000000002"
+            ],
+            "classification_source_task_ids": ["00000000-0000-0000-0000-000000000003"],
+            "scored_page_kind_set": ["article", "product"],
+            "scored_page_count_by_kind": {"article": 1, "product": 1},
             "by_page_kind": {
                 "article": {
                     "analyzed_count": 2,
@@ -275,6 +295,7 @@ def test_score_summary_projects_by_page_kind() -> None:
                     "aeo_readiness_score": 70.0,
                     "aeo_measurement_coverage": 0.8,
                     "aeo_measurement_state": "measured",
+                    "aeo_measurement_reason": "",
                 },
                 "product": {
                     "analyzed_count": 1,
@@ -284,6 +305,7 @@ def test_score_summary_projects_by_page_kind() -> None:
                     "aeo_readiness_score": 70.0,
                     "aeo_measurement_coverage": 0.8,
                     "aeo_measurement_state": "measured",
+                    "aeo_measurement_reason": "",
                 },
             },
         }
@@ -300,9 +322,45 @@ def test_score_summary_projects_by_page_kind() -> None:
         "aeo_readiness_score": 70.0,
         "aeo_measurement_coverage": 0.8,
         "aeo_measurement_state": "measured",
+        "aeo_measurement_reason": "",
     }
     # A None mean is projected as None, never fabricated as zero.
     assert by_page_kind["product"]["web_fundamentals_score"] is None
+    assert {
+        key: projected[key]
+        for key in (
+            "classified_page_count",
+            "other_page_count",
+            "classification_error_page_count",
+            "classification_expected_page_count",
+            "classification_coverage",
+            "classification_state",
+            "classification_reason_groups",
+            "classification_formula_version",
+            "classification_source_analysis_ids",
+            "classification_source_artifact_ids",
+            "classification_source_task_ids",
+            "scored_page_kind_set",
+            "scored_page_count_by_kind",
+        )
+    } == {
+        "classified_page_count": 2,
+        "other_page_count": 1,
+        "classification_error_page_count": 1,
+        "classification_expected_page_count": 4,
+        "classification_coverage": 0.5,
+        "classification_state": "partial",
+        "classification_reason_groups": {
+            "classification_failed": 1,
+            "page_purpose_unresolved": 1,
+        },
+        "classification_formula_version": "1",
+        "classification_source_analysis_ids": ["00000000-0000-0000-0000-000000000001"],
+        "classification_source_artifact_ids": ["00000000-0000-0000-0000-000000000002"],
+        "classification_source_task_ids": ["00000000-0000-0000-0000-000000000003"],
+        "scored_page_kind_set": ["article", "product"],
+        "scored_page_count_by_kind": {"article": 1, "product": 1},
+    }
 
 
 def test_score_summary_without_breakdown_projects_empty_map() -> None:

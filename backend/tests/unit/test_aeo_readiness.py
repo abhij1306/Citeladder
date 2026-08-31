@@ -6,12 +6,14 @@ import pytest
 
 from app.core.config.site_health_contracts import (
     AEO_READINESS_DIMENSIONS,
-    RULE_OUTCOME_CONFLICTING,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_MISSING,
     RULE_OUTCOME_PARTIAL,
+    RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_measurement import (
+    CAPABILITY_FAMILY_MANIFEST,
+    CHECKPOINT_FAMILY_BY_ID,
     READINESS_DIMENSION_WEIGHTS,
     STRUCTURAL_NA_REASONS,
     UNAVAILABLE_REASONS,
@@ -33,12 +35,9 @@ from app.models.site_health.analysis import SiteRuleEvaluation
 
 
 def test_readiness_manifest_uses_known_rules_and_scored_dimensions() -> None:
-    readiness_rules = [
-        rule for rule in SITE_HEALTH_RULES_BY_ID.values() if rule.readiness_dimension
-    ]
     assert set(READINESS_DIMENSION_WEIGHTS) == set(AEO_READINESS_DIMENSIONS)
     assert sum(READINESS_DIMENSION_WEIGHTS.values()) == pytest.approx(1.0)
-    assert {rule.readiness_dimension for rule in readiness_rules} == {
+    assert {family.dimension_id for family in CAPABILITY_FAMILY_MANIFEST} == {
         "answerability",
         "structure",
         "machine-readability",
@@ -47,19 +46,19 @@ def test_readiness_manifest_uses_known_rules_and_scored_dimensions() -> None:
         "evidence",
         "freshness",
     }
+    assert set(CHECKPOINT_FAMILY_BY_ID) <= set(SITE_HEALTH_RULES_BY_ID)
 
 
 def test_schema_check_repetition_does_not_manufacture_family_breadth() -> None:
     schema_families = {
-        rule.checkpoint_family
-        for rule_id, rule in SITE_HEALTH_RULES_BY_ID.items()
+        CHECKPOINT_FAMILY_BY_ID[rule_id]
+        for rule_id in SITE_HEALTH_RULES_BY_ID
         if rule_id.startswith("aeo.schema_")
     }
     assert schema_families == {"structured_representation"}
 
 
 def test_uncertainty_reason_registries_are_disjoint() -> None:
-    assert STRUCTURAL_NA_REASONS.isdisjoint(UNAVAILABLE_REASONS)
     assert STRUCTURAL_NA_REASONS.isdisjoint(UNKNOWN_REASONS)
     assert UNAVAILABLE_REASONS.isdisjoint(UNKNOWN_REASONS)
     assert "coverage_not_complete" in UNAVAILABLE_REASONS
@@ -83,35 +82,37 @@ def test_only_declared_content_gaps_can_cross_the_content_boundary() -> None:
     assert addressable == {
         "aeo.answer_first",
         "aeo.question_headings",
-        "aeo.author_present",
+        "aeo.visible_attribution",
         "aeo.content_date_present",
         "aeo.editorial_lead_present",
         "aeo.entity_value_proposition",
         "aeo.heading_hierarchy",
         "aeo.listing_answer_set",
         "aeo.listing_item_facts",
-        "aeo.no_expand_gating",
         "aeo.offer_freshness_signal",
         "aeo.assortment_freshness_signal",
         "aeo.organization_identity",
-        "aeo.outbound_citations",
+        "aeo.source_support_present",
         "aeo.product_answer_facts",
         "aeo.product_brand_identity",
         "aeo.product_evidence_facts",
     }
 
 
-def test_readiness_profiles_match_editorial_rule_applicability() -> None:
-    docs = set(expected_checkpoints("docs"))
-    case_study = set(expected_checkpoints("case_study_review"))
+def test_readiness_profiles_match_evidence_independent_context() -> None:
+    context = {
+        "research_sensitive": True,
+        "freshness_sensitive": True,
+    }
+    docs = set(expected_checkpoints("docs", crawl_context=context))
+    case_study = set(expected_checkpoints("case_study_review", crawl_context=context))
 
-    assert "aeo.author_present" not in docs
-    assert "aeo.organization_identity" in docs
-    assert "aeo.outbound_citations" in docs
+    assert "aeo.visible_attribution" not in docs
+    assert "aeo.source_support_present" in docs
     assert "aeo.content_date_present" in docs
-    assert "aeo.author_present" not in case_study
+    assert "aeo.visible_attribution" in case_study
     assert "aeo.content_date_present" in case_study
-    assert "aeo.outbound_citations" in case_study
+    assert "aeo.source_support_present" in case_study
 
 
 def test_removed_readiness_checkpoints_are_filtered_from_projections() -> None:
@@ -136,6 +137,7 @@ def _evaluation(
     *,
     dimension: str = "machine-readability",
     scope: str = "page",
+    evidence: dict[str, object] | None = None,
 ) -> SiteRuleEvaluation:
     return SiteRuleEvaluation(
         workspace_id=uuid4(),
@@ -145,6 +147,7 @@ def _evaluation(
         readiness_dimension=dimension,
         outcome=outcome,
         scope=scope,
+        evidence=evidence,
     )
 
 
@@ -202,16 +205,23 @@ def _analysis_page(analysis_id: UUID, index: int) -> ReadinessPage:
     )
 
 
-def test_errors_and_conflicts_are_uncertainty_not_actionable_failures() -> None:
+def test_errors_and_unknowns_are_uncertainty_not_actionable_failures() -> None:
     analysis_ids = [uuid4() for _ in range(4)]
     rows = [
-        _evaluation("aeo.schema_expected_for_type", outcome, analysis_id)
+        _evaluation(
+            "aeo.schema_expected_for_type",
+            outcome,
+            analysis_id,
+            evidence={"reason": "conflicting_schema_entities"}
+            if outcome == RULE_OUTCOME_UNKNOWN
+            else None,
+        )
         for outcome, analysis_id in zip(
             (
                 RULE_OUTCOME_MISSING,
                 RULE_OUTCOME_PARTIAL,
                 RULE_OUTCOME_ERROR,
-                RULE_OUTCOME_CONFLICTING,
+                RULE_OUTCOME_UNKNOWN,
             ),
             analysis_ids,
             strict=True,

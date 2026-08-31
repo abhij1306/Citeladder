@@ -15,6 +15,7 @@ from app.core.config.site_health_contracts import (
 )
 from app.core.config.site_health_link_metrics import COVERAGE_FORMULA_VERSION
 from app.core.config.site_health_measurement import (
+    CLASSIFICATION_FORMULA_VERSION,
     PRESENTATION_VERSION,
     PROFILE_VERSION,
     SCHEMA_CONTRACT_VERSION,
@@ -69,6 +70,36 @@ def _change_metric(
     }
 
 
+def _comparison_reason(
+    previous: SiteHealthSnapshot | None, *, composition_changed: bool
+) -> str:
+    if previous is None:
+        return "no_comparable_snapshot"
+    if composition_changed:
+        return "cohort_composition_changed"
+    return "comparable_snapshot"
+
+
+def _scored_kind_counts(snapshot: SiteHealthSnapshot | None) -> dict[str, int]:
+    if snapshot is None:
+        return {}
+    return {
+        str(key): int(value)
+        for key, value in (snapshot.scored_page_count_by_kind or {}).items()
+    }
+
+
+def _cohort_composition(
+    previous_counts: dict[str, int], current_counts: dict[str, int]
+) -> dict[str, object]:
+    return {
+        "added_page_kinds": sorted(set(current_counts) - set(previous_counts)),
+        "removed_page_kinds": sorted(set(previous_counts) - set(current_counts)),
+        "previous_page_count_by_kind": previous_counts,
+        "current_page_count_by_kind": dict(sorted(current_counts.items())),
+    }
+
+
 async def build_overview_history(
     session: AsyncSession,
     *,
@@ -76,6 +107,7 @@ async def build_overview_history(
     analyzer_version: str,
     scoring_version: str,
     current_metrics: dict[str, float | None],
+    scored_page_count_by_kind: dict[str, int],
     observed_at: datetime,
 ) -> tuple[dict, dict]:
     """Build bounded trends over snapshots with the exact same measurement identity."""
@@ -92,6 +124,8 @@ async def build_overview_history(
                 SiteHealthSnapshot.schema_contract_version == SCHEMA_CONTRACT_VERSION,
                 SiteHealthSnapshot.presentation_version == PRESENTATION_VERSION,
                 SiteHealthSnapshot.coverage_formula_version == COVERAGE_FORMULA_VERSION,
+                SiteHealthSnapshot.classification_formula_version
+                == CLASSIFICATION_FORMULA_VERSION,
             )
             .order_by(
                 SiteHealthSnapshot.created_at.desc(), SiteHealthSnapshot.id.desc()
@@ -114,14 +148,20 @@ async def build_overview_history(
         }
     )
     previous = history[-1] if history else None
-    reason = "comparable_snapshot" if previous is not None else "no_comparable_snapshot"
+    previous_counts = _scored_kind_counts(previous)
+    composition_changed = (
+        previous is not None and previous_counts != scored_page_count_by_kind
+    )
+    reason = _comparison_reason(previous, composition_changed=composition_changed)
     available = previous is not None
+    composition = _cohort_composition(previous_counts, scored_page_count_by_kind)
     return (
         {
             "state": "measured" if available else "unavailable",
             "reason": reason,
             "metric": "aeo_readiness_score",
             "series": series,
+            "cohort_composition": composition,
         },
         {
             "state": "measured" if available else "unavailable",
@@ -135,6 +175,7 @@ async def build_overview_history(
                 )
                 for key, label in _CHANGE_METRICS
             ],
+            "cohort_composition": composition,
         },
     )
 

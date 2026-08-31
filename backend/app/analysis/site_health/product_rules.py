@@ -5,7 +5,6 @@ from __future__ import annotations
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_MISSING,
     RULE_OUTCOME_SATISFIED,
-    RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_rule_types import CompositeContract
 
@@ -92,13 +91,16 @@ def check_offer_freshness_signal(facts: dict) -> tuple[str, dict]:
         "timestamp_source": timestamp_source,
     }
     if not offer:
-        return RULE_OUTCOME_UNKNOWN, {**evidence, "reason": "offer_unavailable"}
+        return RULE_OUTCOME_MISSING, {**evidence, "reason": "offer_state_missing"}
     if not currency:
-        return RULE_OUTCOME_UNKNOWN, {**evidence, "reason": "currency_unavailable"}
-    if not timestamp:
-        return RULE_OUTCOME_UNKNOWN, {
+        return RULE_OUTCOME_MISSING, {
             **evidence,
-            "reason": "freshness_timestamp_unavailable",
+            "reason": "offer_currency_missing",
+        }
+    if not timestamp:
+        return RULE_OUTCOME_MISSING, {
+            **evidence,
+            "reason": "freshness_signal_missing",
         }
     return RULE_OUTCOME_SATISFIED, evidence
 
@@ -167,8 +169,8 @@ def check_assortment_freshness_signal(facts: dict) -> tuple[str, dict]:
     """Require a dated assortment observation; item count is not freshness."""
     timestamp, timestamp_source = _freshness_timestamp(facts)
     if not timestamp:
-        return RULE_OUTCOME_UNKNOWN, {
-            "reason": "freshness_timestamp_unavailable",
+        return RULE_OUTCOME_MISSING, {
+            "reason": "freshness_signal_missing",
             "timestamp": "",
             "timestamp_source": "",
         }

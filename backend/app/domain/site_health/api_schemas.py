@@ -37,6 +37,7 @@ IssueDimension = Literal["technical", "aeo"]
 SiteUrlSource = Literal["root", "link", "sitemap", "redirect"]
 SelectionSource = Literal["user", "free_sample", "bootstrap"]
 MeasurementState = Literal["measured", "limited_evidence", "not_measured", "excluded"]
+ClassificationState = Literal["complete", "partial", "not_measured"]
 DimensionApplicability = Literal["applicable", "not_applicable"]
 SearchEligibility = Literal["eligible", "blocked", "unknown", "excluded"]
 
@@ -163,6 +164,7 @@ class ScoreSummaryByType(_Model):
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
     aeo_measurement_state: MeasurementState
+    aeo_measurement_reason: str
 
 
 class ScoreSummary(_Model):
@@ -177,6 +179,19 @@ class ScoreSummary(_Model):
     analyzed_count: int
     issue_count: int
     scoring_version: str
+    classified_page_count: int
+    other_page_count: int
+    classification_error_page_count: int
+    classification_expected_page_count: int
+    classification_coverage: float | None
+    classification_state: ClassificationState
+    classification_reason_groups: dict[str, int]
+    classification_formula_version: str
+    classification_source_analysis_ids: list[uuid.UUID]
+    classification_source_artifact_ids: list[uuid.UUID]
+    classification_source_task_ids: list[uuid.UUID]
+    scored_page_kind_set: list[str]
+    scored_page_count_by_kind: dict[str, int]
     # Per-page-type breakdown (only types with >= 1 analyzed URL appear).
     by_page_kind: dict[str, ScoreSummaryByType] = {}
 
@@ -302,6 +317,7 @@ class InventoryRow(_Model):
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
     aeo_measurement_state: MeasurementState
+    aeo_measurement_reason: str
     main_content_indexable: bool | None
     last_audited: str | None
 
@@ -361,6 +377,7 @@ class PageSummary(_Model):
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
     aeo_measurement_state: MeasurementState
+    aeo_measurement_reason: str
     main_content_indexable: bool | None
     last_audited: str | None
     # Persisted internal-link projection (PR2). None means UNMEASURED — this
@@ -538,6 +555,7 @@ class PageDetail(_Model):
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
     aeo_measurement_state: MeasurementState
+    aeo_measurement_reason: str
     main_content_indexable: bool | None
     issue_count: int | None
     last_audited: str | None

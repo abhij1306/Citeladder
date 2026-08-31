@@ -14,6 +14,7 @@ type MetricContext = {
   summary: Summary;
   analyzed: number;
   selected: number;
+  classificationState: SiteHealthOverview['classification_state'] | undefined;
 };
 type MetricModel = {
   title: string;
@@ -74,6 +75,7 @@ function metricContext(
     analyzed: overview?.audited_page_count ?? summary?.analyzed_count ?? crawl?.analyzed_count ?? 0,
     selected:
       overview?.selected_page_count ?? summary?.selected_count ?? crawl?.visible_url_count ?? 0,
+    classificationState: overview?.classification_state ?? summary?.classification_state,
   };
 }
 
@@ -105,7 +107,10 @@ function aeoMetric(context: MetricContext): MetricModel {
   const coverage = source?.aeo_measurement_coverage;
   const state = source?.aeo_measurement_state;
   return {
-    title: 'AEO Readiness',
+    title:
+      context.classificationState === 'complete'
+        ? 'AEO Readiness'
+        : 'Readiness of classified audited pages',
     value: score ?? null,
     coverage: coverage ?? null,
     confidence: confidence(state),
@@ -122,7 +127,7 @@ function aeoMetric(context: MetricContext): MetricModel {
 }
 
 function occurrenceDetail(count: number, noun: string, affectedPages: number): string {
-  const occurrenceLabel = count === 1 ? noun : `${noun}s`;
+  const occurrenceLabel = count === 1 ? `${noun} occurrence` : `${noun} occurrences`;
   const pageLabel = affectedPages === 1 ? 'page' : 'pages';
   return `${count} ${occurrenceLabel} · ${affectedPages} ${pageLabel} affected`;
 }

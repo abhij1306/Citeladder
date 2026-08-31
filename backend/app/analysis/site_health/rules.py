@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from itertools import pairwise
 from typing import Any
 
+from app.analysis.site_health.delivery_rules import DELIVERY_CHECKS
 from app.analysis.site_health.identity_rules import (
     check_organization_identity,
     check_trust_path_present,
@@ -16,6 +18,7 @@ from app.analysis.site_health.indexing import (
     normalized_url_for_compare,
     resolve_canonical,
 )
+from app.analysis.site_health.page_kinds import is_question_heading
 from app.analysis.site_health.page_traits import has_contact_form_fields
 from app.analysis.site_health.product_rules import (
     check_assortment_freshness_signal,
@@ -30,55 +33,47 @@ from app.analysis.site_health.rule_scope import (
     applicability,
     observed_traits,
     profile_for,
-    server_render_signals,
 )
 from app.analysis.site_health.schema_rules import (
     check_schema_expected_for_type,
     check_schema_matches_content,
     check_schema_recommended_present,
     check_schema_required_valid,
-    schema_expectation_for,
+    primary_schema_present,
 )
-from app.analysis.site_health.web_fundamentals import (
-    WEB_FUNDAMENTALS_CHECKS,
-    check_heading_order,
-)
-from app.core.config.site_health_acquisition import (
-    AI_CRAWLER_BOTS,
-    AI_CRAWLER_STANCE_BLOCK,
-    SEARCH_CITATION_CRAWLER_BOTS,
-)
+from app.analysis.site_health.web_fundamentals import WEB_FUNDAMENTALS_CHECKS
 from app.core.config.site_health_contracts import (
     RULE_FAILING_OUTCOMES,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_MISSING,
     RULE_OUTCOME_NOT_APPLICABLE,
+    RULE_OUTCOME_PARTIAL,
     RULE_OUTCOME_SATISFIED,
-    RULE_OUTCOME_UNAVAILABLE,
     RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_measurement import (
+    CAPABILITY_FAMILIES_BY_ID,
+    PROFILE_STATUS_MEASURED,
     STRUCTURAL_NA_REASONS,
     UNAVAILABLE_REASONS,
     UNKNOWN_REASONS,
-    expected_checkpoints,
+    expected_checkpoint_expressions,
+    profile_rows,
+    site_checkpoint_expressions,
 )
 from app.core.config.site_health_rule_types import (
     FINDING_CLASS_DIAGNOSTIC,
-    KIND_EVIDENCE_TRIGGERED,
     RULE_SCOPE_PAGE,
+    SCORE_ROLE_AEO,
     SiteHealthRule,
 )
 from app.core.config.site_health_rules import (
     ANSWER_FIRST_MIN_WORDS,
-    EXPAND_GATED_MAX_RATIO,
     META_DESCRIPTION_LENGTH_BAND,
     QUESTION_HEADINGS_MIN_RATIO,
     SITE_HEALTH_RULES,
     SITE_HEALTH_RULES_BY_ID,
-    SOCIAL_DOMAINS,
     TITLE_LENGTH_BAND,
-    TTFB_WARN_MS,
 )
 from app.core.config.site_health_taxonomy import (
     CONTENT_SUFFICIENCY_PRICE_KINDS,
@@ -164,16 +159,6 @@ def _check_present_field(
 
 def _check_indexable(facts: dict) -> tuple[str, dict]:
     return evaluate_indexability(facts)
-
-
-def _check_https(facts: dict) -> tuple[str, dict]:
-    delivery = facts.get("delivery") or {}
-    is_https = bool(delivery.get("is_https"))
-    return _pass_fail(is_https), {
-        "scheme": delivery.get("scheme", ""),
-        "final_url": delivery.get("final_url", ""),
-        "is_https": is_https,
-    }
 
 
 def _check_single_h1(facts: dict) -> tuple[str, dict]:
@@ -306,194 +291,115 @@ def _check_meta_description_length_band(facts: dict) -> tuple[str, dict]:
     )
 
 
-def _check_hsts_present(facts: dict) -> tuple[str, dict]:
-    delivery = facts.get("delivery") or {}
-    security = delivery.get("security_headers") or {}
-    present = bool(security.get("strict-transport-security"))
-    return _pass_fail(present), {
-        "present": present,
-        "scheme": delivery.get("scheme", ""),
+def _check_visible_attribution(facts: dict) -> tuple[str, dict]:
+    authorship = facts.get("authorship") or {}
+    visible = str(authorship.get("visible_byline") or "").strip()
+    profile_url = str(authorship.get("visible_profile_url") or "").strip()
+    declared = str(authorship.get("declared_author") or "").strip()
+    declared_source = str(authorship.get("declared_author_source") or "").strip()
+    evidence = {
+        "visible_name": visible[:256],
+        "visible_profile_url": profile_url[:512],
+        "declared_name": declared[:256],
+        "declared_source": declared_source,
     }
-
-
-def _check_ttfb_band(facts: dict) -> tuple[str, dict]:
-    delivery = facts.get("delivery") or {}
-    ttfb = delivery.get("ttfb_ms")
-    if ttfb is None:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_ttfb_measurement"}
-    ttfb_ms = int(ttfb)
-    return _pass_fail(ttfb_ms <= TTFB_WARN_MS), {
-        "ttfb_ms": ttfb_ms,
-        "threshold_ms": TTFB_WARN_MS,
-    }
-
-
-def _check_uncompressed_html(facts: dict) -> tuple[str, dict]:
-    delivery = facts.get("delivery") or {}
-    compressed = bool(delivery.get("is_compressed"))
-    return _pass_fail(compressed), {
-        "content_encoding": delivery.get("content_encoding", ""),
-        "is_compressed": compressed,
-    }
-
-
-def _check_ai_crawler_access(facts: dict) -> tuple[str, dict]:
-    site = facts.get("site") or {}
-    robots = site.get("robots") or {}
-    stance = robots.get("ai_crawlers") or {}
-    bounded_stance = {bot: stance.get(bot, "") for bot in AI_CRAWLER_BOTS}
-    if not robots.get("fetched"):
-        # The stance is the fail-open default (robots.txt unfetchable): a
-        # PASS would be vacuous for a HIGH-severity signal. N/A instead.
-        return RULE_OUTCOME_NOT_APPLICABLE, {
-            "reason": "robots_not_fetched",
-            "robots_fetched": False,
-            "ai_crawlers": bounded_stance,
-        }
-    blocked = [
-        bot for bot in AI_CRAWLER_BOTS if stance.get(bot) == AI_CRAWLER_STANCE_BLOCK
-    ]
-    return _pass_fail(not blocked), {
-        "robots_fetched": True,
-        "ai_crawlers": bounded_stance,
-        "blocked": blocked,
-    }
-
-
-def _check_llms_txt_present(facts: dict) -> tuple[str, dict]:
-    site = facts.get("site") or {}
-    llms = site.get("llms_txt") or {}
-    present = bool(llms.get("present"))
-    return _pass_fail(present), {
-        "fetched": bool(llms.get("fetched")),
-        "present": present,
-        "url": str(llms.get("url") or "")[:2048],
-    }
-
-
-def _check_search_crawler_access(facts: dict) -> tuple[str, dict]:
-    robots = (facts.get("site") or {}).get("robots") or {}
-    stance = robots.get("ai_crawlers") or {}
-    if not robots.get("fetched"):
-        return RULE_OUTCOME_NOT_APPLICABLE, {
-            "reason": "robots_not_fetched",
-            "crawler_role": "search_citation",
-        }
-    blocked = [
-        bot
-        for bot in SEARCH_CITATION_CRAWLER_BOTS
-        if stance.get(bot) == AI_CRAWLER_STANCE_BLOCK
-    ]
-    return _pass_fail(not blocked), {
-        "crawler_role": "search_citation",
-        "checked": list(SEARCH_CITATION_CRAWLER_BOTS),
-        "blocked": blocked,
-    }
-
-
-def _check_snippet_access(facts: dict) -> tuple[str, dict]:
-    robots = facts.get("robots") or {}
-    nosnippet = bool(robots.get("nosnippet"))
-    max_snippet = robots.get("max_snippet")
-    blocked = nosnippet or max_snippet == 0
-    return _pass_fail(not blocked), {
-        "nosnippet": nosnippet,
-        "max_snippet": max_snippet,
-        "directives": list(robots.get("directives") or ())[:32],
-    }
-
-
-def _check_author_present(facts: dict) -> tuple[str, dict]:
-    author = (facts.get("author") or "").strip()
-    return _pass_fail(bool(author)), {
-        "present": bool(author),
-        "author": author[:256],
-    }
+    if visible and profile_url:
+        return RULE_OUTCOME_SATISFIED, evidence
+    if visible:
+        evidence["reason"] = "visible_attribution_unlinked"
+        return RULE_OUTCOME_PARTIAL, evidence
+    if declared:
+        evidence["reason"] = "declared_attribution_only"
+        return RULE_OUTCOME_PARTIAL, evidence
+    evidence["reason"] = "visible_attribution_absent"
+    return RULE_OUTCOME_MISSING, evidence
 
 
 def _check_content_date_present(facts: dict) -> tuple[str, dict]:
     dates = facts.get("dates") or {}
     published = bool((dates.get("published") or "").strip())
     modified = bool((dates.get("modified") or "").strip())
-    return _pass_fail(published or modified), {
+    evidence: dict[str, object] = {
         "has_published": published,
         "has_modified": modified,
     }
+    if not (published or modified):
+        evidence["reason"] = "freshness_signal_missing"
+    return _pass_fail(published or modified), evidence
 
 
-def _is_social_domain(host: str) -> bool:
-    host = host.lower()
-    return any(
-        host == social or host.endswith(f".{social}") for social in SOCIAL_DOMAINS
-    )
-
-
-def _check_outbound_citations(facts: dict) -> tuple[str, dict]:
-    domains = [str(d) for d in (facts.get("outbound_domains") or [])]
-    non_social = [d for d in domains if not _is_social_domain(d)]
-    return _pass_fail(bool(non_social)), {
-        "outbound_domain_count": len(domains),
-        "non_social_domain_count": len(non_social),
-        "non_social_domains": non_social[:10],
+def _check_source_support_present(facts: dict) -> tuple[str, dict]:
+    support = facts.get("source_support") or {}
+    available = bool(support.get("primary_content_available"))
+    sources = list(support.get("attached_sources") or ())
+    ambiguous = int(support.get("ambiguous_source_count") or 0)
+    invalid = int(support.get("invalid_source_count") or 0)
+    evidence = {
+        "attached_sources": sources[:24],
+        "attached_source_count": len(sources),
+        "ambiguous_source_count": ambiguous,
+        "invalid_source_count": invalid,
+        "context_reasons": list(support.get("context_reasons") or ())[:8],
     }
-
-
-_SOFT_ERROR_PHRASES = ("page not found", "404 not found", "does not exist")
-
-
-def _check_soft_error(facts: dict) -> tuple[str, dict]:
-    status_code = (facts.get("delivery") or {}).get("status_code")
-    headings = facts.get("headings") or {}
-    title_and_h1 = [str(facts.get("title") or ""), *(headings.get("h1_texts") or ())]
-    normalized = {value.strip().casefold() for value in title_and_h1 if value}
-    matched = next(
-        (phrase for phrase in _SOFT_ERROR_PHRASES if phrase in normalized), ""
-    )
-    soft_error = status_code == 200 and bool(matched)
-    return _pass_fail(not soft_error), {
-        "status_code": status_code,
-        "matched_error_phrase": matched,
-    }
+    if not available:
+        evidence["reason"] = "primary_content_unavailable"
+        return RULE_OUTCOME_UNKNOWN, evidence
+    if sources:
+        return RULE_OUTCOME_SATISFIED, evidence
+    if invalid:
+        evidence["reason"] = "invalid_source_relationship"
+        return RULE_OUTCOME_MISSING, evidence
+    if ambiguous:
+        evidence["reason"] = "ambiguous_source_attachment"
+        return RULE_OUTCOME_UNKNOWN, evidence
+    evidence["reason"] = "source_support_absent"
+    return RULE_OUTCOME_MISSING, evidence
 
 
 def _check_answer_first(facts: dict) -> tuple[str, dict]:
-    headings = facts.get("headings") or {}
-    counts = headings.get("counts") or {}
-    has_heading = (
-        int(headings.get("h1_count", 0) or 0) > 0 or int(counts.get("h2", 0) or 0) > 0
-    )
-    if not has_heading:
+    outline = list(facts.get("primary_heading_outline") or ())
+    if not outline:
         return RULE_OUTCOME_MISSING, {"reason": "no_headings"}
-    answer = str(facts.get("first_answer_text") or "")
+    answer = str(facts.get("direct_answer") or "")
     word_count = len(answer.split())
-    return _pass_fail(word_count >= ANSWER_FIRST_MIN_WORDS), {
+    evidence = {
         "answer_word_count": word_count,
         "minimum_words": ANSWER_FIRST_MIN_WORDS,
         "answer_preview": answer[:256],
     }
+    if word_count < ANSWER_FIRST_MIN_WORDS:
+        evidence["reason"] = "direct_answer_missing"
+    return _pass_fail(word_count >= ANSWER_FIRST_MIN_WORDS), evidence
 
 
 def _check_editorial_lead_present(facts: dict) -> tuple[str, dict]:
-    lead = str(facts.get("first_answer_text") or "")
+    lead = str(facts.get("editorial_lead") or "")
     word_count = len(lead.split())
-    return _pass_fail(word_count >= ANSWER_FIRST_MIN_WORDS), {
+    evidence = {
         "lead_word_count": word_count,
         "minimum_words": ANSWER_FIRST_MIN_WORDS,
         "lead_preview": lead[:256],
     }
+    if word_count < ANSWER_FIRST_MIN_WORDS:
+        evidence["reason"] = "editorial_lead_missing"
+    return _pass_fail(word_count >= ANSWER_FIRST_MIN_WORDS), evidence
 
 
 def _check_entity_value_proposition(facts: dict) -> tuple[str, dict]:
-    headings = facts.get("headings") or {}
-    identity = bool(headings.get("h1_texts"))
+    proposition = facts.get("entity_proposition") or {}
+    identity_text = str(proposition.get("identity") or "")
+    proposition_text = str(proposition.get("proposition") or "")
+    identity = bool(identity_text.strip())
     traits = facts.get("page_traits") or ()
     contact_path = bool(facts.get("contact_points") or has_contact_form_fields(facts))
-    lead = str(facts.get("first_answer_text") or "")
-    value_proposition = len(lead.split()) >= ANSWER_FIRST_MIN_WORDS
+    value_proposition = len(proposition_text.split()) >= ANSWER_FIRST_MIN_WORDS
     contract = _composite_contract("aeo.entity_value_proposition")
     atoms = [
         contract.atom_detail(
-            "entity_identity", satisfied=identity, evidence=identity, page_traits=traits
+            "entity_identity",
+            satisfied=identity,
+            evidence=identity_text[:256],
+            page_traits=traits,
         ),
         contract.atom_detail(
             "contact_path",
@@ -504,7 +410,7 @@ def _check_entity_value_proposition(facts: dict) -> tuple[str, dict]:
         contract.atom_detail(
             "value_proposition",
             satisfied=value_proposition,
-            evidence={"word_count": len(lead.split())},
+            evidence={"word_count": len(proposition_text.split())},
             page_traits=traits,
         ),
     ]
@@ -534,31 +440,35 @@ def _check_listing_answer_set(facts: dict) -> tuple[str, dict]:
 
 
 def _check_question_headings(facts: dict) -> tuple[str, dict]:
-    headings = facts.get("headings") or {}
-    subheadings = len(headings.get("h2_texts") or []) + len(
-        headings.get("h3_texts") or []
-    )
+    outline = list(facts.get("primary_heading_outline") or ())
+    subheadings = [
+        str(item.get("text") or "")
+        for item in outline
+        if int(item.get("level") or 0) in {2, 3}
+    ]
     if not subheadings:
         return RULE_OUTCOME_MISSING, {"reason": "no_subheadings"}
-    ratio = float(facts.get("question_heading_ratio", 0.0) or 0.0)
+    question_count = sum(is_question_heading(value) for value in subheadings)
+    ratio = question_count / len(subheadings)
     return _pass_fail(ratio > QUESTION_HEADINGS_MIN_RATIO), {
-        "question_heading_ratio": ratio,
-        "subheading_count": subheadings,
+        "question_heading_ratio": round(ratio, 4),
+        "question_heading_count": question_count,
+        "subheading_count": len(subheadings),
         "minimum_ratio": QUESTION_HEADINGS_MIN_RATIO,
     }
 
 
-def _check_server_rendered_content(facts: dict) -> tuple[str, dict]:
-    is_shell, evidence = server_render_signals(facts)
-    return _pass_fail(not is_shell), evidence
-
-
-def _check_no_expand_gating(facts: dict) -> tuple[str, dict]:
-    ratio = float(facts.get("expand_gated_ratio", 0.0) or 0.0)
-    return _pass_fail(ratio <= EXPAND_GATED_MAX_RATIO), {
-        "expand_gated_ratio": ratio,
-        "max_ratio": EXPAND_GATED_MAX_RATIO,
-    }
+def _check_primary_heading_hierarchy(facts: dict) -> tuple[str, dict]:
+    outline = list(facts.get("primary_heading_outline") or ())
+    levels = [int(item.get("level") or 0) for item in outline]
+    skips = [
+        {"from": previous, "to": current}
+        for previous, current in pairwise(levels)
+        if current > previous + 1
+    ]
+    if not levels:
+        return RULE_OUTCOME_MISSING, {"reason": "no_primary_headings", "levels": []}
+    return _pass_fail(not skips), {"levels": levels, "skips": skips}
 
 
 # Unmapped rules become ERROR; finalize-scoped rules belong to ``finalize.py``.
@@ -573,38 +483,29 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
         facts, field="canonical_url"
     ),
     "technical.indexable": _check_indexable,
-    "technical.https": _check_https,
+    **DELIVERY_CHECKS,
     "technical.single_h1": _check_single_h1,
     "technical.thin_content": _check_thin_content,
     "technical.canonical_conflict": _check_canonical_conflict,
     "technical.title_length_band": _check_title_length_band,
     "technical.meta_description_length_band": _check_meta_description_length_band,
-    "technical.hsts_present": _check_hsts_present,
-    "technical.ttfb_band": _check_ttfb_band,
-    "technical.uncompressed_html": _check_uncompressed_html,
     **WEB_FUNDAMENTALS_CHECKS,
-    "technical.ai_crawler_access": _check_ai_crawler_access,
-    "search.crawler_access": _check_search_crawler_access,
-    "search.snippet_access": _check_snippet_access,
     "aeo.structured_data_present": _check_structured_data_present,
     "aeo.open_graph_present": _check_open_graph_present,
-    "aeo.llms_txt_present": _check_llms_txt_present,
     "aeo.schema_expected_for_type": check_schema_expected_for_type,
     "aeo.schema_required_valid": check_schema_required_valid,
     "aeo.schema_recommended_present": check_schema_recommended_present,
     "aeo.schema_matches_content": check_schema_matches_content,
-    "aeo.author_present": _check_author_present,
+    "aeo.visible_attribution": _check_visible_attribution,
     "aeo.content_date_present": _check_content_date_present,
-    "aeo.outbound_citations": _check_outbound_citations,
+    "aeo.source_support_present": _check_source_support_present,
     "aeo.organization_identity": check_organization_identity,
     "aeo.trust_path_present": check_trust_path_present,
     "aeo.answer_first": _check_answer_first,
     "aeo.editorial_lead_present": _check_editorial_lead_present,
     "aeo.entity_value_proposition": _check_entity_value_proposition,
     "aeo.question_headings": _check_question_headings,
-    "aeo.server_rendered_content": _check_server_rendered_content,
-    "aeo.no_expand_gating": _check_no_expand_gating,
-    "aeo.heading_hierarchy": check_heading_order,
+    "aeo.heading_hierarchy": _check_primary_heading_hierarchy,
     "aeo.product_answer_facts": _check_product_answer_facts,
     "aeo.product_evidence_facts": check_product_evidence_facts,
     "aeo.product_brand_identity": check_product_brand_identity,
@@ -612,7 +513,6 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "aeo.listing_answer_set": _check_listing_answer_set,
     "aeo.listing_item_facts": check_listing_item_facts,
     "aeo.assortment_freshness_signal": check_assortment_freshness_signal,
-    "technical.soft_error": _check_soft_error,
 }
 
 
@@ -640,7 +540,7 @@ def _normalized_outcome(
     if outcome != RULE_OUTCOME_NOT_APPLICABLE:
         return outcome, reason
     if reason in UNAVAILABLE_REASONS:
-        return RULE_OUTCOME_UNAVAILABLE, reason
+        return RULE_OUTCOME_UNKNOWN, reason
     if reason in UNKNOWN_REASONS:
         return RULE_OUTCOME_UNKNOWN, reason
     if reason in STRUCTURAL_NA_REASONS:
@@ -650,45 +550,109 @@ def _normalized_outcome(
     return RULE_OUTCOME_UNKNOWN, bounded_reason
 
 
-def _triggered_evidence_present(rule: SiteHealthRule, facts: dict) -> bool:
-    if rule.rule_id.startswith("aeo.schema_"):
-        expectation = schema_expectation_for(facts)
-        found_types = set((facts.get("structured_data") or {}).get("types") or ())
-        return bool(found_types.intersection(expectation.expected_types))
-    return True
+@dataclass(frozen=True)
+class _FrozenMeasurementProfile:
+    context: dict[str, object]
+    expressions: dict[str, tuple[str, float]]
+    rows_by_family: dict[str, Any]
 
 
-def _profile_membership(rule: SiteHealthRule, facts: dict) -> bool:
-    """Freeze expected membership from structural context before evaluation."""
+_CHECKPOINT_FAMILY_BY_ID = {
+    checkpoint_id: family.family_id
+    for family in CAPABILITY_FAMILIES_BY_ID.values()
+    for checkpoint_id in family.checkpoint_ids
+}
+
+
+def measurement_context(facts: dict) -> dict[str, object]:
+    source_support = facts.get("source_support") or {}
+    freshness = facts.get("freshness_context") or {}
     page_kind = str(facts.get("page_kind") or "other")
-    expected = expected_checkpoints(
-        page_kind,
-        observed_traits(facts),
-        {"is_site_root": facts.get("site") is not None},
+    return {
+        "is_site_root": facts.get("site") is not None,
+        "research_sensitive": bool(source_support.get("research_sensitive")),
+        "freshness_sensitive": bool(freshness.get("required"))
+        or page_kind in {"product", "category", "pricing"},
+        "primary_schema_present": primary_schema_present(facts),
+    }
+
+
+def _freeze_measurement_profile(facts: dict) -> _FrozenMeasurementProfile:
+    page_kind = str(facts.get("page_kind") or "other")
+    traits = observed_traits(facts)
+    context = measurement_context(facts)
+    expressions = {
+        checkpoint_id: (family_id, internal_weight)
+        for family_id, checkpoint_id, internal_weight in (
+            expected_checkpoint_expressions(page_kind, traits, context)
+        )
+    }
+    if context["is_site_root"]:
+        expressions.update(
+            {
+                checkpoint_id: (family_id, internal_weight)
+                for family_id, checkpoint_id, internal_weight in (
+                    site_checkpoint_expressions()
+                )
+            }
+        )
+    rows = {row.family_id: row for row in profile_rows(page_kind, traits, context)}
+    return _FrozenMeasurementProfile(context, expressions, rows)
+
+
+def _measurement_metadata(
+    rule: SiteHealthRule, frozen: _FrozenMeasurementProfile
+) -> dict[str, Any]:
+    expression = frozen.expressions.get(rule.rule_id)
+    guard_member = rule.rule_id == "aeo.schema_expected_for_type" and bool(
+        frozen.context.get("primary_schema_present")
     )
-    if not rule.readiness_dimension:
-        return True
-    profile_member = rule.rule_id in expected
-    if rule.kind_evidence == KIND_EVIDENCE_TRIGGERED:
-        return profile_member and _triggered_evidence_present(rule, facts)
-    return profile_member
-
-
-def _measurement_metadata(rule: SiteHealthRule, facts: dict) -> dict[str, Any]:
-    profile_member = _profile_membership(rule, facts)
-    score_roles = rule.score_roles if profile_member else ()
+    profile_member = (
+        expression is not None or guard_member or SCORE_ROLE_AEO not in rule.score_roles
+    )
+    score_roles = tuple(
+        role
+        for role in rule.score_roles
+        if role != SCORE_ROLE_AEO or expression is not None
+    )
+    family_id = expression[0] if expression else ""
+    family = CAPABILITY_FAMILIES_BY_ID.get(family_id)
     return {
         "score_applicability": bool(score_roles),
         "expected_profile_membership": profile_member,
         "score_roles": score_roles,
-        "checkpoint_family": rule.checkpoint_family,
-        "readiness_dimension": rule.readiness_dimension,
-        "readiness_weight": rule.readiness_weight,
+        "checkpoint_family": family_id,
+        "readiness_dimension": family.dimension_id if family else "",
+        "readiness_weight": expression[1] if expression else 0.0,
     }
 
 
-def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
-    """Evaluate one rule; preserve check failures as explicit ERROR outcomes."""
+def _semantic_profile_skip_reason(
+    rule: SiteHealthRule, frozen: _FrozenMeasurementProfile
+) -> str:
+    if SCORE_ROLE_AEO not in rule.score_roles or rule.rule_id in frozen.expressions:
+        return ""
+    family_id = _CHECKPOINT_FAMILY_BY_ID.get(rule.rule_id)
+    if not family_id:
+        return ""
+    row = frozen.rows_by_family.get(family_id)
+    if row is None:
+        return ""
+    if row.status != PROFILE_STATUS_MEASURED:
+        return str(row.reason)
+    if family_id == "structured_representation":
+        return ""
+    return "family_expression_not_selected"
+
+
+def evaluate_rule(
+    rule: SiteHealthRule,
+    facts: dict,
+    *,
+    frozen_profile: _FrozenMeasurementProfile | None = None,
+) -> RuleEvaluation:
+    """Evaluate one rule against a profile frozen before checkpoint outcomes."""
+    frozen = frozen_profile or _freeze_measurement_profile(facts)
     base: dict[str, Any] = dict(
         rule_id=rule.rule_id,
         rule_version=rule.rule_version,
@@ -708,7 +672,7 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
             rule, RULE_OUTCOME_NOT_APPLICABLE, evidence
         )
         metadata = (
-            _measurement_metadata(rule, facts)
+            _measurement_metadata(rule, frozen)
             if outcome != RULE_OUTCOME_NOT_APPLICABLE
             else {}
         )
@@ -720,6 +684,16 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
             **metadata,
             **base,
         )
+    semantic_skip = _semantic_profile_skip_reason(rule, frozen)
+    if semantic_skip:
+        return RuleEvaluation(
+            outcome=RULE_OUTCOME_NOT_APPLICABLE,
+            evidence={"reason": semantic_skip},
+            display_applicability=False,
+            reason_code=semantic_skip,
+            **_measurement_metadata(rule, frozen),
+            **base,
+        )
     check = _CHECKS.get(rule.rule_id)
     if check is None:
         reason = "no_check_mapped"
@@ -727,7 +701,7 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
             outcome=RULE_OUTCOME_ERROR,
             evidence={"error": reason},
             reason_code=reason,
-            **_measurement_metadata(rule, facts),
+            **_measurement_metadata(rule, frozen),
             **base,
         )
     try:
@@ -739,7 +713,7 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
             outcome=RULE_OUTCOME_ERROR,
             evidence={"error": f"{type(exc).__name__}: {exc}"[:512]},
             reason_code=reason,
-            **_measurement_metadata(rule, facts),
+            **_measurement_metadata(rule, frozen),
             **base,
         )
     outcome, reason = _normalized_outcome(rule, outcome, evidence)
@@ -748,14 +722,17 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
         evidence=evidence,
         display_applicability=True,
         reason_code=reason,
-        **_measurement_metadata(rule, facts),
+        **_measurement_metadata(rule, frozen),
         **base,
     )
 
 
 def evaluate_all(facts: dict) -> list[RuleEvaluation]:
-    """Evaluate every catalog rule against ``facts`` (catalog order)."""
-    return [evaluate_rule(rule, facts) for rule in SITE_HEALTH_RULES]
+    """Evaluate every catalog rule against one frozen measurement profile."""
+    frozen = _freeze_measurement_profile(facts)
+    return [
+        evaluate_rule(rule, facts, frozen_profile=frozen) for rule in SITE_HEALTH_RULES
+    ]
 
 
 def rule_for(rule_id: str) -> SiteHealthRule | None:

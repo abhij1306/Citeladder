@@ -16,6 +16,7 @@ def page_measurement_fields(analysis: SitePageAnalysis | None) -> dict:
             "aeo_readiness_score": None,
             "aeo_measurement_coverage": None,
             "aeo_measurement_state": "not_measured",
+            "aeo_measurement_reason": "",
             "main_content_indexable": None,
             "last_audited": None,
         }
@@ -27,6 +28,7 @@ def page_measurement_fields(analysis: SitePageAnalysis | None) -> dict:
         "aeo_readiness_score": analysis.aeo_readiness_score,
         "aeo_measurement_coverage": analysis.aeo_measurement_coverage,
         "aeo_measurement_state": analysis.aeo_measurement_state,
+        "aeo_measurement_reason": analysis.aeo_measurement_reason,
         "main_content_indexable": analysis.main_content_indexable,
         "last_audited": _iso(analysis.finalized_at),
     }

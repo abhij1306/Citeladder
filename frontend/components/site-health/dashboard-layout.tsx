@@ -77,7 +77,6 @@ export function SiteHealthDashboardLayout({
           />
 
           <ScoreSection crawl={crawl} dashboard={dashboardQuery.data} />
-
           <InventorySection mode={inventoryMode} crawl={crawl} active={active} />
 
           <PageKindScores crawl={crawl} dashboard={dashboardQuery.data} />

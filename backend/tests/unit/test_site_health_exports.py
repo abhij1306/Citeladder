@@ -65,21 +65,25 @@ def test_csv_renders_bool_and_none_cells() -> None:
     assert data["monitored"] == "true"
 
 
-def test_page_export_keeps_technical_and_aeo_scores_distinct() -> None:
+def test_page_export_keeps_technical_and_aeo_measurement_semantics_distinct() -> None:
     rows = _parse_csv(
         rows_to_csv(
             "pages",
             [
                 {
                     "web_fundamentals_score": 81,
-                    "aeo_readiness_score": 63,
+                    "aeo_readiness_score": None,
+                    "aeo_measurement_state": "not_measured",
+                    "aeo_measurement_reason": "page_purpose_unresolved",
                 }
             ],
         )
     )
     data = dict(zip(rows[0], rows[1], strict=True))
     assert data["web_fundamentals_score"] == "81"
-    assert data["aeo_readiness_score"] == "63"
+    assert data["aeo_readiness_score"] == ""
+    assert data["aeo_measurement_state"] == "not_measured"
+    assert data["aeo_measurement_reason"] == "page_purpose_unresolved"
 
 
 def test_csv_rfc4180_quoting_of_delimiters_quotes_newlines() -> None:

@@ -8,10 +8,14 @@ path equivalents, bounded evidence contents, and determinism. Pure, offline.
 
 from __future__ import annotations
 
+import json
+from copy import deepcopy
+from datetime import date
 from pathlib import Path
 
 import pytest
 
+from app.analysis.site_health.page_analysis import analyze_page
 from app.analysis.site_health.page_kinds import classify
 from app.analysis.site_health.page_traits import derive_traits
 from app.analysis.site_health.parser import extract_page_facts
@@ -40,6 +44,19 @@ from app.core.config.site_health_taxonomy import (
 )
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "site_health"
+_CALIBRATION_MANIFEST = json.loads(
+    (_FIXTURES / "classifier_calibration.json").read_text(encoding="utf-8")
+)
+_CALIBRATION_CASES = _CALIBRATION_MANIFEST["cases"]
+_EMPTY_COLLECTION_EVIDENCE = {
+    "container": {
+        "tag": "",
+        "label": "",
+        "item_count": 0,
+        "distinct_targets": 0,
+    },
+    "affordances": [],
+}
 
 
 def _fixture_facts(name: str, url: str) -> dict:
@@ -90,6 +107,21 @@ def _listing_grid(size: int = 24) -> dict:
             "has_result_count": True,
             "has_sort_control": True,
             "has_filter_control": False,
+            "collection_evidence": {
+                "container": {
+                    "tag": "section",
+                    "label": "Results",
+                    "item_count": size,
+                    "distinct_targets": size,
+                },
+                "affordances": [
+                    {
+                        "class": "result_count",
+                        "relation": "contained",
+                        "text": f"{size} results",
+                    }
+                ],
+            },
         }
     }
 
@@ -220,6 +252,15 @@ def test_semantic_title_requires_a_complete_phrase() -> None:
         "https://example.com/contactless-payments",
         _facts(title="Contactless payments"),
     )
+    assert assessment.page_kind == "other"
+
+
+def test_glossary_title_does_not_classify_as_terms_policy() -> None:
+    assessment = classify(
+        "https://example.com/glossary/ai-search-glossary-2026",
+        _facts(title="AI Search Glossary: Essential Technical Terms for Marketers"),
+    )
+
     assert assessment.page_kind == "other"
 
 
@@ -694,3 +735,209 @@ def test_a_bare_string_field_never_fabricates_signals() -> None:
     # No schema signal is derived from the malformed value.
     assert assessment.schema_suggested_type is None
     assert assessment.signals == ()
+
+
+@pytest.mark.parametrize("breadcrumbs", [[], None, "API", ["Rapid start"]])
+def test_documentation_breadcrumb_requires_complete_list_tokens(breadcrumbs) -> None:
+    assessment = classify(
+        "https://docs.example.com/start",
+        {"commerce": {"breadcrumbs": breadcrumbs}},
+    )
+
+    assert assessment.page_kind == config.PAGE_KIND_OTHER
+
+
+def test_documentation_breadcrumb_matches_normalized_list_token() -> None:
+    assessment = classify(
+        "https://docs.example.com/start",
+        {"commerce": {"breadcrumbs": ["Home", "API Reference"]}},
+    )
+
+    assert assessment.page_kind == config.PAGE_KIND_DOCS
+
+
+# --- PR4 labelled classifier calibration ------------------------------------
+
+
+def test_html_mime_with_space_before_charset_remains_classifiable() -> None:
+    facts = _facts()
+    facts["content_type"] = "text/html ; charset=UTF-8"
+
+    assessment = classify("https://example.com/pricing", facts)
+
+    assert assessment.page_kind == "pricing"
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_PATH_PATTERN
+
+
+def _calibration_facts(case: dict) -> dict:
+    fixture = case["fixture"]
+    if fixture["kind"] == "html":
+        return extract_page_facts(
+            fixture["html"].encode(),
+            final_url=case["url"],
+            content_type=case["content_type"],
+        )
+    facts = deepcopy(fixture["facts"])
+    facts["has_html"] = case["content_type"].startswith("text/html")
+    facts["delivery"] = {
+        **facts.get("delivery", {}),
+        "final_url": case["url"],
+        "content_type": case["content_type"],
+    }
+    return facts
+
+
+def _calibration_outcome(case: dict, *, facts: dict | None = None) -> dict:
+    result = analyze_page(facts if facts is not None else _calibration_facts(case))
+    assessment = result.assessment
+    return {
+        "page_kind": assessment.page_kind,
+        "traits": list(result.traits),
+        "deciding_signal": assessment.classified_by,
+        "deciding_tier": assessment.tier,
+        "confidence": assessment.confidence,
+        "other_reason": assessment.other_reason,
+        "evidence": assessment.to_evidence(),
+    }
+
+
+def test_classifier_calibration_manifest_is_bounded_and_complete() -> None:
+    limits = _CALIBRATION_MANIFEST["limits"]
+    ids = [case["id"] for case in _CALIBRATION_CASES]
+    represented_kinds = {case["expected"]["page_kind"] for case in _CALIBRATION_CASES}
+
+    assert len(ids) == len(set(ids))
+    assert represented_kinds == set(PAGE_KINDS)
+    assert {
+        "healthy",
+        "broken",
+        "ambiguous",
+        "conflicting",
+        "js_shell",
+        "non_html",
+    } <= {case["condition"] for case in _CALIBRATION_CASES}
+    searchable_details = [
+        case
+        for case in _CALIBRATION_CASES
+        if case["id"].startswith("searchable_blog_detail_")
+    ]
+    assert len(searchable_details) == 6
+    assert any("Flourist" in case["source_label"] for case in _CALIBRATION_CASES)
+
+    for case in _CALIBRATION_CASES:
+        expected = case["expected"]
+        assert date.fromisoformat(case["observation_date"])
+        assert case["source_label"].strip()
+        assert ".test/" in case["url"]
+        assert 0 < len(case["structural_reason"]) <= limits["max_reason_chars"]
+        assert expected["page_kind"] in PAGE_KINDS
+        assert set(expected["rejected_kinds"]) <= set(PAGE_KINDS)
+        assert expected["page_kind"] not in expected["rejected_kinds"]
+        assert expected["allowed_deciding_tiers"]
+        assert expected["allowed_confidence"]
+        if case["deliberate_abstention"]:
+            assert expected["page_kind"] == "other"
+            assert expected["other_reason"] in {
+                "no_classification_signals",
+                "schema_only",
+                "conflicting_top_tier_evidence",
+            }
+        fixture = case["fixture"]
+        if fixture["kind"] == "html":
+            assert len(fixture["html"]) <= limits["max_html_chars"]
+        else:
+            serialized = json.dumps(fixture["facts"], sort_keys=True)
+            assert len(serialized) <= limits["max_fact_chars"]
+            assert "selector" not in serialized.casefold()
+
+
+@pytest.mark.parametrize(
+    "case",
+    _CALIBRATION_CASES,
+    ids=[case["id"] for case in _CALIBRATION_CASES],
+)
+def test_classifier_calibration_exact_outcome(case: dict) -> None:
+    facts = _calibration_facts(case)
+    outcome = _calibration_outcome(case, facts=facts)
+    expected = case["expected"]
+
+    assert outcome["page_kind"] == expected["page_kind"]
+    assert outcome["traits"] == expected["traits"]
+    assert outcome["deciding_signal"] == expected["deciding_signal"]
+    assert outcome["deciding_tier"] in expected["allowed_deciding_tiers"]
+    assert outcome["confidence"] in expected["allowed_confidence"]
+    assert outcome["other_reason"] == expected["other_reason"]
+    assert outcome["page_kind"] not in expected["rejected_kinds"]
+    assert len(json.dumps(outcome["evidence"], sort_keys=True)) <= 4096
+    if case["id"].startswith("searchable_blog_detail_"):
+        assert case["fixture"]["kind"] == "html"
+        assert (
+            facts["entity"]["listing"]["collection_evidence"]
+            == _EMPTY_COLLECTION_EVIDENCE
+        )
+        assert outcome["page_kind"] == "article"
+    if case["id"] == "searchable_blog_root_without_collection":
+        assert (
+            facts["entity"]["listing"]["collection_evidence"]
+            == _EMPTY_COLLECTION_EVIDENCE
+        )
+        assert outcome["page_kind"] != "category"
+
+
+def test_classifier_calibration_reports_exact_metrics_and_abstention() -> None:
+    outcomes = [
+        (
+            case["expected"]["page_kind"],
+            _calibration_outcome(case)["page_kind"],
+            case["deliberate_abstention"],
+        )
+        for case in _CALIBRATION_CASES
+    ]
+    per_kind: dict[str, dict[str, float | int]] = {}
+    confusion = {
+        kind: {predicted: 0 for predicted in PAGE_KINDS} for kind in PAGE_KINDS
+    }
+    for expected, predicted, _deliberate in outcomes:
+        confusion[expected][predicted] += 1
+    for kind in PAGE_KINDS:
+        true_positive = confusion[kind][kind]
+        false_positive = sum(
+            confusion[expected][kind] for expected in PAGE_KINDS if expected != kind
+        )
+        false_negative = sum(
+            confusion[kind][predicted] for predicted in PAGE_KINDS if predicted != kind
+        )
+        per_kind[kind] = {
+            "support": sum(confusion[kind].values()),
+            "precision": (
+                true_positive / (true_positive + false_positive)
+                if true_positive + false_positive
+                else 0.0
+            ),
+            "recall": (
+                true_positive / (true_positive + false_negative)
+                if true_positive + false_negative
+                else 0.0
+            ),
+        }
+
+    observed_abstentions = sum(predicted == "other" for _, predicted, _ in outcomes)
+    expected_abstentions = sum(deliberate for _, _, deliberate in outcomes)
+    correct_deliberate_abstentions = sum(
+        expected == predicted == "other" and deliberate
+        for expected, predicted, deliberate in outcomes
+    )
+    report = {
+        "per_kind": per_kind,
+        "confusion": confusion,
+        "observed_abstentions": observed_abstentions,
+        "expected_deliberate_abstentions": expected_abstentions,
+        "correct_deliberate_abstentions": correct_deliberate_abstentions,
+    }
+
+    assert all(row["support"] > 0 for row in per_kind.values()), report
+    assert all(
+        row["precision"] == 1.0 and row["recall"] == 1.0 for row in per_kind.values()
+    ), report
+    assert observed_abstentions == expected_abstentions, report
+    assert correct_deliberate_abstentions == expected_abstentions, report

@@ -19,14 +19,16 @@ from typing import Any, Final
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
 from app.analysis.site_health.dom import node_text as _text
 from app.analysis.site_health.fact_regions import (
+    bounded_container_name,
+    bounded_structural_relation,
     card_list_containers,
     element_region,
     node_outside_containers,
     primary_region,
     region_node_is_visible,
-    region_text,
     visible_region_text_nodes,
 )
+from app.core.config import site_health_acquisition as _acquisition
 from app.core.config import site_health_taxonomy as _config
 
 _PRICE_RE: Final = re.compile(_config.PAGE_KIND_PRICE_PATTERN, re.IGNORECASE)
@@ -55,6 +57,20 @@ _CONTROL_ATTRIBUTES: Final[tuple[str, ...]] = (
     "value",
 )
 
+_RESULT_ATTRIBUTE_TOKENS: Final[frozenset[str]] = frozenset(
+    {"count", "matches", "result", "results"}
+)
+_PAGINATION_TOKENS: Final[frozenset[str]] = frozenset(
+    {"pager", "pagination", "next-page", "previous-page"}
+)
+_EMPTY_STATE_TOKENS: Final[frozenset[str]] = frozenset(
+    {"empty-state", "no-results", "nothing-found"}
+)
+_RECOMMENDATION_TOKENS: Final[frozenset[str]] = frozenset(
+    {"more-like", "recommend", "related", "suggested", "you-may-also"}
+)
+_MAX_COLLECTION_AFFORDANCES: Final = _config.CARD_SHAPE_MAX_CHILDREN
+
 
 def empty_entity_signals() -> dict[str, Any]:
     """The zero value, used for non-HTML responses and failed reads."""
@@ -73,6 +89,18 @@ def empty_entity_signals() -> dict[str, Any]:
             "has_result_count": False,
             "has_sort_control": False,
             "has_filter_control": False,
+            "has_facet_control": False,
+            "has_pagination": False,
+            "has_empty_state": False,
+            "collection_evidence": {
+                "container": {
+                    "tag": "",
+                    "label": "",
+                    "item_count": 0,
+                    "distinct_targets": 0,
+                },
+                "affordances": [],
+            },
         },
         "location": {
             "address_entity_count": 0,
@@ -108,7 +136,7 @@ def extract_entity_signals(root: Any) -> dict[str, Any]:
     container_ids = {id(node) for node in containers}
     facts["region"] = {"source": source, "card_list_count": len(containers)}
     facts["product"] = _product_signals(region, container_ids)
-    facts["listing"] = _listing_signals(region, containers)
+    facts["listing"] = _listing_signals(region, _listing_containers(region, containers))
     facts["location"] = _location_signals(region)
     return facts
 
@@ -135,15 +163,91 @@ def _has_product_detail_heading(region: Any, container_ids: set[int]) -> bool:
     return False
 
 
+def _listing_containers(region: Any, repeated: list[Any]) -> list[Any]:
+    """Repeated containers plus explicit list/grid owners for empty-state binding."""
+    containers = [
+        item
+        for item in repeated
+        if not _inside_collection_excluded_region(item, region)
+    ]
+    known = {id(item) for item in repeated}
+    try:
+        walker = region.iter()
+    except DOM_ERRORS as exc:
+        dom_failure("_listing_containers", exc)
+        return containers
+    for scanned, node in enumerate(walker, start=1):
+        if scanned > _config.REGION_MAX_CONTAINERS_SCANNED:
+            break
+        if (
+            id(node) in known
+            or _inside_collection_excluded_region(node, region)
+            or not _is_explicit_list_container(node)
+        ):
+            continue
+        known.add(id(node))
+        containers.append(node)
+    return containers
+
+
+def _is_explicit_list_container(node: Any) -> bool:
+    try:
+        tag = str(getattr(node, "tag", "") or "").lower()
+        role = str(node.get("role") or "").strip().casefold()
+        identity = " ".join(
+            str(node.get(name) or "") for name in ("id", "class", "aria-label")
+        ).casefold()
+    except DOM_ERRORS as exc:
+        dom_failure("_is_explicit_list_container", exc)
+        return False
+    if role in {"feed", "grid", "list", "listbox"}:
+        return True
+    if tag not in {"div", "ol", "section", "ul"}:
+        return False
+    tokens = set(re.findall(r"[a-z0-9]+", identity))
+    return bool(tokens & {"catalog", "grid", "items", "list", "products", "results"})
+
+
 def _listing_signals(region: Any, containers: list[Any]) -> dict[str, Any]:
-    largest, distinct = _largest_card_list(containers)
-    text = region_text(region)
+    affordance_nodes = _collection_affordance_nodes(region)
+    observations = [
+        _collection_observation(item, affordance_nodes) for item in containers
+    ]
+    largest = max(
+        observations,
+        key=lambda item: (
+            int(item["container"]["item_count"]),
+            int(item["container"]["distinct_targets"]),
+        ),
+        default=None,
+    )
+    evidence_candidates = [
+        item for item in observations if not item.pop("_is_recommendation", False)
+    ]
+    selected = max(
+        evidence_candidates,
+        key=lambda item: (
+            int(item["container"]["item_count"]),
+            len(item["affordances"]),
+            int(item["container"]["distinct_targets"]),
+        ),
+        default=None,
+    )
+    evidence = selected or empty_entity_signals()["listing"]["collection_evidence"]
+    affordance_classes = {
+        str(item.get("class") or "") for item in evidence["affordances"]
+    }
+    largest_container = largest["container"] if largest is not None else {}
     return {
-        "largest_card_list_size": largest,
-        "distinct_card_list_targets": distinct,
-        "has_result_count": bool(_RESULT_COUNT_RE.search(text)),
-        "has_sort_control": _has_control(region, _config.SORT_CONTROL_TOKENS),
-        "has_filter_control": _has_control(region, _config.FILTER_CONTROL_TOKENS),
+        "largest_card_list_size": int(largest_container.get("item_count", 0)),
+        "distinct_card_list_targets": int(largest_container.get("distinct_targets", 0)),
+        "has_result_count": "result_count" in affordance_classes,
+        "has_sort_control": "sort" in affordance_classes,
+        "has_filter_control": bool({"filter", "facet"} & affordance_classes),
+        "has_facet_control": "facet" in affordance_classes,
+        "has_pagination": "pagination" in affordance_classes,
+        "has_empty_state": "empty_state" in affordance_classes,
+        "collection_evidence": evidence,
     }
 
 
@@ -274,51 +378,262 @@ def _sku_attribute(node: Any) -> bool:
     return any(key in _config.SKU_ATTRIBUTE_TOKENS for key in keys)
 
 
-def _has_control(region: Any, tokens: frozenset[str]) -> bool:
-    """A sort/filter affordance somewhere in the page's own region."""
-    return any(
-        _matches_tokens(control, tokens)
-        for control in _find(region, ".//select | .//button | .//fieldset | .//form")
+def _collection_observation(
+    container: Any, affordance_nodes: list[Any]
+) -> dict[str, Any]:
+    item_count, distinct_targets = _card_list_observation(container)
+    name = bounded_container_name(container)
+    descriptor: dict[str, Any] = {
+        **name,
+        "item_count": item_count,
+        "distinct_targets": distinct_targets,
+    }
+    affordances: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for node in affordance_nodes:
+        affordance_class = _affordance_class(node)
+        if not affordance_class:
+            continue
+        relation = bounded_structural_relation(node, container)
+        if not relation:
+            continue
+        key = (affordance_class, relation)
+        if key in seen:
+            continue
+        seen.add(key)
+        affordances.append(
+            {
+                "class": affordance_class,
+                "relation": relation,
+                "text": _bounded_evidence_text(node),
+            }
+        )
+        if len(affordances) >= _MAX_COLLECTION_AFFORDANCES:
+            break
+    return {
+        "container": descriptor,
+        "affordances": affordances,
+        "_is_recommendation": _is_recommendation_container(container, name),
+    }
+
+
+def _collection_affordance_nodes(region: Any) -> list[Any]:
+    found: list[Any] = []
+    try:
+        walker = region.iter()
+    except DOM_ERRORS as exc:
+        dom_failure("_collection_affordance_nodes", exc)
+        return found
+    for scanned, node in enumerate(walker, start=1):
+        if scanned > _config.REGION_MAX_CONTAINERS_SCANNED:
+            break
+        if not isinstance(getattr(node, "tag", None), str):
+            continue
+        if _inside_collection_excluded_region(
+            node, region, allow_pagination_navigation=True
+        ):
+            continue
+        if _could_be_affordance(node):
+            found.append(node)
+    return found
+
+
+def _inside_collection_excluded_region(
+    node: Any,
+    region: Any,
+    *,
+    allow_pagination_navigation: bool = False,
+) -> bool:
+    current = node
+    for _depth in range(_config.REGION_MAX_ANCESTOR_DEPTH):
+        if current is region:
+            return False
+        state = _collection_ancestor_state(current)
+        if state is None:
+            return True
+        current_node = current
+        tag, role, current = state
+        if _collection_ancestor_is_excluded(tag, role):
+            if allow_pagination_navigation and _is_pagination_navigation(
+                current_node, tag, role
+            ):
+                continue
+            return True
+        if current is None:
+            return True
+    return True
+
+
+def _is_pagination_navigation(node: Any, tag: str, role: str) -> bool:
+    if tag != "nav" and role != "navigation":
+        return False
+    return _is_pagination(node, _attr_blob(node))
+
+
+def _collection_ancestor_state(node: Any) -> tuple[str, str, Any] | None:
+    try:
+        tag = str(getattr(node, "tag", "") or "").lower()
+        role = str(node.get("role") or "").strip().lower()
+        return tag, role, node.getparent()
+    except DOM_ERRORS as exc:
+        dom_failure("_inside_collection_excluded_region", exc)
+        return None
+
+
+def _collection_ancestor_is_excluded(tag: str, role: str) -> bool:
+    return tag in {"aside", "footer", "header", "nav"} or role in {
+        "banner",
+        "complementary",
+        "contentinfo",
+        "navigation",
+    }
+
+
+def _could_be_affordance(node: Any) -> bool:
+    tag = str(getattr(node, "tag", "") or "").lower()
+    if tag in {
+        "a",
+        "button",
+        "fieldset",
+        "form",
+        "nav",
+        "output",
+        "p",
+        "select",
+        "span",
+        "strong",
+    }:
+        return True
+    blob = _attr_blob(node)
+    return bool(
+        _has_blob_token(blob, _RESULT_ATTRIBUTE_TOKENS)
+        or _has_blob_token(blob, _PAGINATION_TOKENS)
+        or _has_blob_token(blob, _EMPTY_STATE_TOKENS)
+    )
+
+
+def _affordance_class(node: Any) -> str:
+    blob = _attr_blob(node)
+    if _is_result_count(node, blob):
+        return "result_count"
+    if _matches_tokens(node, _config.SORT_CONTROL_TOKENS):
+        return "sort"
+    if _matches_tokens(node, _config.FILTER_CONTROL_TOKENS):
+        return "facet" if "facet" in _normalized_tokens(blob) else "filter"
+    if _is_pagination(node, blob):
+        return "pagination"
+    if _is_empty_state(node, blob):
+        return "empty_state"
+    return ""
+
+
+def _is_result_count(node: Any, blob: str) -> bool:
+    text = " ".join(_text(node).split())
+    if not text or _RESULT_COUNT_RE.search(text) is None:
+        return False
+    try:
+        semantic = (
+            str(getattr(node, "tag", "") or "").lower() == "output"
+            or str(node.get("role") or "").strip().lower() == "status"
+            or node.get("aria-live") is not None
+            or _has_blob_token(blob, _RESULT_ATTRIBUTE_TOKENS)
+        )
+    except DOM_ERRORS as exc:
+        dom_failure("_is_result_count", exc)
+        return False
+    return semantic
+
+
+def _is_pagination(node: Any, blob: str) -> bool:
+    try:
+        rel = _normalized_tokens(str(node.get("rel") or ""))
+        tag = str(getattr(node, "tag", "") or "").lower()
+        aria_label = str(node.get("aria-label") or "").casefold()
+    except DOM_ERRORS as exc:
+        dom_failure("_is_pagination", exc)
+        return False
+    return (
+        bool({"next", "prev", "previous"} & rel)
+        or _has_blob_token(blob, _PAGINATION_TOKENS)
+        or (tag == "nav" and "pagination" in aria_label)
+    )
+
+
+def _is_empty_state(node: Any, blob: str) -> bool:
+    text = " ".join(_text(node).casefold().split())
+    return _has_blob_token(blob, _EMPTY_STATE_TOKENS) or bool(
+        re.fullmatch(
+            r"(?:0\s+(?:results?|items?|products?)|"
+            r"no\s+(?:results?|items?|products?)"
+            r"(?:\s+(?:found|available))?|nothing\s+found)[.!]?",
+            text,
+        )
     )
 
 
 def _matches_tokens(node: Any, tokens: frozenset[str]) -> bool:
     """Whether a control's identifying attributes name one of ``tokens``."""
-    blob = _attr_blob(node)
-    return any(token in blob for token in tokens)
+    return bool(_normalized_tokens(_attr_blob(node)) & tokens)
+
+
+def _has_blob_token(blob: str, tokens: frozenset[str]) -> bool:
+    normalized = _normalized_tokens(blob)
+    return bool(
+        normalized & tokens or any(token in blob for token in tokens if "-" in token)
+    )
+
+
+def _normalized_tokens(value: str) -> set[str]:
+    normalized = value.casefold()
+    tokens = set(re.findall(r"[a-z0-9]+", normalized))
+    tokens.update(re.findall(r"[a-z0-9]+-[a-z0-9]+", normalized))
+    return tokens
 
 
 def _attr_blob(node: Any) -> str:
-    """Lowercase concatenation of the attributes a control is identified by."""
+    """Lowercase concatenation of bounded identifying attributes."""
     try:
         values = [str(node.get(name) or "") for name in _CONTROL_ATTRIBUTES]
     except DOM_ERRORS as exc:
         dom_failure("_attr_blob", exc)
         return ""
-    return " ".join(values).lower()
+    return " ".join(values).lower()[: _acquisition.SITE_HEALTH_MAX_META_CHARS]
 
 
-def _largest_card_list(containers: list[Any]) -> tuple[int, int]:
-    """``(largest item count, distinct link targets)`` across card lists."""
-    largest = 0
+def _bounded_evidence_text(node: Any) -> str:
+    text = " ".join(
+        str(item).strip()
+        for item in visible_region_text_nodes(node)
+        if str(item).strip()
+    )
+    return " ".join(text.split())[: _acquisition.SITE_HEALTH_MAX_CTA_TEXT_CHARS]
+
+
+def _is_recommendation_container(container: Any, name: dict[str, str]) -> bool:
+    label = str(name.get("label") or "").casefold()
+    blob = _attr_blob(container)
+    normalized = f"{label} {blob}".replace(" ", "-")
+    return any(token in normalized for token in _RECOMMENDATION_TOKENS)
+
+
+def _card_list_observation(container: Any) -> tuple[int, int]:
+    """Item and distinct-target observations for one repeated container."""
+    items = 0
     targets: set[str] = set()
-    for container in containers:
-        items = 0
-        try:
-            children = list(container)
-        except DOM_ERRORS as exc:
-            dom_failure("_largest_card_list", exc)
+    try:
+        children = list(container)
+    except DOM_ERRORS as exc:
+        dom_failure("_card_list_observation", exc)
+        return 0, 0
+    for child in children:
+        if not isinstance(getattr(child, "tag", None), str):
             continue
-        for child in children:
-            if not isinstance(getattr(child, "tag", None), str):
-                continue
-            hrefs = _hrefs(child)
-            if not hrefs:
-                continue
-            items += 1
-            targets.update(hrefs)
-        largest = max(largest, items)
-    return largest, len(targets)
+        hrefs = _hrefs(child)
+        if not hrefs:
+            continue
+        items += 1
+        targets.update(hrefs)
+    return items, len(targets)
 
 
 def _hrefs(node: Any) -> list[str]:

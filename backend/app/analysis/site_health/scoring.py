@@ -6,6 +6,11 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from app.analysis.site_health.rules import RuleEvaluation
+from app.analysis.site_health.web_fundamentals_scoring import (
+    aggregate_web_fundamentals,
+    measurement_ratio,
+    score_page_web_fundamentals,
+)
 from app.core.config.site_health_contracts import (
     AEO_READINESS_DIMENSION_DESCRIPTIONS,
     AEO_READINESS_DIMENSION_LABELS,
@@ -15,32 +20,25 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_PARTIAL,
     RULE_OUTCOME_SATISFIED,
     SCORING_VERSION,
-    SEVERITY_CRITICAL,
 )
 from app.core.config.site_health_measurement import (
-    AEO_MEASURED_MIN_CHECKPOINTS,
-    AEO_MEASURED_MIN_COVERAGE,
-    AEO_MEASURED_MIN_DIMENSIONS,
-    AEO_MEASURED_MIN_FAMILIES,
+    CAPABILITY_FAMILIES_BY_ID,
     DIMENSION_APPLICABLE,
     DIMENSION_NOT_APPLICABLE,
-    MEASURED_AT_SITE_SCOPE_REASON,
     MEASUREMENT_STATE_LIMITED,
     MEASUREMENT_STATE_MEASURED,
     MEASUREMENT_STATE_NOT_MEASURED,
     PAGE_KIND_ROLLUP_WEIGHTS,
+    PROFILE_STATUS_MEASURED,
+    PROFILE_STATUS_NOT_APPLICABLE,
     READINESS_DIMENSION_WEIGHTS,
-    TECHNICAL_MEASURED_MIN_COVERAGE,
-    expected_checkpoints,
-    relevant_dimensions,
+    expected_checkpoint_expressions,
+    profile_rows,
 )
 from app.core.config.site_health_rule_types import (
     RULE_SCOPE_PAGE,
     RULE_SCOPE_SITE,
-    SCORE_ROLE_AEO,
-    SCORE_ROLE_WEB_FUNDAMENTALS,
 )
-from app.core.config.site_health_rules import SITE_HEALTH_RULES_BY_ID
 from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER, PAGE_KINDS
 
 _DETERMINATE = frozenset(
@@ -92,6 +90,7 @@ class AnalysisScores:
     aeo_readiness_score: float | None
     aeo_measurement_coverage: float | None
     aeo_measurement_state: str
+    aeo_measurement_reason: str
     expected_checkpoint_profile: tuple[dict, ...]
     readiness_dimensions: tuple[DimensionMeasurement, ...]
     main_content_indexable: bool | None
@@ -114,89 +113,6 @@ def _credit(outcome: str) -> float:
     return 0.0
 
 
-def _profile_rows(evaluations: list[RuleEvaluation], role: str) -> list[RuleEvaluation]:
-    return [
-        row
-        for row in evaluations
-        if row.expected_profile_membership
-        and row.scope == RULE_SCOPE_PAGE
-        and role in row.score_roles
-    ]
-
-
-def _determinate_rows(rows: list[RuleEvaluation]) -> list[RuleEvaluation]:
-    return [row for row in rows if row.outcome in _DETERMINATE]
-
-
-def _rule_weight(rows: list[RuleEvaluation]) -> float:
-    return sum(max(0.0, float(row.weight)) for row in rows)
-
-
-def _technical_earned(rows: list[RuleEvaluation]) -> float:
-    return _rule_weight([row for row in rows if row.outcome == RULE_OUTCOME_SATISFIED])
-
-
-def _ratio(numerator: float, denominator: float, *, score: bool) -> float | None:
-    if denominator <= 0:
-        return None
-    value = numerator / denominator
-    return _round_score(100.0 * value) if score else _round_coverage(value)
-
-
-def _web_fundamentals_state(
-    *, has_expected: bool, has_determinate: bool, coverage: float | None, complete: bool
-) -> str:
-    if not has_expected or not has_determinate:
-        return MEASUREMENT_STATE_NOT_MEASURED
-    if (
-        coverage is not None
-        and coverage >= TECHNICAL_MEASURED_MIN_COVERAGE
-        and complete
-    ):
-        return MEASUREMENT_STATE_MEASURED
-    return MEASUREMENT_STATE_LIMITED
-
-
-def _technical_measurement(
-    evaluations: list[RuleEvaluation],
-) -> tuple[float | None, float | None, str, float, float, float, bool]:
-    expected = _profile_rows(evaluations, SCORE_ROLE_WEB_FUNDAMENTALS)
-    determinate = _determinate_rows(expected)
-    expected_weight = _rule_weight(expected)
-    determinate_weight = _rule_weight(determinate)
-    earned = _technical_earned(determinate)
-    score = _ratio(earned, determinate_weight, score=True)
-    coverage = _ratio(determinate_weight, expected_weight, score=False)
-    critical_complete = all(
-        row.outcome in _DETERMINATE
-        for row in expected
-        if row.severity == SEVERITY_CRITICAL
-    )
-    state = _web_fundamentals_state(
-        has_expected=bool(expected),
-        has_determinate=bool(determinate),
-        coverage=coverage,
-        complete=critical_complete,
-    )
-    return (
-        score,
-        coverage,
-        state,
-        round(earned, 4),
-        round(determinate_weight, 4),
-        round(expected_weight, 4),
-        critical_complete,
-    )
-
-
-def _dimension_applicability(key: str, *, relevant: tuple[str, ...]) -> tuple[str, str]:
-    return (
-        (DIMENSION_APPLICABLE, "")
-        if key in relevant
-        else (DIMENSION_NOT_APPLICABLE, "dimension_determinately_irrelevant")
-    )
-
-
 def _empty_dimension(key: str, applicability: str, reason: str) -> DimensionMeasurement:
     return DimensionMeasurement(
         key=key,
@@ -213,86 +129,234 @@ def _empty_dimension(key: str, applicability: str, reason: str) -> DimensionMeas
     )
 
 
-def _dimension_expected(
-    evaluations: list[RuleEvaluation], key: str
-) -> list[RuleEvaluation]:
-    return [
-        row
-        for row in _profile_rows(evaluations, SCORE_ROLE_AEO)
-        if row.readiness_dimension == key
-    ]
+@dataclass(frozen=True, slots=True)
+class _FamilyResult:
+    family_id: str
+    dimension_id: str
+    budget: float
+    scope: str
+    score: float | None
+    coverage: float
+    earned_points: float
+    determinate_points: float
+    expected_points: float
+    determinate_checkpoint_ids: tuple[str, ...]
 
 
-def _readiness_points(
-    expected: list[RuleEvaluation], determinate: list[RuleEvaluation]
-) -> tuple[float, float, float]:
-    expected_points = sum(float(row.readiness_weight) for row in expected)
-    determinate_points = sum(float(row.readiness_weight) for row in determinate)
-    earned = sum(
-        float(row.readiness_weight) * _credit(row.outcome) for row in determinate
+def _frozen_family_profile(
+    page_kind: str,
+    page_traits: tuple[str, ...],
+    context: Mapping[str, object],
+) -> tuple[dict, ...]:
+    active_by_family: dict[str, list[dict]] = {}
+    profile_context = {**context, "is_site_root": True}
+    for family_id, checkpoint_id, internal_weight in expected_checkpoint_expressions(
+        page_kind, page_traits, profile_context
+    ):
+        active_by_family.setdefault(family_id, []).append(
+            {
+                "checkpoint_id": checkpoint_id,
+                "internal_weight": float(internal_weight),
+            }
+        )
+    artifact = []
+    for row in profile_rows(page_kind, page_traits, context):
+        family = CAPABILITY_FAMILIES_BY_ID[row.family_id]
+        artifact.append(
+            {
+                "family_id": row.family_id,
+                "dimension_id": family.dimension_id,
+                "budget": float(family.budget),
+                "scope": family.scope,
+                "status": row.status,
+                "reason": row.reason,
+                "trait_condition": row.trait_condition,
+                "evaluation_scope": family.scope == RULE_SCOPE_PAGE
+                or bool(context.get("is_site_root")),
+                "checkpoints": active_by_family.get(row.family_id, []),
+            }
+        )
+    return tuple(artifact)
+
+
+def _checkpoint_outcome(
+    checkpoint_id: str, evaluations: Iterable[RuleEvaluation | RuleMeasurementInput]
+) -> str:
+    outcomes = {
+        row.outcome
+        for row in evaluations
+        if isinstance(row, RuleMeasurementInput)
+        and row.rule_id == checkpoint_id
+        and row.expected
+    }
+    if not outcomes:
+        outcomes = {
+            row.outcome
+            for row in evaluations
+            if isinstance(row, RuleEvaluation)
+            and row.rule_id == checkpoint_id
+            and row.expected_profile_membership
+        }
+    return next(iter(outcomes)) if len(outcomes) == 1 else ""
+
+
+def _family_artifact_values(
+    artifact: Mapping[str, object],
+) -> tuple[str, str, str, float, list[object]]:
+    family_id = str(artifact.get("family_id") or "")
+    budget_value = artifact.get("budget")
+    if not isinstance(budget_value, (int, float)) or isinstance(budget_value, bool):
+        raise ValueError(f"Family budget must be numeric: {family_id}")
+    checkpoints = artifact.get("checkpoints")
+    if not isinstance(checkpoints, (list, tuple)):
+        raise ValueError(f"Family checkpoints must be a sequence: {family_id}")
+    return (
+        family_id,
+        str(artifact.get("dimension_id") or ""),
+        str(artifact.get("scope") or ""),
+        float(budget_value),
+        list(checkpoints),
     )
-    return earned, determinate_points, expected_points
 
 
-def _readiness_state(score: float | None, coverage: float) -> str:
-    if score is not None and coverage >= AEO_MEASURED_MIN_COVERAGE:
-        return MEASUREMENT_STATE_MEASURED
-    return MEASUREMENT_STATE_LIMITED
+def _checkpoint_tally(
+    checkpoints: list[object],
+    evaluations: Iterable[RuleEvaluation | RuleMeasurementInput],
+) -> tuple[float, float, list[str]]:
+    determinate = 0.0
+    earned = 0.0
+    determinate_ids: list[str] = []
+    for checkpoint in checkpoints:
+        if not isinstance(checkpoint, Mapping):
+            continue
+        checkpoint_id = str(checkpoint.get("checkpoint_id") or "")
+        weight = float(checkpoint.get("internal_weight") or 0.0)
+        outcome = _checkpoint_outcome(checkpoint_id, evaluations)
+        if outcome not in _DETERMINATE:
+            continue
+        determinate += weight
+        earned += weight * _credit(outcome)
+        determinate_ids.append(checkpoint_id)
+    return determinate, earned, determinate_ids
 
 
-def _checkpoint_ids(rows: list[RuleEvaluation]) -> tuple[str, ...]:
-    return tuple(sorted({row.rule_id for row in rows}))
+def _family_result(
+    artifact: Mapping[str, object],
+    evaluations: Iterable[RuleEvaluation | RuleMeasurementInput],
+) -> _FamilyResult | None:
+    if (
+        not bool(artifact.get("evaluation_scope"))
+        or artifact.get("status") == PROFILE_STATUS_NOT_APPLICABLE
+    ):
+        return None
+    family_id, dimension_id, scope, budget, checkpoints = _family_artifact_values(
+        artifact
+    )
+    expected_internal = sum(
+        float(checkpoint.get("internal_weight") or 0.0)
+        for checkpoint in checkpoints
+        if isinstance(checkpoint, Mapping)
+    )
+    if artifact.get("status") == PROFILE_STATUS_MEASURED:
+        if abs(expected_internal - 1.0) > 1e-9:
+            raise ValueError(f"Family expression must normalize to one: {family_id}")
+    else:
+        expected_internal = 1.0
+    determinate_internal, earned_internal, determinate_ids = _checkpoint_tally(
+        checkpoints, evaluations
+    )
+    coverage = (
+        0.0
+        if expected_internal <= 0
+        else min(1.0, determinate_internal / expected_internal)
+    )
+    score = (
+        None if determinate_internal <= 0 else earned_internal / determinate_internal
+    )
+    return _FamilyResult(
+        family_id=family_id,
+        dimension_id=dimension_id,
+        budget=budget,
+        scope=scope,
+        score=score,
+        coverage=coverage,
+        earned_points=budget * earned_internal,
+        determinate_points=budget * determinate_internal,
+        expected_points=budget,
+        determinate_checkpoint_ids=tuple(sorted(determinate_ids)),
+    )
 
 
-def _checkpoint_families(rows: list[RuleEvaluation]) -> tuple[str, ...]:
+def _family_results(
+    profile: Iterable[Mapping[str, object]],
+    evaluations: Iterable[RuleEvaluation | RuleMeasurementInput],
+) -> tuple[_FamilyResult, ...]:
+    rows = tuple(evaluations)
     return tuple(
-        sorted({row.checkpoint_family for row in rows if row.checkpoint_family})
+        result
+        for artifact in profile
+        if (result := _family_result(artifact, rows)) is not None
+    )
+
+
+def _measured_family_evidence(
+    families: list[_FamilyResult],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    measured = [
+        family
+        for family in families
+        if family.determinate_points > 0 and family.score is not None
+    ]
+    checkpoint_ids = {
+        checkpoint_id
+        for family in measured
+        for checkpoint_id in family.determinate_checkpoint_ids
+    }
+    return (
+        tuple(sorted(checkpoint_ids)),
+        tuple(sorted(family.family_id for family in measured)),
     )
 
 
 def _dimension_measurement(
-    key: str,
-    *,
-    evaluations: list[RuleEvaluation],
-    expected_ids: tuple[str, ...],
-    relevant: tuple[str, ...],
+    key: str, *, families: tuple[_FamilyResult, ...]
 ) -> DimensionMeasurement:
-    applicability, reason = _dimension_applicability(key, relevant=relevant)
-    if applicability == DIMENSION_NOT_APPLICABLE:
-        return _empty_dimension(key, applicability, reason)
-    expected = _dimension_expected(evaluations, key)
+    expected = [family for family in families if family.dimension_id == key]
     if not expected:
-        site_scoped = any(
-            SITE_HEALTH_RULES_BY_ID[checkpoint_id].scope == RULE_SCOPE_SITE
-            and SITE_HEALTH_RULES_BY_ID[checkpoint_id].readiness_dimension == key
-            for checkpoint_id in expected_ids
+        return _empty_dimension(
+            key, DIMENSION_NOT_APPLICABLE, "dimension_determinately_irrelevant"
         )
-        bounded_reason = (
-            MEASURED_AT_SITE_SCOPE_REASON
-            if site_scoped
-            else "no_expected_checkpoint_evaluator"
-        )
-        return _empty_dimension(key, applicability, bounded_reason)
-    determinate = _determinate_rows(expected)
-    earned, determinate_points, expected_points = _readiness_points(
-        expected, determinate
+    expected_points = sum(family.expected_points for family in expected)
+    determinate_points = sum(family.determinate_points for family in expected)
+    earned_points = sum(family.earned_points for family in expected)
+    score = measurement_ratio(earned_points, determinate_points, score=True)
+    coverage = (
+        measurement_ratio(determinate_points, expected_points, score=False) or 0.0
     )
-    score = _ratio(earned, determinate_points, score=True)
-    coverage = _ratio(determinate_points, expected_points, score=False) or 0.0
-    state = _readiness_state(score, coverage)
+    checkpoint_ids, family_ids = _measured_family_evidence(expected)
     return DimensionMeasurement(
         key=key,
-        applicability=applicability,
-        measurement_state=state,
+        applicability=DIMENSION_APPLICABLE,
+        measurement_state=(
+            MEASUREMENT_STATE_NOT_MEASURED
+            if determinate_points <= 0
+            else _readiness_state(score, coverage)
+        ),
         score=score,
         coverage=coverage,
-        earned_points=round(earned, 4),
+        earned_points=round(earned_points, 4),
         determinate_points=round(determinate_points, 4),
         expected_points=round(expected_points, 4),
-        determinate_checkpoint_ids=_checkpoint_ids(determinate),
-        checkpoint_families=_checkpoint_families(determinate),
-        reason=reason,
+        determinate_checkpoint_ids=checkpoint_ids,
+        checkpoint_families=family_ids,
+        reason="",
     )
+
+
+def _readiness_state(score: float | None, coverage: float) -> str:
+    if score is not None and coverage >= 1.0:
+        return MEASUREMENT_STATE_MEASURED
+    return MEASUREMENT_STATE_LIMITED
 
 
 def _breadth_sets(
@@ -308,36 +372,19 @@ def _breadth_sets(
     return checkpoints, families, measured_dimensions
 
 
-def _aeo_state(
-    *,
-    coverage: float | None,
-    checkpoints: set[str],
-    families: set[str],
-    measured_dimensions: set[str],
-) -> str:
+def _aeo_state(*, coverage: float | None, checkpoints: set[str]) -> str:
     if not checkpoints:
         return MEASUREMENT_STATE_NOT_MEASURED
-    sufficient = (
-        coverage is not None
-        and coverage >= AEO_MEASURED_MIN_COVERAGE
-        and len(checkpoints) >= AEO_MEASURED_MIN_CHECKPOINTS
-        and len(families) >= AEO_MEASURED_MIN_FAMILIES
-        and len(measured_dimensions) >= AEO_MEASURED_MIN_DIMENSIONS
-        and RULE_ID_TECHNICAL_INDEXABLE in checkpoints
-    )
-    return MEASUREMENT_STATE_MEASURED if sufficient else MEASUREMENT_STATE_LIMITED
+    if coverage is not None and coverage >= 1.0:
+        return MEASUREMENT_STATE_MEASURED
+    return MEASUREMENT_STATE_LIMITED
 
 
 def _overall_aeo(
     dimensions: tuple[DimensionMeasurement, ...],
-    *,
-    allow_measured: bool = True,
 ) -> tuple[float | None, float | None, str]:
     expected = [
-        row
-        for row in dimensions
-        if row.applicability != DIMENSION_NOT_APPLICABLE
-        and row.reason != MEASURED_AT_SITE_SCOPE_REASON
+        row for row in dimensions if row.applicability != DIMENSION_NOT_APPLICABLE
     ]
     expected_weight = sum(READINESS_DIMENSION_WEIGHTS[row.key] for row in expected)
     measured = _dimension_contributions(expected)
@@ -348,15 +395,8 @@ def _overall_aeo(
         if expected_weight <= 0
         else _round_coverage(measured_weight / expected_weight)
     )
-    checkpoints, families, measured_dimensions = _breadth_sets(dimensions)
-    state = _aeo_state(
-        coverage=coverage,
-        checkpoints=checkpoints,
-        families=families,
-        measured_dimensions=measured_dimensions,
-    )
-    if state == MEASUREMENT_STATE_MEASURED and not allow_measured:
-        state = MEASUREMENT_STATE_LIMITED
+    checkpoints, _families, _measured_dimensions = _breadth_sets(dimensions)
+    state = _aeo_state(coverage=coverage, checkpoints=checkpoints)
     return score, coverage, state
 
 
@@ -370,10 +410,11 @@ def score_analysis(
     rows = list(evaluations)
     effective_page_kind = page_kind if page_kind in PAGE_KINDS else PAGE_KIND_OTHER
     effective_traits = tuple(page_traits)
-    expected_ids = expected_checkpoints(
-        effective_page_kind, effective_traits, crawl_context
+    context = crawl_context or {}
+    frozen_profile = _frozen_family_profile(
+        effective_page_kind, effective_traits, context
     )
-    relevant = relevant_dimensions(effective_page_kind, effective_traits, crawl_context)
+    families = _family_results(frozen_profile, rows)
     (
         web_fundamentals_score,
         web_fundamentals_coverage,
@@ -382,30 +423,12 @@ def score_analysis(
         technical_determinate,
         technical_expected,
         technical_critical_complete,
-    ) = _technical_measurement(rows)
+    ) = score_page_web_fundamentals(rows)
     dimensions = tuple(
-        _dimension_measurement(
-            key,
-            evaluations=rows,
-            expected_ids=expected_ids,
-            relevant=relevant,
-        )
+        _dimension_measurement(key, families=families)
         for key in AEO_READINESS_DIMENSIONS
     )
-    aeo_score, aeo_coverage, aeo_state = _overall_aeo(
-        dimensions, allow_measured=effective_page_kind != PAGE_KIND_OTHER
-    )
-    profile = tuple(
-        {
-            "checkpoint_id": row.rule_id,
-            "score_roles": list(row.score_roles),
-            "checkpoint_family": row.checkpoint_family or None,
-            "readiness_dimension": row.readiness_dimension or None,
-            "readiness_weight": float(row.readiness_weight),
-        }
-        for row in rows
-        if row.expected_profile_membership
-    )
+    aeo_score, aeo_coverage, aeo_state = _overall_aeo(dimensions)
     return AnalysisScores(
         web_fundamentals_score=web_fundamentals_score,
         web_fundamentals_coverage=web_fundamentals_coverage,
@@ -417,7 +440,10 @@ def score_analysis(
         aeo_readiness_score=aeo_score,
         aeo_measurement_coverage=aeo_coverage,
         aeo_measurement_state=aeo_state,
-        expected_checkpoint_profile=profile,
+        aeo_measurement_reason=(
+            "page_purpose_unresolved" if effective_page_kind == PAGE_KIND_OTHER else ""
+        ),
+        expected_checkpoint_profile=frozen_profile,
         readiness_dimensions=dimensions,
         main_content_indexable=next(
             (
@@ -436,6 +462,7 @@ class AnalysisMeasurementInput:
     analysis_id: str
     page_kind: str
     page_traits: tuple[str, ...] = ()
+    expected_family_profile: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -464,9 +491,6 @@ class _NormalizedRule:
     score_roles: tuple[str, ...]
     weight: float
     severity: str
-    checkpoint_family: str
-    readiness_dimension: str
-    readiness_weight: float
 
 
 @dataclass(frozen=True)
@@ -615,9 +639,6 @@ def _normalized_rule(
         ),
         weight=max(0.0, *(row.weight for row in observations)),
         severity=first.severity,
-        checkpoint_family=first.checkpoint_family,
-        readiness_dimension=first.readiness_dimension,
-        readiness_weight=max(0.0, *(row.readiness_weight for row in observations)),
     )
 
 
@@ -632,116 +653,116 @@ def _normalize_rules(rows: list[RuleMeasurementInput]) -> list[_NormalizedRule]:
     ]
 
 
-def _readiness_contributions(
-    rules: list[_NormalizedRule],
-) -> list[tuple[float, float]]:
-    return [
-        (float(rule.score), rule.readiness_weight * rule.coverage)
-        for rule in rules
-        if rule.score is not None and rule.coverage > 0
-    ]
-
-
-def _dimension_rules(key: str, rules: list[_NormalizedRule]) -> list[_NormalizedRule]:
-    return [
-        rule
-        for rule in rules
-        if SCORE_ROLE_AEO in rule.score_roles and rule.readiness_dimension == key
-    ]
-
-
-def _has_site_scoped_dimension(key: str) -> bool:
-    return any(
-        rule.scope == RULE_SCOPE_SITE
-        and SCORE_ROLE_AEO in rule.score_roles
-        and rule.readiness_dimension == key
-        for rule in SITE_HEALTH_RULES_BY_ID.values()
-    )
-
-
-def _measured_rules(rules: list[_NormalizedRule]) -> list[_NormalizedRule]:
-    return [rule for rule in rules if rule.score is not None and rule.coverage > 0]
-
-
-def _normalized_rule_families(rules: list[_NormalizedRule]) -> tuple[str, ...]:
+def _aggregate_checkpoint_ids(results: Iterable[_FamilyResult]) -> tuple[str, ...]:
     return tuple(
-        sorted({rule.checkpoint_family for rule in rules if rule.checkpoint_family})
+        sorted(
+            {
+                checkpoint_id
+                for result in results
+                for checkpoint_id in result.determinate_checkpoint_ids
+            }
+        )
     )
 
 
-def _aggregate_dimension(
-    key: str, rules: list[_NormalizedRule], *, relevant: frozenset[str]
-) -> DimensionMeasurement:
-    expected = _dimension_rules(key, rules)
-    if not expected:
-        if key in relevant:
-            return _empty_dimension(
-                key,
-                DIMENSION_APPLICABLE,
-                (
-                    MEASURED_AT_SITE_SCOPE_REASON
-                    if _has_site_scoped_dimension(key)
-                    else "no_expected_checkpoint_evaluator"
-                ),
-            )
-        return _empty_dimension(
-            key, DIMENSION_NOT_APPLICABLE, "dimension_determinately_irrelevant"
-        )
-    measured_rules = _measured_rules(expected)
-    contributions = _readiness_contributions(expected)
-    expected_weight = sum(rule.readiness_weight for rule in expected)
-    normalized_score, measured_weight = _weighted_average(contributions)
-    earned = sum(value * weight for value, weight in contributions)
-    score = None if normalized_score is None else _round_score(100.0 * normalized_score)
-    coverage = _ratio(measured_weight, expected_weight, score=False) or 0.0
-    state = _readiness_state(score, coverage)
-    return DimensionMeasurement(
-        key=key,
-        applicability=DIMENSION_APPLICABLE,
-        measurement_state=(
-            MEASUREMENT_STATE_NOT_MEASURED if measured_weight <= 0 else state
-        ),
+def _kind_family_contribution(
+    kind: str, results: list[_FamilyResult]
+) -> tuple[float, float]:
+    kind_weight = PAGE_KIND_ROLLUP_WEIGHTS.get(kind, 1.0)
+    expected = sum(result.expected_points for result in results)
+    determinate = sum(result.determinate_points for result in results)
+    earned = sum(result.earned_points for result in results)
+    coverage = 0.0 if expected <= 0 else determinate / expected
+    score = 0.0 if determinate <= 0 else earned / determinate
+    return kind_weight * coverage, kind_weight * coverage * score
+
+
+def _page_family_aggregate(
+    results: list[tuple[AnalysisMeasurementInput, _FamilyResult]],
+) -> _FamilyResult:
+    first = results[0][1]
+    by_kind: dict[str, list[_FamilyResult]] = {}
+    for analysis, result in results:
+        by_kind.setdefault(analysis.page_kind, []).append(result)
+    expected_kind_weight = sum(
+        PAGE_KIND_ROLLUP_WEIGHTS.get(kind, 1.0) for kind in by_kind
+    )
+    contributions = [
+        _kind_family_contribution(kind, kind_results)
+        for kind, kind_results in by_kind.items()
+    ]
+    covered_kind_weight = sum(covered for covered, _earned in contributions)
+    earned_kind_weight = sum(earned for _covered, earned in contributions)
+    coverage = (
+        0.0 if expected_kind_weight <= 0 else covered_kind_weight / expected_kind_weight
+    )
+    score = (
+        None if covered_kind_weight <= 0 else earned_kind_weight / covered_kind_weight
+    )
+    determinate_points = first.budget * coverage
+    return _FamilyResult(
+        family_id=first.family_id,
+        dimension_id=first.dimension_id,
+        budget=first.budget,
+        scope=first.scope,
         score=score,
         coverage=coverage,
-        earned_points=round(earned, 4),
-        determinate_points=round(measured_weight, 4),
-        expected_points=round(expected_weight, 4),
-        determinate_checkpoint_ids=tuple(
-            sorted(rule.rule_id for rule in measured_rules)
+        earned_points=(0.0 if score is None else score * determinate_points),
+        determinate_points=determinate_points,
+        expected_points=first.budget,
+        determinate_checkpoint_ids=_aggregate_checkpoint_ids(
+            result for _analysis, result in results
         ),
-        checkpoint_families=_normalized_rule_families(measured_rules),
-        reason="",
     )
 
 
-def _aggregate_web_fundamentals(
-    rules: list[_NormalizedRule],
-) -> tuple[float | None, float | None, str]:
-    expected_rules = [
-        rule for rule in rules if SCORE_ROLE_WEB_FUNDAMENTALS in rule.score_roles
+def _aggregate_site_families(
+    analyses: list[AnalysisMeasurementInput],
+    rows: list[RuleMeasurementInput],
+) -> tuple[_FamilyResult, ...]:
+    results: list[_FamilyResult] = []
+    seen: set[str] = set()
+    for analysis in analyses:
+        if analysis.page_kind == PAGE_KIND_OTHER:
+            continue
+        for artifact in analysis.expected_family_profile:
+            family_id = str(artifact.get("family_id") or "")
+            if artifact.get("scope") != RULE_SCOPE_SITE or family_id in seen:
+                continue
+            enabled = dict(artifact)
+            enabled["evaluation_scope"] = True
+            result = _family_result(enabled, rows)
+            if result is not None:
+                results.append(result)
+                seen.add(family_id)
+    return tuple(results)
+
+
+def _aggregate_families(
+    analyses: list[AnalysisMeasurementInput],
+    rows: list[RuleMeasurementInput],
+) -> tuple[_FamilyResult, ...]:
+    if len({analysis.analysis_id for analysis in analyses}) != len(analyses):
+        raise ValueError("Duplicate analysis measurement input")
+    rows_by_analysis: dict[str, list[RuleMeasurementInput]] = {}
+    for row in rows:
+        rows_by_analysis.setdefault(row.analysis_id, []).append(row)
+    grouped: dict[str, list[tuple[AnalysisMeasurementInput, _FamilyResult]]] = {}
+    for analysis in analyses:
+        if analysis.page_kind == PAGE_KIND_OTHER:
+            continue
+        results = _family_results(
+            analysis.expected_family_profile,
+            rows_by_analysis.get(analysis.analysis_id, []),
+        )
+        for result in results:
+            if result.scope == RULE_SCOPE_PAGE:
+                grouped.setdefault(result.family_id, []).append((analysis, result))
+    aggregate = [
+        _page_family_aggregate(family_results) for family_results in grouped.values()
     ]
-    contributions = [
-        (float(rule.score), rule.weight * rule.coverage)
-        for rule in expected_rules
-        if rule.score is not None and rule.coverage > 0
-    ]
-    expected = sum(rule.weight for rule in expected_rules)
-    normalized_score, determinate = _weighted_average(contributions)
-    earned = 0.0 if normalized_score is None else normalized_score * determinate
-    score = _ratio(earned, determinate, score=True)
-    coverage = _ratio(determinate, expected, score=False)
-    critical_complete = all(
-        rule.coverage >= 1.0 and rule.score is not None
-        for rule in expected_rules
-        if rule.severity == SEVERITY_CRITICAL
-    )
-    state = _web_fundamentals_state(
-        has_expected=expected > 0,
-        has_determinate=determinate > 0,
-        coverage=coverage,
-        complete=critical_complete,
-    )
-    return score, coverage, state
+    aggregate.extend(_aggregate_site_families(analyses, rows))
+    return tuple(aggregate)
 
 
 def aggregate_measurements(
@@ -749,23 +770,17 @@ def aggregate_measurements(
     rule_inputs: Iterable[RuleMeasurementInput],
 ) -> AggregateMeasurements:
     rows = list(inputs)
-    rules = _normalize_rules(list(rule_inputs))
-    aggregate_relevance = frozenset(
-        dimension
-        for row in rows
-        for dimension in relevant_dimensions(row.page_kind, row.page_traits)
-    )
+    persisted_rules = list(rule_inputs)
+    rules = _normalize_rules(persisted_rules)
+    families = _aggregate_families(rows, persisted_rules)
     dimensions = tuple(
-        _aggregate_dimension(key, rules, relevant=aggregate_relevance)
+        _dimension_measurement(key, families=families)
         for key in AEO_READINESS_DIMENSIONS
     )
     web_fundamentals_score, web_fundamentals_coverage, web_fundamentals_state = (
-        _aggregate_web_fundamentals(rules)
+        aggregate_web_fundamentals(rules)
     )
-    aeo_score, aeo_coverage, aeo_state = _overall_aeo(
-        dimensions,
-        allow_measured=any(row.page_kind != PAGE_KIND_OTHER for row in rows),
-    )
+    aeo_score, aeo_coverage, aeo_state = _overall_aeo(dimensions)
     return AggregateMeasurements(
         web_fundamentals_score=web_fundamentals_score,
         web_fundamentals_coverage=web_fundamentals_coverage,

@@ -3,19 +3,456 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Final
 from urllib.parse import urlsplit
 
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
 from app.analysis.site_health.dom import node_text as _text
 from app.analysis.site_health.fact_regions import (
     card_list_containers,
+    node_outside_containers,
     primary_region,
     region_node_is_visible,
 )
-from app.connectors.web_evidence.url_policy import registrable_domain
 from app.core.config import site_health_acquisition as config
+from app.core.config import site_health_taxonomy as taxonomy
 from app.core.config.site_health_rules import ANSWER_FIRST_MAX_HOPS
+
+_PAGE_METADATA_TOKENS: Final[frozenset[str]] = frozenset(
+    {
+        "author",
+        "badge",
+        "breadcrumb",
+        "byline",
+        "date",
+        "eyebrow",
+        "kicker",
+        "metadata",
+        "published",
+        "tag",
+        "timestamp",
+    }
+)
+_NEXT_ACTION_RE: Final = re.compile(
+    r"\b(?:apply|book|buy|contact|get started|join|register|request|"
+    r"schedule|sign up|start|subscribe|talk to|try)\b",
+    re.IGNORECASE,
+)
+_PROVIDER_RE: Final = re.compile(
+    r"^(?P<provider>(?:we|[A-Z][A-Za-z0-9&'.-]*"
+    r"(?:\s+[A-Z][A-Za-z0-9&'.-]*){0,5}))\s+"
+    r"(?P<verb>provides?|offers?|delivers?|builds?|manages?|"
+    r"helps?|enables?|specializes\s+in)\s+",
+)
+_OFFER_CAPABILITY_RE: Final = re.compile(
+    r"\b(?:provides?|offers?|delivers?|builds?|manages?|specializes\s+in)\s+"
+    r"(?P<capability>[^.,;]{3,160}?)(?=\s+(?:for|so|that|to)\b|[.,;]|$)",
+    re.IGNORECASE,
+)
+_AUDIENCE_OUTCOME_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
+    re.compile(r"\bfor\s+(?P<value>[^.,;]{3,160})", re.IGNORECASE),
+    re.compile(
+        r"\b(?:helps?|enables?|lets?)\s+(?P<value>[^.,;]{3,160})",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bso\s+(?P<value>[^.,;]{3,160})", re.IGNORECASE),
+)
+
+
+def empty_page_owned_content_facts() -> dict[str, Any]:
+    """Stable zero shape for absent, unreadable, or non-rendered content."""
+    return {
+        "editorial_lead": "",
+        "direct_answer": "",
+        "entity_proposition": {
+            "identity": "",
+            "proposition": "",
+            "provider": "",
+            "named_capability": "",
+            "audience_or_outcome": "",
+            "next_action": "",
+        },
+        "primary_heading_outline": [],
+    }
+
+
+def page_owned_content_facts(root: Any) -> dict[str, Any]:
+    """Extract bounded facts spoken by the primary content, not page chrome."""
+    facts = empty_page_owned_content_facts()
+    try:
+        region, _source = primary_region(root)
+        containers = card_list_containers(region)
+        container_ids = {id(item) for item in containers}
+        outline = _primary_heading_outline(region, container_ids)
+        lead = _editorial_lead(region, container_ids)
+        direct = _direct_answer(region, container_ids)
+        facts["primary_heading_outline"] = outline
+        facts["editorial_lead"] = lead
+        facts["direct_answer"] = direct
+        facts["entity_proposition"] = _entity_proposition(
+            region,
+            container_ids,
+            outline=outline,
+            proposition=lead,
+        )
+    except DOM_ERRORS as exc:
+        dom_failure("page_owned_content_facts", exc)
+    return facts
+
+
+def _primary_heading_outline(
+    region: Any, container_ids: set[int]
+) -> list[dict[str, Any]]:
+    outline: list[dict[str, Any]] = []
+    try:
+        walker = region.iter()
+    except DOM_ERRORS as exc:
+        dom_failure("_primary_heading_outline", exc)
+        return outline
+    for node in walker:
+        tag = str(getattr(node, "tag", "") or "").lower()
+        if tag not in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            continue
+        if not _page_owned_node(node, region, container_ids):
+            continue
+        text = " ".join(_text(node).split())[: config.SITE_HEALTH_MAX_HEADING_CHARS]
+        if not text:
+            continue
+        outline.append({"level": int(tag[1]), "text": text})
+        if len(outline) >= config.SITE_HEALTH_MAX_HEADINGS_KEPT:
+            break
+    return outline
+
+
+def _editorial_lead(region: Any, container_ids: set[int]) -> str:
+    seen_identity = False
+    scanned = 0
+    try:
+        walker = region.iter()
+    except DOM_ERRORS as exc:
+        dom_failure("_editorial_lead", exc)
+        return ""
+    for node in walker:
+        scanned += 1
+        if scanned > taxonomy.REGION_MAX_CONTAINERS_SCANNED:
+            break
+        tag = str(getattr(node, "tag", "") or "").lower()
+        if tag in {"h1", "h2"} and _page_owned_node(node, region, container_ids):
+            seen_identity = True
+            continue
+        if tag != "p" or not seen_identity:
+            continue
+        if not _page_owned_node(node, region, container_ids):
+            continue
+        if _is_metadata_or_cta(node):
+            continue
+        text = " ".join(_text(node).split())
+        if len(text.split()) < 5:
+            continue
+        return text[: config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS]
+    return ""
+
+
+def _direct_answer(region: Any, container_ids: set[int]) -> str:
+    try:
+        headings = region.xpath(".//h1 | .//h2 | .//h3 | .//dt")
+    except DOM_ERRORS as exc:
+        dom_failure("_direct_answer", exc)
+        return ""
+    accepted = 0
+    for heading in headings:
+        if not _page_owned_node(heading, region, container_ids):
+            continue
+        accepted += 1
+        if accepted > config.SITE_HEALTH_MAX_HEADINGS_KEPT:
+            break
+        heading_text = " ".join(_text(heading).split())
+        if not _is_answer_heading(heading_text):
+            continue
+        answer = _associated_answer(region, heading, container_ids)
+        if answer:
+            return answer[: config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS]
+    return ""
+
+
+def _is_answer_heading(text: str) -> bool:
+    normalized = " ".join(text.casefold().split())
+    if not normalized:
+        return False
+    if normalized.endswith("?"):
+        return True
+    first = normalized.split(" ", 1)[0].strip("¿?¡!.,:;\"'")
+    return (
+        first in taxonomy.PAGE_KIND_QUESTION_WORDS
+        or normalized.startswith("definition ")
+        or normalized.startswith("definition of ")
+        or normalized.startswith("meaning of ")
+        or normalized.startswith("define ")
+    )
+
+
+def _associated_answer(region: Any, heading: Any, container_ids: set[int]) -> str:
+    sibling_answer = _answer_from_siblings(region, heading, container_ids)
+    if sibling_answer:
+        return sibling_answer
+    return _answer_from_document_order(region, heading, container_ids)
+
+
+def _answer_from_siblings(region: Any, heading: Any, container_ids: set[int]) -> str:
+    try:
+        siblings = heading.itersiblings()
+    except DOM_ERRORS as exc:
+        dom_failure("_associated_answer", exc)
+        return ""
+    for sibling in siblings:
+        if _is_answer_boundary(sibling):
+            break
+        candidate = _answer_candidate(sibling, region, container_ids)
+        if candidate:
+            return candidate
+    return ""
+
+
+def _answer_from_document_order(
+    region: Any, heading: Any, container_ids: set[int]
+) -> str:
+    try:
+        walker = region.iter()
+    except DOM_ERRORS as exc:
+        dom_failure("_associated_answer", exc)
+        return ""
+    seen_heading = False
+    hops = 0
+    for node in walker:
+        if node is heading:
+            seen_heading = True
+            continue
+        if not seen_heading:
+            continue
+        hops += 1
+        if hops > ANSWER_FIRST_MAX_HOPS or _is_answer_boundary(node):
+            break
+        candidate = _answer_candidate(node, region, container_ids)
+        if candidate:
+            return candidate
+    return ""
+
+
+def _is_answer_boundary(node: Any) -> bool:
+    return str(getattr(node, "tag", "") or "").lower() in {
+        "h1",
+        "h2",
+        "h3",
+        "dt",
+    }
+
+
+def _answer_candidate(node: Any, region: Any, container_ids: set[int]) -> str:
+    tag = str(getattr(node, "tag", "") or "").lower()
+    if tag not in {"p", "dd"} or not _page_owned_node(node, region, container_ids):
+        return ""
+    if _is_metadata_or_cta(node):
+        return ""
+    return " ".join(_text(node).split())
+
+
+def _entity_proposition(
+    region: Any,
+    container_ids: set[int],
+    *,
+    outline: list[dict[str, Any]],
+    proposition: str,
+) -> dict[str, str]:
+    identity = next(
+        (
+            str(item["text"])
+            for item in outline
+            if item.get("level") == 1 and item.get("text")
+        ),
+        "",
+    )
+    provider = _provider_identity(identity, proposition)
+    capability = _named_capability(identity, provider, proposition)
+    audience_or_outcome = _audience_or_outcome(f"{identity}. {proposition}")
+    next_action = _next_action_path(region, container_ids)
+    return {
+        "identity": identity[: config.SITE_HEALTH_MAX_HEADING_CHARS],
+        "proposition": proposition[: config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS],
+        "provider": provider[: config.SITE_HEALTH_MAX_HEADING_CHARS],
+        "named_capability": capability[: config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS],
+        "audience_or_outcome": audience_or_outcome[
+            : config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS
+        ],
+        "next_action": next_action[: config.SITE_HEALTH_MAX_URL_CHARS],
+    }
+
+
+def _provider_identity(identity: str, proposition: str) -> str:
+    match = _PROVIDER_RE.match(proposition.strip())
+    if match is None:
+        return ""
+    provider = match.group("provider").strip()
+    return identity if provider.casefold() == "we" else provider
+
+
+def _named_capability(identity: str, provider: str, proposition: str) -> str:
+    match = _OFFER_CAPABILITY_RE.search(proposition)
+    if match is not None:
+        return " ".join(match.group("capability").split())
+    normalized_identity = " ".join(identity.split())
+    if provider and normalized_identity.casefold() != provider.casefold():
+        words = normalized_identity.split()
+        if len(words) >= 2:
+            return normalized_identity
+    return ""
+
+
+def _audience_or_outcome(text: str) -> str:
+    for pattern in _AUDIENCE_OUTCOME_PATTERNS:
+        match = pattern.search(text)
+        if match is not None:
+            return " ".join(match.group("value").split())
+    return ""
+
+
+def _next_action_path(region: Any, container_ids: set[int]) -> str:
+    for node in _next_action_nodes(region, container_ids):
+        path = _next_action_candidate(node)
+        if path:
+            return path
+    return ""
+
+
+def _next_action_nodes(region: Any, container_ids: set[int]) -> list[Any]:
+    nodes: list[Any] = []
+    try:
+        walker = region.iter()
+        for scanned, node in enumerate(walker, start=1):
+            if scanned > taxonomy.REGION_MAX_CONTAINERS_SCANNED:
+                break
+            tag = str(getattr(node, "tag", "") or "").lower()
+            if tag not in {"a", "form"}:
+                continue
+            if not _page_owned_node(node, region, container_ids):
+                continue
+            nodes.append(node)
+            if len(nodes) >= config.SITE_HEALTH_MAX_CTA_TEXTS * 4:
+                break
+    except DOM_ERRORS as exc:
+        dom_failure("_next_action_path", exc)
+    return nodes
+
+
+def _next_action_candidate(node: Any) -> str:
+    text = " ".join(_text(node).split())
+    if not (_NEXT_ACTION_RE.search(text) or _is_cta_anchor(node)):
+        return ""
+    href = str(node.get("href") or node.get("action") or "").strip()
+    if not href or href.startswith("#"):
+        return ""
+    return _bounded_action_path(href)
+
+
+def _bounded_action_path(href: str) -> str:
+    try:
+        parts = urlsplit(href)
+    except ValueError:
+        return ""
+    if parts.scheme in {"mailto", "tel"}:
+        return f"{parts.scheme}:"
+    return parts.path or ""
+
+
+def _page_owned_node(node: Any, region: Any, container_ids: set[int]) -> bool:
+    if not node_outside_containers(node, container_ids):
+        return False
+    region_tag = str(getattr(region, "tag", "") or "").lower()
+    if region_tag not in {"main", "article"}:
+        return region_node_is_visible(node)
+    current = node
+    for _depth in range(taxonomy.REGION_MAX_ANCESTOR_DEPTH):
+        if current is region:
+            return True
+        try:
+            tag = str(getattr(current, "tag", "") or "").lower()
+            role = str(current.get("role") or "").strip().casefold()
+            current = current.getparent()
+        except DOM_ERRORS as exc:
+            dom_failure("_page_owned_node", exc)
+            return False
+        if tag in {"aside", "footer", "nav"}:
+            return False
+        if role in {"complementary", "contentinfo", "navigation"}:
+            return False
+        if current is None:
+            return False
+    return False
+
+
+def _is_metadata_or_cta(node: Any) -> bool:
+    text = " ".join(_text(node).split())
+    if not text or _is_metadata_copy(text):
+        return True
+    if _has_explicit_cta_marker(node) or _has_metadata_ancestor(node):
+        return True
+    return _has_short_cta_descendant(node, text)
+
+
+def _has_explicit_cta_marker(node: Any) -> bool:
+    attributes, _parent = _metadata_node_state(node)
+    if attributes is None:
+        return True
+    tokens = set(re.findall(r"[a-z0-9]+", attributes.casefold()))
+    return bool(tokens & config.CTA_BUTTON_ROLE_TOKENS)
+
+
+def _is_metadata_copy(text: str) -> bool:
+    return (
+        re.fullmatch(
+            r"(?:by\s+.+|(?:published|updated)\s+.+|\w+\s+\d{1,2},\s+\d{4})",
+            text,
+            re.IGNORECASE,
+        )
+        is not None
+    )
+
+
+def _has_metadata_ancestor(node: Any) -> bool:
+    current = node
+    for _depth in range(4):
+        attributes, parent = _metadata_node_state(current)
+        if attributes is None:
+            return True
+        tokens = set(re.findall(r"[a-z0-9]+", attributes.casefold()))
+        if tokens & _PAGE_METADATA_TOKENS:
+            return True
+        current = parent
+        if current is None:
+            break
+    return False
+
+
+def _metadata_node_state(node: Any) -> tuple[str | None, Any]:
+    try:
+        attributes = " ".join(
+            str(node.get(name) or "")
+            for name in ("class", "id", "itemprop", "rel", "role")
+        )
+        return attributes, node.getparent()
+    except DOM_ERRORS as exc:
+        dom_failure("_is_metadata_or_cta", exc)
+        return None, None
+
+
+def _has_short_cta_descendant(node: Any, text: str) -> bool:
+    try:
+        links = list(node.xpath(".//a | .//button | .//input[@type='submit']"))
+    except DOM_ERRORS as exc:
+        dom_failure("_is_metadata_or_cta", exc)
+        return True
+    if not links or len(text.split()) > 12:
+        return False
+    return any(_NEXT_ACTION_RE.search(_text(item)) for item in links)
 
 
 def _is_cta_anchor(node: Any) -> bool:
@@ -111,95 +548,6 @@ def _field_candidate(node: Any, labels_by_for: dict[str, str]) -> str:
         or node.get("name")
         or ""
     )
-
-
-def outbound_domains(anchors: list[dict], *, base_host: str) -> list[str]:
-    base_registrable = registrable_domain(base_host) if base_host else ""
-    domains: set[str] = set()
-    for entry in anchors or []:
-        host = _external_host(
-            entry,
-            base_host=base_host,
-            base_registrable=base_registrable,
-        )
-        if host is None:
-            continue
-        domains.add(host[: config.SITE_HEALTH_MAX_DOMAIN_CHARS])
-        if len(domains) >= config.SITE_HEALTH_MAX_OUTBOUND_DOMAINS:
-            break
-    return sorted(domains)
-
-
-def _external_host(entry: dict, *, base_host: str, base_registrable: str) -> str | None:
-    if bool(entry.get("is_internal")):
-        return None
-    try:
-        parts = urlsplit(str(entry.get("url") or "").strip())
-    except DOM_ERRORS as exc:
-        dom_failure("_external_host", exc)
-        return None
-    host = (parts.hostname or "").lower()
-    if not host or parts.scheme not in ("http", "https"):
-        return None
-    if base_registrable and registrable_domain(host) == base_registrable:
-        return None
-    if not base_registrable and base_host and host == base_host.lower():
-        return None
-    return host
-
-
-def _first_heading(root: Any) -> Any | None:
-    try:
-        # Default rather than catching StopIteration: "no heading on the page"
-        # is an ordinary result, not a DOM failure worth reporting.
-        return next((node for node in root.iter() if node.tag in ("h1", "h2")), None)
-    except DOM_ERRORS as exc:
-        dom_failure("_first_heading", exc)
-        return None
-
-
-def _sibling_answer(heading: Any) -> str:
-    try:
-        for sibling in heading.itersiblings():
-            text = _text(sibling)
-            if text:
-                return " ".join(text.split())
-    except DOM_ERRORS as exc:
-        dom_failure("_sibling_answer", exc)
-        return ""
-    return ""
-
-
-def _walk_answer(root: Any, heading: Any) -> str:
-    hops = 0
-    seen_heading = False
-    try:
-        for node in root.iter():
-            if node is heading:
-                seen_heading = True
-                continue
-            if not seen_heading:
-                continue
-            hops += 1
-            if hops > ANSWER_FIRST_MAX_HOPS:
-                break
-            if node.tag in ("script", "style", "noscript", "template"):
-                continue
-            text = _text(node)
-            if text:
-                return " ".join(text.split())
-    except DOM_ERRORS as exc:
-        dom_failure("_walk_answer", exc)
-        return ""
-    return ""
-
-
-def first_answer_text(root: Any) -> str:
-    first_heading = _first_heading(root)
-    if first_heading is None:
-        return ""
-    answer = _sibling_answer(first_heading) or _walk_answer(root, first_heading)
-    return answer[: config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS]
 
 
 def ordered_list_steps(root: Any) -> int:

@@ -5,6 +5,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { mswServer } from '@/test/msw-server';
 import { renderWithProviders } from '@/test/render';
+import {
+  COMPLETE_CLASSIFICATION_PROJECTION,
+  UNCHANGED_COHORT_COMPOSITION,
+} from '@/test/site-health-fixtures';
 import { OverviewPanel } from './overview-panel';
 
 const PROJECT = '11111111-1111-4111-8111-111111111111';
@@ -34,6 +38,12 @@ describe('OverviewPanel', () => {
         dashboard={
           {
             score_summary: {
+              ...COMPLETE_CLASSIFICATION_PROJECTION,
+              classification_state: 'partial',
+              classification_coverage: 0.5,
+              classified_page_count: 2,
+              other_page_count: 1,
+              classification_expected_page_count: 4,
               web_fundamentals_score: 81,
               web_fundamentals_coverage: 0.75,
               web_fundamentals_state: 'limited_evidence',
@@ -50,7 +60,12 @@ describe('OverviewPanel', () => {
     );
 
     expect(screen.getByRole('img', { name: 'Web Fundamentals score: 81' })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'AEO Readiness score: 62' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: 'Readiness of classified audited pages score: 62' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Classification completeness' }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText('4 of 10 pages analyzed')).toBeInTheDocument();
     expect(screen.queryByLabelText('Loading Overview details')).not.toBeInTheDocument();
     expect(overviewRequests).toBe(0);
@@ -63,6 +78,7 @@ describe('OverviewPanel', () => {
           project_id: PROJECT,
           crawl_id: CRAWL,
           snapshot_id: SNAPSHOT,
+          ...COMPLETE_CLASSIFICATION_PROJECTION,
           search_eligibility: 'eligible',
           eligibility_totals: { eligible: 1, blocked: 0, unknown: 0, excluded: 0 },
           eligibility_reasons: [],
@@ -92,7 +108,20 @@ describe('OverviewPanel', () => {
           aeo_dimensions: [],
           top_issues: [
             {
-              rule_id: 'aeo.author_present',
+              rule_id: 'technical.title_present',
+              finding_class: 'defect',
+              severity: 'critical',
+              category: 'technical',
+              description: 'Title is missing',
+              remediation: 'Add a title.',
+              score_roles: ['web_fundamentals'],
+              affected_pages: 1,
+              eligibility_blocker: false,
+              impact_band: 4,
+              impact_label: 'Critical',
+            },
+            {
+              rule_id: 'aeo.visible_attribution',
               finding_class: 'advisory',
               severity: 'medium',
               category: 'content',
@@ -103,6 +132,19 @@ describe('OverviewPanel', () => {
               eligibility_blocker: false,
               impact_band: 2,
               impact_label: 'Authority · 10%',
+            },
+            {
+              rule_id: 'technical.meta_description_present',
+              finding_class: 'advisory',
+              severity: 'info',
+              category: 'content',
+              description: 'Meta description is missing',
+              remediation: 'Add a meta description.',
+              score_roles: [],
+              affected_pages: 1,
+              eligibility_blocker: false,
+              impact_band: 0,
+              impact_label: 'Advisory',
             },
           ],
           web_fundamentals: {
@@ -156,11 +198,13 @@ describe('OverviewPanel', () => {
             reason: 'no_comparable_snapshot',
             metric: 'aeo_readiness_score',
             series: [{ label: '2026-08-30', value: 72 }],
+            cohort_composition: UNCHANGED_COHORT_COMPOSITION,
           },
           change_summary: {
             state: 'unavailable',
             reason: 'no_comparable_snapshot',
             metrics: [],
+            cohort_composition: UNCHANGED_COHORT_COMPOSITION,
           },
           limitations: ['Audited pages only.'],
         }),
@@ -180,13 +224,16 @@ describe('OverviewPanel', () => {
     expect(screen.getByText('100% analyzed · Partial coverage')).toBeInTheDocument();
     expect(screen.queryByText('100% analyzed · Complete coverage')).not.toBeInTheDocument();
     expect(screen.getByText(/requested page limit reached/)).toBeInTheDocument();
-    expect(screen.getByText('1 defect · 1 page affected')).toBeInTheDocument();
-    expect(screen.getByText('1 readiness gap · 1 page affected')).toBeInTheDocument();
-    expect(screen.getByText('Authority · 10%')).toBeInTheDocument();
-    expect(screen.queryByText('Medium')).not.toBeInTheDocument();
+    expect(screen.getByText('1 defect occurrence · 1 page affected')).toBeInTheDocument();
+    expect(screen.getByText('1 readiness gap occurrence · 1 page affected')).toBeInTheDocument();
+    expect(screen.getByText('High')).toBeInTheDocument();
+    expect(screen.getByText('Medium')).toBeInTheDocument();
+    expect(screen.getByText('Low')).toBeInTheDocument();
+    expect(screen.queryByText('Authority · 10%')).not.toBeInTheDocument();
+    expect(screen.queryByText('Critical')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Author attribution is missing' })).toHaveAttribute(
       'href',
-      '/issues?rule=aeo.author_present&finding_class=advisory',
+      '/issues?rule=aeo.visible_attribution&finding_class=advisory',
     );
     await user.click(screen.getByRole('button', { name: 'View evidence' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('Images missing alt attributes');

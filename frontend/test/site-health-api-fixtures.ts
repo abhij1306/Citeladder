@@ -1,0 +1,83 @@
+export const SITE_HEALTH_UUID = '11111111-1111-4111-8111-111111111111';
+export const SITE_HEALTH_UUID_2 = '22222222-2222-4222-8222-222222222222';
+
+export const SITE_HEALTH_ENTITLEMENT = {
+  workspace_id: SITE_HEALTH_UUID,
+  access_mode: 'full' as const,
+  sample_url_limit: 10,
+  monitored_url_limit: 50,
+  count_disclosure: true,
+  resolver_status: 'resolved' as const,
+  registry_revision: 'registry-v8',
+  entitlement_lifecycle_version: 3,
+  valid_until: null,
+  contributing_grant_ids: [SITE_HEALTH_UUID_2],
+  advanced_controls_enabled: false,
+};
+
+export const SITE_HEALTH_SITE_FACTS = {
+  robots: {
+    fetched: true,
+    url: 'https://example.com/robots.txt',
+    status_code: 200,
+    ai_crawlers: {
+      GPTBot: 'block',
+      ClaudeBot: 'allow',
+      PerplexityBot: 'allow',
+      'Google-Extended': 'allow',
+    },
+    sitemaps: ['https://example.com/sitemap.xml'],
+  },
+  llms_txt: {
+    fetched: true,
+    url: 'https://example.com/llms.txt',
+    status_code: 200,
+    present: true,
+  },
+  sitemap: { fetched: false, files: [] },
+};
+
+export const SITE_HEALTH_CRAWL = {
+  id: SITE_HEALTH_UUID,
+  workspace_id: SITE_HEALTH_UUID,
+  project_id: SITE_HEALTH_UUID_2,
+  profile_id: SITE_HEALTH_UUID_2,
+  status: 'running' as const,
+  discovery_status: 'running' as const,
+  analysis_status: 'pending' as const,
+  root_url: 'https://example.com/',
+  sample_mode: false,
+  seed: '12345',
+  inventory_complete: false,
+  partial_reason: '',
+  visible_url_count: 42,
+  analyzed_count: 0,
+  failed_count: 0,
+  discovery_requested_count: 42,
+  analysis_requested_count: 0,
+  counters: {
+    discovered: 42,
+    selected: 0,
+    queued: 0,
+    running: 0,
+    analyzed: 0,
+    errors: 0,
+    blocked: 0,
+    failure_breakdown: { robots_denied: 0, http_4xx: 0, http_5xx: 0, timeout: 0 },
+    activity: { state: 'terminal', reason: 'terminal', queue_depth: 0, next_available_at: null },
+    by_page_kind: {},
+  },
+  total_url_count: null,
+  score_summary: null,
+  failure_summary: null,
+  site_facts: SITE_HEALTH_SITE_FACTS,
+  extractor_version: 'x1',
+  analyzer_version: 'a1',
+  rule_version: 'r1',
+  scoring_version: 's1',
+  error_message: '',
+  created_at: '2026-07-15T00:00:00Z',
+  updated_at: '2026-07-15T00:00:00Z',
+  started_at: null,
+  completed_at: null,
+};

@@ -118,6 +118,7 @@ class SitePageAnalysis(Base):
     aeo_measurement_state: Mapped[str] = mapped_column(
         String(24), default="not_measured"
     )
+    aeo_measurement_reason: Mapped[str] = mapped_column(String(64), default="")
     expected_checkpoint_profile: Mapped[list | None] = mapped_column(
         JSONB, nullable=True
     )

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 
 import { StatusStrip } from './status-strip';
 import type { PageSummary, SiteCrawl, SiteHealthEntitlement } from '@/lib/api/types';
+import { COMPLETE_CLASSIFICATION_PROJECTION } from '@/test/site-health-fixtures';
 
 const CRAWL = '22222222-2222-4222-8222-222222222222';
 
@@ -37,6 +38,7 @@ function page(overrides: Partial<PageSummary> = {}): PageSummary {
     aeo_readiness_score: 64,
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
+    aeo_measurement_reason: '',
     main_content_indexable: true,
     last_audited: '2026-07-16T00:00:00Z',
     page_kind: 'article',
@@ -118,6 +120,11 @@ function crawl(overrides: Partial<SiteCrawl> = {}): SiteCrawl {
       analyzed_count: 1,
       issue_count: 0,
       scoring_version: 's1',
+      ...COMPLETE_CLASSIFICATION_PROJECTION,
+      classified_page_count: 1,
+      classification_expected_page_count: 1,
+      scored_page_kind_set: ['article'],
+      scored_page_count_by_kind: { article: 1 },
       by_page_kind: {},
     },
     site_facts: siteFacts,

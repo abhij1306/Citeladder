@@ -34,7 +34,7 @@ from app.core.config.site_health_archetypes import (
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_MISSING,
     RULE_OUTCOME_SATISFIED,
-    RULE_OUTCOME_UNAVAILABLE,
+    RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_link_metrics import COVERAGE_STATE_COMPLETE
 from app.core.config.site_health_taxonomy import PAGE_KIND_HOMEPAGE
@@ -507,7 +507,7 @@ def _coverage_evaluation(
     if coverage_state != COVERAGE_STATE_COMPLETE:
         return _evaluation(
             rule_id,
-            RULE_OUTCOME_UNAVAILABLE,
+            RULE_OUTCOME_UNKNOWN,
             {"reason": "coverage_not_complete", "coverage_state": coverage_state},
         )
     return _evaluation(

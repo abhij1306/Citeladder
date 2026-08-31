@@ -33,9 +33,9 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PARTIAL,
     RULE_OUTCOME_SATISFIED,
-    RULE_OUTCOME_UNAVAILABLE,
     RULE_OUTCOME_UNKNOWN,
 )
+from app.core.config.site_health_family_profile import CAPABILITY_FAMILY_MANIFEST
 from app.core.config.site_health_measurement import expected_checkpoints
 from app.core.config.site_health_rule_types import (
     COMPOSITE_THRESHOLD_ALL_REQUIRED,
@@ -58,7 +58,6 @@ from app.core.config.site_health_rule_types import (
 )
 from app.core.config.site_health_rules import (
     ANSWER_FIRST_MIN_WORDS,
-    EXPAND_GATED_MAX_RATIO,
     META_DESCRIPTION_LENGTH_BAND,
     QUESTION_HEADINGS_MIN_RATIO,
     SERVER_RENDERED_MIN_WORDS,
@@ -153,13 +152,44 @@ def _html_facts(**overrides):
             "text": "word " * (MIN_MEANINGFUL_WORDS + 10),
         },
         "author": "Jane Doe",
+        "authorship": {
+            "declared_author": "Jane Doe",
+            "declared_author_source": "json_ld",
+            "visible_byline": "Jane Doe",
+            "visible_date": "2026-01-15",
+            "visible_profile_url": "https://x.example/authors/jane-doe",
+        },
         "dates": {"published": "2026-01-15", "modified": "2026-06-01"},
-        "outbound_domains": ["docs.example.org"],
+        "freshness_context": {"required": False, "reasons": []},
+        "source_support": {
+            "primary_content_available": True,
+            "research_sensitive": False,
+            "context_reasons": [],
+            "attached_sources": [],
+            "ambiguous_source_count": 0,
+            "invalid_source_count": 0,
+        },
         "question_heading_ratio": 0.5,
-        "expand_gated_ratio": 0.0,
-        "first_answer_text": (
+        "direct_answer": (
             "Acme widgets are reliable little gadgets that just work for every team."
         ),
+        "editorial_lead": (
+            "Acme widgets are reliable little gadgets that just work for every team."
+        ),
+        "entity_proposition": {
+            "identity": "Acme Widgets",
+            "proposition": (
+                "Acme widgets are reliable little gadgets that just work for "
+                "every team."
+            ),
+            "capability": "Reliable widgets",
+            "audience": "Every team",
+        },
+        "primary_heading_outline": [
+            {"level": 1, "text": "Acme Widgets — everything you need to know"},
+            {"level": 2, "text": "What are Acme widgets?"},
+            {"level": 2, "text": "Pricing"},
+        ],
         "inline_script_chars": 0,
         "blocking_resources": {"scripts": 0, "stylesheets": 1, "total": 1},
         "site": {
@@ -180,6 +210,22 @@ def _html_facts(**overrides):
         },
     }
     facts.update(overrides)
+    if "headings" in overrides and "primary_heading_outline" not in overrides:
+        headings = facts.get("headings") or {}
+        facts["primary_heading_outline"] = [
+            *(
+                {"level": 1, "text": str(text)}
+                for text in headings.get("h1_texts") or ()
+            ),
+            *(
+                {"level": 2, "text": str(text)}
+                for text in headings.get("h2_texts") or ()
+            ),
+            *(
+                {"level": 3, "text": str(text)}
+                for text in headings.get("h3_texts") or ()
+            ),
+        ]
     return facts
 
 
@@ -187,7 +233,9 @@ def test_measurement_registry_covers_every_page_kind_and_checkpoint() -> None:
     from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER, PAGE_KINDS
 
     readiness_ids = {
-        rule.rule_id for rule in SITE_HEALTH_RULES if rule.readiness_dimension
+        checkpoint_id
+        for family in CAPABILITY_FAMILY_MANIFEST
+        for checkpoint_id in family.checkpoint_ids
     }
     for page_kind in PAGE_KINDS:
         checkpoints = expected_checkpoints(
@@ -200,6 +248,7 @@ def test_measurement_registry_covers_every_page_kind_and_checkpoint() -> None:
 def test_missing_expected_structure_is_a_determinate_failure() -> None:
     facts = _html_facts(page_kind="faq")
     facts["headings"] = {"h1_count": 1, "counts": {"h1": 1}, "h1_texts": ["FAQ"]}
+    facts["primary_heading_outline"] = [{"level": 1, "text": "FAQ"}]
     evaluation = _outcome(facts, "aeo.question_headings")
     assert evaluation.outcome == RULE_OUTCOME_MISSING
     assert evaluation.expected_profile_membership is True
@@ -224,10 +273,10 @@ def _outcome(facts, rule_id):
 
 # Editorial-only rules: N/A on the healthy HOMEPAGE fixture by design.
 _EDITORIAL_RULE_IDS = {
-    "aeo.author_present",
+    "aeo.visible_attribution",
     "aeo.content_date_present",
     "aeo.editorial_lead_present",
-    "aeo.outbound_citations",
+    "aeo.source_support_present",
     "aeo.answer_first",
     "aeo.question_headings",
 }
@@ -237,16 +286,11 @@ def test_all_rules_pass_on_healthy_page():
     facts = _html_facts()
     evals = evaluate_all(facts)
     assert {e.rule_id for e in evals} == {r.rule_id for r in SITE_HEALTH_RULES}
-    expected = set(expected_checkpoints("homepage", (), {"is_site_root": True}))
-    for e in evals:
-        rule = rule_for(e.rule_id)
-        assert rule is not None
-        if e.rule_id in _CRAWL_FINALIZE_RULE_IDS or (
-            rule.readiness_dimension and e.rule_id not in expected
-        ):
-            assert e.outcome == RULE_OUTCOME_NOT_APPLICABLE, e.rule_id
+    for evaluation in evals:
+        if not evaluation.display_applicability:
+            assert evaluation.outcome == RULE_OUTCOME_NOT_APPLICABLE, evaluation.rule_id
         else:
-            assert e.outcome == RULE_OUTCOME_SATISFIED, e.rule_id
+            assert evaluation.outcome == RULE_OUTCOME_SATISFIED, evaluation.rule_id
     # Provenance carried through from the catalog.
     title_eval = next(e for e in evals if e.rule_id == "technical.title_present")
     assert title_eval.dimension == DIMENSION_TECHNICAL
@@ -369,10 +413,24 @@ def _js_shell_facts():
         body={"word_count": 0, "text": ""},
         inline_script_chars=1269,
         question_heading_ratio=0.0,
-        outbound_domains=[],
-        author="",
+        authorship={
+            "declared_author": "",
+            "declared_author_source": "",
+            "visible_byline": "",
+            "visible_date": "",
+            "visible_profile_url": "",
+        },
         dates={},
-        first_answer_text="",
+        freshness_context={"required": True, "reasons": ["time_bound_report"]},
+        source_support={
+            "primary_content_available": False,
+            "research_sensitive": True,
+            "context_reasons": ["time_bound_report"],
+            "attached_sources": [],
+            "ambiguous_source_count": 0,
+            "invalid_source_count": 0,
+        },
+        direct_answer="",
     )
 
 
@@ -380,10 +438,8 @@ def test_js_shell_reports_one_finding_not_a_cascade():
     """Content rules are N/A on a shell; the shell rule itself still fails.
 
     The crawler is HTTP-only, so a client-rendered page arrives with an empty
-    body. Every content-reading rule used to "fail" on content that was never
-    delivered — one page produced missing-H1 + thin-content + no-question-
-    headings + no-citations + no-author + no-date as six separate findings,
-    each scoring against it, for a single real problem.
+    body. Content-reading rules must not report missing evidence that could not
+    be inspected; the rendering diagnostic owns that observable limitation.
     """
     evals = {e.rule_id: e for e in evaluate_all(_js_shell_facts())}
 
@@ -394,8 +450,8 @@ def test_js_shell_reports_one_finding_not_a_cascade():
     for rule_id in (
         "technical.single_h1",
         "technical.thin_content",
-        "aeo.outbound_citations",
-        "aeo.author_present",
+        "aeo.source_support_present",
+        "aeo.visible_attribution",
         "aeo.content_date_present",
     ):
         assert evals[rule_id].outcome == RULE_OUTCOME_NOT_APPLICABLE, rule_id
@@ -1057,8 +1113,8 @@ def test_ttfb_band():
     assert slow.evidence["ttfb_ms"] == TTFB_WARN_MS + 1
     assert slow.evidence["threshold_ms"] == TTFB_WARN_MS
     unmeasured = _with_ttfb(None)
-    assert unmeasured.outcome == RULE_OUTCOME_UNAVAILABLE
-    assert unmeasured.evidence["reason"] == "no_ttfb_measurement"
+    assert unmeasured.outcome == RULE_OUTCOME_UNKNOWN
+    assert unmeasured.reason_code == "no_ttfb_measurement"
 
 
 def test_uncompressed_html():
@@ -1211,25 +1267,34 @@ def test_schema_required_valid_passes_with_complete_block():
     assert ev.evidence["missing"] == []
 
 
-def test_schema_required_valid_fails_and_picks_best_block():
-    # Two Organization blocks: the best-annotated one decides (fewest missing).
+def test_schema_required_valid_uses_the_bound_primary_entity() -> None:
     facts = _html_facts(
         structured_data=_sd(
             [
-                {"type": "Organization", "syntax": "json-ld", "props_present": []},
                 {
                     "type": "Organization",
                     "syntax": "json-ld",
-                    "props_present": ["name"],
+                    "schema_id": "#unrelated",
+                    "url": "https://other.example/",
+                    "props_present": ["name", "url"],
+                },
+                {
+                    "type": "Organization",
+                    "syntax": "json-ld",
+                    "schema_id": "#primary",
+                    "url": "https://x.example/",
+                    "props_present": ["url"],
                 },
             ]
         )
     )
-    ev = _outcome(facts, "aeo.schema_required_valid")
-    assert ev.outcome == RULE_OUTCOME_MISSING
-    assert ev.evidence["missing"] == ["url"]
-    assert ev.evidence["checked_blocks"] == 2
-    assert ev.evidence["required"] == ["name", "url"]
+
+    evaluation = _outcome(facts, "aeo.schema_required_valid")
+
+    assert evaluation.outcome == RULE_OUTCOME_MISSING
+    assert evaluation.evidence["missing"] == ["name"]
+    assert evaluation.evidence["checked_blocks"] == 1
+    assert evaluation.evidence["required"] == ["name", "url"]
 
 
 def test_schema_recommended_present():
@@ -1295,23 +1360,26 @@ def test_schema_recommended_present_not_applicable_when_none_recommended():
     assert ev.evidence["reason"] == "other_page_kind"
 
 
-def test_schema_properties_follow_the_actual_allowed_schema_type():
+def test_generic_article_schema_does_not_self_certify_a_procedural_guide():
     article = {
         "type": "Article",
         "syntax": "json-ld",
         "name": "Install Acme",
         "props_present": ["headline", "image", "dateModified"],
     }
-    guide = _html_facts(page_kind="guide", structured_data=_sd([article]))
+    guide = _html_facts(
+        page_kind="guide",
+        page_traits=["procedural"],
+        structured_data=_sd([article]),
+    )
 
+    expected = _outcome(guide, "aeo.schema_expected_for_type")
     required = _outcome(guide, "aeo.schema_required_valid")
-    recommended = _outcome(guide, "aeo.schema_recommended_present")
 
-    assert required.outcome == RULE_OUTCOME_SATISFIED
-    assert required.evidence["schema_type"] == "Article"
-    assert required.evidence["required"] == ["headline"]
-    assert recommended.outcome == RULE_OUTCOME_SATISFIED
-    assert recommended.evidence["recommended"] == ["image", "dateModified"]
+    assert expected.outcome == RULE_OUTCOME_MISSING
+    assert expected.reason_code == "expected_schema_absent"
+    assert required.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert required.reason_code == "no_expected_type_block"
 
 
 def test_website_does_not_receive_organization_recommendations():
@@ -1365,6 +1433,157 @@ def test_schema_matches_content_not_applicable_without_names():
     assert ev.evidence["reason"] == "no_schema_names"
 
 
+def _product_schema_facts(blocks: list[dict]) -> dict:
+    facts = _html_facts(
+        page_kind="product",
+        structured_data=_sd(blocks),
+    )
+    facts["delivery"]["final_url"] = "https://x.example/products/acme"
+    facts["canonical_url"] = "https://x.example/products/acme"
+    facts["title"] = "Acme Widget"
+    facts["headings"]["h1_texts"] = ["Acme Widget"]
+    return facts
+
+
+def test_unrelated_nested_schema_nodes_do_not_activate_primary_entity_contracts() -> (
+    None
+):
+    facts = _product_schema_facts(
+        [
+            {
+                "type": "Article",
+                "syntax": "json-ld",
+                "schema_id": "#article",
+                "main_entity_id": "#other-product",
+                "url": "https://x.example/articles/widget-roundup",
+                "props_present": ["headline", "mainEntity"],
+            },
+            {
+                "type": "Product",
+                "syntax": "json-ld",
+                "schema_id": "#other-product",
+                "url": "https://other.example/products/other",
+                "name": "Other Product",
+                "props_present": ["name", "offers"],
+            },
+            {
+                "type": "BreadcrumbList",
+                "syntax": "json-ld",
+                "schema_id": "#breadcrumbs",
+                "main_entity_id": "#other-product",
+                "props_present": ["itemListElement"],
+            },
+        ]
+    )
+
+    expected = _outcome(facts, "aeo.schema_expected_for_type")
+    required = _outcome(facts, "aeo.schema_required_valid")
+
+    assert expected.outcome == RULE_OUTCOME_MISSING
+    assert expected.reason_code == "expected_schema_absent"
+    assert required.outcome != RULE_OUTCOME_SATISFIED
+
+
+def test_unbound_primary_schema_candidates_are_ambiguous_not_satisfied() -> None:
+    facts = _product_schema_facts(
+        [
+            {
+                "type": "Product",
+                "syntax": "json-ld",
+                "schema_id": "#one",
+                "name": "One",
+                "props_present": ["name", "offers"],
+            },
+            {
+                "type": "Product",
+                "syntax": "json-ld",
+                "schema_id": "#two",
+                "name": "Two",
+                "props_present": ["name", "offers"],
+            },
+        ]
+    )
+
+    evaluation = _outcome(facts, "aeo.schema_expected_for_type")
+
+    assert evaluation.outcome == RULE_OUTCOME_UNKNOWN
+    assert evaluation.reason_code == "ambiguous_primary_schema_entity"
+
+
+def test_unique_corroborated_schema_candidate_resolves_duplicate_declarations() -> None:
+    facts = _product_schema_facts(
+        [
+            {
+                "type": "WebPage",
+                "syntax": "json-ld",
+                "schema_id": "#page",
+                "main_entity_id": "#product",
+                "url": "https://x.example/products/acme",
+                "props_present": ["mainEntity", "url"],
+            },
+            {
+                "type": "Product",
+                "syntax": "json-ld",
+                "schema_id": "#duplicate",
+                "main_entity_of_page_id": "#page",
+                "name": "Acme Widget",
+                "props_present": ["name", "offers"],
+            },
+            {
+                "type": "Product",
+                "syntax": "json-ld",
+                "schema_id": "#product",
+                "main_entity_of_page_id": "#page",
+                "url": "https://x.example/products/acme",
+                "name": "Acme Widget",
+                "props_present": ["name", "offers"],
+            },
+        ]
+    )
+
+    evaluation = _outcome(facts, "aeo.schema_expected_for_type")
+
+    assert evaluation.outcome == RULE_OUTCOME_SATISFIED
+    assert evaluation.evidence["primary_schema_type"] == "Product"
+
+
+def test_conflicting_primary_schema_evidence_normalizes_to_unknown() -> None:
+    facts = _product_schema_facts(
+        [
+            {
+                "type": "WebPage",
+                "syntax": "json-ld",
+                "schema_id": "#page",
+                "main_entity_id": "#declared",
+                "url": "https://x.example/products/acme",
+                "props_present": ["mainEntity", "url"],
+            },
+            {
+                "type": "Product",
+                "syntax": "json-ld",
+                "schema_id": "#declared",
+                "main_entity_of_page_id": "#page",
+                "url": "https://x.example/products/other",
+                "name": "Declared Product",
+                "props_present": ["name", "offers"],
+            },
+            {
+                "type": "Product",
+                "syntax": "json-ld",
+                "schema_id": "#visible",
+                "url": "https://x.example/products/acme",
+                "name": "Acme Widget",
+                "props_present": ["name", "offers"],
+            },
+        ]
+    )
+
+    evaluation = _outcome(facts, "aeo.schema_expected_for_type")
+
+    assert evaluation.outcome == RULE_OUTCOME_UNKNOWN
+    assert evaluation.reason_code == "conflicting_schema_entities"
+
+
 def test_schema_rules_fail_closed_without_a_classified_page_type():
     block = {
         "type": "WebPage",
@@ -1398,64 +1617,182 @@ def test_page_kind_schema_rules_preserve_the_html_guard():
         assert evaluation.evidence["reason"] == "no_html"
 
 
-# --- v2 P2: citability rules -------------------------------------------------
+# --- semantic evidence, attribution, and freshness contracts -----------------
 
 
-def test_author_present():
-    assert _outcome(_article_facts(), "aeo.author_present").outcome == (
-        RULE_OUTCOME_SATISFIED
-    )
-    ev = _outcome(_article_facts(author=""), "aeo.author_present")
-    assert ev.outcome == RULE_OUTCOME_MISSING
-    assert ev.evidence["present"] is False
+def _source_support_facts(**overrides):
+    support = {
+        "primary_content_available": True,
+        "research_sensitive": True,
+        "context_reasons": ["comparison"],
+        "attached_sources": [],
+        "ambiguous_source_count": 0,
+        "invalid_source_count": 0,
+    }
+    support.update(overrides)
+    return _html_facts(page_kind="comparison", source_support=support)
 
 
-def test_content_date_present():
-    assert (
-        _outcome(_article_facts(), "aeo.content_date_present").outcome
-        == RULE_OUTCOME_SATISFIED
+def test_generic_external_link_does_not_earn_source_support() -> None:
+    facts = _source_support_facts()
+    facts["links"]["anchors"] = [
+        {
+            "url": "https://research.example/report",
+            "anchor_text": "External report",
+            "is_internal": False,
+            "region": "main",
+        }
+    ]
+
+    evaluation = _outcome(facts, "aeo.source_support_present")
+
+    assert evaluation.outcome == RULE_OUTCOME_MISSING
+    assert evaluation.reason_code == "source_support_absent"
+
+
+@pytest.mark.parametrize(
+    "relationship",
+    [
+        "references_section",
+        "methodology_section",
+        "citation_marker",
+        "nearby_attribution",
+    ],
+)
+def test_bounded_source_relationships_satisfy_support(relationship: str) -> None:
+    facts = _source_support_facts(
+        attached_sources=[
+            {
+                "url": "https://research.example/report",
+                "domain": "research.example",
+                "source_name": "Independent Research Group",
+                "relationship": relationship,
+            }
+        ]
     )
-    # Either date alone suffices.
-    assert (
-        _outcome(
-            _article_facts(dates={"published": "2026-01-15", "modified": ""}),
-            "aeo.content_date_present",
-        ).outcome
-        == RULE_OUTCOME_SATISFIED
+
+    evaluation = _outcome(facts, "aeo.source_support_present")
+
+    assert evaluation.outcome == RULE_OUTCOME_SATISFIED
+    assert evaluation.reason_code == ""
+
+
+def test_ambiguous_and_unavailable_source_evidence_remain_distinct_unknowns() -> None:
+    ambiguous = _outcome(
+        _source_support_facts(ambiguous_source_count=1),
+        "aeo.source_support_present",
     )
-    assert (
-        _outcome(
-            _article_facts(dates={"published": "", "modified": "2026-06-01"}),
-            "aeo.content_date_present",
-        ).outcome
-        == RULE_OUTCOME_SATISFIED
+    unavailable = _outcome(
+        _source_support_facts(primary_content_available=False),
+        "aeo.source_support_present",
     )
-    ev = _outcome(
-        _article_facts(dates={"published": "", "modified": ""}),
+
+    assert ambiguous.outcome == RULE_OUTCOME_UNKNOWN
+    assert ambiguous.reason_code == "ambiguous_source_attachment"
+    assert unavailable.outcome == RULE_OUTCOME_UNKNOWN
+    assert unavailable.reason_code == "primary_content_unavailable"
+
+
+def test_invalid_source_relationship_is_a_determinate_defect() -> None:
+    evaluation = _outcome(
+        _source_support_facts(invalid_source_count=1),
+        "aeo.source_support_present",
+    )
+
+    assert evaluation.outcome == RULE_OUTCOME_MISSING
+    assert evaluation.reason_code == "invalid_source_relationship"
+
+
+def _attribution_facts(**authorship):
+    return _article_facts(
+        author="",
+        authorship={
+            "declared_author": "",
+            "declared_author_source": "",
+            "visible_byline": "",
+            "visible_date": "",
+            "visible_profile_url": "",
+            **authorship,
+        },
+    )
+
+
+def test_visible_named_attribution_and_declared_metadata_are_distinct_atoms() -> None:
+    complete = _outcome(
+        _attribution_facts(
+            visible_byline="Jane Doe",
+            visible_profile_url="https://x.example/authors/jane-doe",
+            declared_author="Jane Doe",
+            declared_author_source="json_ld",
+        ),
+        "aeo.visible_attribution",
+    )
+    metadata_only = _outcome(
+        _attribution_facts(
+            declared_author="Jane Doe",
+            declared_author_source="json_ld",
+        ),
+        "aeo.visible_attribution",
+    )
+    visible_unlinked = _outcome(
+        _attribution_facts(visible_byline="Jane Doe"),
+        "aeo.visible_attribution",
+    )
+    absent = _outcome(_attribution_facts(), "aeo.visible_attribution")
+
+    assert complete.outcome == RULE_OUTCOME_SATISFIED
+    assert metadata_only.outcome == RULE_OUTCOME_PARTIAL
+    assert metadata_only.reason_code == "declared_attribution_only"
+    assert visible_unlinked.outcome == RULE_OUTCOME_PARTIAL
+    assert visible_unlinked.reason_code == "visible_attribution_unlinked"
+    assert absent.outcome == RULE_OUTCOME_MISSING
+    assert absent.reason_code == "visible_attribution_absent"
+
+
+@pytest.mark.parametrize(
+    "dates",
+    [
+        {"published": "2026-01-15", "modified": ""},
+        {"published": "", "modified": "2026-06-01"},
+    ],
+)
+def test_independently_required_freshness_accepts_either_date(dates: dict) -> None:
+    evaluation = _outcome(
+        _article_facts(
+            dates=dates,
+            freshness_context={"required": True, "reasons": ["time_bound_report"]},
+        ),
         "aeo.content_date_present",
     )
-    assert ev.outcome == RULE_OUTCOME_MISSING
-    assert ev.evidence["has_published"] is False
-    assert ev.evidence["has_modified"] is False
+
+    assert evaluation.outcome == RULE_OUTCOME_SATISFIED
 
 
-def test_outbound_citations():
-    assert _outcome(_article_facts(), "aeo.outbound_citations").outcome == (
-        RULE_OUTCOME_SATISFIED
+def test_required_freshness_stays_expected_when_date_is_missing() -> None:
+    evaluation = _outcome(
+        _article_facts(
+            dates={"published": "", "modified": ""},
+            freshness_context={"required": True, "reasons": ["time_bound_report"]},
+        ),
+        "aeo.content_date_present",
     )
-    # No outbound domains at all -> fail.
-    assert (
-        _outcome(_article_facts(outbound_domains=[]), "aeo.outbound_citations").outcome
-        == RULE_OUTCOME_MISSING
+
+    assert evaluation.outcome == RULE_OUTCOME_MISSING
+    assert evaluation.reason_code == "freshness_signal_missing"
+    assert evaluation.expected_profile_membership is True
+
+
+def test_date_presence_alone_cannot_activate_freshness() -> None:
+    evaluation = _outcome(
+        _article_facts(
+            dates={"published": "2026-01-15", "modified": ""},
+            freshness_context={"required": False, "reasons": []},
+        ),
+        "aeo.content_date_present",
     )
-    # Social-only outbound links (incl. subdomains) do not count as citations.
-    ev = _outcome(
-        _article_facts(outbound_domains=["twitter.com", "m.facebook.com"]),
-        "aeo.outbound_citations",
-    )
-    assert ev.outcome == RULE_OUTCOME_MISSING
-    assert ev.evidence["non_social_domain_count"] == 0
-    assert ev.evidence["outbound_domain_count"] == 2
+
+    assert evaluation.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert evaluation.reason_code == "freshness_context_irrelevant"
 
 
 def test_organization_identity():
@@ -1492,6 +1829,13 @@ def test_organization_identity():
             _outcome(facts, "aeo.organization_identity").outcome
             == RULE_OUTCOME_SATISFIED
         )
+    unclassified_root = _html_facts(page_kind="other")
+    unclassified_root_evaluation = _outcome(
+        unclassified_root, "aeo.organization_identity"
+    )
+    assert unclassified_root_evaluation.outcome == RULE_OUTCOME_SATISFIED
+    assert unclassified_root_evaluation.expected_profile_membership is True
+    assert unclassified_root_evaluation.score_roles == (SCORE_ROLE_AEO,)
     # Site scope follows root context, not page-kind confidence.
     non_root = _html_facts(page_kind="article")
     non_root["site"] = None
@@ -1543,14 +1887,14 @@ def test_soft_error_reads_h1_text():
     assert evaluation.evidence["matched_error_phrase"] == "page not found"
 
 
-def test_soft_error_ignores_editorial_headlines_containing_error_phrases():
-    facts = _html_facts(title="Why a page does not exist and what to do next")
+def test_soft_error_matches_error_phrase_within_title():
+    facts = _html_facts(title="Error: Page not found | Acme")
     facts["delivery"]["status_code"] = 200
 
     evaluation = _outcome(facts, "technical.soft_error")
 
-    assert evaluation.outcome == RULE_OUTCOME_SATISFIED
-    assert evaluation.evidence["matched_error_phrase"] == ""
+    assert evaluation.outcome == RULE_OUTCOME_MISSING
+    assert evaluation.evidence["matched_error_phrase"] == "page not found"
 
 
 def test_trust_path_matches_terms_without_substring_false_positives():
@@ -1605,18 +1949,14 @@ def test_answer_first():
         _outcome(_answer_page_facts(), "aeo.answer_first").outcome
         == RULE_OUTCOME_SATISFIED
     )
-    short = _outcome(
-        _answer_page_facts(first_answer_text="Too short."), "aeo.answer_first"
-    )
+    short = _outcome(_answer_page_facts(direct_answer="Too short."), "aeo.answer_first")
     assert short.outcome == RULE_OUTCOME_MISSING
     assert short.evidence["answer_word_count"] == 2
     assert short.evidence["minimum_words"] == ANSWER_FIRST_MIN_WORDS
     # Exactly at the minimum passes.
     exactly = " ".join(f"w{i}" for i in range(ANSWER_FIRST_MIN_WORDS))
     assert (
-        _outcome(
-            _answer_page_facts(first_answer_text=exactly), "aeo.answer_first"
-        ).outcome
+        _outcome(_answer_page_facts(direct_answer=exactly), "aeo.answer_first").outcome
         == RULE_OUTCOME_SATISFIED
     )
 
@@ -1631,7 +1971,7 @@ def test_answer_first_does_not_apply_to_narrative_or_commercial_pages():
     """
     for page_kind in ("article", "service", "comparison", "case_study_review"):
         ev = _outcome(
-            _html_facts(page_kind=page_kind, first_answer_text="Too short."),
+            _html_facts(page_kind=page_kind, direct_answer="Too short."),
             "aeo.answer_first",
         )
         assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE, page_kind
@@ -1646,9 +1986,7 @@ def test_answer_first_does_not_apply_to_narrative_or_commercial_pages():
         ("technical.single_h1", FINDING_CLASS_ADVISORY),
         ("technical.thin_content", FINDING_CLASS_ADVISORY),
         ("aeo.server_rendered_content", FINDING_CLASS_DIAGNOSTIC),
-        ("aeo.outbound_citations", FINDING_CLASS_ADVISORY),
         ("aeo.content_date_present", FINDING_CLASS_ADVISORY),
-        ("aeo.no_expand_gating", FINDING_CLASS_ADVISORY),
         ("technical.ai_crawler_access", FINDING_CLASS_DIAGNOSTIC),
         ("aeo.answer_first", FINDING_CLASS_ADVISORY),
     ],
@@ -1671,8 +2009,20 @@ def test_answer_first_missing_without_headings():
 
 
 def _faq_facts(**overrides):
-    """The healthy fixture as an FAQ: question_headings scope after Phase 2."""
-    return _html_facts(page_kind="faq", **{"question_heading_ratio": 1.0, **overrides})
+    """The healthy fixture as an FAQ with primary-content question headings."""
+    values = {"question_heading_ratio": 1.0, **overrides}
+    if "primary_heading_outline" not in values and "headings" not in values:
+        question_ratio = float(values["question_heading_ratio"])
+        subheadings = (
+            ["What are Acme widgets?", "How do Acme widgets work?"]
+            if question_ratio > QUESTION_HEADINGS_MIN_RATIO
+            else ["Acme widget overview", "Using Acme widgets"]
+        )
+        values["primary_heading_outline"] = [
+            {"level": 1, "text": "Acme Widget FAQ"},
+            *({"level": 2, "text": text} for text in subheadings),
+        ]
+    return _html_facts(page_kind="faq", **values)
 
 
 def test_question_headings():
@@ -1732,73 +2082,85 @@ def test_server_rendered_content():
     )
 
 
-def test_no_expand_gating():
-    assert _outcome(_html_facts(), "aeo.no_expand_gating").outcome == (
-        RULE_OUTCOME_SATISFIED
-    )
-    # The boundary is inclusive: exactly at the max ratio still passes.
-    assert (
-        _outcome(
-            _html_facts(expand_gated_ratio=EXPAND_GATED_MAX_RATIO),
-            "aeo.no_expand_gating",
-        ).outcome
-        == RULE_OUTCOME_SATISFIED
-    )
-    ev = _outcome(
-        _html_facts(expand_gated_ratio=EXPAND_GATED_MAX_RATIO + 0.1),
+def test_server_rendering_diagnostic_has_no_score_role() -> None:
+    rule = rule_for("aeo.server_rendered_content")
+    assert rule is not None
+
+    evaluation = evaluate_rule(rule, _html_facts())
+
+    assert rule.finding_class == FINDING_CLASS_DIAGNOSTIC
+    assert rule.score_roles == ()
+    assert evaluation.score_roles == ()
+
+
+@pytest.mark.parametrize(
+    "retired_id",
+    [
+        "aeo.outbound_citations",
+        "aeo.author_present",
         "aeo.no_expand_gating",
-    )
-    assert ev.outcome == RULE_OUTCOME_MISSING
-    assert ev.evidence["max_ratio"] == EXPAND_GATED_MAX_RATIO
+    ],
+)
+def test_retired_semantic_proxy_ids_are_absent(retired_id: str) -> None:
+    assert rule_for(retired_id) is None
+    assert retired_id not in {rule.rule_id for rule in SITE_HEALTH_RULES}
 
 
 # =========================================================================
 # Page-type scoped applicability (multi-kind `page_kind:a|b|c` tokens)
 # =========================================================================
-# The product complaint these pin: every page kind used to be handed the same
-# generic checklist, so a product page was reported for a missing author
-# byline and a homepage for missing question-form headings. A rule that does
-# not apply to a page kind must resolve NOT_APPLICABLE — which is a different
-# statement from FAIL, and only the former keeps it out of the issue list.
-_EDITORIAL_ONLY = ("aeo.author_present", "aeo.outbound_citations")
 
 
-def test_editorial_citability_rules_do_not_apply_to_commercial_pages():
+def test_visible_attribution_does_not_apply_to_commercial_pages() -> None:
     for page_kind in ("product", "category", "pricing", "trust_policy", "homepage"):
-        # Strip the very signals the rules look for, so a still-applicable rule
-        # would FAIL rather than pass by accident.
-        facts = _html_facts(
-            page_kind=page_kind, author="", dates={}, outbound_domains=[]
+        evaluation = _outcome(
+            _html_facts(
+                page_kind=page_kind,
+                authorship={
+                    "declared_author": "",
+                    "declared_author_source": "",
+                    "visible_byline": "",
+                    "visible_date": "",
+                    "visible_profile_url": "",
+                },
+            ),
+            "aeo.visible_attribution",
         )
-        for rule_id in _EDITORIAL_ONLY:
-            outcome = _outcome(facts, rule_id)
-            assert outcome.outcome == RULE_OUTCOME_NOT_APPLICABLE, (
-                f"{rule_id} must not apply to a {page_kind} page"
-            )
+        assert evaluation.outcome == RULE_OUTCOME_NOT_APPLICABLE, page_kind
 
 
-def test_editorial_citability_rules_still_evaluate_on_articles():
-    facts = _html_facts(page_kind="article", author="", outbound_domains=[])
-    for rule_id in _EDITORIAL_ONLY:
-        assert _outcome(facts, rule_id).outcome == RULE_OUTCOME_MISSING
+def test_visible_attribution_still_evaluates_on_articles() -> None:
+    evaluation = _outcome(_attribution_facts(), "aeo.visible_attribution")
+
+    assert evaluation.outcome == RULE_OUTCOME_MISSING
+    assert evaluation.reason_code == "visible_attribution_absent"
 
 
-def test_published_date_applies_to_docs_but_not_to_a_product_page():
-    missing_dates = {"dates": {}, "structured_data": {"count": 0, "blocks": []}}
-    assert (
-        _outcome(
-            _html_facts(page_kind="docs", **missing_dates),
-            "aeo.content_date_present",
-        ).outcome
-        == RULE_OUTCOME_MISSING
+def test_docs_freshness_depends_on_context_not_kind_or_date_presence() -> None:
+    present_but_irrelevant = _outcome(
+        _html_facts(
+            page_kind="docs",
+            dates={"published": "2026-01-15", "modified": ""},
+            freshness_context={"required": False, "reasons": []},
+        ),
+        "aeo.content_date_present",
     )
-    assert (
-        _outcome(
-            _html_facts(page_kind="product", **missing_dates),
-            "aeo.content_date_present",
-        ).outcome
-        == RULE_OUTCOME_NOT_APPLICABLE
+    required_but_missing = _outcome(
+        _html_facts(
+            page_kind="docs",
+            dates={"published": "", "modified": ""},
+            freshness_context={
+                "required": True,
+                "reasons": ["version_specific_documentation"],
+            },
+        ),
+        "aeo.content_date_present",
     )
+
+    assert present_but_irrelevant.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert present_but_irrelevant.reason_code == "freshness_context_irrelevant"
+    assert required_but_missing.outcome == RULE_OUTCOME_MISSING
+    assert required_but_missing.reason_code == "freshness_signal_missing"
 
 
 def test_question_headings_apply_to_faq_pages_only():
@@ -1840,7 +2202,7 @@ def test_question_heading_ratio_requires_a_real_faq_pattern():
         assert _outcome(facts, "aeo.question_headings").outcome == RULE_OUTCOME_MISSING
 
 
-def test_triggered_rule_requires_same_dimension_sibling_in_each_profile():
+def test_triggered_rule_requires_same_family_sibling_in_each_profile():
     def configured(rule_id: str, **overrides) -> SiteHealthRule:
         values = {
             "rule_id": rule_id,
@@ -1853,7 +2215,6 @@ def test_triggered_rule_requires_same_dimension_sibling_in_each_profile():
             "description": "test",
             "remediation": "test",
             "score_roles": (SCORE_ROLE_AEO,),
-            "readiness_dimension": "structure",
         }
         values.update(overrides)
         return SiteHealthRule(**values)
@@ -1864,19 +2225,26 @@ def test_triggered_rule_requires_same_dimension_sibling_in_each_profile():
         kind_evidence=KIND_EVIDENCE_TRIGGERED,
         triggered_by=sibling.rule_id,
     )
-    with pytest.raises(ValueError, match="share role and dimension"):
+    with pytest.raises(ValueError, match="share role and family"):
         validate_triggered_rule_links(
             (sibling, triggered),
             {sibling.rule_id: sibling, triggered.rule_id: triggered},
-            ((triggered.rule_id,),),
+            {
+                sibling.rule_id: "artifact-presence",
+                triggered.rule_id: "artifact-quality",
+            },
         )
 
 
 def test_multi_kind_token_still_fails_closed_on_an_unclassified_page():
     # No page kind means we could not classify the page. We do not guess which
     # checklist it should answer for.
-    facts = _html_facts(page_kind=None, author="")
-    assert _outcome(facts, "aeo.author_present").outcome == RULE_OUTCOME_NOT_APPLICABLE
+    facts = _attribution_facts()
+    facts["page_kind"] = None
+    assert (
+        _outcome(facts, "aeo.visible_attribution").outcome
+        == RULE_OUTCOME_NOT_APPLICABLE
+    )
 
 
 # --- classification confidence is metadata, never a scoring gate ------------
@@ -1886,7 +2254,13 @@ def _tiered(tier, **overrides):
     return _html_facts(
         page_kind="article",
         page_kind_evidence={"tier": tier, "confidence": "x"},
-        author="",
+        authorship={
+            "declared_author": "",
+            "declared_author_source": "",
+            "visible_byline": "",
+            "visible_date": "",
+            "visible_profile_url": "",
+        },
         dates={"published": "", "modified": ""},
         **overrides,
     )
@@ -1894,7 +2268,7 @@ def _tiered(tier, **overrides):
 
 def test_kind_expectations_are_invariant_across_classifier_tiers():
     for tier in ("structural", "route", "semantic", ""):
-        ev = _outcome(_tiered(tier), "aeo.author_present")
+        ev = _outcome(_tiered(tier), "aeo.visible_attribution")
         assert ev.outcome == RULE_OUTCOME_MISSING, tier
         assert ev.expected_profile_membership is True, tier
 
@@ -1941,9 +2315,9 @@ def test_triggered_validation_runs_at_every_confidence_tier():
 
 
 def test_missing_classifier_evidence_does_not_change_rule_applicability():
-    facts = _html_facts(page_kind="article", author="")
+    facts = _attribution_facts()
     facts.pop("page_kind_evidence")
-    assert _outcome(facts, "aeo.author_present").outcome == RULE_OUTCOME_MISSING
+    assert _outcome(facts, "aeo.visible_attribution").outcome == RULE_OUTCOME_MISSING
 
 
 def test_every_kind_scoped_rule_declares_its_evidence_class():
@@ -1951,13 +2325,3 @@ def test_every_kind_scoped_rule_declares_its_evidence_class():
     # checks must opt in explicitly.
     for rule in SITE_HEALTH_RULES:
         assert rule.kind_evidence in KIND_EVIDENCE_CLASSES, rule.rule_id
-
-
-def test_a_case_study_is_no_longer_asked_for_a_byline():
-    # The half of the split that removes a false positive: a case study
-    # published by the organisation is not defective for having no named
-    # writer.
-    ev = _outcome(
-        _html_facts(page_kind="case_study_review", author=""), "aeo.author_present"
-    )
-    assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE

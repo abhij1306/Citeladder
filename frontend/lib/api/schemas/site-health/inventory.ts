@@ -11,6 +11,8 @@ import { cursorPageSchema } from './pagination';
 // summary rows (null until analysis completes for that URL). `page_kind`
 // joins them: it is stamped by the analysis classifier, so an unanalyzed row
 // has no classification yet (null — the UI renders `Not measured`, never a guessed type).
+// `aeo_measurement_reason` is empty for classified pages and carries
+// `page_purpose_unresolved` for a successful `other` abstention.
 export const analysisSummaryFields = {
   issue_count: z.number().int().nullable(),
   web_fundamentals_score: z.number().nullable(),
@@ -19,6 +21,7 @@ export const analysisSummaryFields = {
   aeo_readiness_score: z.number().nullable(),
   aeo_measurement_coverage: z.number().nullable(),
   aeo_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  aeo_measurement_reason: z.string(),
   main_content_indexable: z.boolean().nullable(),
   last_audited: z.string().nullable(),
   page_kind: pageKindSchema.nullable(),

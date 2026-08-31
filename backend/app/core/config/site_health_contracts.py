@@ -242,22 +242,6 @@ AEO_READINESS_MAX_EVALUATIONS: Final = 100_000
 # page total beside it so a capped list never reads as the whole set.
 AEO_READINESS_MAX_EVIDENCE_PAGES_PER_DIMENSION: Final = 25
 
-# Temporary PR1 presentation guard. The persisted PR2 checkpoint-family and
-# measurement-state contract does not exist yet, so PR1 qualifies the current
-# nullable AEO score with determinate checkpoint and readiness-dimension breadth.
-PR1_AEO_MIN_DETERMINATE_CHECKPOINTS: Final = 4
-PR1_AEO_MIN_DETERMINATE_DIMENSIONS: Final = 3
-
-# The shipped outcome vocabulary still stores these states as not_applicable.
-# They mean expected-but-unresolved, however, so they stay in readiness coverage
-# denominators until PR2 gives them explicit unknown/unavailable outcomes.
-PR1_AEO_UNCERTAINTY_REASONS: Final[frozenset[str]] = frozenset(
-    {
-        "coverage_not_complete",
-        "insufficient_evidence",
-        "no_checkable_alternates",
-    }
-)
 
 DIMENSION_TECHNICAL: Final = "technical"
 
@@ -273,11 +257,6 @@ RULE_OUTCOME_PARTIAL: Final = "partial"
 
 RULE_OUTCOME_UNKNOWN: Final = "unknown"
 
-RULE_OUTCOME_UNAVAILABLE: Final = "unavailable"
-
-RULE_OUTCOME_CONFLICTING: Final = "conflicting"
-
-RULE_OUTCOME_EXCLUDED: Final = "excluded"
 
 RULE_OUTCOME_NOT_APPLICABLE: Final = "not_applicable"
 
@@ -296,9 +275,6 @@ RULE_OUTCOMES: Final[frozenset[str]] = frozenset(
         RULE_OUTCOME_MISSING,
         RULE_OUTCOME_PARTIAL,
         RULE_OUTCOME_UNKNOWN,
-        RULE_OUTCOME_UNAVAILABLE,
-        RULE_OUTCOME_CONFLICTING,
-        RULE_OUTCOME_EXCLUDED,
         RULE_OUTCOME_NOT_APPLICABLE,
         RULE_OUTCOME_ERROR,
     }

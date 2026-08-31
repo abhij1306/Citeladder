@@ -245,6 +245,114 @@ async def test_same_crawl_rerun_gets_a_new_analysis_for_reused_artifact(
 
 
 @pytest.mark.asyncio
+async def test_supported_html_marks_classification_expected_before_parser_failure(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = "https://example.com/parser-failure"
+    seed, _site_url_id, task_id = await _seed_analyze_ready(session_factory, root=root)
+    worker = _worker(
+        session_factory,
+        {"/parser-failure": _rich_html()},
+        owner="classification-parser-failure",
+    )
+
+    def fail_after_supported_html(*_args, **_kwargs):
+        raise RuntimeError("parser failed after supported HTML acquisition")
+
+    monkeypatch.setattr(analyze_phase, "extract_page_facts", fail_after_supported_html)
+
+    assert await worker.run_until_idle() == 1
+
+    async with session_factory() as session:
+        task = await session.get(SiteCrawlTask, task_id)
+        analysis_count = await session.scalar(
+            select(func.count())
+            .select_from(SitePageAnalysis)
+            .where(SitePageAnalysis.crawl_id == seed.crawl_id)
+        )
+        assert task is not None
+        assert task.status == TASK_STATUS_FAILED
+        assert task.error_code == "crawl_task_crashed"
+        assert task.classification_expected is True
+        assert analysis_count == 0
+
+
+@pytest.mark.asyncio
+async def test_reused_html_marks_classification_expected_before_persistence_failure(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = "https://example.com/reused-parser-output"
+    seed, site_url_id, task_id = await _seed_analyze_ready(session_factory, root=root)
+    _canonical, url_hash = canonical_identity(root)
+    body = _rich_html()
+    facts = extract_page_facts(
+        body,
+        final_url=root,
+        content_type="text/html",
+        status_code=200,
+        wire_bytes=len(body),
+        decoded_bytes=len(body),
+    )
+    async with session_factory() as session:
+        discover_task = SiteCrawlTask(
+            crawl_id=seed.crawl_id,
+            workspace_id=seed.workspace_id,
+            site_url_id=site_url_id,
+            task_kind=TASK_KIND_DISCOVER,
+            requested_url=root,
+            url_hash=url_hash,
+            generation=0,
+            idempotency_key=f"{seed.crawl_id}:discover:{url_hash}:0",
+            status=TASK_STATUS_SUCCEEDED,
+        )
+        session.add(discover_task)
+        await session.flush()
+        artifact = SiteFetchArtifact(
+            task_id=discover_task.id,
+            crawl_id=seed.crawl_id,
+            workspace_id=seed.workspace_id,
+            fetch_purpose=FETCH_PURPOSE_DISCOVER,
+            requested_url=root,
+            final_url=root,
+            status_code=200,
+            content_type="text/html",
+            extractor_version=EXTRACTOR_VERSION,
+            normalized_facts=facts,
+        )
+        session.add(artifact)
+        await session.flush()
+        discover_task.result_artifact_id = artifact.id
+        await session.commit()
+
+    async def fail_after_reuse(*_args, **_kwargs) -> None:
+        raise RuntimeError("analysis persistence failed after artifact reuse")
+
+    monkeypatch.setattr(analyze_phase, "_persist_analyze", fail_after_reuse)
+    worker = _worker(
+        session_factory,
+        {},
+        owner="classification-reuse-failure",
+    )
+
+    assert await worker.run_until_idle() == 1
+
+    async with session_factory() as session:
+        task = await session.get(SiteCrawlTask, task_id)
+        analysis_count = await session.scalar(
+            select(func.count())
+            .select_from(SitePageAnalysis)
+            .where(SitePageAnalysis.crawl_id == seed.crawl_id)
+        )
+        assert task is not None
+        assert task.status == TASK_STATUS_FAILED
+        assert task.error_code == "crawl_task_crashed"
+        assert task.classification_expected is True
+        assert analysis_count == 0
+
+
+@pytest.mark.asyncio
 async def test_analyze_fallback_acquisition_uses_host_gate(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -542,7 +650,10 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
         # `other` is classifier abstention, so AEO is unmeasured rather than a
         # perfect score from the few universal rules that remain applicable.
         assert analysis.page_kind == "other"
-        assert analysis.aeo_measurement_state == "limited_evidence"
+        assert analysis.aeo_readiness_score is None
+        assert analysis.aeo_measurement_coverage is None
+        assert analysis.aeo_measurement_state == "not_measured"
+        assert analysis.aeo_measurement_reason == "page_purpose_unresolved"
         assert analysis.site_url_id == site_url_id
 
         eval_count = await session.scalar(
@@ -818,12 +929,9 @@ async def test_analyze_injects_site_facts_on_root_analysis_only(
         for key in (
             "author",
             "dates",
-            "outbound_domains",
             "landmarks",
             "question_heading_ratio",
-            "expand_gated_ratio",
             "hreflang_alternates",
-            "first_answer_text",
             "inline_script_chars",
         ):
             assert key in facts, key

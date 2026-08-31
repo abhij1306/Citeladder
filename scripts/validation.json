@@ -529,7 +529,8 @@
         "components/site-health/*.test.tsx",
         "lib/site-health/*.test.ts",
         "lib/site-health/*.test.tsx",
-        "lib/api/site-health.test.ts"
+        "lib/api/site-health.test.ts",
+        "lib/api/site-health-measurement-contract.test.ts"
       ],
       "frontendE2E": ["e2e/site-intelligence.spec.ts"]
     },

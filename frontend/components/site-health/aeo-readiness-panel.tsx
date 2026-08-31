@@ -50,13 +50,7 @@ function dimensionState(dimension: ReadinessDimension): DimensionState {
   if (dimension.dimension_applicability === 'not_applicable') return 'Not applicable';
   if (dimension.dimension_measurement_state === 'excluded') return 'Excluded';
   if (dimension.dimension_measurement_state === 'not_measured') return 'Not measured';
-  if (
-    dimension.unknown_count > 0 ||
-    dimension.unavailable_count > 0 ||
-    dimension.conflicting_count > 0 ||
-    dimension.error_count > 0
-  )
-    return 'Incomplete';
+  if (dimension.unknown_count > 0 || dimension.error_count > 0) return 'Incomplete';
   if (dimension.missing_count > 0 || dimension.partial_count > 0) return 'Needs work';
   if (dimension.dimension_measurement_state === 'limited_evidence') return 'Limited evidence';
   return 'Passing';
@@ -73,7 +67,10 @@ function stateBadgeValue(state: DimensionState) {
 export function AeoReadinessPanel({
   projectId,
   crawlId,
-}: Readonly<{ projectId: string; crawlId: string }>) {
+}: Readonly<{
+  projectId: string;
+  crawlId: string;
+}>) {
   const readiness = useQuery(siteHealthQueries.aeoReadiness(projectId, crawlId));
   const [detailKey, setDetailKey] = useState<string | null>(null);
 
@@ -117,7 +114,8 @@ function ReadinessLedger({
       <CardHeader bordered className="gap-1">
         <CardTitle className="text-lg">Readiness dimensions</CardTitle>
         <CardDescription>
-          Scores show observed readiness; coverage shows how much expected evidence was measured.
+          Scores describe classified audited pages; coverage shows how much expected evidence was
+          measured.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
@@ -256,13 +254,7 @@ function CheckRow({ check }: Readonly<{ check: ReadinessCheck }>) {
 }
 
 function checkState(check: ReadinessCheck) {
-  if (
-    check.error_count > 0 ||
-    check.unknown_count > 0 ||
-    check.unavailable_count > 0 ||
-    check.conflicting_count > 0
-  )
-    return 'Incomplete';
+  if (check.error_count > 0 || check.unknown_count > 0) return 'Incomplete';
   if (check.missing_count > 0 || check.partial_count > 0) return 'Needs work';
   if (check.satisfied_count > 0) return 'Passing';
   if (check.not_applicable_count > 0) return 'Did not apply';

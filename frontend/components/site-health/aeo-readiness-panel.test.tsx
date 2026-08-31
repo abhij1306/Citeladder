@@ -47,8 +47,6 @@ function dimension(key: string, label: string, failing: boolean) {
     partial_count: 0,
     missing_count: failing ? 2 : 0,
     unknown_count: 0,
-    unavailable_count: 0,
-    conflicting_count: 0,
     not_applicable_count: 1,
     error_count: 0,
     coverage: 0.8333,
@@ -64,8 +62,6 @@ function dimension(key: string, label: string, failing: boolean) {
         partial_count: 0,
         missing_count: failing ? 2 : 0,
         unknown_count: 0,
-        unavailable_count: 0,
-        conflicting_count: 0,
         not_applicable_count: 1,
         error_count: 0,
         failing_entity_count: failing ? 2 : 0,
@@ -150,6 +146,8 @@ describe('AEO Readiness', () => {
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
 
     await screen.findByRole('heading', { name: 'Readiness dimensions' });
+    expect(screen.getByText(/Scores describe classified audited pages/)).toBeInTheDocument();
+    expect(screen.queryByTestId('classification-summary')).not.toBeInTheDocument();
     for (const [, label] of DIMENSIONS) expect(screen.getByText(label)).toBeInTheDocument();
     expect(screen.getByText(/what answerability means in one sentence/i)).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Score' })).toBeInTheDocument();

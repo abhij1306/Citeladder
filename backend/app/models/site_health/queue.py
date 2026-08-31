@@ -8,6 +8,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     ForeignKey,
     Index,
     Integer,
@@ -133,4 +134,7 @@ class SiteCrawlTask(QueueLeaseStateMixin, Base):
         ForeignKey(_FK_SITE_FETCH_ARTIFACT, ondelete=_ON_DELETE_SET_NULL),
         nullable=True,
     )
+    # Durable cohort marker: acquisition produced a supported HTML document
+    # that entered page-purpose classification for this task execution.
+    classification_expected: Mapped[bool] = mapped_column(Boolean, default=False)
     crawl: Mapped[SiteCrawl] = relationship("SiteCrawl", back_populates="tasks")

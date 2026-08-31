@@ -105,6 +105,29 @@ async def get_overview(
         "aeo_readiness_score": snapshot.aeo_readiness_score,
         "aeo_measurement_coverage": snapshot.aeo_measurement_coverage,
         "aeo_measurement_state": snapshot.aeo_measurement_state,
+        "classified_page_count": snapshot.classified_page_count,
+        "other_page_count": snapshot.other_page_count,
+        "classification_error_page_count": snapshot.classification_error_page_count,
+        "classification_expected_page_count": (
+            snapshot.classification_expected_page_count
+        ),
+        "classification_coverage": snapshot.classification_coverage,
+        "classification_state": snapshot.classification_state,
+        "classification_reason_groups": _stored(
+            snapshot.classification_reason_groups, {}
+        ),
+        "classification_formula_version": snapshot.classification_formula_version,
+        "classification_source_analysis_ids": _stored(
+            snapshot.classification_source_analysis_ids, []
+        ),
+        "classification_source_artifact_ids": _stored(
+            snapshot.classification_source_artifact_ids, []
+        ),
+        "classification_source_task_ids": _stored(
+            snapshot.classification_source_task_ids, []
+        ),
+        "scored_page_kind_set": _stored(snapshot.scored_page_kind_set, []),
+        "scored_page_count_by_kind": _stored(snapshot.scored_page_count_by_kind, {}),
         "crawl_coverage": {
             "state": snapshot.coverage_state,
             "evidence": coverage_evidence,
@@ -153,6 +176,12 @@ async def get_overview(
                 "reason": "no_comparable_snapshot",
                 "metric": "aeo_readiness_score",
                 "series": [],
+                "cohort_composition": {
+                    "added_page_kinds": [],
+                    "removed_page_kinds": [],
+                    "previous_page_count_by_kind": {},
+                    "current_page_count_by_kind": {},
+                },
             },
         ),
         "change_summary": _stored(
@@ -161,6 +190,12 @@ async def get_overview(
                 "state": "unavailable",
                 "reason": "no_comparable_snapshot",
                 "metrics": [],
+                "cohort_composition": {
+                    "added_page_kinds": [],
+                    "removed_page_kinds": [],
+                    "previous_page_count_by_kind": {},
+                    "current_page_count_by_kind": {},
+                },
             },
         ),
         "limitations": _overview_limitations(snapshot),

@@ -44,6 +44,7 @@ from app.core.config.site_health_contracts import (
 )
 from app.core.config.site_health_link_metrics import COVERAGE_FORMULA_VERSION
 from app.core.config.site_health_measurement import (
+    CLASSIFICATION_FORMULA_VERSION,
     PRESENTATION_VERSION,
     PROFILE_VERSION,
     SCHEMA_CONTRACT_VERSION,
@@ -60,6 +61,7 @@ from app.domain.site_health.overview_snapshot import (
     measurement_check_counts,
 )
 from app.domain.site_health.score_summary import (
+    latest_task_by_url,
     load_crawl_measurement_projection,
     score_summary_payload,
 )
@@ -72,20 +74,8 @@ from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.runtime import SiteHealthProfile
 from app.models.site_health.snapshot import SiteHealthSnapshot
-from app.models.site_health.urls import MonitoredSiteUrl
 
 __all__ = ["persist_crawl_snapshot"]
-
-
-def _latest_task_map(tasks: Sequence[SiteCrawlTask]) -> dict[uuid.UUID, SiteCrawlTask]:
-    latest: dict[uuid.UUID, SiteCrawlTask] = {}
-    for task in tasks:
-        if task.site_url_id is None:
-            continue
-        current = latest.get(task.site_url_id)
-        if current is None or task.generation >= current.generation:
-            latest[task.site_url_id] = task
-    return latest
 
 
 def _latest_attempt_map(
@@ -301,7 +291,7 @@ async def _eligibility_projection(
             )
         )
     ).all()
-    latest_tasks = _latest_task_map(tasks)
+    latest_tasks = latest_task_by_url(tasks)
     task_ids = sorted((task.id for task in latest_tasks.values()), key=str)
     attempts = (
         list(
@@ -386,11 +376,11 @@ async def persist_crawl_snapshot(
     behaviour depends on ``persist_empty``:
 
       - ``persist_empty=False`` (default; used by ``service.cancel_crawl``):
-        write NEITHER the snapshot NOR the ``score_summary`` projection and
-        return ``False``. A partial cancel with nothing aggregable (e.g. its
-        only completed analysis belongs to a since-deactivated URL) keeps
-        ``score_summary`` null so the UI shows its terminal/selection state
-        instead of an empty dashboard from zero aggregated rows.
+        persist when the frozen classification projection has expected pages,
+        even if none completed analysis. Otherwise write neither projection and
+        return ``False`` so a cancel with no measurement or classification
+        evidence keeps the terminal/selection state instead of an empty
+        dashboard.
       - ``persist_empty=True`` (used by the worker's clean terminalization):
         still write the explicit empty/null-score snapshot + projection, so an
         empty-plan crawl terminalizes with a canonical (zeroed) snapshot.
@@ -415,11 +405,11 @@ async def persist_crawl_snapshot(
     projection = await load_crawl_measurement_projection(session, crawl=crawl)
     rows = projection.rows
 
-    # The single fetched aggregate row set decides persistence — no separate
-    # precheck (which would race membership/analysis changes). Zero aggregatable
-    # active completed analyses => write nothing unless the caller explicitly
-    # wants an empty/null-score snapshot (the worker's empty-plan terminalize).
-    if not rows and not persist_empty:
+    # A cancellation with no completed analysis still has terminal measurement
+    # evidence when supported HTML entered classification. Preserve that frozen
+    # expected/error cohort and its task provenance instead of returning early.
+    classification = projection.classification
+    if not rows and not persist_empty and classification.expected_page_count <= 0:
         return False
 
     analysis_ids = projection.analysis_ids
@@ -433,17 +423,7 @@ async def persist_crawl_snapshot(
     evaluation_ids = [row.id for row in evaluation_rows]
     issues = await build_issue_snapshot(session, crawl=crawl, analysis_ids=analysis_ids)
 
-    selected_ids = list(
-        await session.scalars(
-            select(MonitoredSiteUrl.site_url_id)
-            .where(
-                MonitoredSiteUrl.workspace_id == crawl.workspace_id,
-                MonitoredSiteUrl.project_id == crawl.project_id,
-                MonitoredSiteUrl.active.is_(True),
-            )
-            .order_by(MonitoredSiteUrl.site_url_id)
-        )
-    )
+    selected_ids = projection.selected_ids
     selected_url_count = len(selected_ids)
 
     analyzer_version = crawl.analyzer_version or ANALYZER_VERSION
@@ -496,6 +476,7 @@ async def persist_crawl_snapshot(
             "aeo_readiness_score": aggregate.aeo_readiness_score,
             "aeo_measurement_coverage": aggregate.aeo_measurement_coverage,
         },
+        scored_page_count_by_kind=classification.scored_page_count_by_kind,
         observed_at=observed_at,
     )
 
@@ -517,6 +498,16 @@ async def persist_crawl_snapshot(
             aeo_readiness_score=aggregate.aeo_readiness_score,
             aeo_measurement_coverage=aggregate.aeo_measurement_coverage,
             aeo_measurement_state=aggregate.aeo_measurement_state,
+            classified_page_count=classification.classified_page_count,
+            other_page_count=classification.other_page_count,
+            classification_error_page_count=classification.error_page_count,
+            classification_expected_page_count=classification.expected_page_count,
+            classification_coverage=classification.coverage,
+            classification_state=classification.state,
+            classification_reason_groups=classification.reason_groups,
+            classification_formula_version=CLASSIFICATION_FORMULA_VERSION,
+            scored_page_kind_set=classification.scored_page_kind_set,
+            scored_page_count_by_kind=classification.scored_page_count_by_kind,
             readiness_dimensions=list(aggregate.readiness_dimensions),
             aeo_readiness_diagnostic=aeo_readiness_diagnostic,
             search_eligibility=search_eligibility,
@@ -546,6 +537,9 @@ async def persist_crawl_snapshot(
             source_evaluation_ids=evaluation_ids,
             source_task_ids=source_task_ids,
             source_attempt_ids=source_attempt_ids,
+            classification_source_analysis_ids=classification.source_analysis_ids,
+            classification_source_artifact_ids=classification.source_artifact_ids,
+            classification_source_task_ids=classification.source_task_ids,
             analyzer_version=analyzer_version,
             scoring_version=scoring_version,
             profile_version=PROFILE_VERSION,

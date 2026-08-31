@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-import { siteCrawlSchema, siteScoreSummarySchema } from './crawl';
+import {
+  classificationProjectionFields,
+  scoredPageKindSchema,
+  siteCrawlSchema,
+  siteScoreSummarySchema,
+} from './crawl';
 import { responseObject, uuid } from './core';
 import { monitoredQuotaSchema } from './inventory';
 import { findingClassSchema, issueDimensionSchema, issueSeveritySchema } from './issues';
@@ -132,8 +137,6 @@ export const readinessCheckSchema = responseObject({
   partial_count: z.number().int(),
   missing_count: z.number().int(),
   unknown_count: z.number().int(),
-  unavailable_count: z.number().int(),
-  conflicting_count: z.number().int(),
   not_applicable_count: z.number().int(),
   error_count: z.number().int(),
   failing_entity_count: z.number().int(),
@@ -168,8 +171,6 @@ export const readinessDimensionSchema = responseObject({
   partial_count: z.number().int(),
   missing_count: z.number().int(),
   unknown_count: z.number().int(),
-  unavailable_count: z.number().int(),
-  conflicting_count: z.number().int(),
   not_applicable_count: z.number().int(),
   error_count: z.number().int(),
   coverage: z.number().nullable(),
@@ -256,6 +257,16 @@ const overviewIssueSchema = responseObject({
   impact_label: z.string(),
 });
 
+const cohortCompositionSchema = responseObject({
+  added_page_kinds: z.array(scoredPageKindSchema),
+  removed_page_kinds: z.array(scoredPageKindSchema),
+  previous_page_count_by_kind: z.partialRecord(
+    scoredPageKindSchema,
+    z.number().int().nonnegative(),
+  ),
+  current_page_count_by_kind: z.partialRecord(scoredPageKindSchema, z.number().int().nonnegative()),
+});
+
 export const siteHealthOverviewSchema = responseObject({
   project_id: uuid(),
   crawl_id: uuid(),
@@ -281,6 +292,7 @@ export const siteHealthOverviewSchema = responseObject({
   aeo_readiness_score: z.number().nullable(),
   aeo_measurement_coverage: z.number().nullable(),
   aeo_measurement_state: measurementStateSchema,
+  ...classificationProjectionFields,
   crawl_coverage: responseObject({
     state: z.enum(['complete', 'partial', 'unknown']),
     evidence: z.record(z.string(), z.unknown()),
@@ -337,13 +349,14 @@ export const siteHealthOverviewSchema = responseObject({
   }),
   trend: responseObject({
     state: z.enum(['unavailable', 'measured']),
-    reason: z.enum(['no_comparable_snapshot', 'comparable_snapshot']),
+    reason: z.enum(['no_comparable_snapshot', 'comparable_snapshot', 'cohort_composition_changed']),
     metric: z.literal('aeo_readiness_score'),
     series: z.array(responseObject({ label: z.string(), value: z.number().nullable() })),
+    cohort_composition: cohortCompositionSchema,
   }),
   change_summary: responseObject({
     state: z.enum(['unavailable', 'measured']),
-    reason: z.enum(['no_comparable_snapshot', 'comparable_snapshot']),
+    reason: z.enum(['no_comparable_snapshot', 'comparable_snapshot', 'cohort_composition_changed']),
     metrics: z.array(
       responseObject({
         key: z.enum([
@@ -359,6 +372,7 @@ export const siteHealthOverviewSchema = responseObject({
         direction: z.enum(['increased', 'decreased', 'unchanged', 'unavailable']),
       }),
     ),
+    cohort_composition: cohortCompositionSchema,
   }),
   limitations: z.array(z.string()),
 });

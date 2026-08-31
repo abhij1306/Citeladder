@@ -25,7 +25,6 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PARTIAL,
     RULE_OUTCOME_SATISFIED,
-    RULE_OUTCOME_UNAVAILABLE,
     RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_rule_types import (
@@ -228,13 +227,13 @@ def test_sitemap_orphan_fails_with_bounded_evidence():
     assert len(ev.evidence["orphan_urls"]) == _MAX_EVIDENCE_URLS
 
 
-def test_sitemap_orphan_abstains_when_coverage_is_not_complete():
+def test_sitemap_orphan_abstains_as_unknown_when_coverage_is_not_complete():
     ev = evaluate_sitemap_orphan(
         sitemap_url_count=50,
         orphan_urls=["https://x.example/orphan"],
         coverage_state="partial",
     )
-    assert ev.outcome == RULE_OUTCOME_UNAVAILABLE
+    assert ev.outcome == RULE_OUTCOME_UNKNOWN
     assert ev.display_applicability is True
     assert ev.reason_code == "coverage_not_complete"
     assert ev.evidence == {
@@ -257,19 +256,22 @@ def test_hreflang_conflict_not_applicable_without_hreflang():
     assert ev.evidence == {"reason": "no_hreflang"}
 
 
-def test_hreflang_conflict_unavailable_when_nothing_checkable():
+def test_hreflang_conflict_is_unknown_when_nothing_is_checkable():
     # Alternates exist but none were analyzed in this crawl: absence
-    # fabricates nothing — unavailable carries the counts.
+    # fabricates nothing, and the exact reason retains the distinction.
     ev = evaluate_hreflang_conflict(
         alternate_count=3,
         checked_count=0,
         unchecked_count=3,
         missing_return_tags=[],
     )
-    assert ev.outcome == RULE_OUTCOME_UNAVAILABLE
-    assert ev.evidence["reason"] == "no_checkable_alternates"
-    assert ev.evidence["alternate_count"] == 3
-    assert ev.evidence["unchecked_count"] == 3
+    assert ev.outcome == RULE_OUTCOME_UNKNOWN
+    assert ev.reason_code == "no_checkable_alternates"
+    assert ev.evidence == {
+        "reason": "no_checkable_alternates",
+        "alternate_count": 3,
+        "unchecked_count": 3,
+    }
 
 
 def test_hreflang_conflict_passes_when_return_tags_complete():

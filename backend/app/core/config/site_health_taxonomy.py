@@ -266,6 +266,12 @@ REGION_MAX_ANCESTOR_DEPTH: Final = 24
 
 REGION_MAX_TEXT_CHARS: Final = 200_000
 
+# Candidate ranking is bounded because invalid documents may declare many
+# primary landmarks. Only enough visible text to distinguish page content from
+# an overlay or drawer contributes to the rank.
+REGION_MAX_PRIMARY_CANDIDATES: Final = 32
+REGION_PRIMARY_RANK_TEXT_CHARS: Final = 4_096
+
 # A variant control is structural: one select with several options, or several
 # radio inputs sharing a name.
 VARIANT_MIN_OPTIONS: Final = 2
@@ -335,7 +341,6 @@ PAGE_KIND_TITLE_KEYWORDS: Final[tuple[tuple[str, str], ...]] = (
     (PAGE_KIND_TRUST_POLICY, "guarantee"),
     (PAGE_KIND_TRUST_POLICY, "counterfeit"),
     (PAGE_KIND_TRUST_POLICY, "policy"),
-    (PAGE_KIND_TRUST_POLICY, "terms"),
     (PAGE_KIND_TRUST_POLICY, "legal"),
     (PAGE_KIND_GUIDE, "how to"),
     (PAGE_KIND_GUIDE, "care and cleaning"),
@@ -655,13 +660,10 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
     PAGE_KIND_ARTICLE: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_ARTICLE,
         expected_types=("Article", "BlogPosting", "NewsArticle"),
-        # ``headline`` alone. ``author`` and ``datePublished`` moved to
-        # recommendations: an Article block carrying a headline and nothing
-        # else is valid markup, so treating those two as REQUIRED reported a
-        # correct block as a malformed one. They remain worth adding, which is
-        # exactly what a recommendation says -- and the visible byline/date
-        # rules (``aeo.author_present`` / ``aeo.content_date_present``) own the
-        # separate question of whether the page attributes itself at all.
+        # Markup validity is separate from the scored visible attribution and
+        # context-gated freshness capabilities.
+        # A headline-only Article can therefore be valid while those distinct
+        # page obligations remain partial or missing.
         required_properties=("headline",),
         recommended_properties=("author", "datePublished", "image", "dateModified"),
     ),
@@ -677,11 +679,9 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
     ),
     PAGE_KIND_CATEGORY: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_CATEGORY,
-        expected_types=("BreadcrumbList", "CollectionPage", "ItemList"),
+        expected_types=("CollectionPage", "ItemList"),
         required_properties=("itemListElement",),
         recommended_properties=(),
-        # CollectionPage is a WebPage and does not itself have to expose
-        # itemListElement; its own identity is the bounded contract here.
         required_properties_by_type={"CollectionPage": ("name",)},
     ),
     PAGE_KIND_PRICING: PageKindSchemaExpectation(
@@ -737,36 +737,21 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
     ),
     PAGE_KIND_GUIDE: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_GUIDE,
-        expected_types=("HowTo", "Article"),
-        # HowTo is deprecated vocabulary: a genuine step-by-step guide that
-        # never declares it is not defective, so nothing about a HowTo block is
-        # required. ``name`` and ``step`` remain recommendations for a page
-        # that does choose to use it. The Article alternative keeps
-        # ``headline`` required, which is a real property of a real block.
-        required_properties=(),
-        recommended_properties=("name", "step", "image"),
-        required_properties_by_type={"Article": ("headline",)},
-        recommended_properties_by_type={
-            "Article": ("image", "dateModified"),
-        },
+        expected_types=("HowTo",),
+        required_properties=("name", "step"),
+        recommended_properties=("image",),
     ),
     PAGE_KIND_COMPARISON: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_COMPARISON,
-        expected_types=("Article", "ItemList"),
-        required_properties=("name",),
-        recommended_properties=("itemListElement",),
-        required_properties_by_type={
-            "Article": ("headline",),
-            "ItemList": ("itemListElement",),
-        },
-        recommended_properties_by_type={"Article": ("dateModified",)},
+        expected_types=("ItemList",),
+        required_properties=("itemListElement",),
+        recommended_properties=(),
     ),
     PAGE_KIND_CASE_STUDY_REVIEW: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_CASE_STUDY_REVIEW,
-        expected_types=("Article", "Review"),
+        expected_types=("Review",),
         required_properties=("name",),
         recommended_properties=("author", "datePublished"),
-        required_properties_by_type={"Article": ("headline",)},
     ),
     PAGE_KIND_TRUST_POLICY: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_TRUST_POLICY,

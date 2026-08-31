@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
+import { CohortCompositionContext } from './cohort-composition-context';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -192,13 +193,9 @@ function TopIssues({ issues }: Readonly<{ issues: SiteHealthOverview['top_issues
               issues.map((issue) => (
                 <TableRow key={`${issue.rule_id}-${issue.finding_class}`}>
                   <TableCell>
-                    {issue.finding_class === 'advisory' ? (
-                      <Badge>{issue.impact_label}</Badge>
-                    ) : (
-                      <Badge variant="status" value={severityTone(issue.severity)}>
-                        {statusLabel(issue.severity)}
-                      </Badge>
-                    )}
+                    <Badge variant="status" value={impactTone(issue.impact_band)}>
+                      {impactLabel(issue.impact_band)}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <Link
@@ -267,6 +264,7 @@ function TrendCard({ data }: Readonly<{ data: SiteHealthOverview['trend'] }>) {
         {data.state === 'unavailable' ? (
           <p className="text-muted text-xs">Run a second comparable crawl to establish a trend.</p>
         ) : null}
+        <CohortCompositionContext reason={data.reason} composition={data.cohort_composition} />
       </CardContent>
     </Card>
   );
@@ -304,6 +302,7 @@ function ChangeSummaryCard({ data }: Readonly<{ data: SiteHealthOverview['change
         {data.state === 'unavailable' ? (
           <p className="text-muted text-xs">No comparable snapshot yet.</p>
         ) : null}
+        <CohortCompositionContext reason={data.reason} composition={data.cohort_composition} />
       </CardContent>
     </Card>
   );
@@ -340,10 +339,15 @@ function ScoreEffect({ roles }: Readonly<{ roles: readonly string[] }>) {
   );
 }
 
-function severityTone(severity: string): 'danger' | 'warning' | 'info' {
-  if (severity === 'critical' || severity === 'high') return 'danger';
-  if (severity === 'medium') return 'warning';
-  if (severity === 'low' || severity === 'info') return 'info';
+function impactLabel(impactBand: number): 'High' | 'Medium' | 'Low' {
+  if (impactBand >= 3) return 'High';
+  if (impactBand === 2) return 'Medium';
+  return 'Low';
+}
+
+function impactTone(impactBand: number): 'danger' | 'warning' | 'info' {
+  if (impactBand >= 3) return 'danger';
+  if (impactBand === 2) return 'warning';
   return 'info';
 }
 

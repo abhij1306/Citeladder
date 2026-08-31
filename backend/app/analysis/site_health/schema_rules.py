@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlsplit, urlunsplit
 
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_MISSING,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_SATISFIED,
+    RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_page_profiles import (
     PRODUCT_SCHEMA_EXPECTATION,
@@ -71,25 +73,180 @@ def schema_expectation_for(facts: dict) -> PageKindSchemaExpectation:
     )
 
 
-def _expected_blocks(facts: dict, expectation: PageKindSchemaExpectation) -> list[dict]:
-    structured = facts.get("structured_data") or {}
+def _normalized_document_url(value: object) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    parsed = urlsplit(raw)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        return ""
+    try:
+        port = parsed.port
+    except ValueError:
+        return ""
+    netloc = parsed.hostname.lower()
+    if port is not None:
+        netloc = f"{netloc}:{port}"
+    path = parsed.path or "/"
+    if path != "/":
+        path = path.rstrip("/")
+    return urlunsplit((parsed.scheme.lower(), netloc, path, parsed.query, ""))
+
+
+def _document_urls(facts: dict) -> set[str]:
+    delivery = facts.get("delivery") or {}
+    return {
+        normalized
+        for value in (delivery.get("final_url"), facts.get("canonical_url"))
+        if (normalized := _normalized_document_url(value))
+    }
+
+
+def _expected_blocks(
+    blocks: list[dict], expectation: PageKindSchemaExpectation
+) -> list[dict]:
     expected = set(expectation.expected_types)
-    return [
-        block
-        for block in (structured.get("blocks") or [])
-        if str(block.get("type") or "") in expected
-    ]
+    return [block for block in blocks if str(block.get("type") or "") in expected]
+
+
+def _document_entity_references(
+    blocks: list[dict], document_urls: set[str]
+) -> tuple[set[str], set[str]]:
+    """Return page IDs and declared primary IDs attached to this document."""
+    page_ids: set[str] = set()
+    declared_primary_ids: set[str] = set()
+    for block in blocks:
+        if _normalized_document_url(block.get("url")) not in document_urls:
+            continue
+        if page_id := str(block.get("schema_id") or ""):
+            page_ids.add(page_id)
+        if primary_id := str(block.get("main_entity_id") or ""):
+            declared_primary_ids.add(primary_id)
+    return page_ids, declared_primary_ids
+
+
+def _primary_schema_bindings(
+    blocks: list[dict],
+    candidates: list[dict],
+    document_urls: set[str],
+) -> tuple[set[int], set[int]]:
+    """Identify candidates selected by declarations and by document URL."""
+    page_ids, declared_primary_ids = _document_entity_references(blocks, document_urls)
+    declared_candidates: set[int] = set()
+    url_candidates: set[int] = set()
+    for index, block in enumerate(candidates):
+        schema_id = str(block.get("schema_id") or "")
+        page_reference = str(block.get("main_entity_of_page_id") or "")
+        if (
+            schema_id in declared_primary_ids
+            or page_reference in page_ids
+            or _normalized_document_url(page_reference) in document_urls
+        ):
+            declared_candidates.add(index)
+        if _normalized_document_url(block.get("url")) in document_urls:
+            url_candidates.add(index)
+    return declared_candidates, url_candidates
+
+
+def _resolve_primary_schema_selection(
+    candidates: list[dict],
+    evidence: dict,
+    declared_candidates: set[int],
+    url_candidates: set[int],
+) -> tuple[str, list[dict], dict]:
+    """Resolve primary-entity bindings without conflating their evidence."""
+    if declared_candidates and url_candidates:
+        corroborated = declared_candidates & url_candidates
+        if len(corroborated) == 1:
+            index = next(iter(corroborated))
+            return RULE_OUTCOME_SATISFIED, [candidates[index]], evidence
+        if not corroborated:
+            return (
+                RULE_OUTCOME_UNKNOWN,
+                [],
+                {
+                    **evidence,
+                    "reason": "conflicting_schema_entities",
+                    "declared_candidate_indexes": sorted(declared_candidates),
+                    "url_candidate_indexes": sorted(url_candidates),
+                },
+            )
+        selected = corroborated
+    else:
+        selected = declared_candidates or url_candidates
+    if len(selected) == 1:
+        index = next(iter(selected))
+        return RULE_OUTCOME_SATISFIED, [candidates[index]], evidence
+    if len(selected) > 1 or len(candidates) > 1:
+        return (
+            RULE_OUTCOME_UNKNOWN,
+            [],
+            {
+                **evidence,
+                "reason": "ambiguous_primary_schema_entity",
+            },
+        )
+
+    only = candidates[0]
+    if _normalized_document_url(only.get("url")):
+        return (
+            RULE_OUTCOME_MISSING,
+            [],
+            {
+                **evidence,
+                "reason": "expected_schema_absent",
+            },
+        )
+    return RULE_OUTCOME_SATISFIED, candidates, evidence
+
+
+def _primary_schema_selection(
+    facts: dict, expectation: PageKindSchemaExpectation
+) -> tuple[str, list[dict], dict]:
+    structured = facts.get("structured_data") or {}
+    all_blocks = list(structured.get("blocks") or ())
+    candidates = _expected_blocks(all_blocks, expectation)
+    evidence = {
+        "page_kind": expectation.page_kind,
+        "expected_types": list(expectation.expected_types),
+        "candidate_count": len(candidates),
+    }
+    if not candidates:
+        return (
+            RULE_OUTCOME_MISSING,
+            [],
+            {
+                **evidence,
+                "reason": "expected_schema_absent",
+            },
+        )
+
+    declared_candidates, url_candidates = _primary_schema_bindings(
+        all_blocks, candidates, _document_urls(facts)
+    )
+    return _resolve_primary_schema_selection(
+        candidates,
+        evidence,
+        declared_candidates,
+        url_candidates,
+    )
+
+
+def primary_schema_present(facts: dict) -> bool:
+    expectation = schema_expectation_for(facts)
+    outcome, blocks, _evidence = _primary_schema_selection(facts, expectation)
+    return outcome == RULE_OUTCOME_SATISFIED and bool(blocks)
 
 
 def check_schema_expected_for_type(facts: dict) -> tuple[str, dict]:
     expectation = schema_expectation_for(facts)
+    outcome, blocks, evidence = _primary_schema_selection(facts, expectation)
     structured = facts.get("structured_data") or {}
-    found_types = sorted(str(value) for value in (structured.get("types") or []))
-    return _pass_fail(bool(_expected_blocks(facts, expectation))), {
-        "page_kind": expectation.page_kind,
-        "expected_types": list(expectation.expected_types),
-        "found_types": found_types[:20],
-    }
+    evidence["found_types"] = sorted(
+        str(value) for value in (structured.get("types") or [])
+    )[:20]
+    evidence["primary_schema_type"] = str(blocks[0].get("type") or "") if blocks else ""
+    return outcome, evidence
 
 
 def _missing_paths(block: dict, paths: tuple[str, ...]) -> list[str]:
@@ -123,15 +280,22 @@ def _has_shallow_microdata(
 def _schema_property_check(facts: dict, *, recommended: bool) -> tuple[str, dict]:
     label = "recommended" if recommended else "required"
     expectation = schema_expectation_for(facts)
-    blocks = _expected_blocks(facts, expectation)
-    if not blocks:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
+    selection_outcome, blocks, selection_evidence = _primary_schema_selection(
+        facts, expectation
+    )
+    if selection_outcome == RULE_OUTCOME_UNKNOWN:
+        return selection_outcome, selection_evidence
+    if selection_outcome != RULE_OUTCOME_SATISFIED:
+        return RULE_OUTCOME_NOT_APPLICABLE, {
+            **selection_evidence,
+            "reason": "no_expected_type_block",
+        }
     candidates = _schema_property_candidates(
         blocks, expectation, recommended=recommended
     )
     if not candidates:
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": f"no_{label}_properties"}
-    block, paths, missing = min(candidates, key=lambda candidate: len(candidate[2]))
+    block, paths, missing = candidates[0]
     evidence = {
         "page_kind": expectation.page_kind,
         "schema_type": str(block.get("type") or ""),
@@ -155,9 +319,16 @@ def check_schema_recommended_present(facts: dict) -> tuple[str, dict]:
 
 def check_schema_matches_content(facts: dict) -> tuple[str, dict]:
     expectation = schema_expectation_for(facts)
-    blocks = _expected_blocks(facts, expectation)
-    if not blocks:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
+    selection_outcome, blocks, selection_evidence = _primary_schema_selection(
+        facts, expectation
+    )
+    if selection_outcome == RULE_OUTCOME_UNKNOWN:
+        return selection_outcome, selection_evidence
+    if selection_outcome != RULE_OUTCOME_SATISFIED:
+        return RULE_OUTCOME_NOT_APPLICABLE, {
+            **selection_evidence,
+            "reason": "no_expected_type_block",
+        }
     candidates = _schema_names(blocks)
     if not candidates:
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_schema_names"}

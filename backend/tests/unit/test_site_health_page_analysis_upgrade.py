@@ -18,7 +18,6 @@ from app.analysis.site_health.product_rules import (
 from app.analysis.site_health.rules import evaluate_all, rule_for
 from app.core.config.opportunities import SITE_ISSUE_TO_OPPORTUNITY_RULE_ID
 from app.core.config.site_health_contracts import (
-    RULE_OUTCOME_CONFLICTING,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_MISSING,
     RULE_OUTCOME_NOT_APPLICABLE,
@@ -27,8 +26,9 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_measurement import (
-    KNOWN_MEASUREMENT_GAPS,
-    expected_checkpoints,
+    CAPABILITY_FAMILIES_BY_ID,
+    expected_families,
+    measurement_gap_reasons,
     relevant_dimensions,
 )
 from app.core.config.site_health_taxonomy import (
@@ -108,26 +108,15 @@ def test_all_configured_page_types_have_profile_and_schema_contract() -> None:
     }
 
 
-def test_every_relevant_dimension_has_a_checkpoint_or_named_gap() -> None:
-    missing_paths: set[tuple[str, str]] = set()
+def test_every_relevant_dimension_is_derived_from_the_family_profile() -> None:
     for page_kind in PAGE_KINDS:
-        expected = expected_checkpoints(
-            page_kind,
-            crawl_context={"is_site_root": page_kind == "homepage"},
-        )
+        context = {"is_site_root": page_kind == "homepage"}
+        families = expected_families(page_kind, crawl_context=context)
         dimensions = {
-            rule.readiness_dimension
-            for rule_id in expected
-            if (rule := rule_for(rule_id)) is not None
+            CAPABILITY_FAMILIES_BY_ID[family_id].dimension_id for family_id in families
         }
-        missing_paths.update(
-            (page_kind, dimension)
-            for dimension in relevant_dimensions(page_kind)
-            if dimension not in dimensions
-        )
-
-    assert missing_paths == set(KNOWN_MEASUREMENT_GAPS)
-    assert all(KNOWN_MEASUREMENT_GAPS.values())
+        assert set(relevant_dimensions(page_kind, crawl_context=context)) == dimensions
+        assert all(measurement_gap_reasons(page_kind, crawl_context=context).values())
 
 
 def test_product_offer_facts_fixture() -> None:
@@ -287,15 +276,15 @@ def test_freshness_requires_timestamp_and_offer_currency() -> None:
     product["structured_data"]["product"]["price"] = []
     product["entity"]["product"]["has_primary_price"] = False
     product["commerce"]["visible_price"] = ""
-    unknown = _outcome(product, "aeo.offer_freshness_signal")
-    assert unknown.outcome == RULE_OUTCOME_UNKNOWN
-    assert unknown.evidence["reason"] == "offer_unavailable"
+    missing = _outcome(product, "aeo.offer_freshness_signal")
+    assert missing.outcome == RULE_OUTCOME_MISSING
+    assert missing.evidence["reason"] == "offer_state_missing"
 
     product["structured_data"]["product"]["price"] = ["19.99"]
     product["structured_data"]["product"]["price_currency"] = []
-    unknown = _outcome(product, "aeo.offer_freshness_signal")
-    assert unknown.outcome == RULE_OUTCOME_UNKNOWN
-    assert unknown.evidence["reason"] == "currency_unavailable"
+    missing = _outcome(product, "aeo.offer_freshness_signal")
+    assert missing.outcome == RULE_OUTCOME_MISSING
+    assert missing.evidence["reason"] == "offer_currency_missing"
 
 
 def test_assortment_freshness_does_not_treat_item_count_as_current() -> None:
@@ -307,10 +296,10 @@ def test_assortment_freshness_does_not_treat_item_count_as_current() -> None:
         "commerce": {"product_cards": [{"title": "Widget", "url": "/widget"}]},
         "dates": {"published": "", "modified": ""},
     }
-    unknown = _outcome(facts, "aeo.assortment_freshness_signal")
-    assert unknown.outcome == RULE_OUTCOME_UNKNOWN
-    assert unknown.evidence["reason"] == "freshness_timestamp_unavailable"
-    assert "crawlable_item_count" not in unknown.evidence
+    missing = _outcome(facts, "aeo.assortment_freshness_signal")
+    assert missing.outcome == RULE_OUTCOME_MISSING
+    assert missing.evidence["reason"] == "freshness_signal_missing"
+    assert "crawlable_item_count" not in missing.evidence
 
     facts["dates"]["published"] = "2026-08-01"
     current = _outcome(facts, "aeo.assortment_freshness_signal")
@@ -377,9 +366,9 @@ def test_site_opportunity_mapping_covers_schema_and_content_catalog() -> None:
         "technical.thin_content",
         "aeo.answer_first",
         "aeo.question_headings",
-        "aeo.author_present",
+        "aeo.visible_attribution",
         "aeo.content_date_present",
-        "aeo.outbound_citations",
+        "aeo.source_support_present",
         "aeo.organization_identity",
         "aeo.trust_path_present",
     }
@@ -462,7 +451,7 @@ def test_grouped_issue_history_resolves_on_diagnostic_outcomes() -> None:
     outcomes = (
         RULE_OUTCOME_MISSING,
         RULE_OUTCOME_PARTIAL,
-        RULE_OUTCOME_CONFLICTING,
+        RULE_OUTCOME_UNKNOWN,
         RULE_OUTCOME_ERROR,
     )
     observations = [

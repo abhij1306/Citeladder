@@ -30,14 +30,19 @@ from app.analysis.site_health.fact_entity import (
     empty_entity_signals,
     safe_entity_signals,
 )
+from app.analysis.site_health.fact_freshness import freshness_context_facts
 from app.analysis.site_health.fact_links import links_and_assets
 from app.analysis.site_health.fact_regions import region_node_is_visible
 from app.analysis.site_health.fact_signals import (
     cta_texts,
-    first_answer_text,
+    empty_page_owned_content_facts,
     form_fields,
     ordered_list_steps,
-    outbound_domains,
+    page_owned_content_facts,
+)
+from app.analysis.site_health.fact_source_support import (
+    empty_source_support_facts,
+    extract_source_support_facts,
 )
 from app.analysis.site_health.page_kinds import is_question_heading
 from app.analysis.site_health.robots_directives import (
@@ -55,6 +60,7 @@ from app.core.config.site_health_contracts import (
 )
 from app.core.config.site_health_rules import (
     INLINE_SCRIPT_JAVASCRIPT_TYPES,
+    SERVER_RENDERED_MIN_WORDS,
 )
 from app.core.config.site_health_runtime import (
     site_health_settings,
@@ -436,28 +442,6 @@ def _question_heading_ratio(headings: dict[str, Any]) -> float:
     return round(questions / len(texts), 4)
 
 
-def _expand_gated_words(root: Any) -> int:
-    """Words inside click-to-expand subtrees (collapsed details / expanded=false).
-
-    A subtree nested inside an already-counted gated subtree is skipped so
-    nested gates never double-count. Bounded by the tree size already parsed.
-    """
-    candidates: list[Any] = []
-    try:
-        candidates = root.xpath(".//details[not(@open)] | .//*[@aria-expanded='false']")
-    except DOM_ERRORS as exc:
-        dom_failure("_expand_gated_words", exc)
-        return 0
-    counted: set[Any] = set()
-    words = 0
-    for node in candidates:
-        if any(ancestor in counted for ancestor in node.iterancestors()):
-            continue
-        counted.add(node)
-        words += len(_text(node).split())
-    return words
-
-
 def _hreflang_alternates(root: Any, *, final_url: str) -> list[dict[str, str]]:
     """Bounded ``<link rel="alternate" hreflang>`` annotations (absolute URLs).
 
@@ -522,6 +506,26 @@ def _inline_script_chars(root: Any) -> int:
     return total
 
 
+def _clear_page_owned_facts(facts: dict[str, Any]) -> None:
+    facts.update(empty_page_owned_content_facts())
+    facts["entity"] = empty_entity_signals()
+    facts["source_support"] = empty_source_support_facts()
+
+
+def _is_js_shell(facts: dict[str, Any]) -> bool:
+    raw_body = facts.get("body")
+    body: dict[str, Any] = raw_body if isinstance(raw_body, dict) else {}
+    word_count = int(body.get("word_count", 0) or 0)
+    text_chars = len(str(body.get("text") or ""))
+    inline_script_chars = int(facts.get("inline_script_chars", 0) or 0)
+    return word_count < SERVER_RENDERED_MIN_WORDS and inline_script_chars > text_chars
+
+
+def _is_declared_non_html(content_type: str) -> bool:
+    normalized = (content_type or "").split(";", 1)[0].strip().casefold()
+    return bool(normalized and normalized not in {"text/html", "application/xhtml+xml"})
+
+
 def _empty_facts() -> dict[str, Any]:
     return {
         "has_html": False,
@@ -538,6 +542,7 @@ def _empty_facts() -> dict[str, Any]:
             "h2_texts": [],
             "h3_texts": [],
         },
+        "freshness_context": {"required": False, "reasons": []},
         "images": {"count": 0, "missing_alt": 0, "decorative_alt": 0},
         "accessibility": {
             "control_count": 0,
@@ -571,14 +576,19 @@ def _empty_facts() -> dict[str, Any]:
         # v2 P2 (sh-extractor-2) fields.
         "author": "",
         "dates": {"published": "", "modified": ""},
-        "authorship": {"visible_byline": "", "visible_date": ""},
-        "outbound_domains": [],
+        "authorship": {
+            "visible_byline": "",
+            "visible_profile_url": "",
+            "visible_date": "",
+            "declared_author": "",
+            "declared_author_source": "",
+        },
         "landmarks": {"main": False, "article": False, "nav": False},
         "ordered_list_steps": 0,
         "question_heading_ratio": 0.0,
-        "expand_gated_ratio": 0.0,
         "hreflang_alternates": [],
-        "first_answer_text": "",
+        **empty_page_owned_content_facts(),
+        "source_support": empty_source_support_facts(),
         "inline_script_chars": 0,
         "contact_points": [],
         "commerce": {
@@ -635,6 +645,11 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
     facts["twitter"] = _meta_property_map(root, prefix="twitter:")
     article_meta = _meta_property_map(root, prefix="article:")
     facts["headings"] = _headings(root)
+    facts["freshness_context"] = freshness_context_facts(
+        final_url=final_url,
+        title=str(facts["title"]),
+        headings=facts["headings"],
+    )
     facts["images"] = _images(root)
     facts["accessibility"] = extract_accessibility_facts(
         root, max_headings=_MAX_HEADINGS_KEPT
@@ -656,14 +671,12 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
     facts["form_fields"] = form_fields(root)
     facts["link_context"] = _link_context(facts["links"].get("anchors") or [])
     facts["contact_points"] = _contact_points(root)
-    facts["outbound_domains"] = outbound_domains(
-        facts["links"]["anchors"], base_host=base_host
-    )
     facts["landmarks"] = _landmarks(root)
     facts["ordered_list_steps"] = ordered_list_steps(root)
     facts["question_heading_ratio"] = _question_heading_ratio(facts["headings"])
     facts["hreflang_alternates"] = _hreflang_alternates(root, final_url=final_url)
-    facts["first_answer_text"] = first_answer_text(root)
+    facts.update(page_owned_content_facts(root))
+    facts["source_support"] = extract_source_support_facts(root, final_url=final_url)
     facts["inline_script_chars"] = _inline_script_chars(root)
     blocking_scripts = _blocking_scripts(root)
     blocking_styles = len(facts["links"]["stylesheets"])
@@ -673,6 +686,8 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
         "total": blocking_scripts + blocking_styles,
     }
     facts["body"] = _body_text(root, max_chars=settings.max_text_chars)
+    if _is_js_shell(facts):
+        _clear_page_owned_facts(facts)
     facts["author"], facts["dates"], facts["authorship"] = author_and_dates(
         root,
         facts["structured_data"],
@@ -685,11 +700,6 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
         )
     except DOM_ERRORS as exc:
         dom_failure("extract_commerce_facts", exc)
-    body_words = int(facts["body"].get("word_count", 0) or 0)
-    gated_words = _expand_gated_words(root)
-    facts["expand_gated_ratio"] = (
-        round(min(1.0, gated_words / body_words), 4) if body_words > 0 else 0.0
-    )
     return facts
 
 
@@ -759,4 +769,6 @@ def extract_page_facts(
         facts.get("robots") or {},
         header_robots,
     )
+    if _is_declared_non_html(facts["content_type"]):
+        _clear_page_owned_facts(facts)
     return facts

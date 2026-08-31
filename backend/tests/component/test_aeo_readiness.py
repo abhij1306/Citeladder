@@ -15,11 +15,13 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_SATISFIED,
 )
 from app.core.config.site_health_measurement import (
+    CHECKPOINT_DIMENSION_BY_ID,
+    CHECKPOINT_FAMILY_BY_ID,
+    CLASSIFICATION_FORMULA_VERSION,
     PRESENTATION_VERSION,
     PROFILE_VERSION,
     SCHEMA_CONTRACT_VERSION,
 )
-from app.core.config.site_health_rules import SITE_HEALTH_RULES_BY_ID
 from app.domain.site_health.aeo_readiness_projection import (
     ReadinessPage,
     build_aeo_readiness_descriptor,
@@ -99,7 +101,6 @@ async def _seed_readiness(session: AsyncSession, *, email: str):
     )
     evaluations: list[SiteRuleEvaluation] = []
     for rule_id, outcome, finding_class, evidence in evaluation_specs:
-        checkpoint = SITE_HEALTH_RULES_BY_ID[rule_id]
         evaluation = SiteRuleEvaluation(
             workspace_id=scenario.workspace_id,
             analysis_id=analysis.id,
@@ -115,9 +116,9 @@ async def _seed_readiness(session: AsyncSession, *, email: str):
             score_applicability=True,
             expected_profile_membership=True,
             score_roles=["aeo_readiness"],
-            checkpoint_family=checkpoint.checkpoint_family,
-            readiness_dimension=checkpoint.readiness_dimension,
-            readiness_weight=checkpoint.readiness_weight,
+            checkpoint_family=CHECKPOINT_FAMILY_BY_ID[rule_id],
+            readiness_dimension=CHECKPOINT_DIMENSION_BY_ID[rule_id],
+            readiness_weight=1.0,
             evidence=evidence,
             extractor_version="sh-extractor-1",
             analyzer_version="sh-analyzer-1",
@@ -163,6 +164,19 @@ async def _seed_readiness(session: AsyncSession, *, email: str):
         aeo_readiness_score=75.0,
         aeo_measurement_coverage=0.6,
         aeo_measurement_state="limited_evidence",
+        classified_page_count=1,
+        other_page_count=0,
+        classification_error_page_count=0,
+        classification_expected_page_count=1,
+        classification_coverage=1.0,
+        classification_state="complete",
+        classification_reason_groups={},
+        classification_formula_version=CLASSIFICATION_FORMULA_VERSION,
+        classification_source_analysis_ids=[analysis.id],
+        classification_source_artifact_ids=[analysis.artifact_id],
+        classification_source_task_ids=[artifact.task_id],
+        scored_page_kind_set=["faq"],
+        scored_page_count_by_kind={"faq": 1},
         readiness_dimensions=analysis.readiness_dimensions,
         aeo_readiness_diagnostic=aeo_readiness_diagnostic,
         search_eligibility="eligible",
@@ -204,6 +218,12 @@ async def _seed_readiness(session: AsyncSession, *, email: str):
             "reason": "no_comparable_snapshot",
             "metric": "aeo_readiness_score",
             "series": [{"label": "2026-08-30", "value": 75.0}],
+            "cohort_composition": {
+                "added_page_kinds": ["faq"],
+                "removed_page_kinds": [],
+                "previous_page_count_by_kind": {},
+                "current_page_count_by_kind": {"faq": 1},
+            },
         },
         change_summary={
             "state": "unavailable",
@@ -242,6 +262,12 @@ async def _seed_readiness(session: AsyncSession, *, email: str):
                     "direction": "unavailable",
                 },
             ],
+            "cohort_composition": {
+                "added_page_kinds": ["faq"],
+                "removed_page_kinds": [],
+                "previous_page_count_by_kind": {},
+                "current_page_count_by_kind": {"faq": 1},
+            },
         },
         issue_count=7,
         technical_defect_count=2,
@@ -377,6 +403,25 @@ async def test_overview_reads_the_same_persisted_snapshot(
     assert body["search_eligibility"] == "eligible"
     assert body["web_fundamentals_score"] == 100.0
     assert body["aeo_measurement_state"] == "limited_evidence"
+    assert body["classified_page_count"] == 1
+    assert body["other_page_count"] == 0
+    assert body["classification_error_page_count"] == 0
+    assert body["classification_expected_page_count"] == 1
+    assert body["classification_coverage"] == 1.0
+    assert body["classification_state"] == "complete"
+    assert body["classification_reason_groups"] == {}
+    assert body["classification_formula_version"] == CLASSIFICATION_FORMULA_VERSION
+    assert body["classification_source_analysis_ids"] == [
+        str(value) for value in snapshot.classification_source_analysis_ids
+    ]
+    assert body["classification_source_artifact_ids"] == [
+        str(value) for value in snapshot.classification_source_artifact_ids
+    ]
+    assert body["classification_source_task_ids"] == [
+        str(value) for value in snapshot.classification_source_task_ids
+    ]
+    assert body["scored_page_kind_set"] == ["faq"]
+    assert body["scored_page_count_by_kind"] == {"faq": 1}
     assert body["audited_page_count"] == 1
     assert body["selected_page_count"] == 1
     assert body["issue_count"] == 7
@@ -393,7 +438,17 @@ async def test_overview_reads_the_same_persisted_snapshot(
     assert body["aeo_dimensions"][0]["label"] == "Answerability"
     assert "answers its question" in body["aeo_dimensions"][0]["description"]
     assert body["trend"]["series"] == [{"label": "2026-08-30", "value": 75.0}]
+    assert body["trend"]["cohort_composition"] == {
+        "added_page_kinds": ["faq"],
+        "removed_page_kinds": [],
+        "previous_page_count_by_kind": {},
+        "current_page_count_by_kind": {"faq": 1},
+    }
     assert len(body["change_summary"]["metrics"]) == 4
+    assert (
+        body["change_summary"]["cohort_composition"]
+        == body["trend"]["cohort_composition"]
+    )
 
 
 async def test_overview_backfills_legacy_issue_and_null_history_fields(
@@ -445,11 +500,23 @@ async def test_overview_backfills_legacy_issue_and_null_history_fields(
         "reason": "no_comparable_snapshot",
         "metric": "aeo_readiness_score",
         "series": [],
+        "cohort_composition": {
+            "added_page_kinds": [],
+            "removed_page_kinds": [],
+            "previous_page_count_by_kind": {},
+            "current_page_count_by_kind": {},
+        },
     }
     assert body["change_summary"] == {
         "state": "unavailable",
         "reason": "no_comparable_snapshot",
         "metrics": [],
+        "cohort_composition": {
+            "added_page_kinds": [],
+            "removed_page_kinds": [],
+            "previous_page_count_by_kind": {},
+            "current_page_count_by_kind": {},
+        },
     }
 
 
@@ -485,6 +552,7 @@ async def test_overview_history_requires_the_complete_measurement_identity(
             analyzer_version="sh-analyzer-1",
             scoring_version="sh-scoring-1",
             current_metrics=current_metrics,
+            scored_page_count_by_kind={"faq": 2},
             observed_at=datetime.now(UTC),
         )
         assert trend["state"] == "measured"
@@ -495,6 +563,15 @@ async def test_overview_history_requires_the_complete_measurement_identity(
             "decreased",
             "increased",
         ]
+        assert trend["reason"] == "cohort_composition_changed"
+        assert changes["reason"] == "cohort_composition_changed"
+        assert trend["cohort_composition"] == {
+            "added_page_kinds": [],
+            "removed_page_kinds": [],
+            "previous_page_count_by_kind": {"faq": 1},
+            "current_page_count_by_kind": {"faq": 2},
+        }
+        assert changes["cohort_composition"] == trend["cohort_composition"]
 
         incompatible_trend, incompatible_changes = await build_overview_history(
             session,
@@ -502,10 +579,17 @@ async def test_overview_history_requires_the_complete_measurement_identity(
             analyzer_version="sh-analyzer-1",
             scoring_version="different-scoring-version",
             current_metrics=current_metrics,
+            scored_page_count_by_kind={"faq": 2},
             observed_at=datetime.now(UTC),
         )
         assert incompatible_trend["reason"] == "no_comparable_snapshot"
         assert len(incompatible_trend["series"]) == 1
+        assert incompatible_trend["cohort_composition"] == {
+            "added_page_kinds": ["faq"],
+            "removed_page_kinds": [],
+            "previous_page_count_by_kind": {},
+            "current_page_count_by_kind": {"faq": 2},
+        }
         assert all(
             item["direction"] == "unavailable"
             for item in incompatible_changes["metrics"]

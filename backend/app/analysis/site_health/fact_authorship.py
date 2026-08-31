@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from app.analysis.site_health.content_heuristics import visible_byline, visible_date
@@ -41,31 +42,68 @@ def _attribute_tokens(node: Any) -> set[str]:
     return {token for token in re.split(r"[^a-z0-9]+", values.casefold()) if token}
 
 
-def _visible_values(root: Any) -> tuple[str, str]:
+@dataclass(slots=True)
+class _VisibleAuthorshipEvidence:
+    """Visible attribution accumulated while scanning the primary region."""
+
+    author: str = ""
+    profile_url: str = ""
+    published: str = ""
+
+    def observe(self, node: Any) -> None:
+        tokens = _attribute_tokens(node)
+        text = node_text(node)
+        if not self.author and tokens & authorship_config.VISIBLE_AUTHOR_NODE_TOKENS:
+            self.author = visible_byline(text)
+            self.profile_url = _visible_profile_url(node) if self.author else ""
+        if not self.published and (
+            node.tag == "time" or tokens & authorship_config.VISIBLE_DATE_NODE_TOKENS
+        ):
+            self.published = visible_date(text)
+
+
+def _visible_values(root: Any) -> tuple[str, str, str]:
     """Targeted visible byline/date evidence from the primary content region."""
     region, _source = primary_region(root)
-    author = ""
-    published = ""
+    evidence = _VisibleAuthorshipEvidence()
     try:
         for scanned, node in enumerate(region.iter(), start=1):
             if scanned > taxonomy_config.REGION_MAX_CONTAINERS_SCANNED:
                 break
             if not region_node_is_visible(node):
                 continue
-            tokens = _attribute_tokens(node)
-            text = node_text(node)
-            if not author and tokens & authorship_config.VISIBLE_AUTHOR_NODE_TOKENS:
-                author = visible_byline(text)
-            if not published and (
-                node.tag == "time"
-                or tokens & authorship_config.VISIBLE_DATE_NODE_TOKENS
-            ):
-                published = visible_date(text)
-            if author and published:
+            evidence.observe(node)
+            if evidence.author and evidence.published:
                 break
     except DOM_ERRORS as exc:
         dom_failure("_visible_values", exc)
-    return author, published
+    return evidence.author, evidence.profile_url, evidence.published
+
+
+def _visible_profile_url(node: Any) -> str:
+    try:
+        links = [node] if node.tag == "a" else node.xpath(".//a[@href]")
+        href = next(
+            (str(link.get("href") or "").strip() for link in links if link.get("href")),
+            "",
+        )
+    except DOM_ERRORS as exc:
+        dom_failure("_visible_profile_url", exc)
+        return ""
+    return href[: acquisition_config.SITE_HEALTH_MAX_URL_CHARS]
+
+
+def _declared_author(
+    structured_author: str, meta_author: str, article_author: str
+) -> tuple[str, str]:
+    for value, source in (
+        (structured_author, "structured_data"),
+        (meta_author, "meta_author"),
+        (article_author, "article_meta"),
+    ):
+        if cleaned := value.strip():
+            return cleaned, source
+    return "", ""
 
 
 def author_and_dates(
@@ -76,14 +114,14 @@ def author_and_dates(
     meta_author: str,
 ) -> tuple[str, dict[str, str], dict[str, str]]:
     """Resolve declared values first, then bounded visible fallbacks."""
-    author, published, modified = _structured_values(structured_data)
-    visible_author, visible_published = _visible_values(root)
-    author = (
-        author
-        or meta_author.strip()
-        or (article_meta.get("article:author") or "").strip()
-        or visible_author
+    structured_author, published, modified = _structured_values(structured_data)
+    visible_author, profile_url, visible_published = _visible_values(root)
+    declared_author, declared_source = _declared_author(
+        structured_author,
+        meta_author,
+        (article_meta.get("article:author") or ""),
     )
+    author = declared_author or visible_author
     published = (
         published
         or (article_meta.get("article:published_time") or "").strip()
@@ -101,8 +139,13 @@ def author_and_dates(
             "visible_byline": visible_author[
                 : acquisition_config.SITE_HEALTH_MAX_AUTHOR_CHARS
             ],
+            "visible_profile_url": profile_url,
             "visible_date": visible_published[
                 : acquisition_config.SITE_HEALTH_MAX_DATE_CHARS
             ],
+            "declared_author": declared_author[
+                : acquisition_config.SITE_HEALTH_MAX_AUTHOR_CHARS
+            ],
+            "declared_author_source": declared_source,
         },
     )

@@ -33,6 +33,8 @@ _INVENTORY_COLUMNS = [
     "web_fundamentals_score",
     "aeo_readiness_score",
     "aeo_measurement_coverage",
+    "aeo_measurement_state",
+    "aeo_measurement_reason",
     "last_audited",
 ]
 
@@ -49,6 +51,8 @@ _PAGES_COLUMNS = [
     "web_fundamentals_score",
     "aeo_readiness_score",
     "aeo_measurement_coverage",
+    "aeo_measurement_state",
+    "aeo_measurement_reason",
     "last_audited",
 ]
 

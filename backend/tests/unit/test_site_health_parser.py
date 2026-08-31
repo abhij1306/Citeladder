@@ -12,17 +12,21 @@ from typing import Any
 
 import pytest
 
+from app.analysis.site_health import fact_source_support
 from app.analysis.site_health.dom import node_text, xpath
+from app.analysis.site_health.page_kinds import classify
 from app.analysis.site_health.parser import extract_page_facts
 from app.analysis.site_health.structured_data import (
     parse_jsonld_blocks,
     validate_microdata_types,
 )
+from app.core.config.site_health_acquisition import (
+    SITE_HEALTH_MAX_CTA_TEXT_CHARS,
+    SITE_HEALTH_MAX_CTA_TEXTS,
+    SITE_HEALTH_MAX_HEADINGS_KEPT,
+)
 from app.core.config.site_health_contracts import (
     EXTRACTOR_VERSION,
-)
-from app.core.config.site_health_rules import (
-    ANSWER_FIRST_MAX_HOPS,
 )
 from app.core.config.site_health_runtime import (
     site_health_settings,
@@ -680,6 +684,9 @@ def test_visible_byline_and_date_are_read_when_no_markup_declares_them():
     assert facts["authorship"] == {
         "visible_byline": "By Ruth Ellery",
         "visible_date": "14 March 2026",
+        "visible_profile_url": "",
+        "declared_author": "",
+        "declared_author_source": "",
     }
 
 
@@ -756,30 +763,6 @@ def test_ordered_navigation_is_not_procedural_content():
     assert _facts(body)["ordered_list_steps"] == 0
 
 
-def test_outbound_domains_sorted_deduped_external_only():
-    facts = _facts(_V2_PAGE)
-    # Relative /nav is same-origin; the two docs.example.org links dedupe.
-    assert facts["outbound_domains"] == ["docs.example.org", "external.org"]
-
-
-def test_outbound_domains_exclude_same_registrable_domain():
-    # www / apex / sibling subdomains of the page's own site are the SAME
-    # site, never citations — only genuinely external hosts count.
-    body = (
-        b"<html><body><p>x</p>"
-        b'<a href="https://www.example.com/y">www subdomain</a>'
-        b'<a href="https://example.com/z">apex</a>'
-        b'<a href="https://blog.example.com/w">sibling subdomain</a>'
-        b'<a href="https://external.org/x">external</a>'
-        b"</body></html>"
-    )
-    facts = _facts(body, final_url="https://example.com/widgets")
-    assert facts["outbound_domains"] == ["external.org"]
-    # And from the www host's perspective, apex is same-site too.
-    facts = _facts(body, final_url="https://www.example.com/widgets")
-    assert facts["outbound_domains"] == ["external.org"]
-
-
 def test_landmarks_detected():
     facts = _facts(_V2_PAGE)
     assert facts["landmarks"] == {"main": True, "article": True, "nav": True}
@@ -796,54 +779,6 @@ def test_hreflang_alternates_resolved_absolute():
         {"hreflang": "en", "url": "https://acme.example.com/widgets"},
         {"hreflang": "fr", "url": "https://acme.example.com/fr/widgets"},
     ]
-
-
-def test_first_answer_text_is_first_block_after_first_heading():
-    facts = _facts(_V2_PAGE)
-    assert facts["first_answer_text"] == (
-        "Widgets are reliable little gadgets that just work for everyone."
-    )
-    # No heading -> no answer text.
-    assert _facts(b"<html><body><p>x</p></body></html>")["first_answer_text"] == ""
-
-
-def test_first_answer_text_container_wrapped_heading():
-    # Regression (review MAJOR-1): an h1 wrapped in its own container has no
-    # following siblings — the bounded document-order walk past the parent
-    # must still find the answer block.
-    body = (
-        b"<html><body>"
-        b"<header><h1>Widget Guide</h1></header>"
-        b"<main><p>The answer paragraph lives right here.</p></main>"
-        b"</body></html>"
-    )
-    assert _facts(body)["first_answer_text"] == (
-        "The answer paragraph lives right here."
-    )
-
-
-def test_first_answer_text_walk_skips_script_subtrees():
-    # The document-order walk never returns script/style bodies as "answers".
-    body = (
-        b"<html><body>"
-        b"<header><h1>Widget Guide</h1></header>"
-        b"<script>var notAnAnswer = true;</script>"
-        b"<main><p>Real answer text after the script.</p></main>"
-        b"</body></html>"
-    )
-    assert _facts(body)["first_answer_text"] == ("Real answer text after the script.")
-
-
-def test_first_answer_text_hop_bound_gives_up():
-    # More elements than the config hop bound between the wrapped heading and
-    # the first content block -> empty (bounded, deterministic).
-    empties = "<div></div>" * (ANSWER_FIRST_MAX_HOPS + 2)
-    body = (
-        b"<html><body><header><h1>Widget Guide</h1></header>"
-        + empties.encode()
-        + b"<main><p>Too far away to be the answer.</p></main></body></html>"
-    )
-    assert _facts(body)["first_answer_text"] == ""
 
 
 def test_inline_script_chars_count_srcless_scripts_only():
@@ -877,39 +812,6 @@ def test_inline_script_chars_skip_non_js_types():
     )
     expected = len("var js = 1;") + len("export const m = 1;") + len("var tj = 1;")
     assert _facts(body)["inline_script_chars"] == expected
-
-
-def test_expand_gated_ratio_counts_collapsed_subtrees():
-    body = (
-        b"<html><body>"
-        b"<p>visible words one two three four five six seven eight</p>"
-        b"<details><p>gated alpha beta gamma</p></details>"
-        b"</body></html>"
-    )
-    facts = _facts(body)
-    # 4 gated words out of 13 body words (the visible <p> and the details
-    # text concatenate without a separator in the body text, merging
-    # "eight"+"gated" into one word).
-    assert facts["body"]["word_count"] == 13
-    assert facts["expand_gated_ratio"] == round(4 / 13, 4)
-    # Nothing gated -> 0.0.
-    assert _facts(b"<html><body><p>x y</p></body></html>")["expand_gated_ratio"] == 0.0
-
-
-def test_expand_gated_ratio_never_double_counts_nested_gates():
-    body = (
-        b"<html><body>"
-        b"<p>visible words one two three four five six seven eight</p>"
-        b'<div aria-expanded="false"><p>gated alpha beta gamma</p>'
-        b"<details><p>nested delta epsilon</p></details></div>"
-        b"</body></html>"
-    )
-    facts = _facts(body)
-    # The outer div's text is counted ONCE (its own concatenated text merges
-    # "gamma"+"nested" -> 6 gated words); the nested details adds nothing —
-    # double-counting it would push the ratio to 9/15.
-    assert facts["body"]["word_count"] == 15
-    assert facts["expand_gated_ratio"] == round(6 / 15, 4)
 
 
 # --- v2 P2 (sh-extractor-2): structured-data recognition + enrichment --------
@@ -991,3 +893,430 @@ def test_microdata_blocks_carry_empty_enrichment_fields():
     assert block["date_modified"] == ""
     assert block["same_as"] == []
     assert block["props_present"] == []
+
+
+# --- PR4 page-owned content and collection evidence -------------------------
+
+
+def test_page_owned_content_facts_are_distinct_and_exclude_chrome_modules() -> None:
+    facts = _facts(
+        b"""
+        <html><body>
+          <nav><h2>Browse documentation</h2></nav>
+          <main>
+            <h1>Enterprise Search</h1>
+            <p class="byline">By Ana</p>
+            <p>Acme Search provides answer discovery for support teams so they
+               resolve cases faster.</p>
+            <a class="cta" href="/demo">Book a demo</a>
+            <h2>What is enterprise search?</h2>
+            <p>Enterprise search gives teams one place to find trusted answers
+               quickly.</p>
+            <section aria-label="Related articles">
+              <article><h3>Related one</h3><a href="/one">One</a></article>
+              <article><h3>Related two</h3><a href="/two">Two</a></article>
+              <article><h3>Related three</h3><a href="/three">Three</a></article>
+            </section>
+          </main>
+          <footer><h2>Company links</h2></footer>
+        </body></html>
+        """
+    )
+
+    lead = (
+        "Acme Search provides answer discovery for support teams so they "
+        "resolve cases faster."
+    )
+    assert facts["editorial_lead"] == lead
+    assert facts["direct_answer"] == (
+        "Enterprise search gives teams one place to find trusted answers quickly."
+    )
+    assert facts["entity_proposition"] == {
+        "identity": "Enterprise Search",
+        "proposition": lead,
+        "provider": "Acme Search",
+        "named_capability": "answer discovery",
+        "audience_or_outcome": "support teams so they resolve cases faster",
+        "next_action": "/demo",
+    }
+    assert facts["primary_heading_outline"] == [
+        {"level": 1, "text": "Enterprise Search"},
+        {"level": 2, "text": "What is enterprise search?"},
+    ]
+    # The document-wide Web Fundamentals heading facts intentionally retain
+    # chrome/module headings; only the page-owned outline is scoped.
+    assert facts["headings"]["h2_texts"] == [
+        "Browse documentation",
+        "What is enterprise search?",
+        "Company links",
+    ]
+    assert facts["headings"]["h3_texts"] == [
+        "Related one",
+        "Related two",
+        "Related three",
+    ]
+
+
+def test_collection_evidence_binds_affordances_to_one_bounded_container() -> None:
+    long_control_text = "x" * (SITE_HEALTH_MAX_CTA_TEXT_CHARS + 40)
+    body = f"""
+        <html><body><main>
+          <h1>Products</h1>
+          <div class="toolbar">
+            <output aria-controls="products" role="status">
+              8 results {long_control_text}
+            </output>
+            <select name="sort" aria-controls="products">
+              <option>Featured</option><option>Newest</option>
+            </select>
+            <button name="filter" aria-controls="products">
+              Filter {long_control_text}
+            </button>
+          </div>
+          <section id="products" aria-label="Products">
+            <article><a href="/p/a">A</a></article>
+            <article><a href="/p/b">B</a></article>
+            <article><a href="/p/c">C</a></article>
+            <article><a href="/p/d">D</a></article>
+            <article><a href="/p/e">E</a></article>
+            <article><a href="/p/f">F</a></article>
+          </section>
+        </main></body></html>
+    """
+    facts = _facts(body.encode())
+    listing = facts["entity"]["listing"]
+    evidence = listing["collection_evidence"]
+
+    assert listing["largest_card_list_size"] == 6
+    assert listing["distinct_card_list_targets"] == 6
+    assert listing["has_result_count"] is True
+    assert listing["has_sort_control"] is True
+    assert listing["has_filter_control"] is True
+    assert evidence["container"] == {
+        "tag": "section",
+        "label": "Products",
+        "item_count": 6,
+        "distinct_targets": 6,
+    }
+    assert evidence["affordances"] == [
+        {
+            "class": "result_count",
+            "relation": "targets",
+            "text": f"8 results {long_control_text}"[:SITE_HEALTH_MAX_CTA_TEXT_CHARS],
+        },
+        {
+            "class": "sort",
+            "relation": "targets",
+            "text": "Featured Newest",
+        },
+        {
+            "class": "filter",
+            "relation": "targets",
+            "text": f"Filter {long_control_text}"[:SITE_HEALTH_MAX_CTA_TEXT_CHARS],
+        },
+    ]
+    assert all(
+        set(item) == {"class", "relation", "text"}
+        and len(item["text"]) <= SITE_HEALTH_MAX_CTA_TEXT_CHARS
+        for item in evidence["affordances"]
+    )
+    assert set(evidence) == {"container", "affordances"}
+    assert set(evidence["container"]) == {
+        "tag",
+        "label",
+        "item_count",
+        "distinct_targets",
+    }
+
+
+def test_semantic_pagination_navigation_binds_to_collection() -> None:
+    facts = _facts(
+        b"""
+        <html><body><main>
+          <h1>Products</h1>
+          <section id="products" aria-label="Products">
+            <article><a href="/p/a">A</a></article>
+            <article><a href="/p/b">B</a></article>
+            <article><a href="/p/c">C</a></article>
+            <article><a href="/p/d">D</a></article>
+            <article><a href="/p/e">E</a></article>
+            <article><a href="/p/f">F</a></article>
+          </section>
+          <nav aria-label="Pagination" aria-controls="products">
+            <a href="?page=2" rel="next">Next</a>
+          </nav>
+        </main></body></html>
+        """
+    )
+
+    listing = facts["entity"]["listing"]
+    assert listing["has_pagination"] is True
+    assert {
+        (item["class"], item["relation"])
+        for item in listing["collection_evidence"]["affordances"]
+    } == {("pagination", "targets"), ("pagination", "adjacent")}
+
+
+def test_recommendation_cards_and_unrelated_controls_have_empty_evidence() -> None:
+    facts = _facts(
+        b"""
+        <html><body><main>
+          <h1>Research note</h1>
+          <output role="status">13 products</output>
+          <select name="sort"><option>Newest</option><option>Oldest</option></select>
+          <section class="related-products" aria-label="Related products">
+            <article><a href="/p/a">A</a></article>
+            <article><a href="/p/b">B</a></article>
+            <article><a href="/p/c">C</a></article>
+            <article><a href="/p/d">D</a></article>
+            <article><a href="/p/e">E</a></article>
+            <article><a href="/p/f">F</a></article>
+          </section>
+        </main></body></html>
+        """
+    )
+    listing = facts["entity"]["listing"]
+
+    assert listing["largest_card_list_size"] == 6
+    assert listing["distinct_card_list_targets"] == 6
+    assert listing["has_result_count"] is False
+    assert listing["has_sort_control"] is False
+    assert listing["has_filter_control"] is False
+    assert listing["collection_evidence"] == {
+        "container": {
+            "tag": "",
+            "label": "",
+            "item_count": 0,
+            "distinct_targets": 0,
+        },
+        "affordances": [],
+    }
+
+
+@pytest.mark.parametrize(
+    ("body", "content_type"),
+    [
+        (b"", "application/pdf"),
+        (
+            b"<html><body><div id='app'></div>"
+            b"<script src='/app.js'></script></body></html>",
+            "text/html",
+        ),
+    ],
+)
+def test_page_owned_facts_have_stable_empty_shapes(
+    body: bytes, content_type: str
+) -> None:
+    facts = _facts(body, content_type=content_type)
+
+    assert facts["editorial_lead"] == ""
+    assert facts["direct_answer"] == ""
+    assert facts["entity_proposition"] == {
+        "identity": "",
+        "proposition": "",
+        "provider": "",
+        "named_capability": "",
+        "audience_or_outcome": "",
+        "next_action": "",
+    }
+    assert facts["primary_heading_outline"] == []
+    assert facts["entity"]["listing"]["collection_evidence"] == {
+        "container": {
+            "tag": "",
+            "label": "",
+            "item_count": 0,
+            "distinct_targets": 0,
+        },
+        "affordances": [],
+    }
+
+
+def test_nested_navigation_inside_main_cannot_become_a_collection() -> None:
+    facts = _facts(
+        b"""
+        <html><body><main>
+          <h1>Research note</h1>
+          <nav aria-label="Browse results">
+            <output role="status">6 results</output>
+            <select name="sort">
+              <option>Newest</option><option>Oldest</option>
+            </select>
+            <article><a href="/r/1">One</a></article>
+            <article><a href="/r/2">Two</a></article>
+            <article><a href="/r/3">Three</a></article>
+            <article><a href="/r/4">Four</a></article>
+            <article><a href="/r/5">Five</a></article>
+            <article><a href="/r/6">Six</a></article>
+          </nav>
+          <p>This page explains one research observation in detail.</p>
+        </main></body></html>
+        """
+    )
+
+    assert facts["entity"]["listing"]["collection_evidence"] == {
+        "container": {
+            "tag": "",
+            "label": "",
+            "item_count": 0,
+            "distinct_targets": 0,
+        },
+        "affordances": [],
+    }
+    assert classify("https://acme.example.test/research-note", facts).page_kind != (
+        "category"
+    )
+
+
+def test_page_owned_scans_apply_caps_after_filtering_navigation() -> None:
+    ignored_headings = "".join(
+        "<h2>Navigation heading</h2>" for _ in range(SITE_HEALTH_MAX_HEADINGS_KEPT + 5)
+    )
+    ignored_links = "".join(
+        f"<a href='/ignored/{index}'>Read item {index}</a>"
+        for index in range(SITE_HEALTH_MAX_CTA_TEXTS * 4 + 5)
+    )
+    body = f"""
+        <html><body><main>
+          <nav>{ignored_headings}{ignored_links}</nav>
+          <h1>Enterprise Search</h1>
+          <p>Acme Search provides answer discovery for support teams.</p>
+          <h2>What is enterprise search?</h2>
+          <p>Enterprise search gives teams one place to find trusted
+             answers.</p>
+          <a class="cta" href="/demo">Book a demo</a>
+        </main></body></html>
+    """
+
+    facts = _facts(body.encode())
+
+    assert facts["direct_answer"] == (
+        "Enterprise search gives teams one place to find trusted answers."
+    )
+    assert facts["entity_proposition"]["next_action"] == "/demo"
+
+
+def test_standalone_cta_marked_paragraph_is_not_the_editorial_lead() -> None:
+    facts = _facts(
+        b"""
+        <html><body><main>
+          <h1>Enterprise Search</h1>
+          <p class="cta">Book a demo to explore enterprise search today.</p>
+          <p>Acme Search provides answer discovery for support teams
+             worldwide.</p>
+        </main></body></html>
+        """
+    )
+
+    assert facts["editorial_lead"] == (
+        "Acme Search provides answer discovery for support teams worldwide."
+    )
+
+
+def test_freshness_context_is_derived_from_identity_without_using_dates() -> None:
+    versioned = _facts(
+        b"<html><head><title>API v2 migration guide</title></head>"
+        b"<body><main><h1>API version 2 migration</h1></main></body></html>",
+        final_url="https://acme.example.com/docs/migration",
+    )
+    dated_only = _facts(
+        b"<html><head><title>API migration guide</title>"
+        b"<meta property='article:published_time' content='2026-01-15'></head>"
+        b"<body><main><h1>API migration guide</h1></main></body></html>",
+        final_url="https://acme.example.com/docs/migration",
+    )
+
+    assert versioned["freshness_context"] == {
+        "required": True,
+        "reasons": ["explicit_year_or_version_identity"],
+    }
+    assert dated_only["dates"]["published"] == "2026-01-15"
+    assert dated_only["freshness_context"] == {"required": False, "reasons": []}
+
+
+def test_news_route_requires_freshness_without_a_date_signal() -> None:
+    facts = _facts(
+        b"<html><head><title>Product update</title></head>"
+        b"<body><main><h1>Product update</h1></main></body></html>",
+        final_url="https://acme.example.com/news/product-update",
+    )
+
+    assert facts["freshness_context"] == {
+        "required": True,
+        "reasons": ["changelog_or_news_route"],
+    }
+
+
+def test_bare_source_word_does_not_attach_a_generic_external_link() -> None:
+    facts = _facts(
+        b"<html><body><main><h1>Implementation details</h1>"
+        b"<p>View the <a href='https://github.com/acme/project'>"
+        b"source on GitHub</a>.</p>"
+        b"</main></body></html>"
+    )
+
+    assert facts["source_support"]["attached_sources"] == []
+    assert facts["source_support"]["ambiguous_source_count"] == 1
+
+
+def test_explicit_source_attribution_attaches_an_external_link() -> None:
+    facts = _facts(
+        b"<html><body><main><h1>Research summary</h1>"
+        b"<p>Source: <a href='https://data.example.org/report'>Example dataset</a>.</p>"
+        b"</main></body></html>"
+    )
+
+    assert facts["source_support"]["attached_sources"] == [
+        {
+            "url": "https://data.example.org/report",
+            "domain": "data.example.org",
+            "source_name": "Example dataset",
+            "relationship": "nearby_attribution",
+        }
+    ]
+
+
+def test_source_support_dom_setup_failure_returns_zero_facts(monkeypatch) -> None:
+    def fail_primary_region(_root):
+        raise ValueError("malformed DOM")
+
+    monkeypatch.setattr(fact_source_support, "primary_region", fail_primary_region)
+
+    assert (
+        fact_source_support.extract_source_support_facts(
+            object(), final_url="https://acme.example.com/report"
+        )
+        == fact_source_support.empty_source_support_facts()
+    )
+
+
+def test_malformed_source_authority_preserves_prior_sources(monkeypatch) -> None:
+    real_urlsplit = fact_source_support.urlsplit
+
+    class MalformedAuthority:
+        scheme = "https"
+
+        @property
+        def hostname(self):
+            raise ValueError("malformed authority")
+
+    def guarded_urlsplit(url):
+        if url == "https://bad.example.test/report":
+            return MalformedAuthority()
+        return real_urlsplit(url)
+
+    monkeypatch.setattr(fact_source_support, "urlsplit", guarded_urlsplit)
+    facts = _facts(
+        b"<html><body><main><h1>Research summary</h1>"
+        b"<p>Source: <a href='https://data.example.org/report'>Dataset</a>.</p>"
+        b"<p>Source: <a href='https://bad.example.test/report'>Broken</a>.</p>"
+        b"</main></body></html>"
+    )
+
+    assert facts["source_support"]["attached_sources"] == [
+        {
+            "url": "https://data.example.org/report",
+            "domain": "data.example.org",
+            "source_name": "Dataset",
+            "relationship": "nearby_attribution",
+        }
+    ]

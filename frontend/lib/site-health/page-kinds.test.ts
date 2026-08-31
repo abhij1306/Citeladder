@@ -59,6 +59,7 @@ describe('byPageKindRows (dashboard breakdown ordering)', () => {
     aeo_readiness_score: 62,
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
+    aeo_measurement_reason: '',
   });
 
   it('returns [] for an empty breakdown', () => {
@@ -85,6 +86,7 @@ describe('byPageKindRows (dashboard breakdown ordering)', () => {
       aeo_readiness_score: 62,
       aeo_measurement_coverage: 0.8,
       aeo_measurement_state: 'measured',
+      aeo_measurement_reason: '',
     });
   });
 

@@ -28,7 +28,6 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PARTIAL,
     RULE_OUTCOME_SATISFIED,
-    RULE_OUTCOME_UNAVAILABLE,
     RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_link_metrics import COVERAGE_STATE_COMPLETE
@@ -72,9 +71,6 @@ def _evaluation(rule: SiteHealthRule, outcome: str, evidence: dict) -> RuleEvalu
         expected_profile_membership=expected,
         reason_code=str(evidence.get("reason") or ""),
         score_roles=rule.score_roles if expected else (),
-        checkpoint_family=rule.checkpoint_family,
-        readiness_dimension=rule.readiness_dimension,
-        readiness_weight=rule.readiness_weight,
     )
 
 
@@ -190,7 +186,7 @@ def evaluate_sitemap_orphan(
 
     ``sitemap_url_count`` is the number of sitemap-sourced URLs the crawl
     admitted; ``orphan_urls`` the bounded subset never observed through
-    internal links. Unavailable when crawl coverage is incomplete. Not
+    links. Unknown when crawl coverage is incomplete. Not
     applicable when the crawl ingested no sitemap URLs (Free sample crawls
     never ingest sitemaps; a site without a sitemap has nothing to orphan).
     """
@@ -198,7 +194,7 @@ def evaluate_sitemap_orphan(
     if coverage_state != COVERAGE_STATE_COMPLETE:
         return _evaluation(
             rule,
-            RULE_OUTCOME_UNAVAILABLE,
+            RULE_OUTCOME_UNKNOWN,
             {"reason": "coverage_not_complete", "coverage_state": coverage_state},
         )
     if sitemap_url_count <= 0:
@@ -229,7 +225,7 @@ def evaluate_hreflang_conflict(
     this crawl (only they can be verified); ``unchecked_count`` the rest;
     ``missing_return_tags`` the bounded verified failures (alternates whose
     target page does not link back). Not applicable when the page declares no
-    hreflang alternates. Unavailable when none of its alternates were analyzed
+    hreflang alternates. Unknown when none of its alternates were analyzed
     (nothing could be verified — absence fabricates nothing).
     """
     rule = _catalog_rule("technical.hreflang_conflict")
@@ -238,7 +234,7 @@ def evaluate_hreflang_conflict(
     if checked_count <= 0:
         return _evaluation(
             rule,
-            RULE_OUTCOME_UNAVAILABLE,
+            RULE_OUTCOME_UNKNOWN,
             {
                 "reason": "no_checkable_alternates",
                 "alternate_count": int(alternate_count),

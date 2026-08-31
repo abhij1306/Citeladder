@@ -111,6 +111,28 @@ export const pageKindSchema = z.enum([
   'other',
 ]);
 
+// Classification completeness is independent of crawl and AEO evidence
+// coverage. `other` is a terminal classifier abstention, but it remains
+// unclassified and does not enter the coverage numerator or scored cohort.
+export const classificationStateSchema = z.enum(['complete', 'partial', 'not_measured']);
+export const scoredPageKindSchema = pageKindSchema.exclude(['other']);
+
+export const classificationProjectionFields = {
+  classified_page_count: z.number().int().nonnegative(),
+  other_page_count: z.number().int().nonnegative(),
+  classification_error_page_count: z.number().int().nonnegative(),
+  classification_expected_page_count: z.number().int().nonnegative(),
+  classification_coverage: z.number().min(0).max(1).nullable(),
+  classification_state: classificationStateSchema,
+  classification_reason_groups: z.record(z.string(), z.number().int().nonnegative()),
+  classification_formula_version: z.string(),
+  classification_source_analysis_ids: z.array(uuid()),
+  classification_source_artifact_ids: z.array(uuid()),
+  classification_source_task_ids: z.array(uuid()),
+  scored_page_kind_set: z.array(scoredPageKindSchema),
+  scored_page_count_by_kind: z.partialRecord(scoredPageKindSchema, z.number().int().nonnegative()),
+} as const;
+
 // One `score_summary.by_page_kind` bucket (site-health v2 P1): the analyzed
 // count + pooled Web Fundamentals and AEO measurement projections for one
 // page type. A mean is null when no analyzed page of the type produced that
@@ -123,6 +145,7 @@ export const pageKindScoreSummarySchema = responseObject({
   aeo_readiness_score: z.number().nullable(),
   aeo_measurement_coverage: z.number().nullable(),
   aeo_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
+  aeo_measurement_reason: z.string(),
 });
 
 // Crawl score/coverage summary (nullable scores until analysis produces them).
@@ -136,6 +159,7 @@ export const siteScoreSummarySchema = responseObject({
   aeo_measurement_coverage: z.number().nullable(),
   aeo_measurement_state: z.enum(['measured', 'limited_evidence', 'not_measured', 'excluded']),
   search_eligibility: z.enum(['eligible', 'blocked', 'unknown', 'excluded']),
+  ...classificationProjectionFields,
   selected_count: z.number().int(),
   analyzed_count: z.number().int(),
   issue_count: z.number().int(),

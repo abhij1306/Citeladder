@@ -18,89 +18,14 @@ import {
 } from './schemas';
 import { siteHealthApi } from './site-health';
 import { mswServer } from '@/test/msw-server';
+import {
+  SITE_HEALTH_CRAWL as crawl,
+  SITE_HEALTH_ENTITLEMENT as entitlement,
+  SITE_HEALTH_SITE_FACTS as siteFacts,
+  SITE_HEALTH_UUID as UUID,
+  SITE_HEALTH_UUID_2 as UUID2,
+} from '@/test/site-health-api-fixtures';
 import { z } from 'zod';
-
-const UUID = '11111111-1111-4111-8111-111111111111';
-const UUID2 = '22222222-2222-4222-8222-222222222222';
-
-const entitlement = {
-  workspace_id: UUID,
-  access_mode: 'full' as const,
-  sample_url_limit: 10,
-  monitored_url_limit: 50,
-  count_disclosure: true,
-  resolver_status: 'resolved' as const,
-  registry_revision: 'registry-v8',
-  entitlement_lifecycle_version: 3,
-  valid_until: null,
-  contributing_grant_ids: [UUID2],
-  advanced_controls_enabled: false,
-};
-
-// The real bounded site-facts blob the worker persists (`_crawl_setup` in
-// backend/app/workers/site_health_worker.py) — robots AI-crawler stance,
-// llms.txt probe, sitemap file list. No discovered totals inside.
-const siteFacts = {
-  robots: {
-    fetched: true,
-    url: 'https://example.com/robots.txt',
-    status_code: 200,
-    ai_crawlers: {
-      GPTBot: 'block',
-      ClaudeBot: 'allow',
-      PerplexityBot: 'allow',
-      'Google-Extended': 'allow',
-    },
-    sitemaps: ['https://example.com/sitemap.xml'],
-  },
-  llms_txt: { fetched: true, url: 'https://example.com/llms.txt', status_code: 200, present: true },
-  sitemap: { fetched: false, files: [] },
-};
-
-const crawl = {
-  id: UUID,
-  workspace_id: UUID,
-  project_id: UUID2,
-  profile_id: UUID2,
-  status: 'running' as const,
-  discovery_status: 'running' as const,
-  analysis_status: 'pending' as const,
-  root_url: 'https://example.com/',
-  sample_mode: false,
-  seed: '12345',
-  inventory_complete: false,
-  partial_reason: '',
-  visible_url_count: 42,
-  analyzed_count: 0,
-  failed_count: 0,
-  discovery_requested_count: 42,
-  analysis_requested_count: 0,
-  counters: {
-    discovered: 42,
-    selected: 0,
-    queued: 0,
-    running: 0,
-    analyzed: 0,
-    errors: 0,
-    blocked: 0,
-    failure_breakdown: { robots_denied: 0, http_4xx: 0, http_5xx: 0, timeout: 0 },
-    activity: { state: 'terminal', reason: 'terminal', queue_depth: 0, next_available_at: null },
-    by_page_kind: {},
-  },
-  total_url_count: null,
-  score_summary: null,
-  failure_summary: null,
-  site_facts: siteFacts,
-  extractor_version: 'x1',
-  analyzer_version: 'a1',
-  rule_version: 'r1',
-  scoring_version: 's1',
-  error_message: '',
-  created_at: '2026-07-15T00:00:00Z',
-  updated_at: '2026-07-15T00:00:00Z',
-  started_at: null,
-  completed_at: null,
-};
 
 const inventoryRow = {
   site_url_id: UUID,
@@ -120,6 +45,7 @@ const inventoryRow = {
   aeo_readiness_score: null,
   aeo_measurement_coverage: null,
   aeo_measurement_state: 'not_measured' as const,
+  aeo_measurement_reason: '',
   main_content_indexable: null,
   last_audited: null,
   page_kind: null,
@@ -302,73 +228,6 @@ describe('siteCrawlSchema site_facts (v2 P2 contract)', () => {
   });
 });
 
-describe('siteScoreSummarySchema by_page_kind (v2 P1)', () => {
-  const scoreSummary = {
-    web_fundamentals_score: 80,
-    web_fundamentals_coverage: 1,
-    web_fundamentals_state: 'measured',
-    aeo_readiness_score: 62,
-    aeo_measurement_coverage: 0.8,
-    aeo_measurement_state: 'measured',
-    search_eligibility: 'eligible',
-    selected_count: 10,
-    analyzed_count: 4,
-    issue_count: 3,
-    scoring_version: 's1',
-    by_page_kind: {
-      homepage: {
-        analyzed_count: 1,
-        web_fundamentals_score: 90.5,
-        web_fundamentals_coverage: 1,
-        web_fundamentals_state: 'measured',
-        aeo_readiness_score: 70,
-        aeo_measurement_coverage: 0.8,
-        aeo_measurement_state: 'measured',
-      },
-      article: {
-        analyzed_count: 3,
-        web_fundamentals_score: null,
-        web_fundamentals_coverage: null,
-        web_fundamentals_state: 'not_measured',
-        aeo_readiness_score: null,
-        aeo_measurement_coverage: null,
-        aeo_measurement_state: 'not_measured',
-      },
-    },
-  };
-
-  it('accepts a score summary with a per-page-kind breakdown', () => {
-    const parsed = strictValidate(
-      siteCrawlSchema,
-      { ...crawl, score_summary: scoreSummary },
-      'crawl',
-    );
-    expect(parsed.score_summary?.by_page_kind.homepage?.analyzed_count).toBe(1);
-    expect(parsed.score_summary?.by_page_kind.article?.aeo_readiness_score).toBeNull();
-  });
-
-  it('accepts an empty by_page_kind map (nothing classified yet)', () => {
-    const parsed = strictValidate(
-      siteCrawlSchema,
-      { ...crawl, score_summary: { ...scoreSummary, by_page_kind: {} } },
-      'crawl',
-    );
-    expect(parsed.score_summary?.by_page_kind).toEqual({});
-  });
-
-  it('strips an additive key inside a by_page_kind bucket (tolerant-on-unknown)', () => {
-    const bad = {
-      ...scoreSummary,
-      by_page_kind: {
-        homepage: { ...scoreSummary.by_page_kind.homepage, discovered_total: 9999 },
-      },
-    };
-    const parsed = strictValidate(siteCrawlSchema, { ...crawl, score_summary: bad }, 'crawl');
-    expect(parsed.score_summary?.by_page_kind.homepage?.analyzed_count).toBe(1);
-    expect('discovered_total' in (parsed.score_summary?.by_page_kind.homepage ?? {})).toBe(false);
-  });
-});
-
 describe('inventoryRowSchema (nullable analysis summaries)', () => {
   it('accepts null analysis summaries before analysis completes', () => {
     const parsed = strictValidate(inventoryRowSchema, inventoryRow, 'row');
@@ -387,6 +246,7 @@ describe('inventoryRowSchema (nullable analysis summaries)', () => {
       aeo_readiness_score: 72,
       aeo_measurement_coverage: 0.8,
       aeo_measurement_state: 'measured',
+      aeo_measurement_reason: '',
       main_content_indexable: true,
       last_audited: '2026-07-15T00:00:00Z',
       page_kind: 'article',
@@ -394,6 +254,20 @@ describe('inventoryRowSchema (nullable analysis summaries)', () => {
     const parsed = strictValidate(inventoryRowSchema, analysed, 'row');
     expect(parsed.issue_count).toBe(3);
     expect(parsed.page_kind).toBe('article');
+  });
+
+  it('preserves the unresolved-purpose reason on an Other page projection', () => {
+    const parsed = strictValidate(
+      inventoryRowSchema,
+      {
+        ...inventoryRow,
+        page_kind: 'other',
+        aeo_measurement_reason: 'page_purpose_unresolved',
+      },
+      'row',
+    );
+
+    expect(parsed.aeo_measurement_reason).toBe('page_purpose_unresolved');
   });
 
   it('accepts the expanded page-kind taxonomy emitted by the classifier', () => {
@@ -514,12 +388,14 @@ describe('pageDetailSchema (field_cwv_available literal false)', () => {
     aeo_readiness_score: 80,
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
+    aeo_measurement_reason: '',
     main_content_indexable: true,
     issue_count: 2,
     last_audited: '2026-07-15T00:00:00Z',
     page_kind: 'homepage',
     // T5 contract: the backend page-detail serializer always carries this key
     // (null until the URL has an analysis) — the fixture must include it.
+
     page_kind_evidence: null,
     page_traits: [],
     facts: {
@@ -560,6 +436,59 @@ describe('pageDetailSchema (field_cwv_available literal false)', () => {
 
   it('accepts a full page detail with field_cwv_available false', () => {
     expect(strictValidate(pageDetailSchema, detail, 'page').field_cwv_available).toBe(false);
+  });
+
+  it('rejects a page detail that omits the required measurement reason', () => {
+    const { aeo_measurement_reason: _omitted, ...withoutReason } = detail;
+    expect(() => strictValidate(pageDetailSchema, withoutReason, 'page')).toThrow();
+  });
+
+  it('preserves the exact unresolved-purpose reason for an Other page', () => {
+    const parsed = strictValidate(
+      pageDetailSchema,
+      {
+        ...detail,
+        page_kind: 'other',
+        aeo_readiness_score: null,
+        aeo_measurement_coverage: null,
+        aeo_measurement_state: 'not_measured',
+        aeo_measurement_reason: 'page_purpose_unresolved',
+      },
+      'page',
+    );
+
+    expect(parsed.aeo_measurement_reason).toBe('page_purpose_unresolved');
+    expect(parsed.aeo_readiness_score).toBeNull();
+  });
+
+  it('rejects retired rule outcomes outside the six-outcome vocabulary', () => {
+    const evaluation = {
+      id: UUID,
+      rule_id: 'aeo.answer_first',
+      title: 'Answer first',
+      dimension: 'aeo',
+      category: 'answerability',
+      severity: 'medium',
+      finding_class: 'defect',
+      outcome: 'unavailable',
+      display_applicability: true,
+      score_applicability: true,
+      expected_profile_membership: true,
+      reason_code: 'provider_unavailable',
+      score_roles: ['aeo_readiness'],
+      checkpoint_family: 'answer_delivery',
+      readiness_dimension: 'answerability',
+      readiness_weight: 1,
+      weight: 1,
+      evidence: {},
+      analyzer_version: '1',
+      rule_version: '1',
+      created_at: '2026-07-15T00:00:00Z',
+    };
+
+    expect(() =>
+      strictValidate(pageDetailSchema, { ...detail, evaluations: [evaluation] }, 'page'),
+    ).toThrow();
   });
 
   it('rejects field_cwv_available true (crawler never fabricates field CWV)', () => {
@@ -754,8 +683,6 @@ describe('AEO Readiness contract', () => {
             partial_count: 0,
             missing_count: 0,
             unknown_count: 0,
-            unavailable_count: 0,
-            conflicting_count: 0,
             not_applicable_count: 1,
             error_count: 0,
             coverage: 0,

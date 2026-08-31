@@ -149,7 +149,6 @@ class SiteHealthRule:
     __slots__ = (
         "applicability_key",
         "category",
-        "checkpoint_family",
         "composite_contract",
         "content_addressable",
         "description",
@@ -158,8 +157,6 @@ class SiteHealthRule:
         "display_label_variants",
         "finding_class",
         "kind_evidence",
-        "readiness_dimension",
-        "readiness_weight",
         "remediation",
         "rule_id",
         "rule_version",
@@ -187,11 +184,8 @@ class SiteHealthRule:
         display_label_variants: dict[str, str] | None = None,
         finding_class: str = FINDING_CLASS_DEFECT,
         kind_evidence: str = KIND_EVIDENCE_EXPECTATION,
-        checkpoint_family: str = "",
         composite_contract: CompositeContract | None = None,
         content_addressable: bool = False,
-        readiness_dimension: str = "",
-        readiness_weight: float = 0.0,
         scope: str = RULE_SCOPE_PAGE,
         triggered_by: str = "",
         score_roles: tuple[str, ...] = (),
@@ -214,11 +208,8 @@ class SiteHealthRule:
         self.severity = severity
         self.finding_class = finding_class
         self.kind_evidence = kind_evidence
-        self.checkpoint_family = checkpoint_family
         self.composite_contract = composite_contract
         self.content_addressable = content_addressable
-        self.readiness_dimension = readiness_dimension
-        self.readiness_weight = readiness_weight
         self.scope = scope
         self.triggered_by = triggered_by
         self.score_roles = tuple(score_roles)
@@ -233,14 +224,16 @@ class SiteHealthRule:
 
 def validate_triggered_rule_links(
     rules: tuple[SiteHealthRule, ...],
-    by_id: dict[str, SiteHealthRule],
-    expectation_profiles: tuple[tuple[str, ...], ...],
+    by_id: Mapping[str, SiteHealthRule],
+    checkpoint_families: Mapping[str, str],
 ) -> None:
-    """Reject triggered checks without a same-role, same-dimension sibling."""
+    """Reject triggered checks without a same-role, same-family root check."""
     for rule in rules:
         if rule.kind_evidence != KIND_EVIDENCE_TRIGGERED:
             continue
         sibling = by_id.get(rule.triggered_by)
+        family_id = checkpoint_families.get(rule.rule_id)
+        sibling_family_id = checkpoint_families.get(rule.triggered_by)
         if sibling is None:
             raise ValueError(
                 f"Triggered rule {rule.rule_id} requires an absence sibling"
@@ -249,13 +242,10 @@ def validate_triggered_rule_links(
             not rule.score_roles
             or sibling.kind_evidence == KIND_EVIDENCE_TRIGGERED
             or not set(rule.score_roles).issubset(sibling.score_roles)
-            or rule.readiness_dimension != sibling.readiness_dimension
-            or any(
-                rule.rule_id in profile and sibling.rule_id not in profile
-                for profile in expectation_profiles
-            )
+            or not family_id
+            or family_id != sibling_family_id
         ):
             raise ValueError(
-                f"Triggered rule {rule.rule_id} must share role and dimension "
+                f"Triggered rule {rule.rule_id} must share role and family "
                 f"with {sibling.rule_id}"
             )

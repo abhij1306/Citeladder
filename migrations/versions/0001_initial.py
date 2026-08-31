@@ -2351,6 +2351,28 @@ def upgrade() -> None:
         sa.Column("aeo_readiness_score", sa.Float(), nullable=True),
         sa.Column("aeo_measurement_coverage", sa.Float(), nullable=True),
         sa.Column("aeo_measurement_state", sa.String(length=24), nullable=False),
+        sa.Column("classified_page_count", sa.Integer(), nullable=False),
+        sa.Column("other_page_count", sa.Integer(), nullable=False),
+        sa.Column("classification_error_page_count", sa.Integer(), nullable=False),
+        sa.Column("classification_expected_page_count", sa.Integer(), nullable=False),
+        sa.Column("classification_coverage", sa.Float(), nullable=True),
+        sa.Column("classification_state", sa.String(length=24), nullable=False),
+        sa.Column(
+            "classification_reason_groups",
+            postgresql.JSONB(astext_type=Text()),
+            nullable=True,
+        ),
+        sa.Column(
+            "classification_formula_version", sa.String(length=32), nullable=False
+        ),
+        sa.Column(
+            "scored_page_kind_set", postgresql.ARRAY(sa.String()), nullable=True
+        ),
+        sa.Column(
+            "scored_page_count_by_kind",
+            postgresql.JSONB(astext_type=Text()),
+            nullable=True,
+        ),
         sa.Column(
             "readiness_dimensions", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
@@ -2400,6 +2422,21 @@ def upgrade() -> None:
         sa.Column("source_evaluation_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
         sa.Column("source_task_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
         sa.Column("source_attempt_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
+        sa.Column(
+            "classification_source_analysis_ids",
+            postgresql.ARRAY(sa.UUID()),
+            nullable=True,
+        ),
+        sa.Column(
+            "classification_source_artifact_ids",
+            postgresql.ARRAY(sa.UUID()),
+            nullable=True,
+        ),
+        sa.Column(
+            "classification_source_task_ids",
+            postgresql.ARRAY(sa.UUID()),
+            nullable=True,
+        ),
         sa.Column("analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("scoring_version", sa.String(length=32), nullable=False),
         sa.Column("profile_version", sa.String(length=32), nullable=False),
@@ -3009,6 +3046,7 @@ def upgrade() -> None:
         sa.Column("max_attempts", sa.Integer(), nullable=False),
         sa.Column("conflict_count", sa.Integer(), nullable=False),
         sa.Column("result_artifact_id", sa.UUID(), nullable=True),
+        sa.Column("classification_expected", sa.Boolean(), nullable=False),
         sa.Column("error_code", sa.String(length=32), nullable=False),
         sa.Column("error_detail", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -3668,6 +3706,7 @@ def upgrade() -> None:
         sa.Column("aeo_readiness_score", sa.Float(), nullable=True),
         sa.Column("aeo_measurement_coverage", sa.Float(), nullable=True),
         sa.Column("aeo_measurement_state", sa.String(length=24), nullable=False),
+        sa.Column("aeo_measurement_reason", sa.String(length=64), nullable=False),
         sa.Column(
             "expected_checkpoint_profile",
             postgresql.JSONB(astext_type=Text()),

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 
 import { PageKindScores } from './page-kind-scores';
 import type { SiteCrawl, SiteHealthDashboard, SiteScoreSummary } from '@/lib/api/types';
+import { COMPLETE_CLASSIFICATION_PROJECTION } from '@/test/site-health-fixtures';
 
 const PROJECT = '11111111-1111-4111-8111-111111111111';
 const CRAWL = '22222222-2222-4222-8222-222222222222';
@@ -20,6 +21,7 @@ function summary(overrides: Partial<SiteScoreSummary> = {}): SiteScoreSummary {
     analyzed_count: 4,
     issue_count: 3,
     scoring_version: 's1',
+    ...COMPLETE_CLASSIFICATION_PROJECTION,
     by_page_kind: {},
     ...overrides,
   };
@@ -135,6 +137,7 @@ describe('PageKindScores', () => {
                 aeo_readiness_score: 62,
                 aeo_measurement_coverage: 0.8,
                 aeo_measurement_state: 'measured',
+                aeo_measurement_reason: '',
               },
               homepage: {
                 analyzed_count: 1,
@@ -144,6 +147,7 @@ describe('PageKindScores', () => {
                 aeo_readiness_score: 70,
                 aeo_measurement_coverage: 0.8,
                 aeo_measurement_state: 'measured',
+                aeo_measurement_reason: '',
               },
             },
           }),
@@ -182,6 +186,7 @@ describe('PageKindScores', () => {
                 aeo_readiness_score: null,
                 aeo_measurement_coverage: null,
                 aeo_measurement_state: 'not_measured',
+                aeo_measurement_reason: '',
               },
             },
           }),
@@ -208,6 +213,7 @@ describe('PageKindScores', () => {
                 aeo_readiness_score: null,
                 aeo_measurement_coverage: null,
                 aeo_measurement_state: 'excluded',
+                aeo_measurement_reason: '',
               },
             },
           }),
@@ -220,13 +226,21 @@ describe('PageKindScores', () => {
     expect(screen.getByText('Excluded')).toBeInTheDocument();
   });
 
-  it('surfaces the unclassified share and its scoring treatment', () => {
+  it('surfaces classifier abstentions without converting them into readiness values', () => {
     render(
       <PageKindScores
         crawl={null}
         dashboard={dashboard(
           summary({
             analyzed_count: 10,
+            classified_page_count: 6,
+            other_page_count: 4,
+            classification_expected_page_count: 10,
+            classification_coverage: 0.6,
+            classification_state: 'partial',
+            classification_reason_groups: { no_signals: 4 },
+            scored_page_kind_set: ['article'],
+            scored_page_count_by_kind: { article: 6 },
             by_page_kind: {
               article: {
                 analyzed_count: 6,
@@ -236,6 +250,7 @@ describe('PageKindScores', () => {
                 aeo_readiness_score: 70,
                 aeo_measurement_coverage: 0.8,
                 aeo_measurement_state: 'measured',
+                aeo_measurement_reason: '',
               },
               other: {
                 analyzed_count: 4,
@@ -243,8 +258,9 @@ describe('PageKindScores', () => {
                 web_fundamentals_coverage: 1,
                 web_fundamentals_state: 'measured',
                 aeo_readiness_score: null,
-                aeo_measurement_coverage: 0.3,
-                aeo_measurement_state: 'limited_evidence',
+                aeo_measurement_coverage: null,
+                aeo_measurement_state: 'not_measured',
+                aeo_measurement_reason: 'page_purpose_unresolved',
               },
             },
           }),
@@ -252,11 +268,10 @@ describe('PageKindScores', () => {
       />,
     );
 
-    expect(
-      screen.getByText(
-        '4 of 10 analyzed pages could not be classified; their AEO score is not measured.',
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Other')).toBeInTheDocument();
+    expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/purpose unresolved/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
   });
 
   it('falls back to the crawl score summary when the dashboard has none', () => {
@@ -273,6 +288,7 @@ describe('PageKindScores', () => {
                 aeo_readiness_score: 45,
                 aeo_measurement_coverage: 0.8,
                 aeo_measurement_state: 'measured',
+                aeo_measurement_reason: '',
               },
             },
           }),

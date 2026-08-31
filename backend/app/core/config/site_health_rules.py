@@ -21,7 +21,10 @@ from app.core.config.site_health_contracts import (
     SEVERITY_LOW,
     SEVERITY_MEDIUM,
 )
-from app.core.config.site_health_measurement import expected_checkpoints
+from app.core.config.site_health_measurement import (
+    CHECKPOINT_FAMILY_BY_ID,
+    validate_measurement_profile,
+)
 from app.core.config.site_health_readiness_rules import READINESS_EXPANSION_RULES
 from app.core.config.site_health_rule_types import (
     FINDING_CLASS_ADVISORY,
@@ -44,7 +47,6 @@ from app.core.config.site_health_taxonomy import (
     PAGE_KIND_FAQ_QUESTION_RATIO,
     PAGE_KIND_GUIDE,
     PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
-    PAGE_KINDS,
     _page_kinds,
 )
 from app.core.config.site_health_web_fundamentals import WEB_FUNDAMENTALS_RULES
@@ -113,9 +115,6 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         remediation="Remove the noindex directive if the page should be indexed.",
         display_label="Page blocked from indexing",
         score_roles=(SCORE_ROLE_WEB_FUNDAMENTALS, SCORE_ROLE_AEO),
-        checkpoint_family="indexability",
-        readiness_dimension="crawlability",
-        readiness_weight=1.0,
     ),
     SiteHealthRule(
         rule_id="technical.https",
@@ -332,9 +331,6 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         ),
         display_label="Missing expected schema type for page type",
         score_roles=(SCORE_ROLE_AEO,),
-        checkpoint_family="structured_representation",
-        readiness_dimension="machine-readability",
-        readiness_weight=1.0,
     ),
     SiteHealthRule(
         rule_id="aeo.schema_required_valid",
@@ -355,9 +351,6 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         remediation="Add the missing required properties to the schema markup.",
         display_label="Required schema properties missing",
         score_roles=(SCORE_ROLE_AEO,),
-        checkpoint_family="structured_representation",
-        readiness_dimension="machine-readability",
-        readiness_weight=1.0,
         triggered_by=_SCHEMA_EXPECTED_FOR_TYPE_RULE_ID,
     ),
     SiteHealthRule(
@@ -381,9 +374,6 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         remediation=("Add the recommended properties to strengthen the schema markup."),
         display_label="Recommended schema properties missing",
         score_roles=(SCORE_ROLE_AEO,),
-        checkpoint_family="structured_representation",
-        readiness_dimension="machine-readability",
-        readiness_weight=0.5,
         triggered_by=_SCHEMA_EXPECTED_FOR_TYPE_RULE_ID,
     ),
     SiteHealthRule(
@@ -407,51 +397,40 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         ),
         display_label="Schema markup does not match visible content",
         score_roles=(SCORE_ROLE_AEO,),
-        checkpoint_family="structured_representation",
-        readiness_dimension="machine-readability",
-        readiness_weight=1.0,
         triggered_by=_SCHEMA_EXPECTED_FOR_TYPE_RULE_ID,
     ),
     # --- v2 P2: citability (per-page) ---------------------------------------
     SiteHealthRule(
-        rule_id="aeo.author_present",
+        rule_id="aeo.visible_attribution",
         rule_version=RULE_CATALOG_VERSION,
         dimension=DIMENSION_AEO,
         category=CATEGORY_CITABILITY,
         severity=SEVERITY_MEDIUM,
         weight=1.5,
-        # Editorial page kinds only. A byline is a citability signal for
-        # authored writing; demanding one on a product, category, pricing or
-        # policy page reports a "problem" that page should never solve.
-        #
-        # case_study_review is dropped here because it is two page types in a
-        # trenchcoat. A case study demonstrates problem, intervention, result,
-        # and is usually published by the organisation rather than by a named
-        # writer -- an absent byline is not a defect.
         applicability_key=_page_kinds(
             PAGE_KIND_ARTICLE,
             PAGE_KIND_GUIDE,
             PAGE_KIND_COMPARISON,
+            PAGE_KIND_CASE_STUDY_REVIEW,
             reads_content=True,
         ),
-        description=("Page exposes an author byline (visible, schema, or metadata)."),
-        remediation="Add an author byline (visible, JSON-LD author, or meta).",
-        display_label="Missing author byline",
+        description=(
+            "Authored content exposes a visible creator name and linked profile."
+        ),
+        remediation=(
+            "Add a visible creator byline linked to a stable profile or biography."
+        ),
+        display_label="Visible creator attribution incomplete",
         score_roles=(SCORE_ROLE_AEO,),
-        checkpoint_family="provenance",
         content_addressable=True,
-        readiness_dimension="authority",
-        readiness_weight=1.0,
     ),
     SiteHealthRule(
-        rule_id="aeo.outbound_citations",
+        rule_id="aeo.source_support_present",
         rule_version=RULE_CATALOG_VERSION,
         dimension=DIMENSION_AEO,
         category=CATEGORY_CITABILITY,
         severity=SEVERITY_LOW,
         weight=1.0,
-        # Citing external sources is an expectation of research-style content.
-        # A product or category page linking out is not a goal.
         applicability_key=_page_kinds(
             PAGE_KIND_ARTICLE,
             PAGE_KIND_GUIDE,
@@ -460,14 +439,18 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             PAGE_KIND_DOCS,
             reads_content=True,
         ),
-        description="Page links out to at least one non-social external domain.",
-        remediation="Cite authoritative external sources relevant to the content.",
-        display_label="No outbound citations",
+        description=(
+            "Research-sensitive claims attach sources through a bounded "
+            "references, methodology, citation-marker, or attribution relation."
+        ),
+        remediation=(
+            "Attach authoritative sources to the claims they support using "
+            "a references or methodology section, citation markers, or nearby "
+            "attribution."
+        ),
+        display_label="Claim support sources missing",
         score_roles=(SCORE_ROLE_AEO,),
-        checkpoint_family="source_support",
         content_addressable=True,
-        readiness_dimension="evidence",
-        readiness_weight=1.0,
         finding_class=FINDING_CLASS_ADVISORY,
     ),
     # --- v2 P2: extractability (per-page) -----------------------------------
@@ -492,10 +475,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         remediation=("Open each section with a direct answer before elaborating."),
         display_label="No answer-first content structure",
         score_roles=(SCORE_ROLE_AEO,),
-        checkpoint_family="answer_content",
         content_addressable=True,
-        readiness_dimension="answerability",
-        readiness_weight=1.0,
         finding_class=FINDING_CLASS_ADVISORY,
     ),
     SiteHealthRule(
@@ -519,10 +499,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         remediation="Phrase section headings as the questions users ask.",
         display_label="No question-form headings",
         score_roles=(SCORE_ROLE_AEO,),
-        checkpoint_family="semantic_structure",
         content_addressable=True,
-        readiness_dimension="structure",
-        readiness_weight=1.0,
     ),
     SiteHealthRule(
         rule_id="aeo.server_rendered_content",
@@ -540,46 +517,8 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
             "extract it without executing JavaScript."
         ),
         display_label="Content not present in server HTML",
-        score_roles=(SCORE_ROLE_AEO,),
-        checkpoint_family="primary_content",
-        readiness_dimension="machine-readability",
-        readiness_weight=1.0,
+        score_roles=(),
         finding_class=FINDING_CLASS_DIAGNOSTIC,
-    ),
-    SiteHealthRule(
-        rule_id="aeo.no_expand_gating",
-        rule_version=RULE_CATALOG_VERSION,
-        dimension=DIMENSION_AEO,
-        category=CATEGORY_CONTENT,
-        severity=SEVERITY_MEDIUM,
-        weight=1.0,
-        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
-        description=(
-            "Most body text is not behind click-to-expand elements "
-            "(collapsed details / aria-expanded=false)."
-        ),
-        remediation=(
-            "Keep primary content visible without interaction; avoid gating "
-            "answers behind expandable sections."
-        ),
-        display_label="Content behind expand controls",
-        score_roles=(SCORE_ROLE_AEO,),
-        checkpoint_family="content_structure",
-        content_addressable=True,
-        readiness_dimension="structure",
-        readiness_weight=0.5,
-        # This measures the OPPOSITE of what it claims. ``expand_gated_ratio``
-        # counts words inside closed <details> and aria-expanded=false nodes --
-        # text that is present in the DOM and extractable without executing or
-        # clicking anything. A correctly built FAQ accordion, whose every
-        # answer is server-rendered and readable, scored as though its content
-        # were hidden.
-        #
-        # Collapsed-but-present is at most a presentation preference, so the
-        # finding is demoted rather than deleted. Detecting content that is
-        # genuinely unreachable without interaction needs a different extractor
-        # signal; until that exists this cannot honestly be a defect.
-        finding_class=FINDING_CLASS_ADVISORY,
     ),
     # --- crawl-finalize Web Fundamentals rules --------------------------
     SiteHealthRule(
@@ -670,12 +609,9 @@ SITE_HEALTH_RULES_BY_ID: Final[dict[str, SiteHealthRule]] = {
 validate_triggered_rule_links(
     SITE_HEALTH_RULES,
     SITE_HEALTH_RULES_BY_ID,
-    tuple(
-        expected_checkpoints(page_kind, traits)
-        for page_kind in PAGE_KINDS
-        for traits in ((),)
-    ),
+    CHECKPOINT_FAMILY_BY_ID,
 )
+validate_measurement_profile(implemented_checkpoint_ids=tuple(SITE_HEALTH_RULES_BY_ID))
 
 TITLE_LENGTH_BAND: Final[tuple[int, int]] = (30, 60)
 
@@ -687,7 +623,6 @@ ANSWER_FIRST_MIN_WORDS: Final = 10
 
 ANSWER_FIRST_MAX_HOPS: Final = 8
 
-EXPAND_GATED_MAX_RATIO: Final = 0.5
 
 SERVER_RENDERED_MIN_WORDS: Final = 20
 
@@ -704,18 +639,6 @@ INLINE_SCRIPT_JAVASCRIPT_TYPES: Final[frozenset[str]] = frozenset(
 
 QUESTION_HEADINGS_MIN_RATIO: Final = PAGE_KIND_FAQ_QUESTION_RATIO
 
-SOCIAL_DOMAINS: Final[frozenset[str]] = frozenset(
-    {
-        "facebook.com",
-        "twitter.com",
-        "x.com",
-        "instagram.com",
-        "linkedin.com",
-        "youtube.com",
-        "tiktok.com",
-        "pinterest.com",
-    }
-)
 
 TRACKING_QUERY_PARAMS: Final[frozenset[str]] = frozenset(
     {

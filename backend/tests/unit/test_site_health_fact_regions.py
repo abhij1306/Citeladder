@@ -51,6 +51,27 @@ def test_primary_region_prefers_main_over_body() -> None:
     assert source == "main"
 
 
+def test_primary_region_ranks_page_content_above_overlay_mains() -> None:
+    node, source = primary_region(_tree("multi_main_product.html"))
+    text = " ".join(node.text_content().split())
+
+    assert source == "main"
+    assert "The Edna Wide Fit Selvedge Denim" in text
+    assert "Your basket is currently empty" not in text
+
+
+def test_multi_main_product_extracts_the_pages_own_buy_box() -> None:
+    url = "https://example.test/the-edna"
+    facts = _facts("multi_main_product.html", url)
+
+    assert facts["primary_heading_outline"][0]["text"] == (
+        "The Edna Wide Fit Selvedge Denim"
+    )
+    assert facts["commerce"]["visible_price"] == "£325"
+    assert facts["commerce"]["visible_availability"] == "In stock"
+    assert classify(url, facts).page_kind == "product"
+
+
 def test_region_text_excludes_inline_script_bodies() -> None:
     # The defect this pins: ``commerce.visible_price`` was "$1" on all 99 pages
     # of the reference crawl, matched inside a JavaScript replacement string.
@@ -189,7 +210,18 @@ def test_entity_controls_ignore_non_rendered_template() -> None:
 
 def test_listing_signals_describe_a_real_grid() -> None:
     signals = extract_entity_signals(_tree("flat_category_listing.html"))["listing"]
+    evidence = signals["collection_evidence"]
+    affordance_classes = {item["class"] for item in evidence["affordances"]}
+
     assert signals["largest_card_list_size"] >= config.LISTING_MIN_CARD_ITEMS
+    assert evidence["container"] == {
+        "tag": "ul",
+        "label": "Women's Dresses",
+        "item_count": 8,
+        "distinct_targets": 8,
+    }
+    assert affordance_classes == {"result_count", "sort", "filter"}
+    assert {item["relation"] for item in evidence["affordances"]} == {"adjacent"}
     assert signals["has_result_count"] is True
     assert signals["has_sort_control"] is True
     assert signals["has_filter_control"] is True
@@ -207,6 +239,16 @@ def test_javascript_rendered_grid_yields_no_listing_evidence() -> None:
     signals = extract_entity_signals(_tree("hydrated_collection_shell.html"))["listing"]
     assert signals["largest_card_list_size"] == 0
     assert signals["has_result_count"] is False
+
+
+def test_utility_empty_class_does_not_create_an_empty_collection_state() -> None:
+    url = "https://docs.example.test/setup/overview"
+    facts = _facts("docs_link_collection.html", url)
+    listing = facts["entity"]["listing"]
+
+    assert listing["has_empty_state"] is False
+    assert listing["has_pagination"] is True
+    assert classify(url, facts).page_kind == "docs"
 
 
 # --- location ----------------------------------------------------------------

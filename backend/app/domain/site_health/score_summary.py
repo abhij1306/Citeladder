@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -16,8 +17,19 @@ from app.analysis.site_health.scoring import (
     RuleMeasurementInput,
     aggregate_measurements,
 )
-from app.core.config.site_health_contracts import PAGE_ANALYSIS_STATUS_COMPLETED
-from app.core.config.site_health_measurement import PRESENTATION_VERSION
+from app.core.config.site_health_contracts import (
+    PAGE_ANALYSIS_STATUS_COMPLETED,
+    TASK_KIND_ANALYZE,
+)
+from app.core.config.site_health_measurement import (
+    CLASSIFICATION_FORMULA_VERSION,
+    CLASSIFICATION_STATE_COMPLETE,
+    CLASSIFICATION_STATE_NOT_MEASURED,
+    CLASSIFICATION_STATE_PARTIAL,
+    PRESENTATION_VERSION,
+)
+from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER
+from app.core.config.task_queue import TASK_TERMINAL_STATUSES
 from app.domain.site_health.task_guards import crawl_is_active
 from app.models.site_health.analysis import (
     SiteIssue,
@@ -25,20 +37,188 @@ from app.models.site_health.analysis import (
     SiteRuleEvaluation,
 )
 from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.runtime import SiteHealthProfile
 from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
+
+
+@dataclass(frozen=True, slots=True)
+class ClassificationProjection:
+    classified_page_count: int
+    other_page_count: int
+    error_page_count: int
+    expected_page_count: int
+    coverage: float | None
+    state: str
+    reason_groups: dict[str, int]
+    scored_page_kind_set: list[str]
+    scored_page_count_by_kind: dict[str, int]
+    source_analysis_ids: list[uuid.UUID]
+    source_artifact_ids: list[uuid.UUID]
+    source_task_ids: list[uuid.UUID]
+
+    def to_payload(self) -> dict:
+        return {
+            "classified_page_count": self.classified_page_count,
+            "other_page_count": self.other_page_count,
+            "classification_error_page_count": self.error_page_count,
+            "classification_expected_page_count": self.expected_page_count,
+            "classification_coverage": self.coverage,
+            "classification_state": self.state,
+            "classification_reason_groups": self.reason_groups,
+            "classification_formula_version": CLASSIFICATION_FORMULA_VERSION,
+            "classification_source_analysis_ids": [
+                str(value) for value in self.source_analysis_ids
+            ],
+            "classification_source_artifact_ids": [
+                str(value) for value in self.source_artifact_ids
+            ],
+            "classification_source_task_ids": [
+                str(value) for value in self.source_task_ids
+            ],
+            "scored_page_kind_set": self.scored_page_kind_set,
+            "scored_page_count_by_kind": self.scored_page_count_by_kind,
+        }
+
+
+def latest_task_by_url(
+    tasks: Sequence[SiteCrawlTask],
+) -> dict[uuid.UUID, SiteCrawlTask]:
+    latest: dict[uuid.UUID, SiteCrawlTask] = {}
+    for task in tasks:
+        if task.site_url_id is None:
+            continue
+        current = latest.get(task.site_url_id)
+        if current is None or task.generation >= current.generation:
+            latest[task.site_url_id] = task
+    return latest
+
+
+@dataclass(slots=True)
+class _ClassifiedEvidence:
+    kind_counts: Counter[str]
+    reasons: Counter[str]
+    analysis_ids: list[uuid.UUID]
+    artifact_ids: set[uuid.UUID]
+    completed_site_url_ids: set[uuid.UUID]
+    classified_count: int = 0
+    other_count: int = 0
+
+
+def _classified_evidence(
+    rows: Sequence[Row], expected_ids: set[uuid.UUID]
+) -> _ClassifiedEvidence:
+    evidence = _ClassifiedEvidence(Counter(), Counter(), [], set(), set())
+    for row in rows:
+        if row.site_url_id not in expected_ids:
+            continue
+        evidence.completed_site_url_ids.add(row.site_url_id)
+        evidence.analysis_ids.append(row.id)
+        evidence.artifact_ids.add(row.artifact_id)
+        if row.page_kind == PAGE_KIND_OTHER:
+            evidence.other_count += 1
+            kind_evidence = row.page_kind_evidence or {}
+            reason = str(kind_evidence.get("other_reason") or "page_purpose_unresolved")
+            evidence.reasons[reason] += 1
+            continue
+        evidence.classified_count += 1
+        evidence.kind_counts[row.page_kind] += 1
+    return evidence
+
+
+def _classification_errors(
+    expected_tasks: dict[uuid.UUID, SiteCrawlTask],
+    completed_ids: set[uuid.UUID],
+) -> tuple[int, Counter[str], set[uuid.UUID]]:
+    error_ids = {
+        site_url_id
+        for site_url_id, task in expected_tasks.items()
+        if site_url_id not in completed_ids and task.status in TASK_TERMINAL_STATUSES
+    }
+    reasons: Counter[str] = Counter()
+    artifact_ids: set[uuid.UUID] = set()
+    for site_url_id in error_ids:
+        task = expected_tasks[site_url_id]
+        reasons[task.error_code or "classification_failed"] += 1
+        if task.result_artifact_id is not None:
+            artifact_ids.add(task.result_artifact_id)
+    return len(error_ids), reasons, artifact_ids
+
+
+def _classification_state(classified_count: int, expected_count: int) -> str:
+    if not expected_count:
+        return CLASSIFICATION_STATE_NOT_MEASURED
+    if classified_count == expected_count:
+        return CLASSIFICATION_STATE_COMPLETE
+    return CLASSIFICATION_STATE_PARTIAL
+
+
+async def load_classification_projection(
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    selected_ids: list[uuid.UUID],
+    rows: Sequence[Row],
+) -> ClassificationProjection:
+    tasks = (
+        await session.scalars(
+            select(SiteCrawlTask)
+            .where(
+                SiteCrawlTask.crawl_id == crawl.id,
+                SiteCrawlTask.workspace_id == crawl.workspace_id,
+                SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
+                SiteCrawlTask.site_url_id.in_(selected_ids),
+            )
+            .order_by(
+                SiteCrawlTask.site_url_id,
+                SiteCrawlTask.generation,
+                SiteCrawlTask.id,
+            )
+        )
+    ).all()
+    expected_tasks = {
+        site_url_id: task
+        for site_url_id, task in latest_task_by_url(tasks).items()
+        if task.classification_expected
+    }
+    evidence = _classified_evidence(rows, set(expected_tasks))
+    error_count, error_reasons, error_artifacts = _classification_errors(
+        expected_tasks, evidence.completed_site_url_ids
+    )
+    evidence.reasons.update(error_reasons)
+    evidence.artifact_ids.update(error_artifacts)
+    expected_count = len(expected_tasks)
+    coverage = (
+        round(evidence.classified_count / expected_count, 4) if expected_count else None
+    )
+    return ClassificationProjection(
+        classified_page_count=evidence.classified_count,
+        other_page_count=evidence.other_count,
+        error_page_count=error_count,
+        expected_page_count=expected_count,
+        coverage=coverage,
+        state=_classification_state(evidence.classified_count, expected_count),
+        reason_groups=dict(sorted(evidence.reasons.items())),
+        scored_page_kind_set=sorted(evidence.kind_counts),
+        scored_page_count_by_kind=dict(sorted(evidence.kind_counts.items())),
+        source_analysis_ids=sorted(evidence.analysis_ids, key=str),
+        source_artifact_ids=sorted(evidence.artifact_ids, key=str),
+        source_task_ids=sorted((task.id for task in expected_tasks.values()), key=str),
+    )
 
 
 @dataclass(frozen=True, slots=True)
 class CrawlMeasurementProjection:
     """One workspace-scoped view of the crawl's latest persisted analyses."""
 
+    selected_ids: list[uuid.UUID]
     rows: Sequence[Row]
     analysis_ids: list[uuid.UUID]
     artifact_ids: list[uuid.UUID]
     evaluation_rows: Sequence[Row]
     aggregate: AggregateMeasurements
     by_page_kind: dict[str, dict]
+    classification: ClassificationProjection
 
 
 def _measurement_sources(
@@ -54,6 +234,7 @@ def _measurement_sources(
             analysis_id=str(row.id),
             page_kind=row.page_kind,
             page_traits=tuple(row.page_traits or ()),
+            expected_family_profile=tuple(row.expected_checkpoint_profile or ()),
         )
         for row in rows
     ]
@@ -131,6 +312,10 @@ async def load_crawl_measurement_projection(
             SitePageAnalysis.artifact_id.label("artifact_id"),
             SitePageAnalysis.page_kind.label("page_kind"),
             SitePageAnalysis.page_traits.label("page_traits"),
+            SitePageAnalysis.page_kind_evidence.label("page_kind_evidence"),
+            SitePageAnalysis.expected_checkpoint_profile.label(
+                "expected_checkpoint_profile"
+            ),
             SiteUrl.normalized_url.label("normalized_url"),
             func.row_number()
             .over(
@@ -170,13 +355,32 @@ async def load_crawl_measurement_projection(
                 ranked.c.site_url_id,
                 ranked.c.artifact_id,
                 ranked.c.page_kind,
+                ranked.c.page_kind_evidence,
                 ranked.c.page_traits,
+                ranked.c.expected_checkpoint_profile,
                 ranked.c.normalized_url,
             )
             .where(ranked.c.latest_rank == 1)
             .order_by(ranked.c.site_url_id)
         )
     ).all()
+    selected_ids = list(
+        await session.scalars(
+            select(MonitoredSiteUrl.site_url_id)
+            .where(
+                MonitoredSiteUrl.workspace_id == crawl.workspace_id,
+                MonitoredSiteUrl.project_id == crawl.project_id,
+                MonitoredSiteUrl.active.is_(True),
+            )
+            .order_by(MonitoredSiteUrl.site_url_id)
+        )
+    )
+    classification = await load_classification_projection(
+        session,
+        crawl=crawl,
+        selected_ids=selected_ids,
+        rows=rows,
+    )
     inputs, analysis_ids, artifact_ids, page_kind_by_analysis = _measurement_sources(
         rows
     )
@@ -187,10 +391,12 @@ async def load_crawl_measurement_projection(
         evaluation_rows, page_kind_by_analysis=page_kind_by_analysis
     )
     return CrawlMeasurementProjection(
+        selected_ids=selected_ids,
         rows=rows,
         analysis_ids=analysis_ids,
         artifact_ids=artifact_ids,
         evaluation_rows=evaluation_rows,
+        classification=classification,
         aggregate=aggregate_measurements(inputs, rules),
         by_page_kind=aggregate_by_page_kind(inputs, rules),
     )
@@ -215,6 +421,7 @@ def score_summary_payload(
         "selected_count": selected_count,
         "issue_count": issue_count,
         "scoring_version": aggregate.scoring_version,
+        **projection.classification.to_payload(),
         "presentation_version": PRESENTATION_VERSION,
         "by_page_kind": projection.by_page_kind,
     }
@@ -236,18 +443,7 @@ async def refresh_live_score_summary(
     projection = await load_crawl_measurement_projection(session, crawl=crawl)
     if not projection.rows:
         return False
-    selected_count = int(
-        await session.scalar(
-            select(func.count())
-            .select_from(MonitoredSiteUrl)
-            .where(
-                MonitoredSiteUrl.workspace_id == crawl.workspace_id,
-                MonitoredSiteUrl.project_id == crawl.project_id,
-                MonitoredSiteUrl.active.is_(True),
-            )
-        )
-        or 0
-    )
+    selected_count = len(projection.selected_ids)
     issue_count = int(
         await session.scalar(
             select(func.count())

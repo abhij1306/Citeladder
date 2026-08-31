@@ -19,13 +19,11 @@ from app.core.config.site_health_contracts import (
     AEO_READINESS_MAX_EVALUATIONS,
     AEO_READINESS_MAX_EVIDENCE_PAGES_PER_DIMENSION,
     RULE_FAILING_OUTCOMES,
-    RULE_OUTCOME_CONFLICTING,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_MISSING,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PARTIAL,
     RULE_OUTCOME_SATISFIED,
-    RULE_OUTCOME_UNAVAILABLE,
     RULE_OUTCOME_UNKNOWN,
 )
 from app.core.config.site_health_measurement import (
@@ -33,6 +31,7 @@ from app.core.config.site_health_measurement import (
     PROFILE_VERSION,
     SCHEMA_CONTRACT_VERSION,
 )
+from app.core.config.site_health_rule_types import SCORE_ROLE_AEO
 from app.core.config.site_health_rules import SITE_HEALTH_RULES_BY_ID
 from app.models.site_health.crawl import SiteCrawl
 
@@ -65,6 +64,17 @@ def _bounded_evaluations(rows: Sequence[Row]) -> tuple[list[Row], bool]:
     )
 
 
+def _bounded_readiness_rows(evaluations: Sequence[Row]) -> tuple[list[Row], bool]:
+    readiness_rows = [
+        row
+        for row in evaluations
+        if row.rule_id in SITE_HEALTH_RULES_BY_ID
+        and str(row.readiness_dimension or "")
+        and SCORE_ROLE_AEO in tuple(row.score_roles or ())
+    ]
+    return _bounded_evaluations(readiness_rows)
+
+
 def _failing_entity_count(scope: str, rows: Sequence[Row]) -> int:
     failing = [row for row in rows if row.outcome in RULE_FAILING_OUTCOMES]
     if scope == "page":
@@ -90,25 +100,24 @@ def _failing_entity_count(scope: str, rows: Sequence[Row]) -> int:
 
 def _check_projection(rule_id: str, rows: Sequence[Row]) -> dict | None:
     rule = SITE_HEALTH_RULES_BY_ID.get(rule_id)
-    if rule is None or not rule.readiness_dimension:
+    if rule is None or not rows or not str(rows[0].readiness_dimension or ""):
         return None
+    first = rows[0]
     counts = Counter(row.outcome for row in rows)
     return {
         "rule_id": rule_id,
-        "scope": rule.scope,
+        "scope": first.scope,
         "title": rule.display_label,
         "remediation": rule.remediation,
         "satisfied_count": counts[RULE_OUTCOME_SATISFIED],
         "partial_count": counts[RULE_OUTCOME_PARTIAL],
         "missing_count": counts[RULE_OUTCOME_MISSING],
         "unknown_count": counts[RULE_OUTCOME_UNKNOWN],
-        "unavailable_count": counts[RULE_OUTCOME_UNAVAILABLE],
-        "conflicting_count": counts[RULE_OUTCOME_CONFLICTING],
         "not_applicable_count": counts[RULE_OUTCOME_NOT_APPLICABLE],
         "error_count": counts[RULE_OUTCOME_ERROR],
-        "failing_entity_count": _failing_entity_count(rule.scope, rows),
-        "checkpoint_family": rule.checkpoint_family,
-        "readiness_weight": rule.readiness_weight,
+        "failing_entity_count": _failing_entity_count(first.scope, rows),
+        "checkpoint_family": str(first.checkpoint_family or ""),
+        "readiness_weight": float(first.readiness_weight or 0.0),
         "content_addressable": rule.content_addressable,
     }
 
@@ -209,8 +218,6 @@ def _dimension_projection(
         "partial_count": counts[RULE_OUTCOME_PARTIAL],
         "missing_count": counts[RULE_OUTCOME_MISSING],
         "unknown_count": counts[RULE_OUTCOME_UNKNOWN],
-        "unavailable_count": counts[RULE_OUTCOME_UNAVAILABLE],
-        "conflicting_count": counts[RULE_OUTCOME_CONFLICTING],
         "not_applicable_count": counts[RULE_OUTCOME_NOT_APPLICABLE],
         "error_count": counts[RULE_OUTCOME_ERROR],
         "coverage": persisted.get("coverage"),
@@ -237,6 +244,45 @@ def _dimension_projection(
     }
 
 
+def _readiness_limitations(
+    *,
+    state: str,
+    coverage_state: str,
+    audited_page_count: int,
+    evaluations_truncated: bool,
+) -> list[str]:
+    limitations: list[str] = []
+    if state != "measured":
+        limitations.append(
+            "Readiness evidence is limited; review dimension coverage below."
+        )
+    if coverage_state != "complete":
+        limitations.append(
+            f"AEO Readiness describes {audited_page_count} audited pages; "
+            f"crawl coverage is {coverage_state}."
+        )
+    if evaluations_truncated:
+        limitations.append(
+            "Readiness diagnostic counts and evidence are truncated at "
+            f"{AEO_READINESS_MAX_EVALUATIONS} evaluations."
+        )
+    return limitations
+
+
+def _readiness_dimension_projections(
+    persisted_dimensions: Sequence[dict],
+    rows: Sequence[Row],
+    pages: dict[uuid.UUID, ReadinessPage],
+) -> list[dict]:
+    persisted_by_key = {
+        str(dimension.get("key")): dimension for dimension in persisted_dimensions
+    }
+    return [
+        _dimension_projection(persisted_by_key.get(key, {"key": key}), rows, pages)
+        for key in AEO_READINESS_DIMENSIONS
+    ]
+
+
 def build_aeo_readiness_descriptor(
     *,
     crawl_id: uuid.UUID,
@@ -253,30 +299,13 @@ def build_aeo_readiness_descriptor(
     presentation_version: str,
     analyzer_version: str,
 ) -> dict:
-    readiness_rows = [
-        row
-        for row in evaluations
-        if row.rule_id in SITE_HEALTH_RULES_BY_ID
-        and bool(SITE_HEALTH_RULES_BY_ID[row.rule_id].readiness_dimension)
-    ]
-    bounded, evaluations_truncated = _bounded_evaluations(readiness_rows)
-    persisted_by_key = {str(item.get("key")): item for item in readiness_dimensions}
-
-    limitations: list[str] = []
-    if state != "measured":
-        limitations.append(
-            "Readiness evidence is limited; review dimension coverage below."
-        )
-    if coverage_state != "complete":
-        limitations.append(
-            f"AEO Readiness describes {len(pages)} audited pages; "
-            f"crawl coverage is {coverage_state}."
-        )
-    if evaluations_truncated:
-        limitations.append(
-            "Readiness diagnostic counts and evidence are truncated at "
-            f"{AEO_READINESS_MAX_EVALUATIONS} evaluations."
-        )
+    bounded, evaluations_truncated = _bounded_readiness_rows(evaluations)
+    limitations = _readiness_limitations(
+        state=state,
+        coverage_state=coverage_state,
+        audited_page_count=len(pages),
+        evaluations_truncated=evaluations_truncated,
+    )
     return {
         "state": state,
         "crawl_id": str(crawl_id),
@@ -292,12 +321,9 @@ def build_aeo_readiness_descriptor(
         "affected_page_count": len(
             _failing_analysis_ids([row for row in bounded if row.scope == "page"])
         ),
-        "dimensions": [
-            _dimension_projection(
-                persisted_by_key.get(key, {"key": key}), bounded, pages
-            )
-            for key in AEO_READINESS_DIMENSIONS
-        ],
+        "dimensions": _readiness_dimension_projections(
+            readiness_dimensions, bounded, pages
+        ),
         "limitations": limitations,
     }
 

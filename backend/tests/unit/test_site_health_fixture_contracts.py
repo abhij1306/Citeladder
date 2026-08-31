@@ -25,15 +25,15 @@ from pathlib import Path
 
 import pytest
 
-from app.analysis.site_health.page_analysis import analyze_page
+from app.analysis.site_health.page_analysis import PageAnalysisResult, analyze_page
 from app.analysis.site_health.page_kinds import classify
 from app.analysis.site_health.parser import extract_page_facts
 from app.core.config.site_health_contracts import (
-    RULE_OUTCOME_CONFLICTING,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_MISSING,
     RULE_OUTCOME_PARTIAL,
 )
+from app.core.config.site_health_measurement import profile_rows
 from app.core.config.site_health_rule_types import FINDING_CLASS_DEFECT
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "site_health"
@@ -69,6 +69,7 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         url="https://northgate.example/womens-dresses",
         page_kind="category",
         confidence="high",
+        must_fail=frozenset({"aeo.assortment_freshness_signal"}),
         why="38 words of prose over a real 8-item grid: length is not the verdict",
     ),
     FixtureContract(
@@ -90,6 +91,7 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         url="https://northgate.example/oak-dining-tables?sort=price-asc",
         page_kind="category",
         confidence="high",
+        must_fail=frozenset({"aeo.assortment_freshness_signal"}),
         why="a sorted view canonicalised onto its parent: the point of canonical",
     ),
     FixtureContract(
@@ -100,6 +102,7 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         ),
         page_kind="article",
         confidence="medium",
+        must_fail=frozenset({"aeo.visible_attribution"}),
         why="from a newsletter, so a tracking parameter must not read as a conflict",
     ),
     FixtureContract(
@@ -107,6 +110,7 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         url="https://northgate.example/blog/kiln-dried-oak",
         page_kind="article",
         confidence="medium",
+        must_fail=frozenset({"aeo.visible_attribution"}),
         why="visible byline, visible date, real citations, zero JSON-LD",
     ),
     FixtureContract(
@@ -128,6 +132,7 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         url="https://northgate.example/guides/re-oiling-an-oak-table",
         page_kind="guide",
         confidence="medium",
+        must_fail=frozenset({"aeo.visible_attribution"}),
         why="a real how-to with steps and an outcome, and no HowTo markup",
     ),
     FixtureContract(
@@ -140,6 +145,7 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
             {
                 "aeo.schema_matches_content",
                 "aeo.product_brand_identity",
+                "aeo.offer_freshness_signal",
                 "technical.indexable",
             }
         ),
@@ -161,8 +167,8 @@ KNOWN_FALSE_POSITIVES: dict[str, frozenset[str]] = {
 }
 
 
-def _defect_failures(contract: FixtureContract) -> tuple[set[str], set[str]]:
-    """``(defect failures, errors)`` for one fixture, end to end."""
+def _analyze_contract(contract: FixtureContract) -> PageAnalysisResult:
+    """Analyze one fixture with the suite's fixed healthy delivery evidence."""
     body = (_FIXTURES / contract.fixture).read_bytes()
     facts = extract_page_facts(
         body,
@@ -176,14 +182,16 @@ def _defect_failures(contract: FixtureContract) -> tuple[set[str], set[str]]:
         wire_bytes=len(body) // 3,
         decoded_bytes=len(body),
     )
-    evaluations = analyze_page(
-        facts, sitemap_member=contract.sitemap_member
-    ).evaluations
+    return analyze_page(facts, sitemap_member=contract.sitemap_member)
+
+
+def _defect_failures(contract: FixtureContract) -> tuple[set[str], set[str]]:
+    """``(defect failures, errors)`` for one fixture, end to end."""
+    evaluations = _analyze_contract(contract).evaluations
     defects = {
         ev.rule_id
         for ev in evaluations
-        if ev.outcome
-        in {RULE_OUTCOME_MISSING, RULE_OUTCOME_PARTIAL, RULE_OUTCOME_CONFLICTING}
+        if ev.outcome in {RULE_OUTCOME_MISSING, RULE_OUTCOME_PARTIAL}
         and ev.finding_class == FINDING_CLASS_DEFECT
     }
     errors = {ev.rule_id for ev in evaluations if ev.outcome == RULE_OUTCOME_ERROR}
@@ -225,6 +233,26 @@ def test_fixture_produces_exactly_its_contracted_defects(
     )
 
 
+def test_procedural_guide_keeps_an_honest_answerability_gap() -> None:
+    """A generic editorial lead must not impersonate a procedural evaluator."""
+    contract = _CONTRACTS_BY_FIXTURE["guide_no_howto.html"]
+    analysis = _analyze_contract(contract)
+    assert "procedural" in analysis.traits
+
+    answer_row = next(
+        row
+        for row in profile_rows(
+            analysis.assessment.page_kind,
+            page_traits=analysis.traits,
+            context=None,
+        )
+        if row.family_id == "answer_content"
+    )
+    assert answer_row.status == "measurement_gap"
+    assert answer_row.reason == "purpose_answer_evaluator_unavailable"
+    assert answer_row.checkpoints == ()
+
+
 def test_counter_example_exists() -> None:
     """Without a broken page the suite could pass by silencing everything."""
     counter = [contract for contract in _CONTRACTS if contract.must_fail]
@@ -247,7 +275,9 @@ def test_every_fixture_has_a_contract() -> None:
     region_suite_only = {
         "allbirds_news_archive.html",
         "asian_school_education_archive.html",
+        "docs_link_collection.html",
         "hydrated_collection_shell.html",
+        "multi_main_product.html",
         "pdp_with_recommendations.html",
         "policy_with_recommendations.html",
         "single_store_page.html",

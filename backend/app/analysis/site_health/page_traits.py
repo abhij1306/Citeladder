@@ -147,7 +147,14 @@ def _has_variants(facts: dict[str, Any]) -> bool:
 
 def _listing(facts: dict[str, Any]) -> bool:
     listing = _mapping(_mapping(facts.get("entity")).get("listing"))
-    size = _count(listing.get("largest_card_list_size"))
+    collection = _mapping(listing.get("collection_evidence"))
+    container = _mapping(collection.get("container"))
+    size_value = (
+        container["item_count"]
+        if "item_count" in container
+        else listing.get("largest_card_list_size")
+    )
+    size = _count(size_value)
     return size >= _taxonomy.LISTING_MIN_CARD_ITEMS
 
 

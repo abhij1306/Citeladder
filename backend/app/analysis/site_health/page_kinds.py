@@ -58,6 +58,30 @@ _ARCHIVE_PATH_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
     re.compile(pattern) for pattern in _config.PAGE_KIND_ARCHIVE_PATH_PATTERNS
 )
 
+_DOCUMENTATION_CONTEXT_SIGNAL = "documentation_context"
+_SERVICE_EXPRESSION_SIGNAL = "service_capability_expression"
+_EXACT_ARCHIVE_ROOTS = frozenset({"/blog", "/blogs", "/news"})
+_DECISIVE_LISTING_AFFORDANCE_CLASSES = frozenset(
+    {"result_count", "sort", "filter", "facet", "empty_state"}
+)
+_BOUND_RELATIONS = frozenset(
+    {"contained", "contains", "targets", "labelled", "adjacent"}
+)
+_TECHNICAL_CONTENT_TOKENS = frozenset(
+    {
+        "api",
+        "authentication",
+        "configuration",
+        "endpoint",
+        "install",
+        "parameter",
+        "reference",
+        "request",
+        "response",
+        "sdk",
+    }
+)
+
 #: Signal precedence WITHIN a tier. Reaching two signals in one tier is a
 #: genuine disagreement, recorded as a conflict; this table decides it.
 _TIER_SIGNAL_ORDER: tuple[str, ...] = (
@@ -66,6 +90,8 @@ _TIER_SIGNAL_ORDER: tuple[str, ...] = (
     _config.PAGE_KIND_SIGNAL_PRIMARY_LOCATION,
     _config.PAGE_KIND_SIGNAL_ROOT_PATH,
     _config.PAGE_KIND_SIGNAL_PATH_PATTERN,
+    _DOCUMENTATION_CONTEXT_SIGNAL,
+    _SERVICE_EXPRESSION_SIGNAL,
     _config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC,
     _config.PAGE_KIND_SIGNAL_SEMANTIC_TITLE,
     _config.PAGE_KIND_SIGNAL_STRUCTURED_DATA,
@@ -372,6 +398,11 @@ def _classification_signals(
     # used to report a confident homepage for a page we never located.
     if not _is_absolute_http_url(final_url):
         return matched, None
+    content_type = (
+        str(facts.get("content_type") or "").split(";", 1)[0].strip().casefold()
+    )
+    if content_type and content_type not in {"text/html", "application/xhtml+xml"}:
+        return matched, None
     path = _normalized_path(final_url)
 
     # The root path is an exact fact about the URL, not a heuristic: a
@@ -389,7 +420,7 @@ def _classification_signals(
     route_signals = _route_signals(path)
     matched.extend(_structural_signals(facts, route_signals, path=path))
     matched.extend(route_signals)
-    matched.extend(_semantic_signals(path, facts))
+    matched.extend(_semantic_signals(final_url, path, facts))
     schema_page_kind, _schema_type = _schema_suggestion(facts)
     return matched, schema_page_kind
 
@@ -482,59 +513,54 @@ def _single_product_schema(facts: dict) -> bool:
 
 
 def _listing_evidence(listing: dict) -> str:
-    """Decisive listing evidence: a real grid PLUS a listing affordance.
+    """A repeated collection plus a decisive affordance bound to that container.
 
-    The grid size alone is not enough — a related-products strip is also a
-    grid. Requiring a result count, a sort control or a filter control is what
-    separates a page that IS a listing from a page that merely contains one.
-
-    An ``ItemList``/``CollectionPage`` node used to count as a fourth
-    affordance, and it was the wrong test: ``structured_data.types`` is the set
-    of schema types found ANYWHERE on the page, not the type of the node
-    wrapping the grid. Every blog post carrying a related-posts strip and a
-    site-wide ``ItemList`` therefore satisfied it, the structural tier won, and
-    the route tier's ``article`` verdict was discarded as a conflict — one site
-    classified 87 pages ``category`` against 9 ``article``, and a SaaS crawl
-    minted a shelf per blog post. A page-wide schema type is exactly the "page's
-    own claim about itself" this module places in the WEAKEST tier; it must not
-    decide the strongest one. It still reaches ``structured_data``, which is
-    where a claim belongs.
+    Pagination alone is ordinary article and documentation navigation. It
+    remains an observed listing fact, but cannot classify a generic linked
+    collection as a category without a result, filter, sort, facet, or genuine
+    empty-state signal.
     """
-    size = listing.get("largest_card_list_size")
+    collection = _mapping(listing.get("collection_evidence"))
+    container = _mapping(collection.get("container"))
+    size = container.get("item_count")
     if not isinstance(size, int) or size < _config.LISTING_MIN_CARD_ITEMS:
         return ""
-    affordances = [
-        name
-        for name, present in (
-            ("result_count", listing.get("has_result_count")),
-            ("sort_control", listing.get("has_sort_control")),
-            ("filter_control", listing.get("has_filter_control")),
-        )
-        if present
-    ]
-    if not affordances:
+    affordances = collection.get("affordances")
+    if not isinstance(affordances, list):
         return ""
-    return f"grid:{size} {'+'.join(affordances)}"
+    classes: list[str] = []
+    for item in affordances:
+        mapped = _mapping(item)
+        affordance_class = str(mapped.get("class") or "")
+        relation = str(mapped.get("relation") or "")
+        if (
+            affordance_class in _DECISIVE_LISTING_AFFORDANCE_CLASSES
+            and relation in _BOUND_RELATIONS
+            and affordance_class not in classes
+        ):
+            classes.append(affordance_class)
+    if not classes:
+        return ""
+    return f"collection:{size} {'+'.join(classes)}"
 
 
 def _is_archive_path(path: str) -> bool:
-    return any(pattern.match(path) is not None for pattern in _ARCHIVE_PATH_PATTERNS)
+    return path in _EXACT_ARCHIVE_ROOTS or any(
+        pattern.match(path) is not None for pattern in _ARCHIVE_PATH_PATTERNS
+    )
 
 
 def _archive_listing_evidence(listing: dict) -> str:
-    """Repeated page-owned cards on an exact archive route are a listing.
-
-    Blog archives rarely expose commerce-style result, sort, or filter controls.
-    The exact route gate keeps an individual post carrying a related-posts
-    carousel on the article path.
-    """
-    size = listing.get("largest_card_list_size")
-    targets = listing.get("distinct_card_list_targets")
+    """An exact archive route corroborated by one repeated linked collection."""
+    collection = _mapping(listing.get("collection_evidence"))
+    container = _mapping(collection.get("container"))
+    size = container.get("item_count")
+    targets = container.get("distinct_targets")
     if not isinstance(size, int) or size < _config.LISTING_MIN_CARD_ITEMS:
         return ""
     if not isinstance(targets, int) or targets < _config.LISTING_MIN_CARD_ITEMS:
         return ""
-    return f"archive_grid:{size}"
+    return f"archive_collection:{size}"
 
 
 def _location_evidence(location: dict, *, has_local_route: bool) -> str:
@@ -567,9 +593,27 @@ def _route_signals(path: str) -> list[dict[str, Any]]:
     return [_signal(_config.PAGE_KIND_SIGNAL_PATH_PATTERN, page_kind, pattern.pattern)]
 
 
-def _semantic_signals(path: str, facts: dict) -> list[dict[str, Any]]:
-    """Tier C — weak evidence, used only when nothing stronger spoke."""
+def _semantic_signals(final_url: str, path: str, facts: dict) -> list[dict[str, Any]]:
+    """Tier C — bounded corroboration used only when stronger evidence is absent."""
     signals: list[dict[str, Any]] = []
+    documentation_detail = _documentation_context(final_url, facts)
+    if documentation_detail:
+        signals.append(
+            _signal(
+                _DOCUMENTATION_CONTEXT_SIGNAL,
+                _config.PAGE_KIND_DOCS,
+                documentation_detail,
+            )
+        )
+    service_detail = _service_expression(facts)
+    if service_detail:
+        signals.append(
+            _signal(
+                _SERVICE_EXPRESSION_SIGNAL,
+                _config.PAGE_KIND_SERVICE,
+                service_detail,
+            )
+        )
     heuristic = content_heuristic(facts)
     if heuristic is not None:
         signals.append(
@@ -594,6 +638,108 @@ def _semantic_signals(path: str, facts: dict) -> list[dict[str, Any]]:
             )
         )
     return signals
+
+
+def _documentation_context(final_url: str, facts: dict) -> str:
+    if not _is_documentation_host(final_url):
+        return ""
+    heading_levels, heading_texts = _documentation_outline(facts)
+    technical = _documentation_technical_tokens(facts, heading_texts)
+    hierarchy = 1 in heading_levels and any(level > 1 for level in heading_levels)
+    docs_navigation = _has_documentation_navigation(facts)
+    docs_breadcrumb = _has_documentation_breadcrumb(facts)
+    return _documentation_detail(
+        hierarchy=hierarchy,
+        technical=technical,
+        docs_navigation=docs_navigation,
+        docs_breadcrumb=docs_breadcrumb,
+    )
+
+
+def _is_documentation_host(final_url: str) -> bool:
+    try:
+        host = (urlsplit(final_url).hostname or "").casefold()
+    except ValueError:
+        return False
+    return host.split(".", 1)[0] in {"docs", "developer", "developers"}
+
+
+def _documentation_outline(facts: dict) -> tuple[set[int], list[str]]:
+    raw_outline = facts.get("primary_heading_outline")
+    if not isinstance(raw_outline, list):
+        return set(), []
+    levels: set[int] = set()
+    texts: list[str] = []
+    for item in raw_outline:
+        if not isinstance(item, dict):
+            continue
+        level = item.get("level")
+        if isinstance(level, int):
+            levels.add(level)
+        texts.append(str(item.get("text") or ""))
+    return levels, texts
+
+
+def _documentation_technical_tokens(facts: dict, heading_texts: list[str]) -> list[str]:
+    text_parts = list(heading_texts)
+    text_parts.extend(_str_sequence(facts.get("link_context")))
+    text_parts.extend(
+        [
+            str(facts.get("direct_answer") or ""),
+            str(facts.get("editorial_lead") or ""),
+        ]
+    )
+    normalized = set(re.findall(r"[a-z0-9]+", " ".join(text_parts).casefold()))
+    return sorted(normalized & _TECHNICAL_CONTENT_TOKENS)
+
+
+def _has_documentation_navigation(facts: dict) -> bool:
+    link_context = " ".join(_str_sequence(facts.get("link_context"))).casefold()
+    return any(
+        token in link_context
+        for token in ("api reference", "developer guide", "documentation")
+    )
+
+
+def _has_documentation_breadcrumb(facts: dict) -> bool:
+    commerce = _mapping(facts.get("commerce"))
+    breadcrumb_tokens = {
+        token
+        for entry in _str_sequence(commerce.get("breadcrumbs"))
+        for token in re.findall(r"[a-z0-9]+", entry.casefold())
+    }
+    return bool(breadcrumb_tokens & {"api", "developer", "documentation", "reference"})
+
+
+def _documentation_detail(
+    *,
+    hierarchy: bool,
+    technical: list[str],
+    docs_navigation: bool,
+    docs_breadcrumb: bool,
+) -> str:
+    reasons: list[str] = []
+    if hierarchy and technical:
+        reasons.append(f"technical:{','.join(technical[:3])}")
+    if docs_navigation:
+        reasons.append("documentation_navigation")
+    if docs_breadcrumb:
+        reasons.append("documentation_breadcrumb")
+    return "+".join(reasons)
+
+
+def _service_expression(facts: dict) -> str:
+    proposition = _mapping(facts.get("entity_proposition"))
+    required = {
+        "identity": str(proposition.get("identity") or "").strip(),
+        "provider": str(proposition.get("provider") or "").strip(),
+        "capability": str(proposition.get("named_capability") or "").strip(),
+        "audience_outcome": str(proposition.get("audience_or_outcome") or "").strip(),
+        "next_action": str(proposition.get("next_action") or "").strip(),
+    }
+    if not all(required.values()):
+        return ""
+    return "provider+capability+audience_outcome+next_action"
 
 
 def _title_suggestion(path: str, facts: dict) -> tuple[str | None, str]:

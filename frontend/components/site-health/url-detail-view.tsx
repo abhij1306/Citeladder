@@ -5,10 +5,10 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ScoreRing } from '@/components/ui/score-ring';
 import { Label, displayHeadingXlClasses } from '@/components/ui/typography';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { InternalLinksCard } from '@/components/site-health/internal-links-card';
+import { UrlScoreSummary } from '@/components/site-health/url-score-summary';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import type { DeliveryFacts, PageDetail, SiteIssue } from '@/lib/api/types';
 import { ICONS } from '@/lib/icons';
@@ -65,28 +65,7 @@ export function UrlDetailView({
         rerunQueued={rerunQueued}
         onRerun={onRerun}
       />
-      <div className="grid gap-4 sm:grid-cols-3">
-        <ScoreTile
-          label="Web Fundamentals"
-          value={detail.web_fundamentals_score}
-          coverage={detail.web_fundamentals_coverage}
-          state={detail.web_fundamentals_state}
-        />
-        <ScoreTile
-          label="AEO Readiness"
-          value={detail.aeo_readiness_score}
-          coverage={detail.aeo_measurement_coverage}
-          state={detail.aeo_measurement_state}
-        />
-        <ScoreTile
-          label="AEO Measurement Coverage"
-          value={
-            detail.aeo_measurement_coverage === null ? null : detail.aeo_measurement_coverage * 100
-          }
-          coverage={detail.aeo_measurement_coverage}
-          state={detail.aeo_measurement_state}
-        />
-      </div>
+      <UrlScoreSummary detail={detail} />
       <DeliveryMetrics delivery={detail.delivery} />
       <InternalLinksCard links={detail.internal_links} crawlId={detail.crawl_id} />
       <IssuesList issues={detail.issues} />
@@ -350,44 +329,6 @@ function EvidenceSignals({ evidence }: Readonly<{ evidence: PageKindEvidenceView
       })}
     </div>
   );
-}
-
-function ScoreTile({
-  label,
-  value,
-  coverage,
-  state,
-}: Readonly<{ label: string; value: number | null; coverage: number | null; state: string }>) {
-  const coverageLabel =
-    coverage === null ? 'Coverage unavailable' : `${Math.round(coverage * 100)}% measured`;
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-2 py-[var(--card-padding)]">
-        {value === null ? (
-          state === 'limited_evidence' || state === 'excluded' ? (
-            <span className="text-muted text-xs">
-              {state === 'limited_evidence' ? 'Limited evidence' : 'Excluded'}
-            </span>
-          ) : (
-            <UnavailableValue state="not_measured" />
-          )
-        ) : (
-          <ScoreRing value={value} size={64} label={`${label}: ${Math.round(value)}`} />
-        )}
-        <Label>{label}</Label>
-        <span className="text-muted text-center text-xs">
-          {coverageLabel} · {scoreConfidenceLabel(state)}
-        </span>
-      </CardContent>
-    </Card>
-  );
-}
-
-function scoreConfidenceLabel(state: string): string {
-  if (state === 'measured') return 'High confidence';
-  if (state === 'limited_evidence') return 'Moderate confidence';
-  if (state === 'excluded') return 'Excluded';
-  return 'Not measured';
 }
 
 function DeliveryMetrics({ delivery }: Readonly<{ delivery: DeliveryFacts }>) {
