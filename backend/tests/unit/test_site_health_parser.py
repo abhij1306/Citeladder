@@ -233,6 +233,24 @@ def test_accessible_names_include_descendant_image_alternatives() -> None:
     assert facts["accessibility"]["controls_missing_accessible_name"] == 0
 
 
+def test_accessible_names_exclude_hidden_naming_descendants() -> None:
+    facts = _facts(
+        b"""
+        <html><body>
+          <button><span aria-hidden="true">Hidden button name</span></button>
+          <span id="hidden-label"><span hidden>Hidden label</span></span>
+          <input aria-labelledby="hidden-label">
+          <label for="field"><span inert>Hidden field label</span></label>
+          <input id="field">
+          <button><span hidden><img alt="Hidden image name"></span></button>
+        </body></html>
+        """
+    )
+
+    assert facts["accessibility"]["control_count"] == 4
+    assert facts["accessibility"]["controls_missing_accessible_name"] == 4
+
+
 def test_accessible_name_descriptors_are_bounded() -> None:
     controls = "".join(f'<input id="missing-{index}">' for index in range(25))
     facts = _facts(f"<html><body>{controls}</body></html>".encode())
@@ -777,6 +795,15 @@ def test_visible_attribution_accepts_heading_byline_and_explicit_author_name():
     assert named_heading["authorship"]["visible_byline"] == "Saneesh Basi"
 
 
+def test_ordinary_headings_do_not_become_visible_authors() -> None:
+    facts = _facts(
+        b"<html><body><main><h1>Enterprise Search</h1><h2>About Us</h2>"
+        b"</main></body></html>"
+    )
+
+    assert facts["authorship"]["visible_byline"] == ""
+
+
 def test_day_first_dates_are_recognised():
     # "14 March 2026" is the ordinary written form across Britain and Europe.
     # Only ISO and month-first were matched, so those articles read as undated.
@@ -1047,6 +1074,32 @@ def test_product_microdata_bounds_unique_values_before_merge():
     assert facts["structured_data"]["product"]["sku"] == [
         f"SKU-{index}" for index in range(PRODUCT_FACT_MAX_VALUES)
     ]
+
+
+def test_product_microdata_splits_itemprop_names_and_isolates_nested_products():
+    facts = _facts(
+        b"""
+        <html><body><main itemscope itemtype="https://schema.org/Product">
+          <meta itemprop="sku mpn" content="OUTER-1">
+          <div itemprop="brand" itemscope itemtype="https://schema.org/Brand">
+            <span itemprop="name">North Star</span>
+          </div>
+          <div itemprop="isRelatedTo" itemscope itemtype="https://schema.org/Product">
+            <meta itemprop="sku" content="INNER-2">
+          </div>
+        </main></body></html>
+        """
+    )
+    products = [
+        block["product"]
+        for block in facts["structured_data"]["blocks"]
+        if block["type"] == "Product"
+    ]
+
+    assert products[0]["sku"] == ["OUTER-1"]
+    assert products[0]["mpn"] == ["OUTER-1"]
+    assert products[0]["brand"] == ["North Star"]
+    assert products[1]["sku"] == ["INNER-2"]
 
 
 def test_control_with_id_can_still_use_its_implicit_parent_label():

@@ -447,6 +447,7 @@ async def test_issue_catalog_separates_defect_and_advisory_quantities(
         )
         assert issue is not None
         issue.finding_class = "advisory"
+        issue.dimension = "aeo"
         issue.description = "Advisory metadata"
         defect_analysis = await session.scalar(
             select(SitePageAnalysis).where(
@@ -460,7 +461,7 @@ async def test_issue_catalog_separates_defect_and_advisory_quantities(
             analysis_id=defect_analysis.id,
             source_artifact_id=defect_analysis.artifact_id,
             rule_id=issue.rule_id,
-            dimension=issue.dimension,
+            dimension="technical",
             category=issue.category,
             severity="high",
             finding_class="defect",
@@ -482,7 +483,7 @@ async def test_issue_catalog_separates_defect_and_advisory_quantities(
                 evaluation_id=defect_evaluation.id,
                 source_artifact_id=defect_analysis.artifact_id,
                 rule_id=issue.rule_id,
-                dimension=issue.dimension,
+                dimension="technical",
                 category=issue.category,
                 severity="high",
                 finding_class="defect",
@@ -537,6 +538,7 @@ async def test_issue_catalog_separates_defect_and_advisory_quantities(
         "low": 0,
         "info": 0,
     }
+    assert body["summary"]["dimension_counts"] == {"aeo": 1, "technical": 0}
     detail = await client.get(
         f"/api/v1/site-crawls/{scn.crawl_id}/issues/{body['items'][0]['group_id']}",
         headers=headers,

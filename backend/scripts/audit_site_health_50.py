@@ -271,7 +271,7 @@ async def _candidate_rows(
 
 async def _occurrences_by_url(
     conn: AsyncConnection, crawl_ids: list[Any]
-) -> dict[str, list[dict[str, Any]]]:
+) -> dict[tuple[str, str], list[dict[str, Any]]]:
     result = await conn.execute(
         text("""
         SELECT i.id occurrence_id, i.evaluation_id, i.analysis_id, i.site_url_id,
@@ -290,16 +290,16 @@ async def _occurrences_by_url(
         """),
         {"crawl_ids": crawl_ids, "companies": list(COMPANIES)},
     )
-    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in result.mappings().all():
-        grouped[str(row["url"])].append(dict(row))
+        grouped[(str(row["crawl_id"]), str(row["url"]))].append(dict(row))
     return grouped
 
 
 async def _load_snapshot() -> tuple[
     dict[str, dict[str, Any]],
     list[dict[str, Any]],
-    dict[str, list[dict[str, Any]]],
+    dict[tuple[str, str], list[dict[str, Any]]],
 ]:
     async with engine.connect() as conn:
         latest = await _latest_crawls(conn)
@@ -488,12 +488,12 @@ async def _fetch_corpus(
 def _validate_review_coverage(
     reviews: dict[str, dict[str, str]],
     manifest: list[dict[str, Any]],
-    issues_by_url: dict[str, list[dict[str, Any]]],
+    issues_by_url: dict[tuple[str, str], list[dict[str, Any]]],
 ) -> None:
     expected_ids = {
         str(issue["occurrence_id"])
         for row in manifest
-        for issue in issues_by_url.get(str(row["url"]), ())
+        for issue in issues_by_url.get((str(row["crawl_id"]), str(row["url"])), ())
     }
     review_ids = set(reviews)
     missing = expected_ids - review_ids
@@ -564,14 +564,15 @@ def _reported_row(
 
 def _build_reported(
     manifest: list[dict[str, Any]],
-    issues_by_url: dict[str, list[dict[str, Any]]],
+    issues_by_url: dict[tuple[str, str], list[dict[str, Any]]],
     reviews: dict[str, dict[str, str]],
     replayed: dict[tuple[str, str], str],
 ) -> list[dict[str, Any]]:
     reported: list[dict[str, Any]] = []
     for manifest_row in manifest:
         url = str(manifest_row["url"])
-        for issue in issues_by_url.get(url, []):
+        occurrence_key = (str(manifest_row["crawl_id"]), url)
+        for issue in issues_by_url.get(occurrence_key, []):
             review = reviews[str(issue["occurrence_id"])]
             replayed_outcome = replayed.get((url, issue["rule_id"]), "")
             reported.append(

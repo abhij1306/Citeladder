@@ -121,11 +121,14 @@ def test_existing_fixture_requires_metadata_sidecar(tmp_path) -> None:
 
 
 def test_review_coverage_compares_exact_occurrence_ids() -> None:
-    manifest = [{"url": "https://example.com"}]
-    issues = {"https://example.com": [{"occurrence_id": "expected"}]}
+    manifest = [{"crawl_id": "crawl-a", "url": "https://example.com"}]
+    issues = {
+        ("crawl-a", "https://example.com"): [{"occurrence_id": "expected"}],
+        ("crawl-b", "https://example.com"): [{"occurrence_id": "other"}],
+    }
 
-    with pytest.raises(RuntimeError, match=r"missing.*expected.*unexpected.*other"):
-        _validate_review_coverage({"other": {}}, manifest, issues)
+    with pytest.raises(RuntimeError, match=r"missing.*expected.*unexpected.*wrong"):
+        _validate_review_coverage({"wrong": {}}, manifest, issues)
 
 
 def test_rule_table_includes_replay_only_rules_without_mutating_counts() -> None:

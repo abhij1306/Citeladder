@@ -59,15 +59,29 @@ class _VisibleAuthorshipEvidence:
         text = _visible_node_text(node)
         tag = str(getattr(node, "tag", "") or "").lower()
         author_tokens = tokens & authorship_config.VISIBLE_AUTHOR_NODE_TOKENS
-        if not self.author and (author_tokens or tag in {"h1", "h2", "h3"}):
-            self.author = visible_byline(text)
-            if not self.author:
-                self.author = visible_author_name(text)
+        heading_candidate = tag in {"h1", "h2", "h3"}
+        if not self.author and (author_tokens or heading_candidate):
+            self.author = _visible_author_candidate(
+                text, tag=tag, has_author_tokens=bool(author_tokens)
+            )
             self.profile_url = _visible_profile_url(node) if self.author else ""
         if not self.published and (
             node.tag == "time" or tokens & authorship_config.VISIBLE_DATE_NODE_TOKENS
         ):
             self.published = visible_date(text)
+
+
+def _visible_author_candidate(text: str, *, tag: str, has_author_tokens: bool) -> str:
+    if byline := visible_byline(text):
+        return byline
+    if has_author_tokens:
+        return visible_author_name(text)
+    if (
+        tag in {"h2", "h3"}
+        and text.casefold() not in authorship_config.VISIBLE_AUTHOR_HEADING_EXCLUSIONS
+    ):
+        return visible_author_name(text)
+    return ""
 
 
 def _visible_node_text(node: Any) -> str:

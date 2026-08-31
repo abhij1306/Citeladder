@@ -19,9 +19,18 @@ def _input_type(control: Any) -> str:
 def _accessible_text(node: Any) -> str:
     """Return bounded text alternatives contributed by one naming subtree."""
     try:
-        parts = [str(value) for value in node.itertext()]
+        parts = [
+            str(value)
+            for value in node.xpath(
+                ".//text()[not(ancestor::template or ancestor::*[@hidden] "
+                "or ancestor::*[@inert] or ancestor::*[translate("
+                "normalize-space(@aria-hidden), 'TRUE', 'true')='true'])]"
+            )
+        ]
         parts.extend(
-            str(image.get("alt") or "") for image in node.xpath(".//img[@alt]")
+            str(image.get("alt") or "")
+            for image in node.xpath(".//img[@alt]")
+            if not _is_excluded_control(image)
         )
         return " ".join(" ".join(parts).split())
     except DOM_ERRORS as exc:
@@ -29,17 +38,9 @@ def _accessible_text(node: Any) -> str:
         return ""
 
 
-def _has_labelledby_text(root: Any, control: Any) -> bool:
+def _has_labelledby_text(label_text_by_id: dict[str, bool], control: Any) -> bool:
     labelled_by = str(control.get("aria-labelledby") or "").split()
-    try:
-        return any(
-            _accessible_text(node)
-            for reference in labelled_by
-            for node in root.xpath("//*[@id=$id]", id=reference)
-        )
-    except DOM_ERRORS as exc:
-        dom_failure("extract_accessibility_facts", exc)
-        return False
+    return any(label_text_by_id.get(reference, False) for reference in labelled_by)
 
 
 def _has_native_name(control: Any) -> bool:
@@ -54,17 +55,10 @@ def _has_native_name(control: Any) -> bool:
     return tag == "input" and input_type == "image" and bool(image_alt)
 
 
-def _has_associated_label(root: Any, control: Any) -> bool:
+def _has_associated_label(explicit_label_ids: set[str], control: Any) -> bool:
     control_id = str(control.get("id") or "").strip()
-    if control_id:
-        try:
-            if any(
-                _accessible_text(label)
-                for label in root.xpath("//label[@for=$id]", id=control_id)
-            ):
-                return True
-        except DOM_ERRORS as exc:
-            dom_failure("extract_accessibility_facts", exc)
+    if control_id in explicit_label_ids:
+        return True
     try:
         ancestor = control.getparent()
         while ancestor is not None:
@@ -76,12 +70,17 @@ def _has_associated_label(root: Any, control: Any) -> bool:
     return False
 
 
-def _has_programmatic_name(root: Any, control: Any) -> bool:
+def _has_programmatic_name(
+    control: Any,
+    *,
+    explicit_label_ids: set[str],
+    label_text_by_id: dict[str, bool],
+) -> bool:
     return (
         bool(str(control.get("aria-label") or "").strip())
-        or _has_labelledby_text(root, control)
+        or _has_labelledby_text(label_text_by_id, control)
         or _has_native_name(control)
-        or _has_associated_label(root, control)
+        or _has_associated_label(explicit_label_ids, control)
         or bool(str(control.get("title") or "").strip())
     )
 
@@ -123,6 +122,29 @@ def _control_descriptor(control: Any, *, ordinal: int) -> dict[str, Any]:
     }
 
 
+def _label_indexes(root: Any, controls: list[Any]) -> tuple[set[str], dict[str, bool]]:
+    try:
+        referenced_ids = {
+            reference
+            for control in controls
+            for reference in str(control.get("aria-labelledby") or "").split()
+        }
+        explicit = {
+            str(label.get("for") or "").strip()
+            for label in root.xpath("//label[@for]")
+            if _accessible_text(label)
+        }
+        labelled = {
+            str(node.get("id") or "").strip(): bool(_accessible_text(node))
+            for node in root.xpath("//*[@id]")
+            if str(node.get("id") or "").strip() in referenced_ids
+        }
+        return explicit, labelled
+    except DOM_ERRORS as exc:
+        dom_failure("extract_accessibility_facts", exc)
+        return set(), {}
+
+
 def _controls(root: Any) -> tuple[int, int, list[dict[str, Any]]]:
     try:
         controls = root.xpath("//input | //select | //textarea | //button")
@@ -140,10 +162,15 @@ def _controls(root: Any) -> tuple[int, int, list[dict[str, Any]]]:
             or _is_excluded_control(control)
         )
     ]
+    explicit_label_ids, label_text_by_id = _label_indexes(root, visible_controls)
     missing_descriptors = [
         _control_descriptor(control, ordinal=ordinal)
         for ordinal, control in enumerate(visible_controls, start=1)
-        if not _has_programmatic_name(root, control)
+        if not _has_programmatic_name(
+            control,
+            explicit_label_ids=explicit_label_ids,
+            label_text_by_id=label_text_by_id,
+        )
     ]
     return (
         len(visible_controls),

@@ -413,19 +413,36 @@ def microdata_product_values(nodes: list[Any]) -> list[dict[str, list[str]]]:
         except (AttributeError, TypeError, ValueError):
             property_nodes = []
         for property_node in property_nodes:
-            property_name = str(property_node.get("itemprop") or "").strip()
-            target = _microdata_product_target(property_name)
-            if not target:
+            if _belongs_to_nested_product(node, property_node):
                 continue
             value = _microdata_value(property_node)
-            if (
-                value
-                and value not in product[target]
-                and len(product[target]) < PRODUCT_FACT_MAX_VALUES
-            ):
-                product[target].append(value[:PRODUCT_FACT_MAX_VALUE_CHARS])
+            for property_name in str(property_node.get("itemprop") or "").split():
+                target = _microdata_product_target(property_name)
+                if (
+                    target
+                    and value
+                    and value not in product[target]
+                    and len(product[target]) < PRODUCT_FACT_MAX_VALUES
+                ):
+                    product[target].append(value[:PRODUCT_FACT_MAX_VALUE_CHARS])
         values.append(product)
     return values
+
+
+def _belongs_to_nested_product(product_node: Any, property_node: Any) -> bool:
+    candidate = property_node
+    try:
+        while candidate is not None and candidate is not product_node:
+            itemtype = str(candidate.get("itemtype") or "")
+            if "itemscope" in candidate.attrib and any(
+                value.rstrip("/").rsplit("/", 1)[-1] == "Product"
+                for value in itemtype.split()
+            ):
+                return True
+            candidate = candidate.getparent()
+    except (AttributeError, TypeError, ValueError):
+        return True
+    return False
 
 
 def _microdata_product_target(property_name: str) -> str:

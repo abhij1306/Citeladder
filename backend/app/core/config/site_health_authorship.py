@@ -17,6 +17,9 @@ DATE_PATTERN: Final = (
 )
 
 VISIBLE_AUTHOR_NODE_TOKENS: Final[frozenset[str]] = frozenset({"author", "byline"})
+VISIBLE_AUTHOR_HEADING_EXCLUSIONS: Final[frozenset[str]] = frozenset(
+    {"about us", "contact us", "our team", "meet the team"}
+)
 VISIBLE_DATE_NODE_TOKENS: Final[frozenset[str]] = frozenset(
     {"byline", "date", "datemodified", "datepublished", "published", "updated"}
 )

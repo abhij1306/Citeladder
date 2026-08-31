@@ -242,7 +242,7 @@ async def _issues_summary(
         severity_counts[key] = severity_counts.get(key, 0) + int(count)
     dim_rows = await session.execute(
         select(SiteIssue.dimension, func.count(func.distinct(SiteIssue.rule_id)))
-        .where(*defect_clauses)
+        .where(*clauses)
         .group_by(SiteIssue.dimension)
     )
     dimension_counts = {name: 0 for name in sorted(RULE_DIMENSIONS)}
