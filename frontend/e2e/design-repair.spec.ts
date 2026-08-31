@@ -116,7 +116,7 @@ test('onboarding renders one centered flow, sequential progress, and a prompt-fr
   const stageHeadingFontSize = await initialHeading.evaluate(
     (element) => getComputedStyle(element).fontSize,
   );
-  const brandStage = await page.locator('[data-flow-measure="default"]').boundingBox();
+  const brandStage = await page.locator('.flow-content[data-flow-measure="default"]').boundingBox();
   expect(brandStage).not.toBeNull();
 
   await page.getByLabel(/^Brand name/).fill('The Asian School');
@@ -126,7 +126,9 @@ test('onboarding renders one centered flow, sequential progress, and a prompt-fr
   const discoveryHeadingBox = await discoveryHeading.boundingBox();
   expect(discoveryHeadingBox).not.toBeNull();
   expect(discoveryHeadingBox!.y).toBeCloseTo(initialHeadingBox!.y, 0);
-  const discoveryStage = await page.locator('[data-flow-measure="default"]').boundingBox();
+  const discoveryStage = await page
+    .locator('.flow-content[data-flow-measure="default"]')
+    .boundingBox();
   expect(discoveryStage).not.toBeNull();
 
   const progress = page.getByRole('progressbar', { name: /steps complete/ });
@@ -138,7 +140,7 @@ test('onboarding renders one centered flow, sequential progress, and a prompt-fr
     'font-size',
     stageHeadingFontSize,
   );
-  const reviewStage = await page.locator('[data-flow-measure="wide"]').first().boundingBox();
+  const reviewStage = await page.locator('.flow-content[data-flow-measure="wide"]').boundingBox();
   expect(reviewStage).not.toBeNull();
   expect(brandStage?.width).toBeCloseTo(discoveryStage!.width, 0);
   expect(reviewStage!.width).toBeGreaterThan(brandStage!.width);
