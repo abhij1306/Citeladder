@@ -8,8 +8,8 @@ import { Alert } from '@/components/ui/alert';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
-import { Textarea } from '@/components/ui/input';
-import { NestedTabs } from '@/components/ui/nested-tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { TabPanel, Tabs } from '@/components/ui/tabs';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { projectsApi } from '@/lib/api/projects';
 import { queryKeys } from '@/lib/api/query-keys';
@@ -93,12 +93,14 @@ export function BrandProfilePanel({
       ) : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
 
-      <NestedTabs
-        tabs={PROFILE_TABS}
-        activeTab={activeTab}
-        onSelectTab={setActiveTab}
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        items={PROFILE_TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
         ariaLabel="Company facts sections"
-        panel={
+        rootClassName="grid gap-4"
+      >
+        <TabPanel value={activeTab} className="focus-ring">
           <ProfileTabPanel
             activeTab={activeTab}
             draft={draft}
@@ -109,8 +111,8 @@ export function BrandProfilePanel({
             onDraftChange={setDraft}
             onProductsChange={setProductsInput}
           />
-        }
-      />
+        </TabPanel>
+      </Tabs>
     </div>
   );
 }

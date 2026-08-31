@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import type { EngineFilter } from '@/components/visibility/visibility-toolbar';
@@ -12,40 +11,38 @@ import { visibilityApi } from '@/lib/api/visibility';
 import {
   findActiveRun,
   isEvidenceTab,
-  normalizeTab,
+  VISIBILITY_TABS,
   toPromptOptions,
   toRunOptions,
   type VisibilityTab,
 } from '@/lib/visibility/dashboard';
 import { shouldPollAudit } from '@/lib/runs/status';
 import { ACTIVE_RUN_POLL_MS, EVIDENCE_LIMIT } from '@/lib/config/operational';
+import { stringUrlCodec, useUrlState } from '@/lib/navigation/url-state';
 
 /** Compatibility exports for existing visibility consumers and tests. */
 export { EVIDENCE_LIMIT } from '@/lib/config/operational';
 import { rangeToFrom, type TrendGranularity, type TrendRange } from '@/lib/visibility/trends';
 
+const VISIBILITY_TAB_CODEC = stringUrlCodec(
+  VISIBILITY_TABS.map(({ id }) => id),
+  'trends' as VisibilityTab,
+);
+
 /**
  * The Visibility workspace's URL-synced tab + shared filter state.
  *
- * The active tab is mirrored in `?tab=` (invalid values fall back to Overview)
- * so refresh / back / forward preserve it; local state keeps it responsive and
- * re-syncs from the URL on back/forward navigation. Shared filter STATE lives
+ * The active tab is owned by `?tab=` (invalid values fall back to Trends), so
+ * refresh / back / forward preserve it without a mirrored local store. Shared filter state lives
  * here and persists across tab switches; hidden controls keep their state.
- * Ownership (plan §IA): selected run → Overview + both evidence tabs; logical
+ * Ownership: selected run → Trends + both evidence tabs; logical
  * engine → every tab; prompt → both evidence tabs; date range → Trends + both
  * evidence tabs; granularity → Trends only.
  */
 export function useVisibilityFilters() {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const urlTab = normalizeTab(searchParams?.get('tab'));
-
-  const [activeTab, setActiveTab] = useState<VisibilityTab>(urlTab);
-  useEffect(() => {
-    // Intentional URL→state sync (external navigation is the source of truth).
-    // oxlint-disable-next-line react-hooks/set-state-in-effect
-    setActiveTab(urlTab);
-  }, [urlTab]);
+  const [activeTab, setActiveTab] = useUrlState('tab', VISIBILITY_TAB_CODEC, {
+    history: 'replace',
+  });
 
   // Shared filter state (persists across tab switches).
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -56,16 +53,10 @@ export function useVisibilityFilters() {
   const [cohort, setCohort] = useState<'core' | 'comparison'>('core');
 
   function selectTab(tab: VisibilityTab) {
+    // The shared URL-state owner performs a shallow history update and emits
+    // one subscription event, avoiding an App Router round trip and a mirrored
+    // local tab store.
     setActiveTab(tab);
-    const params = new URLSearchParams(searchParams?.toString() ?? '');
-    params.set('tab', tab);
-    // Shallow URL bookkeeping, NOT navigation. `router.replace` sent every tab
-    // click through the App Router — an RSC round trip plus a re-render of the
-    // whole route for a query param the page reads locally, which is what made
-    // switching tabs stutter. `history.replaceState` is Next's supported
-    // shallow-update path: `useSearchParams` still reflects it, so refresh /
-    // back / forward keep working.
-    window.history.replaceState(null, '', `${pathname}?${params.toString()}`);
   }
 
   // A narrowing filter (engine, bounded range, or a specific prompt) is active —

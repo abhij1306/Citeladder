@@ -359,9 +359,7 @@ function DeliveryMetrics({ delivery }: Readonly<{ delivery: DeliveryFacts }>) {
           <h2 className="text-foreground text-base font-semibold tracking-[-0.015em]">
             Delivery Metrics
           </h2>
-          <span className="text-2xs text-muted">
-            Static HTTP-level measurements (not browser-rendered Core Web Vitals)
-          </span>
+          <span className="text-2xs text-muted">Static HTTP-level measurements</span>
         </div>
         <dl className="grid gap-4 sm:grid-cols-4">
           {items.map((item) => (

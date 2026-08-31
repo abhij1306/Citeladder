@@ -10,8 +10,8 @@ import { QueriesTable } from '@/components/traffic/queries-table';
 import { TrafficToolbar } from '@/components/traffic/traffic-toolbar';
 import { UnifiedPerformanceCard } from '@/components/traffic/unified-performance-card';
 import { Alert } from '@/components/ui/alert';
-import { NestedTabs } from '@/components/ui/nested-tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TabPanel, Tabs } from '@/components/ui/tabs';
 import { integrationsApi } from '@/lib/api/integrations';
 import { queryKeys } from '@/lib/api/query-keys';
 import { retainPreviousDataForScope } from '@/lib/api/query-client';
@@ -261,12 +261,14 @@ function PopulatedTrafficDashboard({
       <TrafficAlerts sync={sync} />
       <div aria-busy={dashboardFetching} className="grid gap-[var(--workspace-gap)]">
         <UnifiedPerformanceCard dashboard={dashboard} granularity={dashboard.granularity} />
-        <NestedTabs
-          tabs={TRAFFIC_TABLE_TABS}
-          activeTab={tableView}
-          onSelectTab={setTableView}
+        <Tabs
+          value={tableView}
+          onValueChange={setTableView}
+          items={TRAFFIC_TABLE_TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
           ariaLabel="Traffic rankings"
-          panel={
+          rootClassName="grid gap-4"
+        >
+          <TabPanel value={tableView} className="focus-ring">
             <TrafficRankings
               projectId={projectId}
               tableView={tableView}
@@ -274,8 +276,8 @@ function PopulatedTrafficDashboard({
               from={bounds.from}
               to={bounds.to}
             />
-          }
-        />
+          </TabPanel>
+        </Tabs>
       </div>
     </div>
   );

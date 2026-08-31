@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Minus, Plus } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { SearchField } from '@/components/ui/search-field';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Pressable } from '@/components/ui/pressable';
 import { Alert } from '@/components/ui/alert';
@@ -63,6 +64,7 @@ function CatalogRow({
   onExpand,
   onSelect,
   onToggle,
+  children,
 }: Readonly<{
   entry: CatalogEntry;
   selected: boolean;
@@ -73,6 +75,7 @@ function CatalogRow({
   onExpand?: () => void;
   onSelect: () => void;
   onToggle: () => void;
+  children?: ReactNode;
 }>) {
   return (
     <li className="min-w-0">
@@ -91,7 +94,6 @@ function CatalogRow({
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 shrink-0"
             aria-label={`${expanded ? 'Collapse' : 'Expand'} ${entry.label}`}
             aria-expanded={expanded}
             onClick={onExpand}
@@ -103,18 +105,12 @@ function CatalogRow({
             )}
           </Button>
         ) : nested ? null : (
-          <span className="size-8 shrink-0" aria-hidden />
+          <span className="size-[var(--control-height)] shrink-0" aria-hidden />
         )}
-        <input
-          type="checkbox"
-          className="accent-accent size-4 shrink-0"
+        <Checkbox
           aria-label={`Select ${entry.label} for bulk actions`}
-          aria-checked={partiallyChecked ? 'mixed' : checked}
-          checked={checked}
-          ref={(node) => {
-            if (node) node.indeterminate = partiallyChecked;
-          }}
-          onChange={onToggle}
+          checked={partiallyChecked ? 'indeterminate' : checked}
+          onCheckedChange={onToggle}
         />
         <Pressable
           type="button"
@@ -133,6 +129,7 @@ function CatalogRow({
           )}
         </Pressable>
       </div>
+      {children}
     </li>
   );
 }
@@ -172,25 +169,25 @@ function CatalogTree({
           const hasProducts = Boolean(category.children?.length);
           const expanded = hasProducts && (expandedByKey[category.key] ?? searching);
           return (
-            <li key={category.key} className="grid min-w-0 gap-0.5">
-              <CatalogRow
-                entry={category}
-                selected={category.key === selectedKey}
-                checked={selectedCount === selectionKeys.length}
-                partiallyChecked={selectedCount > 0 && selectedCount < selectionKeys.length}
-                expanded={expanded}
-                onExpand={
-                  hasProducts
-                    ? () =>
-                        setExpandedByKey((current) => ({
-                          ...current,
-                          [category.key]: !expanded,
-                        }))
-                    : undefined
-                }
-                onSelect={() => onSelect(category.target)}
-                onToggle={() => onToggle(selectionKeys)}
-              />
+            <CatalogRow
+              key={category.key}
+              entry={category}
+              selected={category.key === selectedKey}
+              checked={selectedCount === selectionKeys.length}
+              partiallyChecked={selectedCount > 0 && selectedCount < selectionKeys.length}
+              expanded={expanded}
+              onExpand={
+                hasProducts
+                  ? () =>
+                      setExpandedByKey((current) => ({
+                        ...current,
+                        [category.key]: !expanded,
+                      }))
+                  : undefined
+              }
+              onSelect={() => onSelect(category.target)}
+              onToggle={() => onToggle(selectionKeys)}
+            >
               {expanded ? (
                 <ul aria-label={`${category.label} products`} className="grid min-w-0">
                   {(category.children ?? []).map((product) => (
@@ -206,7 +203,7 @@ function CatalogTree({
                   ))}
                 </ul>
               ) : null}
-            </li>
+            </CatalogRow>
           );
         })}
       </ul>
@@ -287,11 +284,11 @@ export function CatalogList({
         data-testid="catalog-search-controls"
         className="border-border-subtle bg-panel sticky top-0 z-20 border-b p-[var(--card-padding)]"
       >
-        <Input
+        <SearchField
           aria-label="Search the catalog"
           placeholder="Search categories and products"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onValueChange={setSearch}
         />
       </div>
       <div className="grid min-w-0 gap-3 p-[var(--card-padding)] pt-3">

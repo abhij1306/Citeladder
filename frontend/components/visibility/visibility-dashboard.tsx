@@ -9,12 +9,13 @@ import { DashboardSkeleton } from '@/components/visibility/dashboard-skeleton';
 import { VisibilityEmptyState } from '@/components/visibility/empty-state';
 import { FanoutEvidence } from '@/components/visibility/fanout-evidence';
 import { MentionsCitations } from '@/components/visibility/mentions-citations';
-import { VisibilityTabs } from '@/components/visibility/visibility-tabs';
 import { VisibilityToolbar } from '@/components/visibility/visibility-toolbar';
 import { VisibilityTrends } from '@/components/visibility/visibility-trends';
+import { TabPanel, Tabs } from '@/components/ui/tabs';
 import { queryKeys } from '@/lib/api/query-keys';
 import { visibilityApi } from '@/lib/api/visibility';
 import { useProjectContext } from '@/lib/project/project-context';
+import { VISIBILITY_TABS, type VisibilityTab } from '@/lib/visibility/dashboard';
 import {
   EVIDENCE_LIMIT,
   useVisibilityFilters,
@@ -111,11 +112,17 @@ function VisibilityWorkspace({
         cohort={filters.cohort}
         onChangeCohort={filters.setCohort}
       />
-      <VisibilityTabs
-        activeTab={filters.activeTab}
-        onSelectTab={filters.selectTab}
-        panel={<DashboardPanel filters={filters} queries={queries} promptQuery={promptQuery} />}
-      />
+      <Tabs
+        value={filters.activeTab}
+        onValueChange={filters.selectTab}
+        items={VISIBILITY_TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
+        ariaLabel="Visibility views"
+        rootClassName="grid gap-4"
+      >
+        <TabPanel value={filters.activeTab} className="focus-ring">
+          <DashboardPanel filters={filters} queries={queries} promptQuery={promptQuery} />
+        </TabPanel>
+      </Tabs>
     </div>
   );
 }
@@ -129,7 +136,7 @@ function DashboardPanel({
   queries: ReturnType<typeof useVisibilityQueries>;
   promptQuery: ReturnType<typeof usePromptQuery>;
 }>) {
-  const panels: Partial<Record<typeof filters.activeTab, ReactNode>> = {
+  const panels: Partial<Record<VisibilityTab, ReactNode>> = {
     trends: (
       <VisibilityTrends
         query={queries.trendQuery}

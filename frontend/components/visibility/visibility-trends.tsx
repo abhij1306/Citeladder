@@ -6,7 +6,7 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardEyebrow, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { eyebrowClasses } from '@/components/ui/eyebrow';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TrendChart } from '@/components/ui/trend-chart';
@@ -159,34 +159,28 @@ function TrendEmptyState({
 }: Readonly<{ isFiltered: boolean; hasRuns: boolean }>) {
   if (isFiltered)
     return (
-      <Card>
-        <CardContent className="grid justify-items-center gap-2 py-[var(--empty-state-padding)] text-center">
-          <CardEyebrow>Trends</CardEyebrow>
-          <h2 className={displayHeadingLgClasses}>No runs match these filters</h2>
-          <p className="text-secondary max-w-md text-sm">
-            No completed audits fall inside the selected engine and date range. Widen the range or
-            clear the engine filter to see more history.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="grid justify-items-center gap-2 py-[var(--empty-state-padding)] text-center">
+        <h2 className={displayHeadingLgClasses}>No runs match these filters</h2>
+        <p className="text-secondary max-w-md text-sm">
+          No completed audits fall inside the selected engine and date range. Widen the range or
+          clear the engine filter to see more history.
+        </p>
+      </div>
     );
   return (
-    <Card>
-      <CardContent className="grid justify-items-center gap-4 py-[var(--empty-state-padding)] text-center">
-        <CardEyebrow>Trends</CardEyebrow>
-        <div className="grid gap-1">
-          <h2 className={displayHeadingLgClasses}>No trend history yet</h2>
-          <p className="text-secondary max-w-md text-sm">
-            {hasRuns
-              ? 'No snapshots to plot yet — history appears here as audits complete.'
-              : 'Launch audits over time to track Visibility Score and Share of Voice.'}
-          </p>
-        </div>
-        <Button asChild variant="ghost" size="md">
-          <Link href="/runs">Go to Runs</Link>
-        </Button>
-      </CardContent>
-    </Card>
+    <div className="grid justify-items-center gap-4 py-[var(--empty-state-padding)] text-center">
+      <div className="grid gap-1">
+        <h2 className={displayHeadingLgClasses}>No trend history yet</h2>
+        <p className="text-secondary max-w-md text-sm">
+          {hasRuns
+            ? 'No snapshots to plot yet — history appears here as audits complete.'
+            : 'Launch audits over time to track Visibility Score and Share of Voice.'}
+        </p>
+      </div>
+      <Button asChild variant="ghost" size="md">
+        <Link href="/runs">Go to Runs</Link>
+      </Button>
+    </div>
   );
 }
 

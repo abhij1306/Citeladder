@@ -9,10 +9,8 @@ import {
   IssueSearch,
   useIssuesCatalogUrlState,
 } from '@/components/site-health/issues-catalog-url-state';
-import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import { PageKindSelect } from '@/components/site-health/page-kind-select';
 import { Alert } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CopyButton } from '@/components/ui/copy-button';
@@ -20,14 +18,10 @@ import { Pressable } from '@/components/ui/pressable';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Skeleton } from '@/components/ui/skeleton';
 import { siteHealthQueries, type IssuesParams } from '@/lib/api/site-health';
-import type { IssueDimension, IssuesSummary, SiteIssue, SiteIssueDetail } from '@/lib/api/types';
+import type { IssuesSummary, SiteIssue, SiteIssueDetail } from '@/lib/api/types';
 import { changeIssueFilters, toIssueParams, type IssueFilters } from '@/lib/site-health/filters';
-import {
-  dimensionLabel,
-  issueTitle,
-  severityBadgeValue,
-  severityLabel,
-} from '@/lib/site-health/issues';
+import { dimensionLabel, issueTitle, severityLabel } from '@/lib/site-health/issues';
+import { pageKindLabel } from '@/lib/site-health/page-kinds';
 import { pageDisplayTitle } from '@/lib/site-health/status';
 import { cn } from '@/lib/utils';
 
@@ -139,9 +133,9 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
           <Skeleton className="h-80 w-full" />
         </div>
       ) : rows.length === 0 ? (
-        <Card>
-          <CardContent className="text-secondary text-sm">No issues match this view.</CardContent>
-        </Card>
+        <p className="text-secondary py-[var(--empty-state-padding)] text-center text-sm">
+          No issues match this view.
+        </p>
       ) : (
         <div
           className="grid items-start gap-4 lg:grid-cols-[minmax(18rem,0.85fr)_minmax(0,1.65fr)]"
@@ -204,15 +198,20 @@ function IssueSummary({
   const typeCount =
     findingView === 'defect' ? summary.defect_issue_type_count : summary.advisory_issue_type_count;
   return (
-    <div className="border-border-subtle bg-panel flex flex-wrap gap-x-6 gap-y-2 rounded-sm border p-4 text-sm">
-      <span>
-        <strong className="text-foreground">{typeCount}</strong> {findingView} issue types
-      </span>
-      <span className="text-secondary">
-        {summary.occurrence_count} {findingView} occurrences
-      </span>
-      <span className="text-secondary">{summary.affected_url_count} affected URLs</span>
+    <div className="border-border-subtle flex flex-wrap gap-x-8 gap-y-3 border-b pb-3">
+      <SummaryMeasure value={typeCount} label={`${findingView} issue types`} />
+      <SummaryMeasure value={summary.occurrence_count} label={`${findingView} occurrences`} />
+      <SummaryMeasure value={summary.affected_url_count} label="affected URLs" />
     </div>
+  );
+}
+
+function SummaryMeasure({ value, label }: Readonly<{ value: number; label: string }>) {
+  return (
+    <span className="flex items-baseline gap-1.5">
+      <span className="text-foreground text-lg font-semibold tabular-nums">{value}</span>{' '}
+      <span className="text-muted text-xs">{label}</span>
+    </span>
   );
 }
 
@@ -267,16 +266,7 @@ function IssueGroupList({
             )}
           >
             <span className="flex items-center justify-between gap-3">
-              <span className="flex flex-wrap items-center gap-1.5">
-                {issue.finding_class === 'defect' ? (
-                  <Badge variant="status" value={severityBadgeValue(issue.severity)}>
-                    {severityLabel(issue.severity)}
-                  </Badge>
-                ) : (
-                  <Badge>Advisory</Badge>
-                )}
-                <DimensionBadge dimension={issue.dimension} />
-              </span>
+              <IssueMetadata issue={issue} />
               <span className="text-2xs text-muted whitespace-nowrap">
                 {issue.affected_url_count} {issue.affected_url_count === 1 ? 'page' : 'pages'}
               </span>
@@ -324,25 +314,31 @@ function IssueDetailRail({
           />
         ) : null}
         <header className="border-border-subtle grid shrink-0 gap-3 border-b p-[var(--card-padding)]">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {issue.finding_class === 'defect' ? (
-                <Badge variant="status" value={severityBadgeValue(issue.severity)}>
-                  {severityLabel(issue.severity)}
-                </Badge>
-              ) : (
-                <Badge>Advisory</Badge>
-              )}
-              <DimensionBadge dimension={issue.dimension} />
+          <div className="flex items-start justify-between gap-[var(--workspace-gap)]">
+            <div className="grid min-w-0 gap-2">
+              <h2 className="text-foreground text-lg font-semibold tracking-[-0.02em]">
+                {issueTitle(issue)}
+              </h2>
+              <IssueMetadata issue={issue} />
             </div>
-            <span className="text-2xs text-muted whitespace-nowrap">
-              {issue.affected_url_count} {issue.affected_url_count === 1 ? 'page' : 'pages'}{' '}
-              affected
-            </span>
+            <div className="border-border-subtle grid shrink-0 gap-1 border-l pl-4 text-sm font-normal">
+              <span className="text-secondary whitespace-nowrap tabular-nums">
+                {issue.affected_url_count} {issue.affected_url_count === 1 ? 'page' : 'pages'}{' '}
+                affected
+              </span>
+              {issue.page_kinds.length > 0 ? (
+                <span className="text-muted flex max-w-56 flex-wrap items-center gap-1 text-xs">
+                  <span>Affects</span>
+                  {issue.page_kinds.map((kind, index) => (
+                    <span key={kind} className="contents">
+                      {index > 0 ? <span aria-hidden>·</span> : null}
+                      <span>{pageKindLabel(kind)}</span>
+                    </span>
+                  ))}
+                </span>
+              ) : null}
+            </div>
           </div>
-          <h2 className="text-foreground text-lg font-semibold tracking-[-0.02em]">
-            {issueTitle(issue)}
-          </h2>
           <CopyButton value={buildFixPrompt(issue)} size="sm" className="w-fit">
             Copy fix prompt
           </CopyButton>
@@ -350,14 +346,6 @@ function IssueDetailRail({
         <div className="content-scroll grid min-h-0 gap-[var(--workspace-gap)] p-[var(--card-padding)] lg:flex-1 lg:overflow-y-auto">
           {issue.description ? (
             <p className="text-secondary text-sm whitespace-pre-line">{issue.description}</p>
-          ) : null}
-          {issue.page_kinds.length > 0 ? (
-            <span className="flex flex-wrap items-center gap-1">
-              <span className="text-2xs text-muted">Affects</span>
-              {issue.page_kinds.map((kind) => (
-                <PageKindBadge key={kind} pageKind={kind} />
-              ))}
-            </span>
           ) : null}
           {issue.remediation ? (
             <div className="border-border-subtle bg-panel-subtle grid gap-1 rounded-lg border p-3">
@@ -420,7 +408,11 @@ function OccurrenceList({
               <span className="text-foreground truncate text-sm font-medium">
                 {pageDisplayTitle(occurrence.title, occurrence.display_url)}
               </span>
-              <PageKindBadge pageKind={occurrence.page_kind} />
+              {occurrence.page_kind ? (
+                <span className="text-muted shrink-0 text-xs">
+                  {pageKindLabel(occurrence.page_kind)}
+                </span>
+              ) : null}
             </span>
             <span className="mono text-2xs text-muted truncate" title={occurrence.display_url}>
               {occurrence.display_url}
@@ -433,13 +425,25 @@ function OccurrenceList({
   );
 }
 
-function DimensionBadge({ dimension }: Readonly<{ dimension: IssueDimension }>) {
+function IssueMetadata({ issue }: Readonly<{ issue: SiteIssue }>) {
+  const severityTone =
+    issue.severity === 'critical' || issue.severity === 'high'
+      ? 'text-danger-text'
+      : issue.severity === 'medium'
+        ? 'text-warning-text'
+        : 'text-info-text';
   return (
-    <Badge
-      className={cn('capitalize', dimension === 'aeo' ? 'text-accent-text' : 'text-info-text')}
-    >
-      {dimensionLabel(dimension)}
-    </Badge>
+    <span className="flex flex-wrap items-center gap-1.5 text-xs font-medium uppercase">
+      <span className={issue.finding_class === 'defect' ? severityTone : 'text-secondary'}>
+        {issue.finding_class === 'defect' ? severityLabel(issue.severity) : 'Advisory'}
+      </span>
+      <span className="text-muted" aria-hidden>
+        ·
+      </span>
+      <span className={issue.dimension === 'aeo' ? 'text-accent-text' : 'text-info-text'}>
+        {dimensionLabel(issue.dimension)}
+      </span>
+    </span>
   );
 }
 

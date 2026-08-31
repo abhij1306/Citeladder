@@ -18,22 +18,22 @@ import {
 } from '@/test/fixtures/visibility';
 import { mswServer } from '@/test/msw-server';
 
-let currentSearch = new URLSearchParams();
-const replaceStateSpy = vi.fn((_data: unknown, _unused: string, url: string) => {
-  const q = url.includes('?') ? url.slice(url.indexOf('?') + 1) : '';
-  currentSearch = new URLSearchParams(q);
-});
-vi.stubGlobal('history', { ...window.history, replaceState: replaceStateSpy });
+let replaceStateSpy: ReturnType<typeof vi.spyOn>;
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), back: vi.fn(), forward: vi.fn() }),
   usePathname: () => '/visibility',
-  useSearchParams: () => currentSearch,
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 setupVisibilityPageTests(() => {
-  currentSearch = new URLSearchParams();
+  replaceStateSpy = vi.spyOn(window.history, 'replaceState');
+  window.history.replaceState(null, '', '/visibility');
   replaceStateSpy.mockClear();
 });
+
+function setVisibilitySearch(search: string) {
+  window.history.replaceState(null, '', `/visibility${search ? `?${search}` : ''}`);
+}
 
 describe('VisibilityPage — tablist', () => {
   it('renders exactly the three retained tabs and no retired Overview tab', async () => {
@@ -70,7 +70,7 @@ describe('VisibilityPage — tablist', () => {
   });
 
   it('falls back to Trends for an invalid ?tab= value', async () => {
-    currentSearch = new URLSearchParams('tab=sources');
+    setVisibilitySearch('tab=sources');
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility`, () =>
         HttpResponse.json(makeVisibility(AUDIT_LATEST, 67)),
@@ -85,7 +85,7 @@ describe('VisibilityPage — tablist', () => {
   });
 
   it('reads the active tab from ?tab= on load (refresh/deeplink)', async () => {
-    currentSearch = new URLSearchParams('tab=trends');
+    setVisibilitySearch('tab=trends');
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility/trends`, () =>
         HttpResponse.json([
@@ -414,7 +414,7 @@ describe('VisibilityPage — per-tab query enablement + cache reuse', () => {
 describe('VisibilityPage — Trends tab', () => {
   it('renders the trend charts and sends granularity + date bounds', async () => {
     vi.stubEnv('NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE', 'pk_test');
-    currentSearch = new URLSearchParams('tab=trends');
+    setVisibilitySearch('tab=trends');
     const params: URL[] = [];
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility/trends`, ({ request }) => {
@@ -442,7 +442,7 @@ describe('VisibilityPage — Trends tab', () => {
   });
 
   it('renders the single-point info state', async () => {
-    currentSearch = new URLSearchParams('tab=trends');
+    setVisibilitySearch('tab=trends');
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility/trends`, () =>
         HttpResponse.json([makeTrendPoint(AUDIT_LATEST, '2026-07-15T00:00:00Z', 67)]),
@@ -454,7 +454,7 @@ describe('VisibilityPage — Trends tab', () => {
   });
 
   it('renders a null trend metric as a chart gap, never a zero', async () => {
-    currentSearch = new URLSearchParams('tab=trends');
+    setVisibilitySearch('tab=trends');
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility/trends`, () =>
         HttpResponse.json([
@@ -474,7 +474,7 @@ describe('VisibilityPage — Trends tab', () => {
   });
 
   it('renders the retryable error state', async () => {
-    currentSearch = new URLSearchParams('tab=trends');
+    setVisibilitySearch('tab=trends');
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility/trends`, () =>
         HttpResponse.json({ detail: 'boom' }, { status: 400 }),

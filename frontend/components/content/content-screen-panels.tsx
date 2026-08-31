@@ -5,7 +5,7 @@ import { SkillPicker } from '@/components/content/skill-picker';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { eyebrowClasses } from '@/components/ui/eyebrow';
-import { Textarea } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { CONTENT_PROMPT_MAX_LEN } from '@/lib/api/content';
 import type { ContentContextPreview } from '@/lib/api/types';
 import { ICONS } from '@/lib/icons';

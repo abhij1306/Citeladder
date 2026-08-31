@@ -47,7 +47,7 @@ export function PageHeader({
   actions?: ReactNode;
   /** Overrides the route-derived title (rare — prefer the table above). */
   title?: string;
-  /** Optional overline above the title (ADS breadcrumb-row stand-in). */
+  /** Optional contextual overline above the title. */
   eyebrow?: ReactNode;
   /** Paints the title visibly. Off by default — the sidebar already names it. */
   showTitle?: boolean;

@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import { createRef } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { Alert } from './alert';
@@ -6,7 +7,6 @@ import { Badge } from './badge';
 import { Button } from './button';
 import { buttonVariants } from './button-variants';
 import { Card, CardContent, CardEyebrow, CardHeader, CardTitle } from './card';
-import { Donut } from './donut';
 import { Field } from './field';
 import { Input } from './input';
 import { ScoreBar } from './score-bar';
@@ -282,10 +282,29 @@ describe('Input + Field', () => {
     expect(input.className).toContain('h-[var(--control-height)]');
     // The Phase 1 regressions stay fixed: the field keeps its visible fill
     // (canvas tint on the white card) and its accent focus border, and the
-    // invalid state has its own danger border (ADS Textfield).
+    // Invalid state has its own semantic danger border.
     expect(input.className).toContain('bg-input');
     expect(input.className).toContain('focus:border-accent');
     expect(input.className).toContain('aria-invalid:border-danger');
+  });
+
+  it('keeps the native ref and input class while shared adornments own the frame', () => {
+    const ref = createRef<HTMLInputElement>();
+    render(
+      <Input
+        ref={ref}
+        aria-label="Search"
+        startContent={<span data-testid="start">S</span>}
+        endContent={<span data-testid="end">E</span>}
+        className="input-hook"
+        containerClassName="frame-hook"
+      />,
+    );
+    expect(ref.current).toBe(screen.getByRole('textbox', { name: 'Search' }));
+    expect(ref.current).toHaveClass('input-hook');
+    expect(ref.current?.parentElement).toHaveClass('frame-hook');
+    expect(screen.getByTestId('start')).toBeInTheDocument();
+    expect(screen.getByTestId('end')).toBeInTheDocument();
   });
 });
 
@@ -358,27 +377,6 @@ describe('ScoreBar', () => {
     const meter = screen.getByRole('meter', { name: 'Readiness score' });
     expect(meter).toHaveAttribute('value', '100');
     expect(meter.nextElementSibling?.querySelector('.bg-score-high-ring')).not.toBeNull();
-  });
-});
-
-describe('Donut', () => {
-  it('renders an ARIA-labelled donut summarising segment shares + a legend', () => {
-    render(
-      <Donut
-        label="Share of voice"
-        segments={[
-          { label: 'You', value: 60, colorClass: 'stroke-accent' },
-          { label: 'Competitor', value: 40, colorClass: 'stroke-citation-competitor' },
-        ]}
-      />,
-    );
-    const donut = screen.getByRole('img', {
-      name: 'Share of voice: You 60%, Competitor 40%',
-    });
-    expect(donut).toBeInTheDocument();
-    // Legend entries.
-    expect(screen.getByText('You')).toBeInTheDocument();
-    expect(screen.getByText('Competitor')).toBeInTheDocument();
   });
 });
 

@@ -50,7 +50,7 @@ const IDLE_BRIEF = {
 /** Rebuilds a demand brief from the live snapshot identified in the URL. */
 export function useDemandBrief(projectId: string, demandSignalId?: string | null) {
   const snapshot = useQuery({
-    queryKey: ['demand', projectId, 'latest'],
+    queryKey: queryKeys.demand.latest(projectId),
     queryFn: ({ signal }) => demandApi.getLatest(projectId, { signal }),
     enabled: Boolean(demandSignalId),
   });

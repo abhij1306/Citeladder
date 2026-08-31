@@ -1,12 +1,8 @@
 'use client';
 
-import { Check } from 'lucide-react';
-
+import { RadioGroup } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Pressable } from '@/components/ui/pressable';
-import { Tooltip } from '@/components/ui/tooltip';
 import type { ContentSkillView } from '@/lib/api/content';
-import { cn } from '@/lib/utils';
 
 /** Display order and copy for the channel groups the catalog reports. */
 const CHANNEL_LABELS: Readonly<Record<string, string>> = {
@@ -76,41 +72,21 @@ export function SkillPicker({
   })).filter((group) => group.items.length > 0);
 
   return (
-    <div
-      role="radiogroup"
-      aria-label="Content format"
-      className="flex flex-col gap-2"
-      data-component-id="content-skill-picker"
-    >
-      {byChannel.map((group) => (
-        <div key={group.channel} className="flex flex-wrap items-center gap-2">
-          <span className="text-muted w-20 shrink-0 text-xs font-medium">{group.label}</span>
-          {group.items.map((skill) => {
-            const selected = skill.id === value;
-            return (
-              <Tooltip key={skill.id} content={<SkillDetail skill={skill} />}>
-                <Pressable
-                  type="button"
-                  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Button-based radio preserves tooltip wrapping and the compact format-picker interaction.
-                  role="radio"
-                  aria-checked={selected}
-                  disabled={disabled}
-                  onClick={() => onChange(skill.id)}
-                  className={cn(
-                    'focus-ring inline-flex w-auto items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-                    selected
-                      ? 'border-accent-border bg-accent-soft text-accent-text font-medium'
-                      : 'border-border text-secondary hover:border-border-strong hover:text-foreground',
-                  )}
-                >
-                  {selected ? <Check className="size-3.5" aria-hidden /> : null}
-                  {skill.label}
-                </Pressable>
-              </Tooltip>
-            );
-          })}
-        </div>
-      ))}
-    </div>
+    <RadioGroup
+      value={value}
+      onValueChange={onChange}
+      ariaLabel="Content format"
+      variant="chip"
+      className="flex-col items-stretch gap-2"
+      options={byChannel.flatMap((group) =>
+        group.items.map((skill) => ({
+          value: skill.id,
+          label: skill.label,
+          disabled,
+          groupLabel: group.label,
+          description: <SkillDetail skill={skill} />,
+        })),
+      )}
+    />
   );
 }

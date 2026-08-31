@@ -17,6 +17,7 @@ import { DemandSummaryCards } from '@/components/demand/demand-summary-cards';
 import { demandApi, type DemandSignal, type DemandSnapshot } from '@/lib/api/demand';
 import { httpErrorStatus } from '@/lib/api/errors';
 import { mutationNoticeForError } from '@/lib/api/mutation-notice';
+import { queryKeys } from '@/lib/api/query-keys';
 import {
   countByTab,
   FILTER_TABS,
@@ -103,7 +104,7 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
   });
 
   const refreshSnapshot = () =>
-    queryClient.invalidateQueries({ queryKey: ['demand', activeProject?.id, 'latest'] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.demand.latest(activeProject?.id) });
 
   const handleInspect = (signal: DemandSignal) => {
     setSelectedSignalId(signal.id);
@@ -263,7 +264,7 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
           ))}
         </div>
       ) : snapshot.signals.length === 0 ? (
-        <div className="bg-panel border-border rounded-md border p-[var(--empty-state-padding)] text-center">
+        <div className="py-[var(--empty-state-padding)] text-center">
           <Sparkles className="text-muted/60 mx-auto size-8" />
           <h3 className="text-foreground mt-2 text-sm font-semibold">
             No qualifying search gaps observed
@@ -274,7 +275,7 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
           </p>
         </div>
       ) : (
-        <div className="bg-panel border-border rounded-md border p-[var(--empty-state-padding)] text-center">
+        <div className="py-[var(--empty-state-padding)] text-center">
           <Search className="text-muted/60 mx-auto size-8" />
           <h3 className="text-foreground mt-2 text-sm font-semibold">
             No signals match your filter
@@ -311,7 +312,7 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
 export function DemandProjection() {
   const { activeProject, isLoading: projectLoading } = useProjectContext();
   const latest = useQuery({
-    queryKey: ['demand', activeProject?.id, 'latest'],
+    queryKey: queryKeys.demand.latest(activeProject?.id),
     queryFn: ({ signal }) => demandApi.getLatest(activeProject!.id, { signal }),
     enabled: Boolean(activeProject),
   });

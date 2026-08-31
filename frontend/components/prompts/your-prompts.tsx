@@ -207,9 +207,9 @@ export function YourPrompts() {
           </Link>
         </div>
       ) : visiblePrompts.length === 0 ? (
-        <div className="bg-panel shadow-card text-secondary border-border/70 rounded-sm border p-[var(--empty-state-padding)] text-center text-sm">
+        <p className="text-secondary p-[var(--empty-state-padding)] text-center text-sm">
           No prompts match your search.
-        </div>
+        </p>
       ) : (
         <div className="bg-panel border-border overflow-hidden rounded-[var(--radius-card)] border">
           <Table>

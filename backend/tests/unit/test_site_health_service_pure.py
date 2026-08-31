@@ -58,9 +58,7 @@ from app.models.site_health.queue import SiteCrawlTask
 
 
 def test_web_fundamentals_na_only_area_is_not_measured() -> None:
-    state, coverage = _area_state(
-        [SimpleNamespace(outcome="not_applicable")], unavailable=0
-    )
+    state, coverage = _area_state([SimpleNamespace(outcome="not_applicable")])
 
     assert state == "not_measured"
     assert coverage is None

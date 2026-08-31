@@ -3,8 +3,47 @@
 import { useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react';
 
 import { Badge } from '@/components/ui/badge';
-import { Dialog } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { readCsvFileText } from '@/lib/csv/read-file-text';
+
+/** A button-owned hidden picker that permits selecting the same file twice. */
+export function CsvImportTrigger({
+  label = 'Import CSV',
+  pendingLabel = 'Importing…',
+  accessibleLabel,
+  pending = false,
+  onSelect,
+  variant = 'secondary',
+}: Readonly<{
+  label?: ReactNode;
+  pendingLabel?: ReactNode;
+  accessibleLabel: string;
+  pending?: boolean;
+  onSelect: (file: File) => void;
+  variant?: ComponentProps<typeof Button>['variant'];
+}>) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <span className="inline-flex">
+      <Button variant={variant} disabled={pending} onClick={() => inputRef.current?.click()}>
+        {pending ? pendingLabel : label}
+      </Button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".csv,text/csv"
+        aria-label={accessibleLabel}
+        className="sr-only"
+        disabled={pending}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file) onSelect(file);
+        }}
+      />
+    </span>
+  );
+}
 
 /** Shared file-selection lifecycle; parsing remains owned by the importing feature. */
 export function useCsvImportFile<T>(parse: (text: string) => T) {
@@ -27,14 +66,6 @@ export function useCsvImportFile<T>(parse: (text: string) => T) {
   return { fileName, inputRef, parsed, reset, selectFile };
 }
 
-/** Dialog framing shared by browser-side CSV import workflows. */
-export function CsvImportDialogShell({
-  children,
-  ...props
-}: Readonly<ComponentProps<typeof Dialog>>) {
-  return <Dialog {...props}>{children}</Dialog>;
-}
-
 /** The consistent CSV picker; feature-owned parsers receive the selected File. */
 export function CsvImportFileInput({
   inputRef,
@@ -52,7 +83,7 @@ export function CsvImportFileInput({
         accept=".csv,text/csv"
         aria-label="CSV file"
         onChange={(event) => onSelect(event.target.files?.[0])}
-        className="focus-ring border-border bg-well text-foreground file:bg-background-alt file:text-foreground block w-full rounded-sm border px-2 py-1.5 text-sm file:me-2 file:rounded-xs file:border-0 file:px-2 file:py-1 file:text-sm"
+        className="focus-ring border-border bg-well text-foreground file:bg-background-alt file:text-foreground block w-full rounded-[var(--radius-control)] border px-2 py-1.5 text-sm file:me-2 file:rounded-[var(--radius-control)] file:border-0 file:px-2 file:py-1 file:text-sm"
       />
     </label>
   );
@@ -84,7 +115,7 @@ export function CsvImportPreview({
           </Badge>
         ) : null}
       </div>
-      <div className="border-border-subtle max-h-85 overflow-auto rounded-sm border">
+      <div className="border-border-subtle max-h-85 overflow-auto rounded-[var(--radius-control)] border">
         {children}
       </div>
     </div>

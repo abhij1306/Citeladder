@@ -64,7 +64,7 @@ export function OpportunitySourcePattern({ pattern }: Readonly<{ pattern: Source
           {pattern.topCitations.map((citation) => (
             <li
               key={citation.url || citation.domain}
-              className="border-border-subtle bg-panel grid gap-0.5 rounded-md border px-3 py-2 shadow-xs"
+              className="border-border-subtle bg-well grid gap-0.5 rounded-[var(--radius-control)] border px-3 py-2"
             >
               <span className="text-foreground text-xs">{citation.title || citation.domain}</span>
               <span className="mono text-muted text-2xs break-all">{citation.domain}</span>

@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Tooltip (§8) — Radix. The ADS inverse chip: a dark `bg-surface-inverse`
+ * Tooltip — Radix. The shared inverse chip uses a dark `bg-surface-inverse`
  * fill with `text-on-inverse` copy and NO border (an inverse chip needs
  * none), so it reads against every surface including a white card (the
  * Phase 1 `bg-elevated` version was ΔE 0.00 against one). Wrap the app (or a
@@ -39,7 +39,7 @@ export function Tooltip({
           align={align}
           sideOffset={6}
           className={cn(
-            'bg-surface-inverse text-on-inverse shadow-elevated z-modal max-w-tooltip rounded-[var(--radius-overlay)] px-1.5 py-1 text-xs font-normal',
+            'tooltip-panel bg-surface-inverse text-on-inverse shadow-elevated z-modal max-w-tooltip rounded-[var(--radius-overlay)] px-2 py-1.5 text-xs font-normal',
             className,
           )}
         >

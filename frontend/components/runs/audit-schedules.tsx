@@ -6,7 +6,8 @@ import { useState } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { inputClasses } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { MutationNotice } from '@/components/ui/mutation-notice';
 import { Select } from '@/components/ui/select';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
@@ -134,10 +135,13 @@ export function AuditSchedules({
               />
             </div>
             {cadence === 'every_n_minutes' ? (
-              <label className="text-secondary grid gap-1 text-xs font-medium">
+              <label
+                htmlFor="audit-schedule-minutes"
+                className="text-secondary grid gap-1 text-xs font-medium"
+              >
                 <span>Minutes</span>
-                <input
-                  className={inputClasses}
+                <Input
+                  id="audit-schedule-minutes"
                   min="5"
                   type="number"
                   value={intervalMinutes}
@@ -149,20 +153,18 @@ export function AuditSchedules({
               <legend className="text-secondary mb-1 text-xs font-medium">Engines</legend>
               <div className="flex flex-wrap gap-2">
                 {(['chatgpt', 'gemini', 'claude'] as const).map((engine) => (
-                  <label key={engine} className="text-secondary flex items-center gap-1.5 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={engines.includes(engine)}
-                      onChange={() =>
-                        setEngines((current) =>
-                          current.includes(engine)
-                            ? current.filter((value) => value !== engine)
-                            : [...current, engine],
-                        )
-                      }
-                    />
-                    {engine}
-                  </label>
+                  <Checkbox
+                    key={engine}
+                    label={engine}
+                    checked={engines.includes(engine)}
+                    onCheckedChange={() =>
+                      setEngines((current) =>
+                        current.includes(engine)
+                          ? current.filter((value) => value !== engine)
+                          : [...current, engine],
+                      )
+                    }
+                  />
                 ))}
               </div>
             </fieldset>

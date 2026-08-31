@@ -22,7 +22,7 @@ The user-facing area has three pages:
 1. **Site Health** — persisted measurement Overview, crawl lifecycle, scores by
    page kind, and URL inventory, with **Overview**, **Pages**, **Architecture**,
    **AEO Readiness**, and **Changes** tabs.
-2. **Issues** — grouped findings with affected page-kind badges.
+2. **Issues** — grouped findings with unboxed affected page-kind metadata.
 3. **Opportunities** — persisted prioritized actions.
 
 The removed Site Intelligence workspace and industry-pack/knowledge subsystems
@@ -421,9 +421,10 @@ Site Health separates five facts that a Combined percentage cannot represent:
    response-header evidence. Its objective HTML defects also participate in
    Web Fundamentals, so a displayed Web Fundamentals issue lowers that
    score. The projection has no second fabricated composite score. Browser
-   layout, runtime DOM, touch targets, and field LCP/INP/CLS remain explicitly
-   unavailable until a persisted browser or field-data provider exists; HTTP
-   lab diagnostics never impersonate field Core Web Vitals.
+   layout, runtime DOM, touch targets, and field LCP/INP/CLS are outside this
+   product measurement surface: they do not enter coverage denominators and the
+   UI does not present their absence as an error or availability limitation.
+   HTTP diagnostics never impersonate field Core Web Vitals.
 5. **Observed AI Visibility** remains the outcome metric: comparable observed
    mentions and citations. It is not inferred from Site Health readiness.
 

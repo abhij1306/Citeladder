@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import type { RunStatusValue } from '@/components/ui/badge-variants';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
-import { Textarea } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Pressable } from '@/components/ui/pressable';
 import type { AgentTaskRun, AgentTaskRunSummary, AgentTaskType } from '@/lib/api/agent';

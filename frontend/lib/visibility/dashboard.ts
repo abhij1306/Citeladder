@@ -41,14 +41,6 @@ export const VISIBILITY_TABS: readonly { id: VisibilityTab; label: string }[] = 
   { id: 'query-fanout', label: 'Search queries' },
 ] as const;
 
-/** The default (and invalid-value fallback) tab. */
-const DEFAULT_TAB: VisibilityTab = 'trends';
-
-/** Narrow an arbitrary `?tab=` value to a known tab, else the default. */
-export function normalizeTab(value: string | null | undefined): VisibilityTab {
-  return VISIBILITY_TABS.some((tab) => tab.id === value) ? (value as VisibilityTab) : DEFAULT_TAB;
-}
-
 /** The two evidence tabs share one execution-evidence query + cache key. */
 export function isEvidenceTab(tab: VisibilityTab): boolean {
   return tab === 'mentions-citations' || tab === 'query-fanout';

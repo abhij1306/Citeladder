@@ -77,7 +77,7 @@ The site area has exactly three destinations:
 | Route | Purpose |
 |---|---|
 | `/site` | Crawl lifecycle, readiness and three coverage projections, scores by page kind, URL inventory |
-| `/issues` | Grouped issue catalog with severity, affected pages, and page-kind scope |
+| `/issues` | Grouped issue catalog with severity, affected pages, and unboxed page-kind scope metadata |
 | `/opportunities` | Persisted prioritized actions |
 
 The former multi-panel Site Intelligence workspace is removed. Do not nest a
@@ -148,7 +148,9 @@ terminalization it reads the immutable snapshot. The frontend neither merges
 those projections nor creates a second summary owner. The snapshot's seven
 dimension rows render persisted labels, family-normalized scores, coverage, and
 bounded evidence. Web Fundamentals opens its persisted Accessibility, Mobile,
-Security, and Lab areas; the browser does not synthesize browser or field data.
+Security, and Lab HTTP-evidence areas. Browser-rendering checks and field Core
+Web Vitals are outside the product measurement surface and are not rendered as
+missing or unavailable UI states.
 
 The snapshot retains ten ranked issues while Overview projects five. Technical
 defect and AEO-gap cards render separate persisted role-aware counts. The
@@ -225,8 +227,8 @@ Pages and URL detail show the persisted structural kind. The detail disclosure
 may explain the winning signal, schema suggestion, alternatives, conflicts,
 confidence, and `other` reason. It never reclassifies in the browser.
 
-Issue groups show affected page-kind badges so a product-schema issue is visibly
-different from a universal title or delivery issue. Not-applicable evaluations
+Issue groups show affected page kinds as compact unboxed metadata so a
+product-schema issue is visibly different from a universal title or delivery issue. Not-applicable evaluations
 do not appear as passes or issues. Catalog selection uses `group_id`; affected
 rows and URL detail use `occurrence_id` and the occurrence's persisted
 `evaluation_id`. The frontend never associates evidence by `rule_id`.
@@ -264,8 +266,9 @@ folder and re-export it through the facade.
 
 ### CSV import mechanics
 
-`components/ui/csv-import.tsx` owns the reusable import-dialog shell, file
-input, preview framing, and `useCsvImportFile` lifecycle. File text loading,
+`components/ui/csv-import.tsx` owns the reusable import trigger and dialog
+shell, accessible file input, same-file reset/reselection, pending state,
+preview framing, and `useCsvImportFile` lifecycle. File text loading,
 including the browser and test-environment fallback, belongs to
 `lib/csv/read-file-text.ts`. Prompt and product modules retain ownership of
 their own CSV grammar, validation, preview columns, and import mutations. The
@@ -327,7 +330,9 @@ Registration consumes only the generic `RegistrationResponse` acknowledgement
 and redirects to `/login?registered=1`. It does not seed the authenticated-user
 cache or assume that registration created a session. Login remains the sole
 email/password flow that receives a session and performs the account-scoped
-cache transition.
+cache transition. After the destination is resolved, login crosses the identity
+boundary with a full-document navigation so the protected layout reads the new
+session cookie and cannot reuse a prefetched anonymous shell.
 
 ## Data and query ownership
 

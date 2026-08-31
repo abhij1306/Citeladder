@@ -4,12 +4,8 @@ import { useMemo } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import {
-  CsvImportDialogShell,
-  CsvImportFileInput,
-  CsvImportPreview,
-  useCsvImportFile,
-} from '@/components/ui/csv-import';
+import { CsvImportFileInput, CsvImportPreview, useCsvImportFile } from '@/components/ui/csv-import';
+import { Dialog } from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -59,7 +55,7 @@ export function CsvImportDialog({
   };
 
   return (
-    <CsvImportDialogShell
+    <Dialog
       open={open}
       onOpenChange={handleOpenChange}
       title="Import prompts from CSV"
@@ -147,6 +143,6 @@ export function CsvImportDialog({
           </CsvImportPreview>
         ) : null}
       </div>
-    </CsvImportDialogShell>
+    </Dialog>
   );
 }

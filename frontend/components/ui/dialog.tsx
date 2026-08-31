@@ -2,16 +2,15 @@
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useInsertionEffect, useRef, type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 import { Button } from './button';
 
 /**
  * Dialog (§8) — Radix modal. Scrim = --overlay-scrim, surface = bg-elevated,
- * shadow-modal, --radius-lg (12px = the ADS modal rung). Header/body/footer
- * slots padded on the ADS modal rhythm (24px inline; 24/16 block); built-in
- * close button.
+ * shadow-modal, and the shared overlay radius. Header, body, and footer use
+ * the modal-padding rhythm and include a built-in close button.
  */
 export function Dialog({
   open,
@@ -30,13 +29,43 @@ export function Dialog({
   footer?: ReactNode;
   className?: string;
 }>) {
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
+
+  useInsertionEffect(() => {
+    if (open && !wasOpenRef.current) {
+      const activeElement = document.activeElement;
+      returnFocusRef.current =
+        activeElement instanceof HTMLElement &&
+        activeElement !== document.body &&
+        activeElement !== document.documentElement &&
+        activeElement.isConnected
+          ? activeElement
+          : null;
+    }
+    wasOpenRef.current = open;
+  }, [open]);
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="bg-overlay-scrim z-overlay fixed inset-0" />
+        <DialogPrimitive.Overlay className="dialog-overlay bg-overlay-scrim z-overlay fixed inset-0" />
         <DialogPrimitive.Content
+          onCloseAutoFocus={(event) => {
+            const returnTarget = returnFocusRef.current;
+            if (!returnTarget?.isConnected) return;
+            event.preventDefault();
+            returnTarget.focus();
+            returnFocusRef.current = null;
+          }}
+          style={{
+            width: '42rem',
+            maxWidth: 'calc(100vw - 2rem)',
+            minWidth: 0,
+            boxSizing: 'border-box',
+          }}
           className={cn(
-            'border-border-subtle bg-elevated shadow-modal-value z-modal fixed top-1/2 left-1/2 flex max-h-5/6 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-overlay)] border focus:outline-none',
+            'dialog-panel border-border-subtle bg-elevated shadow-modal-value z-modal fixed top-1/2 left-1/2 flex max-h-5/6 -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-overlay)] border focus:outline-none',
             className,
           )}
         >
@@ -57,7 +86,7 @@ export function Dialog({
               </Button>
             </DialogPrimitive.Close>
           </header>
-          <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-[var(--modal-padding)] py-1">
+          <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-[var(--modal-padding)] py-4">
             {children}
           </div>
           {footer ? (

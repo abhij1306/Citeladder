@@ -3,9 +3,7 @@
 import { Unplug } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardEyebrow } from '@/components/ui/card';
-import { IconChip } from '@/components/ui/icon-chip';
-import { displayHeadingLgClasses } from '@/components/ui/typography';
+import { EmptyState } from '@/components/ui/empty-state';
 import { integrationsApi } from '@/lib/api/integrations';
 import { assignLocation } from '@/lib/navigate';
 
@@ -22,31 +20,26 @@ import { assignLocation } from '@/lib/navigate';
  */
 export function IntegrationsEmptyState() {
   return (
-    <Card data-testid="integrations-empty-state">
-      <CardContent className="grid justify-items-center gap-4 py-[var(--empty-state-padding)] text-center">
-        <CardEyebrow>Integrations</CardEyebrow>
-        <IconChip>
-          <Unplug className="size-6" aria-hidden />
-        </IconChip>
-        <div className="grid gap-1">
-          <h2 className={displayHeadingLgClasses}>No integrations connected</h2>
-          <p className="text-secondary max-w-md text-sm">
-            Connect Google Analytics 4 for AI Referrals. Connect Google or Microsoft for Traffic.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button size="md" onClick={() => assignLocation(integrationsApi.oauthStartUrl('gsc'))}>
-            Connect Google
-          </Button>
-          <Button
-            variant="ghost"
-            size="md"
-            onClick={() => assignLocation(integrationsApi.oauthStartUrl('bing'))}
-          >
-            Connect Microsoft
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <div data-testid="integrations-empty-state">
+      <EmptyState
+        icon={Unplug}
+        heading="No integrations connected"
+        description="Connect Google Analytics 4 for AI Referrals. Connect Google or Microsoft for Traffic."
+        action={
+          <>
+            <Button size="md" onClick={() => assignLocation(integrationsApi.oauthStartUrl('gsc'))}>
+              Connect Google
+            </Button>
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={() => assignLocation(integrationsApi.oauthStartUrl('bing'))}
+            >
+              Connect Microsoft
+            </Button>
+          </>
+        }
+      />
+    </div>
   );
 }

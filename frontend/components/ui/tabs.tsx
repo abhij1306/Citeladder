@@ -51,11 +51,11 @@ export function Tabs<T extends string>({
               disabled={item.disabled}
               onMouseEnter={() => onIntent?.(item.value)}
               onFocus={() => onIntent?.(item.value)}
-              className="focus-ring text-secondary hover:bg-background-alt hover:text-foreground data-[state=active]:text-accent-text relative inline-flex h-10 shrink-0 items-center rounded-t-[var(--radius-control)] px-3 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50"
+              className="focus-ring text-secondary hover:text-foreground data-[state=active]:text-accent-text relative inline-flex h-10 shrink-0 items-center px-3 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50"
             >
               {item.label}
               {item.value === value ? (
-                <span className="bg-accent absolute inset-x-2 bottom-0 h-0.5 rounded-full" />
+                <span className="bg-accent absolute inset-x-2 bottom-0 h-0.5" />
               ) : null}
             </TabsPrimitive.Trigger>
           ))}

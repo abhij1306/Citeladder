@@ -73,12 +73,3 @@ export async function stubAuthedShell(
   await page.route('**/api/v1/auth/me', (route) => route.fulfill({ json: { user: FIXTURE_USER } }));
   await page.route('**/api/v1/projects', (route) => route.fulfill({ json: [FIXTURE_PROJECT] }));
 }
-
-/**
- * Hide the Next.js dev overlay (`<nextjs-portal>`) — dev chrome, not product
- * UI. Its badge reflects build activity, so leaving it visible is a flake
- * source in baselines. Call AFTER navigation (addStyleTag needs a document).
- */
-export async function hideDevChrome(page: Page): Promise<void> {
-  await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
-}

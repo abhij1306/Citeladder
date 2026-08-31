@@ -21,22 +21,15 @@ from app.core.config.site_health_measurement import (
 )
 from app.models.site_health.analysis import SiteRuleEvaluation
 
-_UNAVAILABLE_CHECKS = {
-    "mobile": ("mobile_layout", "touch_targets", "runtime_overflow"),
-    "lab": ("lcp", "inp", "cls"),
-}
 
-
-def _area_state(
-    rows: list[SiteRuleEvaluation], *, unavailable: int
-) -> tuple[str, float | None]:
+def _area_state(rows: list[SiteRuleEvaluation]) -> tuple[str, float | None]:
     applicable = [row for row in rows if row.outcome != RULE_OUTCOME_NOT_APPLICABLE]
     determinate = [
         row
         for row in applicable
         if row.outcome in (RULE_OUTCOME_SATISFIED, RULE_OUTCOME_MISSING)
     ]
-    expected = len(applicable) + unavailable
+    expected = len(applicable)
     coverage = round(len(determinate) / expected, 4) if expected else None
     if expected == 0:
         return MEASUREMENT_STATE_NOT_MEASURED, coverage
@@ -67,8 +60,7 @@ def _findings(rows: list[SiteRuleEvaluation]) -> list[dict]:
 
 
 def _area_row(area: str, rows: list[SiteRuleEvaluation]) -> dict:
-    unavailable_checks = list(_UNAVAILABLE_CHECKS.get(area, ()))
-    state, coverage = _area_state(rows, unavailable=len(unavailable_checks))
+    state, coverage = _area_state(rows)
     return {
         "key": area,
         "state": state,
@@ -76,9 +68,8 @@ def _area_row(area: str, rows: list[SiteRuleEvaluation]) -> dict:
         "passed_count": sum(row.outcome == RULE_OUTCOME_SATISFIED for row in rows),
         "missing_count": sum(row.outcome == RULE_OUTCOME_MISSING for row in rows),
         "unknown_count": sum(row.outcome == "unknown" for row in rows),
-        "unavailable_count": sum(row.outcome == "unavailable" for row in rows)
-        + len(unavailable_checks),
-        "unavailable_checks": unavailable_checks,
+        "unavailable_count": sum(row.outcome == "unavailable" for row in rows),
+        "unavailable_checks": [],
         "top_findings": _findings(rows),
     }
 
@@ -142,9 +133,5 @@ async def web_fundamentals_projection(
         "source_evaluation_ids": [
             str(row.id) for rows in by_area.values() for row in rows
         ],
-        "limitations": [
-            "HTTP evidence only; browser layout and runtime DOM were not measured.",
-            "Field Core Web Vitals are unavailable because no persisted "
-            "provider is configured.",
-        ],
+        "limitations": [],
     }

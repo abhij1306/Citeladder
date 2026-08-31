@@ -3,10 +3,10 @@ import type { HTMLAttributes, ReactNode, Ref, TdHTMLAttributes, ThHTMLAttributes
 import { cn } from '@/lib/utils';
 
 /**
- * Dense analytics table (§8) — the ADS `DynamicTable` look:
+ * Dense analytics table — the shared semantic ledger treatment:
  *  - sticky header (--table-header-height) on bg-panel, ruled top and with
- *    the ADS 2px under-rule (border-b-2); NO vertical column-separator
- *    hairlines — ADS ships none, and they are what made the tables read as
+ *    a 2px under-rule (border-b-2); no vertical column-separator
+ *    hairlines, which made the tables read as
  *    spreadsheets rather than designed surfaces
  *  - --table-row-height rows, --text-sm cells, subtle ROW hairlines only
  *  - everything left-aligned (including numeric columns — the mock aligns the
@@ -16,8 +16,8 @@ import { cn } from '@/lib/utils';
  * The wrapper is scroll-capable so the sticky header pins on vertical scroll.
  *
  * The header label recipe (`tableHeadClasses`) is deliberately NOT the shared
- * `eyebrowClasses` micro-label: it matches ADS's own table-header composite
- * (12/16 @600, text-subtle, sentence case), and keeping the strings separate
+ * `eyebrowClasses` micro-label: it uses the product table-header composite
+ * (12/16, medium, text-secondary, sentence case), and keeping the strings separate
  * stops a future eyebrow change from silently restyling every table.
  */
 const tableHeadClasses = 'text-xs text-secondary font-medium whitespace-nowrap';

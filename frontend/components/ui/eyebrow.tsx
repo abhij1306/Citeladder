@@ -3,10 +3,8 @@ import type { ComponentPropsWithoutRef } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Eyebrow (kicker) recipes — sans micro-labels at the ADS
- * `font.heading.xxsmall` composite (12px / 16px line-height, semibold,
- * muted), per the ADS type ladder (design.md §7). No uppercase, no
- * tracking: ADS letter-spacing is 0 at every step.
+ * Eyebrow (kicker) recipes — sans micro-labels at the product secondary rung
+ * (12px / 16px line-height, semibold, muted). No uppercase or tracking.
  *
  * What does **not** come back is the mono face — mono stays reserved for
  * values, so a call site must never re-add `font-mono` here (see the

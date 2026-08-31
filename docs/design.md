@@ -108,6 +108,7 @@ tracking, weight, and colour combinations.
 | Section heading         | Plus Jakarta Sans |         32/38 → 40/46px |     600 |                        -0.03em | foreground                                  |
 | Feature heading         | Plus Jakarta Sans |                 24/30px |     600 |                        -0.02em | foreground                                  |
 | Small heading           | Plus Jakarta Sans |                 20/26px |     600 |                        -0.01em | foreground                                  |
+| Authentication title    | Plus Jakarta Sans |                 22/28px |     600 |                        -0.01em | foreground                                  |
 | Lead                    | Geist             |                 20/30px |     400 |                        -0.01em | secondary                                   |
 | Large body              | Geist             |                 18/28px |     400 |                              0 | secondary                                   |
 | Body baseline           | Geist             |                 16/24px |     400 |                              0 | secondary                                   |
@@ -239,7 +240,9 @@ series retain visual gaps for unavailable points and explain those gaps accessib
   **defect issue types** in the default view and **advisory issue types** after
   switching views; supporting counters say class-labelled **occurrences** and
   **affected URLs** so visually adjacent quantities never masquerade as one
-  number. Advisory rows use an Advisory label, not a severity chip.
+  number. Issue severity, dimension, and affected page kinds use compact
+  unboxed metadata labels; advisory rows use an Advisory label rather than a
+  severity label. Affected-page counts stay at body scale and regular weight.
 - Issue evidence belongs to a persisted occurrence and its directly linked
   evaluation. Group detail and URL detail reuse one bounded presenter for exact
   schema types/properties, heading transitions and scope, and offending control
@@ -282,8 +285,8 @@ to look on every page in the app.
 │ Project / context      Date · Compare      Search    Agent   │
 ├────────────┬─────────────────────────────────────────────────┤
 │            │                                                 │
-│ Overview   │  Page title                          Actions    │
-│ Analyze    │  Supporting context                             │
+│ Overview   │  Supporting context                  Actions    │
+│ Analyze    │  (route title remains an sr-only h1)            │
 │ Act        │                                                 │
 │ Track      │  ┌─────────┐ ┌─────────┐ ┌─────────┐            │
 │            │  │ Metric  │ │ Metric  │ │ Metric  │            │
@@ -301,7 +304,7 @@ Fixed responsibilities per region:
 | ------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | Top bar            | Project and context switching, date range and comparison window, global search, agent entry                 | Page-specific actions                             |
 | Sidebar            | Five loop stations: Overview, Analyze, Act, Track, and Connect; station subnavigation owns its destinations | A third navigation level or disabled future items |
-| Page header        | Title, one line of supporting context, and this page's actions                                              | Metrics                                           |
+| Page header        | An sr-only route title, one line of supporting context, and this page's actions; a visible title only when it carries entity/content identity | Metrics |
 | Metric row         | Three to five headline numbers, each with coverage                                                          | More than five, or a metric without provenance    |
 | Analytical surface | The one chart, table, or comparison this page exists for                                                    | Competing equal-weight surfaces                   |
 | Insight list       | Ranked insight objects (below)                                                                              | Ad-hoc card shapes                                |
@@ -447,7 +450,9 @@ at least a 44px touch target.
 
 Inputs use the semantic input and border roles. Labels sit with their control,
 helper text explains constraints, and errors give a recovery instruction. Never
-use placeholder text as the only label.
+use placeholder text as the only label. Authentication fields and large auth
+buttons use the dedicated 12px auth-control radius; a composed input exposes one
+focus ring on its shared frame rather than a second outline on its native input.
 
 ### Panels, badges, and evidence
 
@@ -477,7 +482,9 @@ Tooltips use the elevated rung and the 10px overlay-radius role; dialogs and dra
 `shadow-modal-value` with the same overlay-radius role. Drawers are right-side modal contextual
 sheets owned by `components/ui/drawer.tsx`. Their scrim dims and locks the page;
 outside click, Escape, or the close control dismisses them, and focus returns to
-the trigger. Feature components never import Radix directly.
+the trigger. Controlled dialogs follow the same focus-return contract. Dialog and
+drawer owners also provide modal padding and footer separation; consumers do not
+recreate that chrome. Feature components never import Radix directly.
 
 Tabs remain the underline treatment for navigation between views and for one
 mutually exclusive data table within a surface (for example, Top pages and Top
@@ -506,7 +513,7 @@ sanctioned, each one calm and reduced-motion-safe:
 - scroll **reveal** entrances (GSAP) that fade and rise a small distance and never
   hide server-rendered content after hydration;
 - the interactive-card hover lift;
-- master-detail selection continuity and measured disclosure expansion.
+- master-detail selection continuity and measured domain-owned expansion.
 
 Authenticated route content and tab indicators update immediately. Do not fade
 either surface: navigation opacity transitions create a visible flash during
@@ -541,5 +548,6 @@ This authenticated-app and onboarding refinement does not introduce new colour f
 decorative glows, nested cards, or unsupported reference concepts such as AI-context rules or
 new competitor mutations. Marketing and authentication composition remain outside its scope;
 onboarding keeps its existing split composition and transaction flow.
-- Focused tests, `pnpm check:policy`, and the appropriate build or visual checks
-  pass. React Doctor is the final verification command.
+- Repository-owned static, test, and appropriate visual commands pass. External
+  or manual quality tools are never acceptance gates unless a deterministic
+  repository command owns them.

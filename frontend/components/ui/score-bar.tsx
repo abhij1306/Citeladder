@@ -28,7 +28,7 @@ export function ScoreBar({
         max={100}
         value={clamped}
       />
-      <div aria-hidden className="bg-well h-2 w-full overflow-hidden rounded-full">
+      <div aria-hidden className="bg-active h-2 w-full overflow-hidden rounded-full">
         <div
           className={cn(
             'h-full rounded-full transition-[width] duration-[800ms] ease-out motion-reduce:transition-none',

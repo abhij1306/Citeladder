@@ -25,7 +25,7 @@ export function OpportunityStatusFooter({
   const declare = () => declaration.mutate(declarationPayload(detail, projectId, idempotencyKey));
 
   return (
-    <footer className="border-border-subtle grid gap-2 border-t px-4 py-3">
+    <div className="grid gap-2">
       <MutationErrors updateStatus={updateStatus} declaration={declaration} />
       <ImplementationState implementation={implementation} />
       <div className="flex items-center justify-between gap-2">
@@ -42,7 +42,7 @@ export function OpportunityStatusFooter({
           onChange={(status) => updateStatus.mutate({ opportunityId: detail.id, status })}
         />
       </div>
-    </footer>
+    </div>
   );
 }
 

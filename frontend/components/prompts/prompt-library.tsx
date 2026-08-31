@@ -294,9 +294,9 @@ export function PromptLibrary({ onDoneManaging }: Readonly<{ onDoneManaging?: ()
           {!hasPrompts ? (
             <PromptEmptyState onAdd={openAdd} onImport={() => setImportOpen(true)} />
           ) : visible.length === 0 ? (
-            <div className="bg-panel shadow-card text-secondary rounded-lg px-[var(--card-padding)] py-[var(--empty-state-padding)] text-center text-sm">
+            <p className="text-secondary px-[var(--card-padding)] py-[var(--empty-state-padding)] text-center text-sm">
               No prompts match your search or filters.
-            </div>
+            </p>
           ) : (
             <PromptTable
               prompts={visible}

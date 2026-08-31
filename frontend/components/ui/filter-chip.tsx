@@ -11,18 +11,27 @@ export function FilterChip({
   onClick,
   count,
   children,
+  disabled = false,
+  className,
 }: Readonly<{
   active: boolean;
   onClick: () => void;
   count?: number;
   children: ReactNode;
+  disabled?: boolean;
+  className?: string;
 }>) {
   return (
     <button
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={filterChipClasses(active)}
+      disabled={disabled}
+      className={cn(
+        filterChipClasses(active),
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        className,
+      )}
     >
       {children}
       {typeof count === 'number' ? (

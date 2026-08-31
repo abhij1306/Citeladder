@@ -5,10 +5,12 @@ import { Controller, useForm } from 'react-hook-form';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
-import { Input, Textarea } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import type { PromptInput } from '@/lib/api/prompts';
 import type { Prompt } from '@/lib/api/types';
 import {
@@ -122,30 +124,24 @@ export function PromptFormDialog({
             control={control}
             name="cohort"
             render={({ field }) => (
-              <label className="text-foreground flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={field.value === 'comparison'}
-                  onChange={(event) => field.onChange(event.target.checked ? 'comparison' : 'core')}
-                  className="focus-ring accent-accent size-4 shrink-0"
-                />
-                Named comparison
-              </label>
+              <Checkbox
+                label="Named comparison"
+                checked={field.value === 'comparison'}
+                onCheckedChange={(checked) =>
+                  field.onChange(checked === true ? 'comparison' : 'core')
+                }
+              />
             )}
           />
           <Controller
             control={control}
             name="enabled"
             render={({ field }) => (
-              <label className="text-foreground flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={field.value}
-                  onChange={(event) => field.onChange(event.target.checked)}
-                  className="focus-ring accent-accent size-4 shrink-0"
-                />
-                Enabled
-              </label>
+              <Checkbox
+                label="Enabled"
+                checked={field.value}
+                onCheckedChange={(checked) => field.onChange(checked === true)}
+              />
             )}
           />
         </div>

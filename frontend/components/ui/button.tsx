@@ -77,10 +77,20 @@ function NativeButton({
       data-button-size={size ?? 'md'}
       aria-busy={pending || undefined}
       disabled={props.disabled || pending}
-      className={buttonClass(variant, size, opensPopup, className)}
+      className={buttonClass(variant, size, opensPopup, cn('relative', className))}
     >
-      {pending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : null}
-      {pending && pendingLabel ? pendingLabel : children}
+      <span
+        aria-hidden={pending || undefined}
+        className={cn('inline-flex items-center gap-2', pending && 'opacity-0')}
+      >
+        {children}
+      </span>
+      {pending ? (
+        <span className="absolute inset-0 inline-flex items-center justify-center gap-2 px-2">
+          <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden />
+          {pendingLabel ?? children}
+        </span>
+      ) : null}
     </button>
   );
 }

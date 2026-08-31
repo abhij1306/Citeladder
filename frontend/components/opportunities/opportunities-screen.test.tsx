@@ -381,34 +381,25 @@ describe('OpportunitiesScreen', () => {
 
     // Open the Area dropdown and select "Site".
     await user.click(screen.getByRole('button', { name: /Area:/ }));
-    const areaGroup = await screen.findByRole('radiogroup', { name: 'Area' });
-    const allTypes = within(areaGroup).getByRole('radio', { name: 'All types' });
+    const areaGroup = await screen.findByRole('menu');
+    const allTypes = within(areaGroup).getByRole('menuitemradio', { name: 'All types' });
     expect(allTypes).toHaveAttribute('aria-checked', 'true');
-    expect(allTypes).toHaveAttribute('tabindex', '0');
-    expect(within(areaGroup).getByRole('radio', { name: 'Site' })).toHaveAttribute(
-      'tabindex',
-      '-1',
-    );
     allTypes.focus();
     await user.keyboard('{ArrowDown}');
-    expect(within(areaGroup).getByRole('radio', { name: 'Visibility' })).toHaveFocus();
-    expect(within(areaGroup).getByRole('radio', { name: 'Visibility' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    );
-    await user.click(within(areaGroup).getByRole('radio', { name: 'Site' }));
+    expect(within(areaGroup).getByRole('menuitemradio', { name: 'Visibility' })).toHaveFocus();
+    await user.click(within(areaGroup).getByRole('menuitemradio', { name: 'Site' }));
     await waitFor(() => expect(seen.some((params) => params.get('type') === 'site')).toBe(true));
 
     // Open the Status dropdown and select "Dismissed".
     await user.click(screen.getByRole('button', { name: /Status:/ }));
-    await user.click(await screen.findByRole('radio', { name: 'Dismissed' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Dismissed' }));
     await waitFor(() =>
       expect(seen.some((params) => params.get('status') === 'dismissed')).toBe(true),
     );
 
     // Open the Impact dropdown and select "Low".
     await user.click(screen.getByRole('button', { name: /Impact:/ }));
-    await user.click(await screen.findByRole('radio', { name: 'Low' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Low' }));
     await waitFor(() => expect(seen.some((params) => params.get('severity') === 'low')).toBe(true));
   });
 

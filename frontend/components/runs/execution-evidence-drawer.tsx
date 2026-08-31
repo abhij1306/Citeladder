@@ -37,7 +37,6 @@ export function ExecutionEvidenceDrawer({
           : undefined
       }
       className="sm:max-w-220"
-      bodyClassName="sm:px-[var(--card-padding)]"
       closeLabel="Close evidence drawer"
     >
       {evidenceQuery.isError ? (

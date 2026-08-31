@@ -70,7 +70,7 @@ export function EvidenceDrawer({
           {detail.remediation ? (
             <section className="grid gap-2">
               <Label>Recommended improvements</Label>
-              <div className="border-border-subtle bg-panel rounded-md border p-3 shadow-xs">
+              <div className="border-border-subtle bg-well rounded-[var(--radius-control)] border p-3">
                 <p className="text-secondary text-sm leading-relaxed whitespace-pre-line">
                   {detail.remediation}
                 </p>

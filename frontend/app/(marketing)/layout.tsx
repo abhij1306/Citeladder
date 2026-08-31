@@ -15,7 +15,7 @@ import { organizationJsonLd } from '@/lib/seo/json-ld';
  * The canvas is white and uses the scoped website type ladder. `MarketingMotion`
  * supplies the tree's explanatory animation features — it is what makes `m`
  * components animate at all, and it defers GSAP off the server bundle. Fonts
- * come from the root layout: Plus Jakarta Sans → `--font-display`, Inter → `--font-sans`.
+ * come from the root layout: Plus Jakarta Sans → `--font-display`, Geist → `--font-sans`.
  */
 export default function MarketingLayout({ children }: Readonly<{ children: ReactNode }>) {
   // Omitted while no canonical origin exists (B3) — Organization without url

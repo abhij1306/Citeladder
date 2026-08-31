@@ -16,20 +16,23 @@ import {
   useBaseVisibilityHandlers,
 } from '@/test/fixtures/visibility';
 
-let currentSearch = new URLSearchParams();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn() }),
   usePathname: () => '/visibility',
-  useSearchParams: () => currentSearch,
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 setupVisibilityPageTests(() => {
-  currentSearch = new URLSearchParams();
+  window.history.replaceState(null, '', '/visibility');
 });
+
+function setVisibilitySearch(search: string) {
+  window.history.replaceState(null, '', `/visibility?${search}`);
+}
 
 describe('VisibilityPage — Mentions & Citations tab', () => {
   it('renders persisted mentions, classified citations, and provenance', async () => {
-    currentSearch = new URLSearchParams('tab=mentions-citations');
+    setVisibilitySearch('tab=mentions-citations');
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility/evidence`, () =>
         HttpResponse.json(makeEvidenceResponse()),
@@ -54,7 +57,7 @@ describe('VisibilityPage — Mentions & Citations tab', () => {
   });
 
   it('sends the audit/prompt/engine params and shows the truncation notice', async () => {
-    currentSearch = new URLSearchParams('tab=mentions-citations');
+    setVisibilitySearch('tab=mentions-citations');
     let captured: URL | null = null;
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility/evidence`, ({ request }) => {
@@ -72,7 +75,7 @@ describe('VisibilityPage — Mentions & Citations tab', () => {
   });
 
   it('renders the empty state when there is no persisted evidence and no narrowing filter', async () => {
-    currentSearch = new URLSearchParams('tab=mentions-citations');
+    setVisibilitySearch('tab=mentions-citations');
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility/evidence`, () =>
         HttpResponse.json({ items: [], truncated: false }),
@@ -90,7 +93,7 @@ describe('VisibilityPage — Mentions & Citations tab', () => {
   });
 
   it('renders the filtered-empty state with a clear-filters action', async () => {
-    currentSearch = new URLSearchParams('tab=mentions-citations');
+    setVisibilitySearch('tab=mentions-citations');
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility/evidence`, () =>
         HttpResponse.json({ items: [], truncated: false }),
@@ -104,7 +107,7 @@ describe('VisibilityPage — Mentions & Citations tab', () => {
   });
 
   it('renders the retryable error state', async () => {
-    currentSearch = new URLSearchParams('tab=mentions-citations');
+    setVisibilitySearch('tab=mentions-citations');
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility/evidence`, () =>
         HttpResponse.json({ detail: 'boom' }, { status: 400 }),
@@ -119,7 +122,7 @@ describe('VisibilityPage — Mentions & Citations tab', () => {
 
 describe('VisibilityPage — Query Fanout tab', () => {
   it('renders actual query text, count-only, and no-search states distinctly', async () => {
-    currentSearch = new URLSearchParams('tab=query-fanout');
+    setVisibilitySearch('tab=query-fanout');
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility/evidence`, () =>
         HttpResponse.json({
@@ -174,7 +177,7 @@ describe('VisibilityPage — Query Fanout tab', () => {
   });
 
   it('groups executions by frozen prompt without claiming a global total', async () => {
-    currentSearch = new URLSearchParams('tab=query-fanout');
+    setVisibilitySearch('tab=query-fanout');
     useBaseVisibilityHandlers([
       http.get(`/api/v1/projects/${PROJECT_ID}/visibility/evidence`, () =>
         HttpResponse.json(makeEvidenceResponse()),

@@ -49,15 +49,6 @@ Both are subordinate to the canonical runtime and measurement logic in
 | [`api-error-contract.md`](api-error-contract.md) | Canonical API error envelope |
 | [`security-fix.md`](security-fix.md) | 2026-08 security boundary and deployment compatibility reference |
 | [`design.md`](design.md) | UI tokens, geometry, and interaction rules |
-| [`design-system/audit.md`](design-system/audit.md) | Design system inventory, surface breakdown, and debt analysis |
-| [`design-system/heroui-reference-map.md`](design-system/heroui-reference-map.md) | HeroUI v3 reference mapping, slot anatomy, and token adaptations |
-| [`design-system/component-map.md`](design-system/component-map.md) | Authoritative component action matrix and consolidation targets |
-| [`design-system/component-map.json`](design-system/component-map.json) | Machine-readable component action matrix for validation and execution tooling |
-| [`design-system/visual-improvement-map.md`](design-system/visual-improvement-map.md) | Visual improvement map across all 30 CiteLadder UI primitives |
-| [`design-system/visual-improvement-map.json`](design-system/visual-improvement-map.json) | Machine-readable visual improvement mapping for Codex execution |
-| [`design-system/surface-improvement-map.md`](design-system/surface-improvement-map.md) | Surface-level visual and layout gap analysis across 10 application surfaces |
-| [`design-system/migration-map.md`](design-system/migration-map.md) | Phased implementation sequence and verification criteria |
-| [`design-system/review-required.md`](design-system/review-required.md) | Architectural decisions and trade-off review log |
 | [`ui-component-system.md`](ui-component-system.md) | Authenticated component, state, motion, and enforcement map |
 | [`integrations-traffic-analytics.md`](integrations-traffic-analytics.md) | Integration and traffic evidence contracts |
 | [`commerce-intelligence.md`](commerce-intelligence.md) | Commerce specialization boundary |

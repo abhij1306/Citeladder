@@ -9,6 +9,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UsageMeters } from '@/components/billing/usage-meters';
 import {
@@ -288,13 +289,13 @@ function CountryInput({
           Two-letter ISO code. The server resolves currency, tax and the exact amount from it.
         </span>
       </div>
-      <input
+      <Input
         id="billing-country-input"
         value={country}
         onChange={(event) => setCountry(event.target.value.toUpperCase().slice(0, 2))}
         placeholder="US"
         aria-describedby="billing-country-help"
-        className="border-border bg-background focus-ring h-8 w-20 rounded border px-2.5 text-center font-mono text-xs font-semibold uppercase outline-none"
+        className="h-8 w-20 text-center font-mono text-xs font-semibold uppercase"
       />
     </div>
   );

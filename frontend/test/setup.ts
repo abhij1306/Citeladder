@@ -63,6 +63,16 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
   })) as unknown as typeof window.matchMedia;
 }
 
+// Radix measures positioned content with ResizeObserver. jsdom does not
+// implement it, but component tests only need the observer contract, not
+// layout measurements.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
+
 // Radix Select uses pointer capture and element scrolling in browsers. jsdom
 // does not implement either API, so install inert contract-compatible stubs.
 if (typeof Element !== 'undefined') {

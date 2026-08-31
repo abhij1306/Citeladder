@@ -16,16 +16,6 @@ import {
 import { Tooltip, TooltipProvider } from './tooltip';
 import { ToastProvider, useToast } from './toast';
 
-// jsdom has no ResizeObserver, which Radix's tooltip arrow measurement
-// requires once the content actually mounts. A no-op stub is enough — the
-// assertions below pin class strings, not geometry.
-class ResizeObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
-
 describe('Dialog', () => {
   it('renders title/description/children/footer when open', () => {
     render(
@@ -55,6 +45,31 @@ describe('Dialog', () => {
     );
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  it('restores focus to the control that opened it', async () => {
+    const user = userEvent.setup();
+
+    function DialogHarness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Launch audit
+          </button>
+          <Dialog open={open} onOpenChange={setOpen} title="Audit settings">
+            <p>Choose audit settings</p>
+          </Dialog>
+        </>
+      );
+    }
+
+    render(<DialogHarness />);
+    const trigger = screen.getByRole('button', { name: 'Launch audit' });
+    await user.click(trigger);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+  });
 });
 
 describe('Drawer', () => {
@@ -67,6 +82,23 @@ describe('Drawer', () => {
     expect(screen.getByRole('dialog', { name: 'Evidence' })).toBeInTheDocument();
     expect(screen.getByText('Persisted sources')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close drawer' })).toBeInTheDocument();
+  });
+
+  it('owns footer separation and modal padding', () => {
+    render(
+      <Drawer
+        open
+        onOpenChange={() => {}}
+        title="Evidence"
+        footer={<button type="button">Save</button>}
+      >
+        <p>Source details</p>
+      </Drawer>,
+    );
+    expect(screen.getByRole('button', { name: 'Save' }).closest('footer')).toHaveClass(
+      'border-t',
+      'px-[var(--modal-padding)]',
+    );
   });
 
   it('closes from Escape or the scrim and restores focus to the opening control', async () => {
@@ -174,7 +206,7 @@ describe('Tooltip', () => {
     expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument();
   });
 
-  it('renders the ADS inverse chip when open (never white-on-white)', async () => {
+  it('renders the shared inverse chip when open (never white-on-white)', async () => {
     render(
       <TooltipProvider>
         <Tooltip content="Coming soon" delayDuration={0}>

@@ -124,7 +124,7 @@ Non-negotiable, and the reason this is a plan rather than a patch:
 ## Accessibility
 
 - The catalog list is a listbox-or-grid with roving tabindex and full
-  Arrow/Home/End navigation, matching what `NestedTabs` already does.
+  Arrow/Home/End navigation, owned by the shared `Tabs` module.
 - Selecting a row moves focus predictably and announces the detail change via a
   live region; it must not steal focus into the detail pane mid-keyboard-run.
 - Bulk selection exposes an accessible "N selected" summary and a select-all

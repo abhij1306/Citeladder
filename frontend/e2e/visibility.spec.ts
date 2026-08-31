@@ -502,7 +502,7 @@ test('mobile viewport: tablist is a single horizontally-scrollable row, one pane
 
   const tablist = page.getByRole('tablist', { name: 'Visibility views' });
   await expect(tablist).toBeVisible();
-  // ADS underline tablist: a single horizontally-scrollable row (not wrapped
+  // Shared underline tablist: a single horizontally-scrollable row (not wrapped
   // / stacked) with the full-width border under the tabs.
   await expect(tablist).toHaveClass(/overflow-x-auto/);
   await expect(tablist).toHaveClass(/flex-nowrap/);

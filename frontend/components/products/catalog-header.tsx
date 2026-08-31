@@ -1,12 +1,13 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { CsvImportTrigger } from '@/components/ui/csv-import';
 import { Label, Metric } from '@/components/ui/typography';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { commerceApi } from '@/lib/api/commerce';
@@ -110,7 +111,6 @@ export function CatalogHeader({
   query,
 }: Readonly<{ projectId: string; query: CommerceQueries['catalog'] }>) {
   const client = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [result, setResult] = useState('');
   const dashboard = useQuery({
     ...siteHealthQueries.dashboard(projectId),
@@ -145,13 +145,11 @@ export function CatalogHeader({
       <CardContent className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
         <CatalogStats counts={counts} crawl={crawl} projecting={projecting} />
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="secondary"
-            disabled={importCatalog.isPending}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {importCatalog.isPending ? 'Importing…' : 'Import CSV'}
-          </Button>
+          <CsvImportTrigger
+            accessibleLabel="Import catalog CSV"
+            pending={importCatalog.isPending}
+            onSelect={(file) => importCatalog.mutate(file)}
+          />
           <Button asChild variant="ghost">
             <a href="/site" target="_blank" rel="noreferrer">
               Open Site Health
@@ -166,19 +164,6 @@ export function CatalogHeader({
             {crawl ? 'Refresh from Site Health' : 'Run Site Health crawl'}
           </Button>
         </div>
-        <input
-          ref={fileInputRef}
-          aria-label="Import catalog CSV"
-          type="file"
-          accept=".csv,text/csv"
-          className="sr-only"
-          disabled={importCatalog.isPending}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.currentTarget.value = '';
-            if (file) importCatalog.mutate(file);
-          }}
-        />
         {result ? <p className="text-secondary w-full text-sm">{result}</p> : null}
         {importCatalog.isError ? (
           <Alert className="w-full" tone="danger">

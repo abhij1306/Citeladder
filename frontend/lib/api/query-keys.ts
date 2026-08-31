@@ -8,6 +8,7 @@
  *   - site-health.ts   — site health (crawls, inventory, monitored, issues)
  *   - integrations.ts  — integrations (connections, sync runs)
  *   - traffic.ts       — traffic (dashboard, pages, queries)
+ *   - demand.ts        — search-demand projections
  *   - ai-referrals.ts  — AI-referral measurements
  *   - products.ts      — products (agentic commerce catalog + visibility)
  *   - opportunities.ts — opportunities (catalog, detail, summary)
@@ -19,6 +20,7 @@ import { aiReferralsKeys } from './query-keys/ai-referrals';
 import { agentKeys } from './query-keys/agent';
 import { billingKeys } from './query-keys/billing';
 import { commerceKeys } from './query-keys/commerce';
+import { demandKeys } from './query-keys/demand';
 import {
   authKeys,
   contentKeys,
@@ -49,6 +51,7 @@ export const queryKeys = {
   content: contentKeys,
   integrations: integrationKeys,
   traffic: trafficKeys,
+  demand: demandKeys,
   aiReferrals: aiReferralsKeys,
   opportunities: opportunityKeys,
   commerce: commerceKeys,

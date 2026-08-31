@@ -50,6 +50,20 @@ describe('CatalogList', () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
+  it('announces partial category selection as indeterminate', () => {
+    renderWithProviders(
+      <CatalogList
+        query={query()}
+        checkedKeys={new Set([`product:${PRODUCT_ID}`])}
+        onSelect={vi.fn()}
+        onToggle={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole('checkbox', { name: /Select Instant-Read Thermometers/ }),
+    ).toHaveAttribute('data-state', 'indeterminate');
+  });
+
   it('keeps categories collapsed until their plus control is used', () => {
     const onToggle = vi.fn();
     renderWithProviders(
@@ -107,7 +121,7 @@ describe('CatalogList', () => {
     renderWithProviders(
       <CatalogList query={query()} checkedKeys={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />,
     );
-    fireEvent.change(screen.getByRole('textbox', { name: 'Search the catalog' }), {
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search the catalog' }), {
       target: { value: 'temppro' },
     });
 

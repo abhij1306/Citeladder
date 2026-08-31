@@ -63,7 +63,7 @@ export function Drawer({
             className,
           )}
         >
-          <header className="border-border-subtle flex items-start justify-between gap-3 border-b px-[var(--modal-padding)] py-4">
+          <header className="border-border-subtle flex items-start justify-between gap-3 border-b p-[var(--modal-padding)]">
             <div className="min-w-0">
               <DialogPrimitive.Title className="text-foreground truncate text-xl font-semibold tracking-tight">
                 {title}
@@ -88,7 +88,11 @@ export function Drawer({
           >
             {children}
           </div>
-          {footer}
+          {footer ? (
+            <footer className="border-border-subtle border-t px-[var(--modal-padding)] pt-4 pb-[var(--modal-padding)]">
+              {footer}
+            </footer>
+          ) : null}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

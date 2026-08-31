@@ -320,8 +320,12 @@ describe('IssuesCatalog', () => {
     expect(
       await screen.findByText((_, element) => element?.textContent === '47 defect issue types'),
     ).toBeInTheDocument();
-    expect(screen.getByText('94 defect occurrences')).toBeInTheDocument();
-    expect(screen.getByText('50 affected URLs')).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) => element?.textContent === '94 defect occurrences'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) => element?.textContent === '50 affected URLs'),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('radio', { name: 'Advisories (2)' }));
     expect(await screen.findAllByText('Title length outside recommended band')).not.toHaveLength(0);
@@ -330,7 +334,9 @@ describe('IssuesCatalog', () => {
       screen.getByText((_, element) => element?.textContent === '2 advisory issue types'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: /High/ })).not.toBeInTheDocument();
-    expect(screen.getByText('94 advisory occurrences')).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) => element?.textContent === '94 advisory occurrences'),
+    ).toBeInTheDocument();
     expect(seen).toContain('advisory');
   });
 

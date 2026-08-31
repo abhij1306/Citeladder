@@ -48,9 +48,8 @@ function DemandEvidenceContent({
       onOpenChange={onOpenChange}
       title="Demand Signal Evidence"
       className="max-w-md sm:max-w-lg"
-      bodyClassName="px-4 py-3"
       footer={
-        <div className="border-border-subtle flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <Button variant="secondary" size="sm" asChild>
             <Link href="/opportunities" className="inline-flex items-center">
               <ArrowUpRight className="mr-1.5 size-3.5" />

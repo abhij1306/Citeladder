@@ -71,7 +71,7 @@ describe('OverviewPanel', () => {
     expect(overviewRequests).toBe(0);
   });
 
-  it('opens persisted Web Fundamentals evidence and discloses browser limits', async () => {
+  it('opens persisted HTTP Web Fundamentals evidence without browser-only checks', async () => {
     mswServer.use(
       http.get(`/api/v1/projects/${PROJECT}/site-health/overview`, () =>
         HttpResponse.json({
@@ -246,10 +246,8 @@ describe('OverviewPanel', () => {
     expect(issueLink).toHaveClass('font-normal');
     await user.click(screen.getByRole('button', { name: 'View evidence' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('Images missing alt attributes');
-    expect(screen.getByRole('dialog')).toHaveTextContent('mobile_layout');
-    expect(screen.getByRole('dialog')).toHaveTextContent('HTTP evidence only');
-    expect(screen.getByRole('dialog')).toHaveTextContent(
-      'Field Core Web Vitals: Unavailable — Provider Not Configured.',
-    );
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('mobile_layout');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('HTTP evidence only');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('Core Web Vitals');
   });
 });

@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils';
 
 /**
  * Heading recipes: `displayHeadingLgClasses` for panel / empty-state headings
- * (the ADS `font.heading.medium` rung — 20/24 @500), `displayHeadingXlClasses`
- * for page titles (ADS `font.heading.large` — 24/28 @500). There is no
+ * (20/28 @600), and `displayHeadingXlClasses`
+ * for page titles (24/32 @600). There is no
  * separate display face, so headings differ from body by size and weight only,
  * and both rungs bake their weight into the `--text-*` token. These are class
  * recipes, not components — the call site keeps whichever heading element is

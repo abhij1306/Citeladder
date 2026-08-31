@@ -383,22 +383,22 @@ function WebFundamentalsDrawer({
       title="Web Fundamentals"
       description="Static evidence from the acquired HTML and response headers."
     >
-      <div className="grid gap-4">
+      <div className="divide-border-subtle grid divide-y">
         {data.areas.map((area) => (
-          <Card key={area.key}>
-            <CardHeader bordered>
+          <section key={area.key} className="grid gap-3 py-4 first:pt-0">
+            <header className="grid gap-1">
               <div className="flex items-center justify-between gap-3">
-                <CardTitle className="capitalize">{area.key}</CardTitle>
+                <h2 className="text-foreground text-base font-semibold capitalize">{area.key}</h2>
                 <Badge variant="status" value={measurementTone(area.state)}>
                   {statusLabel(area.state)}
                 </Badge>
               </div>
-              <CardDescription>
+              <p className="text-secondary text-sm">
                 {percent(area.coverage)} evidence coverage · {area.passed_count} passed ·{' '}
-                {area.missing_count} missing · {area.unavailable_count} unavailable
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
+                {area.missing_count} missing
+              </p>
+            </header>
+            <div className="grid gap-3">
               {area.top_findings.length === 0 ? (
                 <p className="text-secondary text-sm">No missing HTTP-evidence checks.</p>
               ) : (
@@ -411,21 +411,9 @@ function WebFundamentalsDrawer({
                   </div>
                 ))
               )}
-              {area.unavailable_checks.length > 0 ? (
-                <p className="text-muted text-xs">
-                  Unavailable without browser evidence: {area.unavailable_checks.join(', ')}.
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         ))}
-        <Alert tone="info">
-          Field Core Web Vitals: {statusLabel(data.field_data.state)} —{' '}
-          {statusLabel(data.field_data.reason)}.
-        </Alert>
-        {data.limitations.length > 0 ? (
-          <Alert tone="info">{data.limitations.join(' ')}</Alert>
-        ) : null}
       </div>
     </Drawer>
   );

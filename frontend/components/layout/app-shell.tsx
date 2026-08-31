@@ -15,7 +15,7 @@ import { MobilePrimaryNavigation, MobileStationNavigation, SidebarNav } from './
 import { UserMenu } from './user-menu';
 
 /**
- * AppShell — the authed-area chrome in the ADS shell language.
+ * AppShell — the authenticated application chrome.
  *
  * Geometry: a 236px left sidebar (`bg-sidebar`, `--sidebar-width`) stacked as
  * logo row → project switcher → grouped nav → user card, each

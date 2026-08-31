@@ -17,7 +17,7 @@ import { cva } from 'class-variance-authority';
  * Hover moves the fill one step along the accent ramp rather than fading
  * opacity, so the label keeps its verified AA contrast in every state.
  *
- * Flat 2.0: the quiet variants now walk the ADS alpha-neutral ladder
+ * Quiet variants walk the semantic alpha-neutral ladder
  * (bg-alt 6% → bg-well 14% → bg-active 31%) instead of swapping between two
  * opaque greys. Because the fills are alpha, `neutral` and `ghost` look
  * correct on a white card, on the sunken canvas, and inside a tinted panel —
@@ -32,9 +32,8 @@ export const buttonVariants = cva(
       variant: {
         primary:
           'border-transparent bg-accent text-accent-fg hover:bg-accent-hover active:bg-accent-active shadow-xs',
-        // Secondary is Tesla's white alternate action: a white fill, Graphite
-        // label, and a Pale Silver hairline — an outline button, not a raised
-        // one, now that elevation is essentially none. Hover warms the fill.
+        // Secondary is the white alternate action: a panel fill and semantic
+        // hairline distinguish it without competing with the primary action.
         secondary:
           'border-border-strong bg-panel text-foreground hover:border-border-bold hover:bg-background-alt active:bg-well shadow-xs',
         tonal:
@@ -45,8 +44,8 @@ export const buttonVariants = cva(
           'border-transparent bg-transparent text-secondary hover:bg-background-alt hover:text-foreground active:bg-well',
         // Destructive paints on its OWN fill token, not on `--danger`, which is
         // also the sentiment-negative solid and the score-low ring.
-        // `--danger-solid` / `-hover` are the ADS background.danger.bold and
-        // -bold-hovered pair, which already clear AA against their foreground —
+        // `--danger-solid` / `-hover` are the shared destructive pair, which
+        // clear AA against their foreground —
         // no hand-deepening, unlike the previous system. Hover walks the ramp
         // instead of fading opacity, which used to wash the label out along with
         // the fill. globals.test.ts gates both `danger-fg` ↔ fill pairs.

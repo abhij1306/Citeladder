@@ -279,7 +279,7 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
             str(high_analysis_id)
         ]
         assert len(snapshot.aeo_readiness_diagnostic["dimensions"]) == 7
-        assert snapshot.web_fundamentals["state"] == "limited_evidence"
+        assert snapshot.web_fundamentals["state"] == "measured"
         assert snapshot.web_fundamentals["source_analysis_ids"] == [
             str(high_analysis_id)
         ]
