@@ -156,7 +156,7 @@ function ExecutionEvidenceRow({ item }: Readonly<{ item: VisibilityExecutionEvid
                       </span>
                     )}
                     {citation.domain && citation.title ? (
-                      <span className="text-muted text-2xs block truncate">{citation.domain}</span>
+                      <span className="text-muted block truncate text-xs">{citation.domain}</span>
                     ) : null}
                   </div>
                   <Badge

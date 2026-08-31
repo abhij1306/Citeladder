@@ -5,14 +5,11 @@ import { cva } from 'class-variance-authority';
  * tokens only (no raw hex). Sizes use the control-height tokens via bridged
  * `h-*` utilities defined in globals.css (--control-height*).
  *
- * App buttons use the semantic 6px control radius, not pills. Website/auth primary buttons
+ * App buttons use the semantic 10px control radius, not pills. Website/auth primary buttons
  * add their inset edge and 12px corners through the scoped `.website-type`
  * contract in globals.css; behaviour and semantics remain shared here.
- * Primary is an accent fill (`bg-accent` + `text-accent-fg`), replacing the
- * flat phase's monochrome `bg-foreground` pill; the accent is no longer
- * reserved away from actions, since the primary action is exactly the thing a
- * dashboard should point at. Secondary/neutral/ghost stay quiet so a screen
- * has one obvious action.
+ * Primary uses the navy action role. Indigo remains analytical selection.
+ * Secondary/neutral/ghost stay quiet so a screen has one obvious action.
  *
  * Hover moves the fill one step along the accent ramp rather than fading
  * opacity, so the label keeps its verified AA contrast in every state.
@@ -31,11 +28,10 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'border-transparent bg-accent text-accent-fg hover:bg-accent-hover active:bg-accent-active shadow-xs',
+          'border-transparent bg-action text-action-fg hover:bg-action-hover active:bg-action-active',
         // Secondary is the white alternate action: a panel fill and semantic
         // hairline distinguish it without competing with the primary action.
-        secondary:
-          'border-border-strong bg-panel text-foreground hover:border-border-bold hover:bg-background-alt active:bg-well shadow-xs',
+        secondary: 'border-transparent bg-well text-foreground hover:bg-active active:bg-active',
         tonal:
           'border-accent-border bg-accent-subtle text-accent-text hover:border-accent hover:bg-accent-border active:bg-accent-border',
         neutral:
@@ -50,7 +46,7 @@ export const buttonVariants = cva(
         // instead of fading opacity, which used to wash the label out along with
         // the fill. globals.test.ts gates both `danger-fg` ↔ fill pairs.
         destructive:
-          'border-transparent bg-danger-solid text-danger-fg hover:bg-danger-solid-hover active:bg-danger-solid-hover shadow-xs',
+          'border-transparent bg-danger-solid text-danger-fg hover:bg-danger-solid-hover active:bg-danger-solid-hover',
         destructiveGhost:
           'border-transparent bg-transparent text-danger-text hover:bg-danger-bg active:bg-danger-bg',
       },

@@ -3,6 +3,7 @@ import { extname, join, relative, resolve } from 'node:path';
 
 import {
   editorialTypographyViolations,
+  nestedCardViolations,
   directRadixImportViolations,
   productContractViolations,
   productControlViolations,
@@ -69,10 +70,7 @@ for (const path of files(root)) {
     !label.startsWith('components/auth/') &&
     !label.startsWith('components/onboarding/') &&
     !label.startsWith('lib/marketing-content/') &&
-    (label.startsWith('app/(app)/') ||
-      label.startsWith('app/(onboarding)/') ||
-      label.startsWith('components/') ||
-      label.startsWith('lib/'));
+    (label.startsWith('app/(app)/') || label.startsWith('components/') || label.startsWith('lib/'));
   // Applies to every source file, not just product UI: the ESLint rule this
   // replaced was repository-wide, and a text-ink background is wrong on a
   // marketing surface too.
@@ -80,6 +78,7 @@ for (const path of files(root)) {
   violations.push(...editorialTypographyViolations(source, label, ownsWebsiteEditorialCopy));
   violations.push(...standalonePlaceholderViolations(source, label, ownsProductUi));
   violations.push(...productUiSourceViolations(source, label, ownsProductUi));
+  violations.push(...nestedCardViolations(source, label, ownsProductUi));
   violations.push(...productControlViolations(source, label, ownsProductUi));
 }
 

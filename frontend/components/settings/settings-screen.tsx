@@ -132,6 +132,7 @@ export function SettingsScreen() {
         onValueChange={setActiveTab}
         items={SETTINGS_TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
         ariaLabel="Settings sections"
+        rootClassName="grid gap-6"
       >
         <TabPanel value="billing" forceMount className="focus-ring data-[state=inactive]:hidden">
           <BillingSettings enabled={activeTab === 'billing'} />

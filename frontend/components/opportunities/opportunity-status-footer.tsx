@@ -30,7 +30,7 @@ export function OpportunityStatusFooter({
       <ImplementationState implementation={implementation} />
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-2xs text-muted">Status</span>
+          <span className="text-muted text-xs">Status</span>
           <OpportunityStatusBadge status={detail.status} />
         </div>
         <StatusActions

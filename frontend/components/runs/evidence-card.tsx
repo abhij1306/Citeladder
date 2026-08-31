@@ -65,7 +65,7 @@ function EvidencePromptHeader({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Badge variant="neutral">Prompt #{promptBadgeNumber}</Badge>
-          <span className="mono text-muted text-2xs">rep {displayRepetition}</span>
+          <span className="mono text-muted text-xs">rep {displayRepetition}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="neutral">
@@ -285,7 +285,7 @@ function EvidenceStat({
       <span className="text-muted text-xs">{label}</span>
       <span
         className={cn(
-          'truncate text-sm font-semibold',
+          'truncate text-sm font-medium',
           positive === true
             ? 'text-score-high'
             : positive === false

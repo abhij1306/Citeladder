@@ -124,7 +124,7 @@ export default function RunsPage() {
           <CardHeader className="flex-row flex-wrap items-baseline justify-between gap-2 border-b-0 pb-3">
             <CardTitle>All runs</CardTitle>
             {anyActive ? (
-              <span className="mono text-muted text-2xs inline-flex items-center gap-1.5">
+              <span className="mono text-muted inline-flex items-center gap-1.5 text-xs">
                 <span
                   className="bg-accent inline-block size-1.5 animate-pulse rounded-full"
                   aria-hidden

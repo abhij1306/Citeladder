@@ -22,13 +22,12 @@ function NavLink({ item, active }: Readonly<{ item: NavItem; active: boolean }>)
       href={item.href}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'relative flex h-[var(--nav-item-height)] items-center gap-2.5 rounded-sm px-2.5 text-sm font-semibold transition-all duration-150',
+        'relative flex h-[var(--nav-item-height)] items-center gap-2.5 rounded-[var(--radius-control)] px-2.5 text-sm font-medium transition-colors duration-150',
         active
-          ? 'bg-active text-foreground font-semibold'
-          : 'text-secondary hover:text-foreground hover:bg-well hover:translate-x-0.5',
+          ? 'bg-accent-subtle text-accent-text'
+          : 'text-secondary hover:text-foreground hover:bg-well',
       )}
     >
-      {active ? <span aria-hidden className="bg-accent absolute inset-y-2 start-0 w-px" /> : null}
       <Icon
         className={cn('size-4 shrink-0', active ? 'text-accent opacity-100' : 'opacity-80')}
         aria-hidden
@@ -55,7 +54,7 @@ function StationLinks({
                 href={item.href}
                 aria-current={isNavItemActive(pathname, searchParams, item) ? 'page' : undefined}
                 className={cn(
-                  'focus-ring inline-flex min-h-11 items-center rounded-sm px-3 text-sm font-medium',
+                  'focus-ring inline-flex min-h-11 items-center rounded-[var(--radius-control)] px-3 text-sm font-medium',
                   isNavItemActive(pathname, searchParams, item)
                     ? 'bg-active text-foreground'
                     : 'text-secondary',
@@ -123,7 +122,7 @@ export function MobilePrimaryNavigation() {
             href={item.href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'text-2xs flex min-w-0 flex-col items-center justify-center gap-1 font-medium',
+              'text-xs flex min-w-0 flex-col items-center justify-center gap-1 font-medium',
               active ? 'text-accent-text' : 'text-muted hover:text-accent-text',
             )}
           >

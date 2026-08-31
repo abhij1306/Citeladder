@@ -39,7 +39,7 @@ export function OpportunityEvidenceSection({ detail }: Readonly<{ detail: Opport
       {theme ? <OpportunityKvRow label="Topic" value={theme} /> : null}
       {competitors.length > 0 ? (
         <div className="grid gap-1">
-          <span className="text-2xs text-muted">Competitors mentioned</span>
+          <span className="text-muted text-xs">Competitors mentioned</span>
           <div className="flex flex-wrap gap-1.5">
             {competitors.map((name) => (
               <Badge key={name} variant="classification" value="competitor">

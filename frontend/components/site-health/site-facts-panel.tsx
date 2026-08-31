@@ -137,7 +137,7 @@ function SiteFactsViewPanel({ view }: Readonly<{ view: SiteFactsView }>) {
     <Card data-testid="site-facts-panel">
       <CardContent className="grid gap-2 p-3">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <span className="text-foreground text-sm font-semibold">AI crawler access</span>
+          <span className="text-foreground text-sm font-medium">AI crawler access</span>
           <SummaryBadge view={view} />
           <span className="text-secondary flex items-center gap-1.5 text-xs">
             <span>robots.txt</span>
@@ -173,7 +173,7 @@ function SiteFactsViewPanel({ view }: Readonly<{ view: SiteFactsView }>) {
                 >
                   <span className="mono text-foreground truncate text-xs font-medium">{bot}</span>
                   <StanceBadge stance={stance} />
-                  <span className="text-2xs text-muted basis-full">{engineLabel(bot)}</span>
+                  <span className="text-muted basis-full text-xs">{engineLabel(bot)}</span>
                 </div>
               ))}
             </div>

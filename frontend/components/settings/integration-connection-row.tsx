@@ -79,7 +79,7 @@ function ConnectionActions({
           <Icon className="size-4" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-foreground truncate text-sm font-semibold">{label}</div>
+          <div className="text-foreground truncate text-sm font-medium">{label}</div>
           <PropertyPicker connection={connection} disabled={busy} />
         </div>
       </div>
@@ -140,7 +140,7 @@ function ConnectionMetadata({
           <Badge variant="run-status" value={SYNC_RUN_BADGE[activeRun.status]}>
             {activeRun.status.replace('_', ' ')}
           </Badge>
-          <span className="text-muted text-2xs font-mono whitespace-nowrap">
+          <span className="text-muted font-mono text-xs whitespace-nowrap">
             {activeRun.status === 'running'
               ? `${activeRun.row_count.toLocaleString('en-US')} rows · window ${formatShortDate(activeRun.window_start)}–${formatShortDate(activeRun.window_end)}`
               : `Enqueued ${formatUtcTimestamp(activeRun.created_at)} · waiting for a worker`}

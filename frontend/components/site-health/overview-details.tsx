@@ -388,7 +388,7 @@ function WebFundamentalsDrawer({
           <section key={area.key} className="grid gap-3 py-4 first:pt-0">
             <header className="grid gap-1">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-foreground text-base font-semibold capitalize">{area.key}</h2>
+                <h2 className="text-foreground text-base font-medium capitalize">{area.key}</h2>
                 <Badge variant="status" value={measurementTone(area.state)}>
                   {statusLabel(area.state)}
                 </Badge>

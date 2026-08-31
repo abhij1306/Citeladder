@@ -177,7 +177,7 @@ export function PagesTable({
                 >
                   {pageDisplayTitle(page.title, page.display_url)}
                 </span>
-                <span className="mono text-2xs text-muted truncate" title={page.display_url}>
+                <span className="mono text-muted truncate text-xs" title={page.display_url}>
                   {page.display_url}
                 </span>
               </span>

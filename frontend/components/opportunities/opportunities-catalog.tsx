@@ -139,12 +139,12 @@ function FeaturedRecommendation({
   // The backend owns target presentation (target_label) — no client helper.
   const target = detail.target_label;
   return (
-    <Card className="border-accent-border">
+    <Card className="bg-accent-soft">
       <CardContent className="grid gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="grid min-w-0 gap-2">
             <AccentEyebrow>Next best action</AccentEyebrow>
-            <h2 className="text-foreground text-xl font-semibold tracking-[-0.02em]">
+            <h2 className="text-foreground text-xl font-medium tracking-[-0.02em]">
               {detail.title}
             </h2>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -331,7 +331,7 @@ function RecommendationsHeader({
       <div className="grid gap-1">
         <h2
           id="recommendations-heading"
-          className="text-foreground text-lg font-semibold tracking-[-0.015em]"
+          className="text-foreground text-lg font-medium tracking-[-0.015em]"
         >
           Prioritized recommendations
         </h2>
@@ -427,7 +427,7 @@ function RecommendationsTable({
                     {row.title}
                   </span>
                   {row.target_label ? (
-                    <span className="text-2xs text-muted truncate" title={row.target_label}>
+                    <span className="text-muted truncate text-xs" title={row.target_label}>
                       {row.target_label}
                     </span>
                   ) : null}

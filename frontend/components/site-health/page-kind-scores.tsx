@@ -126,7 +126,7 @@ function MeasurementValue({
     return (
       <span className="grid gap-0.5">
         <span>{formatScore(score)}</span>
-        <span className="text-muted text-2xs font-normal normal-case">
+        <span className="text-muted text-xs font-normal normal-case">
           {coverageLabel} · {measurementConfidence(state)}
         </span>
       </span>

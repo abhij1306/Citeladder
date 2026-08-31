@@ -78,10 +78,10 @@ function ScoreCard({
   sub,
 }: Readonly<{ label: string; value: number | null; state: string | undefined; sub: string }>) {
   return (
-    <Card className="border-border/70">
+    <Card>
       {value === null ? (
         <CardContent className="grid h-full content-center gap-1 p-[var(--card-padding)] sm:p-[var(--card-padding)]">
-          <p className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">{label}</p>
+          <p className="text-muted text-xs font-medium tracking-[0.06em] uppercase">{label}</p>
           {state === 'limited_evidence' || state === 'excluded' ? (
             <span className="value-placeholder">
               {state === 'limited_evidence' ? 'Limited evidence' : 'Excluded'}
@@ -95,8 +95,8 @@ function ScoreCard({
         <CardContent className="flex h-full items-center gap-4 p-[var(--card-padding)] sm:p-[var(--card-padding)]">
           <ScoreRing value={value} size={72} label={`${label} score: ${Math.round(value)}`} />
           <div className="grid gap-1">
-            <p className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">{label}</p>
-            <span className="font-display text-foreground text-2xl font-semibold tracking-[-0.02em] tabular-nums">
+            <p className="text-muted text-xs font-medium tracking-[0.06em] uppercase">{label}</p>
+            <span className="font-display text-foreground text-2xl font-medium tracking-[-0.02em] tabular-nums">
               {formatScore(value)} / 100
             </span>
             <span className="text-muted text-xs leading-relaxed">{sub}</span>

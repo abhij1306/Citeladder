@@ -169,7 +169,7 @@ export function ExecutionHeader({
 /** Collapsed task/analysis/artifact ids for one execution. */
 export function ProvenanceDisclosure({ item }: Readonly<{ item: VisibilityExecutionEvidence }>) {
   return (
-    <details className="text-2xs text-muted">
+    <details className="text-muted text-xs">
       <summary className="focus-ring w-fit cursor-pointer rounded-sm">Provenance</summary>
       <p className="mt-1 font-mono">{provenanceSummary(item)}</p>
     </details>

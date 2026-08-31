@@ -231,10 +231,12 @@ export function CommandPalette() {
         }}
         aria-label="Search or jump to"
         aria-keyshortcuts="Meta+K Control+K"
-        className="text-muted w-full justify-start text-left"
+        className="text-muted w-full justify-start text-left max-sm:size-[var(--control-height)] max-sm:px-0"
       >
         <Search className="text-muted size-4 shrink-0" aria-hidden strokeWidth={1.75} />
-        <span className="min-w-0 truncate text-sm font-normal">Search or jump to…</span>
+        <span className="min-w-0 truncate text-sm font-normal max-sm:sr-only">
+          Search or jump to…
+        </span>
         <kbd className="bg-background-alt border-border/60 text-muted ms-auto hidden shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-medium sm:inline">
           ⌘K
         </kbd>
@@ -359,16 +361,16 @@ export function CommandPalette() {
                 it states its own controls rather than assuming they are known. */}
             <div className="border-border/60 text-muted flex shrink-0 items-center gap-4 border-t px-4 py-2.5 text-xs font-medium">
               <span className="flex items-center gap-1.5">
-                <kbd className="border-border/60 bg-well text-2xs rounded-md border px-1.5 py-0.5 font-mono">
+                <kbd className="border-border/60 bg-well rounded-md border px-1.5 py-0.5 font-mono text-xs">
                   ↑
                 </kbd>
-                <kbd className="border-border/60 bg-well text-2xs rounded-md border px-1.5 py-0.5 font-mono">
+                <kbd className="border-border/60 bg-well rounded-md border px-1.5 py-0.5 font-mono text-xs">
                   ↓
                 </kbd>
                 navigate
               </span>
               <span className="flex items-center gap-1.5">
-                <kbd className="border-border/60 bg-well text-2xs rounded-md border px-1.5 py-0.5 font-mono">
+                <kbd className="border-border/60 bg-well rounded-md border px-1.5 py-0.5 font-mono text-xs">
                   ↵
                 </kbd>
                 select

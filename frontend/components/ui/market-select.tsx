@@ -178,7 +178,7 @@ export function MarketSelect({
             >
               <span className="min-w-0 truncate">{option.label}</span>
               {option.value.trim().toLowerCase() !== option.label.trim().toLowerCase() ? (
-                <span className="mono text-muted text-2xs max-w-24 truncate">{option.value}</span>
+                <span className="mono text-muted max-w-24 truncate text-xs">{option.value}</span>
               ) : null}
             </li>
           ))}

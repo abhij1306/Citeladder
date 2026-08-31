@@ -23,7 +23,7 @@ export function OpportunitySourcePattern({ pattern }: Readonly<{ pattern: Source
     <section className="grid gap-2">
       <div className="flex items-baseline justify-between gap-3">
         <Label>Observed sources</Label>
-        <span className="text-2xs text-muted">
+        <span className="text-muted text-xs">
           {pattern.distinctDomainCount} {pattern.distinctDomainCount === 1 ? 'domain' : 'domains'}
           {pattern.independentDomainCount > 0
             ? ` · ${pattern.independentDomainCount} independent`
@@ -47,7 +47,7 @@ export function OpportunitySourcePattern({ pattern }: Readonly<{ pattern: Source
 
       {pattern.competitorSourceDomains.length > 0 ? (
         <div className="grid gap-1">
-          <span className="text-2xs text-muted">Sources matched to a tracked competitor</span>
+          <span className="text-muted text-xs">Sources matched to a tracked competitor</span>
           {pattern.competitorSourceDomains.map(({ competitor, domains }) => (
             <div key={competitor} className="flex items-start justify-between gap-3 py-0.5">
               <span className="text-secondary shrink-0 text-sm">{competitor}</span>
@@ -67,14 +67,14 @@ export function OpportunitySourcePattern({ pattern }: Readonly<{ pattern: Source
               className="border-border-subtle bg-well grid gap-0.5 rounded-[var(--radius-control)] border px-3 py-2"
             >
               <span className="text-foreground text-xs">{citation.title || citation.domain}</span>
-              <span className="mono text-muted text-2xs break-all">{citation.domain}</span>
+              <span className="mono text-muted text-xs break-all">{citation.domain}</span>
             </li>
           ))}
         </ul>
       ) : null}
 
       {pattern.topCitationsTruncated ? (
-        <p className="text-2xs text-muted">
+        <p className="text-muted text-xs">
           Showing the first {pattern.topCitations.length} of {pattern.distinctDomainCount} cited
           domains. Every citation stays available in Visibility → Mentions &amp; Citations.
         </p>
@@ -82,7 +82,7 @@ export function OpportunitySourcePattern({ pattern }: Readonly<{ pattern: Source
 
       {action ? (
         <div className="border-accent-border bg-accent-subtle rounded-md border-l px-3 py-2.5">
-          <span className="text-2xs text-muted">Suggested next action</span>
+          <span className="text-muted text-xs">Suggested next action</span>
           <p className="text-foreground text-sm">{action}</p>
         </div>
       ) : null}

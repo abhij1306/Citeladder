@@ -220,7 +220,7 @@ export function MetricTable<Row extends MetricRow>({
       )}
       {!query.isError ? (
         <div className="border-border-subtle flex items-center justify-between gap-3 border-t px-3 py-2">
-          <span className="text-2xs text-muted">{describeSort(sort)}</span>
+          <span className="text-muted text-xs">{describeSort(sort)}</span>
           <CursorPager
             canPrev={pager.canPrev}
             canNext={Boolean(nextCursor)}

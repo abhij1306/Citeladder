@@ -23,7 +23,7 @@ export function UsageMeter({ item }: Readonly<{ item: UsageItem }>) {
           <span className="text-secondary text-xs font-medium">{label}</span>
           <span className="text-muted text-xs font-medium">Not available</span>
         </div>
-        <p className="text-muted text-2xs">
+        <p className="text-muted text-xs">
           This allowance could not be resolved, so no usage is shown.
         </p>
       </div>
@@ -40,7 +40,7 @@ export function UsageMeter({ item }: Readonly<{ item: UsageItem }>) {
           </span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-muted text-2xs">Unlimited</span>
+          <span className="text-muted text-xs">Unlimited</span>
           <ExpiryLine item={item} />
         </div>
       </div>
@@ -82,7 +82,7 @@ export function UsageMeter({ item }: Readonly<{ item: UsageItem }>) {
         />
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted text-2xs">
+        <span className="text-muted text-xs">
           {remaining} remaining
           {item.reserved ? ` · ${item.reserved} reserved` : ''}
         </span>

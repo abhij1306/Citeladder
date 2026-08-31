@@ -48,8 +48,8 @@ describe('TopicRail layout containment', () => {
     expect(rail).not.toHaveClass('overflow-hidden');
     expect(rail).toHaveClass('min-w-0');
     expect(rail).not.toHaveClass('border');
-    expect(rail).toHaveClass('shadow-card');
     expect(rail).toHaveClass('bg-panel');
+    expect(rail).not.toHaveClass('shadow-card');
     // Desktop: sticky so the rail stays put while the right pane scrolls.
     expect(rail).toHaveClass('lg:sticky');
     // The full rail is desktop-only; the narrow selector is hidden at lg+.

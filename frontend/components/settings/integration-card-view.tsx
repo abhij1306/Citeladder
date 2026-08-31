@@ -78,9 +78,7 @@ function GrantHeader({
     <CardHeader className="border-border-subtle flex-row items-center justify-between gap-3 border-b pb-3">
       <div className="grid min-w-0 gap-0.5">
         <CardEyebrow>OAuth grant</CardEyebrow>
-        <h3 className="text-foreground text-base font-semibold tracking-[-0.015em]">
-          {meta.title}
-        </h3>
+        <h3 className="text-foreground text-base font-medium tracking-[-0.015em]">{meta.title}</h3>
         <p className="text-muted truncate text-xs">{meta.blurb}</p>
       </div>
       <div className="shrink-0">

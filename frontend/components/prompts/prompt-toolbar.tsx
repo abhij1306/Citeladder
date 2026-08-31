@@ -82,7 +82,7 @@ export function PromptToolbar({
             <Filter className="size-4" aria-hidden />
             Filter
             {activeFilterCount > 0 ? (
-              <span className="bg-accent-subtle text-2xs text-accent-text ml-1 rounded-full px-1.5 font-mono font-medium">
+              <span className="bg-accent-subtle text-accent-text ml-1 rounded-full px-1.5 font-mono text-xs font-medium">
                 {activeFilterCount}
               </span>
             ) : null}

@@ -75,7 +75,7 @@ function TrendCard({
       <CardContent>
         <div className="flex gap-3">
           <div
-            className="text-2xs text-muted flex flex-col justify-between py-1 tabular-nums"
+            className="text-muted flex flex-col justify-between py-1 text-xs tabular-nums"
             aria-hidden
           >
             {yLabels.map((label) => (
@@ -93,7 +93,7 @@ function TrendCard({
             />
             {points.length > 1 ? (
               <div
-                className="text-2xs text-muted mt-1 flex justify-between tabular-nums"
+                className="text-muted mt-1 flex justify-between text-xs tabular-nums"
                 aria-hidden
               >
                 <span>{firstLabel}</span>

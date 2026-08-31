@@ -8,8 +8,8 @@ import { brandInitials } from '@/lib/brand/initials';
 import { cn } from '@/lib/utils';
 
 const SIZE = {
-  xs: { pixels: 14, className: 'size-3.5 rounded-xs text-2xs' },
-  sm: { pixels: 20, className: 'size-5 rounded text-2xs' },
+  xs: { pixels: 14, className: 'size-3.5 rounded-xs text-xs' },
+  sm: { pixels: 20, className: 'size-5 rounded text-xs' },
   md: { pixels: 24, className: 'size-6 rounded-md text-xs' },
   lg: { pixels: 32, className: 'size-8 rounded-md text-sm' },
   xl: { pixels: 40, className: 'size-10 rounded-lg text-base' },

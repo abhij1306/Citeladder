@@ -19,16 +19,16 @@ const CHANNEL_ORDER = ['web', 'social', 'video', 'community', 'email'] as const;
 function SkillDetail({ skill }: Readonly<{ skill: ContentSkillView }>) {
   return (
     <div className="max-w-xs p-1 text-xs">
-      <p className="font-semibold">{skill.label}</p>
+      <p className="font-medium">{skill.label}</p>
       <p className="mt-1 opacity-90">{skill.description}</p>
       {skill.structure.length > 0 ? (
-        <ul className="border-on-inverse/20 text-2xs mt-1.5 grid list-disc gap-0.5 border-t pt-1.5 pl-4 opacity-80">
+        <ul className="border-on-inverse/20 mt-1.5 grid list-disc gap-0.5 border-t pt-1.5 pl-4 text-xs opacity-80">
           {skill.structure.map((step) => (
             <li key={step}>{step}</li>
           ))}
         </ul>
       ) : null}
-      {skill.length_hint ? <p className="text-2xs mt-1.5 opacity-75">{skill.length_hint}</p> : null}
+      {skill.length_hint ? <p className="mt-1.5 text-xs opacity-75">{skill.length_hint}</p> : null}
     </div>
   );
 }

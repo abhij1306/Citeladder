@@ -74,7 +74,7 @@ function DemandEvidenceContent({
               {signal.signal_type.replace(/_/g, ' ')}
             </Badge>
           </div>
-          <h2 className="text-foreground text-base font-semibold break-words">{details.target}</h2>
+          <h2 className="text-foreground text-base font-medium break-words">{details.target}</h2>
           {details.linkablePageUrl && (
             <div className="text-muted flex items-center gap-1.5 text-xs">
               <span className="shrink-0 font-medium">Resolved URL:</span>
@@ -93,11 +93,11 @@ function DemandEvidenceContent({
 
         {/* Observed GSC Metrics */}
         <section className="grid gap-2">
-          <h3 className="text-muted text-xs font-semibold">Observed GSC Performance</h3>
+          <h3 className="text-muted text-xs font-medium">Observed GSC Performance</h3>
           <div className="border-border bg-panel grid grid-cols-2 gap-2 rounded-md border p-3 sm:grid-cols-4">
             <div>
-              <span className="text-2xs text-muted">Impressions</span>
-              <p className="text-foreground text-sm font-semibold tabular-nums">
+              <span className="text-muted text-xs">Impressions</span>
+              <p className="text-foreground text-sm font-medium tabular-nums">
                 {typeof details.metrics.impressions === 'number' ? (
                   details.metrics.impressions.toLocaleString()
                 ) : (
@@ -106,8 +106,8 @@ function DemandEvidenceContent({
               </p>
             </div>
             <div>
-              <span className="text-2xs text-muted">Clicks</span>
-              <p className="text-foreground text-sm font-semibold tabular-nums">
+              <span className="text-muted text-xs">Clicks</span>
+              <p className="text-foreground text-sm font-medium tabular-nums">
                 {typeof details.metrics.clicks === 'number' ? (
                   details.metrics.clicks.toLocaleString()
                 ) : (
@@ -116,8 +116,8 @@ function DemandEvidenceContent({
               </p>
             </div>
             <div>
-              <span className="text-2xs text-muted">CTR</span>
-              <p className="text-foreground text-sm font-semibold tabular-nums">
+              <span className="text-muted text-xs">CTR</span>
+              <p className="text-foreground text-sm font-medium tabular-nums">
                 {typeof details.metrics.ctr === 'number' ? (
                   `${(details.metrics.ctr * 100).toFixed(1)}%`
                 ) : (
@@ -126,8 +126,8 @@ function DemandEvidenceContent({
               </p>
             </div>
             <div>
-              <span className="text-2xs text-muted">Avg Position</span>
-              <p className="text-foreground text-sm font-semibold tabular-nums">
+              <span className="text-muted text-xs">Avg Position</span>
+              <p className="text-foreground text-sm font-medium tabular-nums">
                 {typeof details.metrics.position === 'number' ? (
                   details.metrics.position.toFixed(1)
                 ) : (
@@ -141,7 +141,7 @@ function DemandEvidenceContent({
         {/* Cannibalization Breakdown if applicable */}
         {details.pages.length > 0 && (
           <section className="grid gap-2">
-            <div className="text-muted flex items-center gap-1.5 text-xs font-semibold">
+            <div className="text-muted flex items-center gap-1.5 text-xs font-medium">
               <Split className="text-warning size-3.5" />
               <span>Competing URL Breakdown ({details.pages.length} Pages)</span>
             </div>
@@ -149,9 +149,9 @@ function DemandEvidenceContent({
               {details.pages.map((page) => (
                 <div key={page.url} className="p-2.5 text-xs">
                   <div className="text-foreground font-medium break-all">{page.url}</div>
-                  <div className="text-muted text-2xs mt-1 flex items-center justify-between">
+                  <div className="text-muted mt-1 flex items-center justify-between text-xs">
                     <span>{page.impressions.toLocaleString('en-US')} impressions</span>
-                    <span className="text-foreground font-semibold tabular-nums">
+                    <span className="text-foreground font-medium tabular-nums">
                       {(page.share * 100).toFixed(0)}% query share
                     </span>
                   </div>
@@ -164,7 +164,7 @@ function DemandEvidenceContent({
         {/* CTR Gap Cohort Benchmark if applicable */}
         {details.cohortMedianCtr !== null && (
           <section className="grid gap-2">
-            <h3 className="text-muted text-xs font-semibold">Position Cohort Benchmark</h3>
+            <h3 className="text-muted text-xs font-medium">Position Cohort Benchmark</h3>
             <div className="border-border bg-panel grid gap-2 rounded-md border p-3 text-xs">
               <div className="flex justify-between">
                 <span className="text-muted">Position Band:</span>
@@ -178,14 +178,14 @@ function DemandEvidenceContent({
               </div>
               <div className="flex justify-between">
                 <span className="text-muted">Cohort Median CTR:</span>
-                <span className="text-success font-semibold tabular-nums">
+                <span className="text-success font-medium tabular-nums">
                   {(details.cohortMedianCtr * 100).toFixed(1)}%
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted">Observed Actual CTR:</span>
                 {numericMetric(signal, 'ctr') !== null ? (
-                  <span className="text-danger font-semibold tabular-nums">
+                  <span className="text-danger font-medium tabular-nums">
                     {(numericMetric(signal, 'ctr')! * 100).toFixed(1)}%
                   </span>
                 ) : (
@@ -198,11 +198,11 @@ function DemandEvidenceContent({
 
         {/* Provenance & Audit Info */}
         <section className="border-border-subtle grid gap-2 border-t pt-3">
-          <div className="text-muted flex items-center gap-1.5 text-xs font-semibold">
+          <div className="text-muted flex items-center gap-1.5 text-xs font-medium">
             <ShieldCheck className="text-accent size-3.5" />
             <span>Audit Trail & Provenance</span>
           </div>
-          <div className="border-border bg-well text-2xs text-muted grid gap-1.5 rounded-md border p-3">
+          <div className="border-border bg-well text-muted grid gap-1.5 rounded-md border p-3 text-xs">
             <div className="flex justify-between">
               <span>Signal ID:</span>
               <span className="text-foreground font-mono">{signal.id.slice(0, 8)}...</span>

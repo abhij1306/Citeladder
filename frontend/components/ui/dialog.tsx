@@ -65,7 +65,7 @@ export function Dialog({
         >
           <header className="border-border-subtle flex items-start justify-between gap-4 border-b px-[var(--modal-padding)] pt-[var(--modal-padding)] pb-4">
             <div className="grid min-w-0 gap-1">
-              <DialogPrimitive.Title className="text-foreground text-xl font-semibold tracking-tight">
+              <DialogPrimitive.Title className="text-foreground text-xl font-medium tracking-tight">
                 {title}
               </DialogPrimitive.Title>
               {description ? (

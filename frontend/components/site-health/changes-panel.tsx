@@ -175,10 +175,10 @@ function ChangesTable({
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             {Object.entries(CLASS_LABELS).map(([key, label]) => (
               <div key={key}>
-                <span className="text-muted text-2xs block font-semibold tracking-[0.06em] uppercase">
+                <span className="text-muted block text-xs font-medium tracking-[0.06em] uppercase">
                   {label}
                 </span>
-                <span className="mono text-foreground mt-0.5 block text-base font-semibold tabular-nums">
+                <span className="mono text-foreground mt-0.5 block text-base font-medium tabular-nums">
                   {counts?.[key] ?? 0}
                 </span>
               </div>

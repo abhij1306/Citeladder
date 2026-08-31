@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   directRadixImportViolations,
   editorialTypographyViolations,
+  nestedCardViolations,
   productUiSourceViolations,
   productControlViolations,
   standalonePlaceholderViolations,
@@ -86,6 +87,12 @@ describe('productUiSourceViolations', () => {
     expect(productUiSourceViolations(source, 'components/example.tsx', true)).toEqual([]);
   });
 
+  it('rejects retired product typography, palette utilities, and feature elevation', () => {
+    const source =
+      '<div className="text-2xs font-semibold bg-indigo-500 shadow-card">Example</div>';
+    expect(productUiSourceViolations(source, 'components/example.tsx', true)).toHaveLength(3);
+  });
+
   it('rejects website typography inside product UI', () => {
     const source = '<h1 className="website-feature-heading">Example</h1>';
     expect(
@@ -101,6 +108,17 @@ describe('productUiSourceViolations', () => {
     expect(
       editorialTypographyViolations(source, 'components/onboarding/example.tsx', true),
     ).toEqual([]);
+  });
+});
+
+describe('nestedCardViolations', () => {
+  it('rejects nested semantic cards and allows sibling cards', () => {
+    expect(
+      nestedCardViolations('<Card><div><Card /></div></Card>', 'components/example.tsx', true),
+    ).toHaveLength(1);
+    expect(nestedCardViolations('<><Card /><Card /></>', 'components/example.tsx', true)).toEqual(
+      [],
+    );
   });
 });
 

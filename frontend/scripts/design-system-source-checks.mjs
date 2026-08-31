@@ -233,6 +233,15 @@ export function productUiSourceViolations(source, label, ownsProductUi) {
   if (!ownsProductUi || !label.endsWith('.tsx')) return [];
   const violations = [];
   for (const entry of jsxClassData(source, label)) {
+    if (
+      entry.tag === 'Card' &&
+      /\b(?:border(?:-[^\s]+)?|rounded(?:-[^\s]+)?|(?:hover:)?shadow-[^\s]+)\b/.test(entry.classes)
+    ) {
+      violations.push(`${label}:${entry.line}: Card geometry and elevation belong to its owner`);
+    }
+    if (/\b(?:font-semibold|font-bold|text-2xs)\b/.test(entry.classes)) {
+      violations.push(`${label}:${entry.line}: product type uses a retired weight or size`);
+    }
     if (/\btext-5xl\b|\btext-\[[^\]]+\]/.test(entry.classes)) {
       violations.push(`${label}:${entry.line}: product type must use the approved even ladder`);
     }
@@ -248,7 +257,46 @@ export function productUiSourceViolations(source, label, ownsProductUi) {
     ) {
       violations.push(`${label}:${entry.line}: product UI must not consume website type roles`);
     }
+    if (
+      !label.startsWith('components/ui/') &&
+      /\b(?:hover:)?shadow-(?:xs|sm|card|card-hover|lg)\b/.test(entry.classes)
+    ) {
+      violations.push(`${label}:${entry.line}: feature-owned static elevation is retired`);
+    }
+    if (
+      /\b(?:bg|text|border|ring)-(?:gray|indigo|cyan|coral|lime|amber)-\d+\b/.test(entry.classes)
+    ) {
+      violations.push(`${label}:${entry.line}: product UI must consume semantic colour roles`);
+    }
   }
+  return violations;
+}
+
+/** Cards are semantic objects, never layout containers nested inside each other. */
+export function nestedCardViolations(source, label, ownsProductUi) {
+  if (!ownsProductUi || !label.endsWith('.tsx')) return [];
+  const sourceFile = ts.createSourceFile(
+    label,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const violations = [];
+  const visit = (node, cardDepth = 0) => {
+    const opening = ts.isJsxElement(node)
+      ? node.openingElement
+      : ts.isJsxSelfClosingElement(node)
+        ? node
+        : null;
+    const isCard = opening?.tagName.getText(sourceFile) === 'Card';
+    if (isCard && cardDepth > 0) {
+      const line = sourceFile.getLineAndCharacterOfPosition(opening.getStart(sourceFile)).line + 1;
+      violations.push(`${label}:${line}: Card must not be nested inside Card`);
+    }
+    ts.forEachChild(node, (child) => visit(child, cardDepth + (isCard ? 1 : 0)));
+  };
+  visit(sourceFile);
   return violations;
 }
 
@@ -392,7 +440,6 @@ export function productContractViolations(root) {
   const violations = [];
   const css = readFileSync(join(root, 'app', 'globals.css'), 'utf8');
   const tokenContract = new Map([
-    ['--text-2xs', '0.75rem'],
     ['--text-xs', '0.75rem'],
     ['--text-sm', '0.875rem'],
     ['--text-base', '1rem'],
@@ -401,18 +448,40 @@ export function productContractViolations(root) {
     ['--text-2xl', '1.5rem'],
     ['--text-3xl', '1.75rem'],
     ['--text-4xl', '2rem'],
-    ['--content-gutter', '16px'],
+    ['--content-gutter', '24px'],
     ['--workspace-gap', '16px'],
     ['--compact-gap', '12px'],
-    ['--page-section-gap', '24px'],
+    ['--page-section-gap', '32px'],
     ['--card-padding', '16px'],
     ['--modal-padding', '20px'],
     ['--control-height', '32px'],
     ['--control-height-lg', '36px'],
+    ['--radius-control', '10px'],
+    ['--radius-card', '16px'],
+    ['--radius-overlay', '16px'],
+    ['--color-background', ['#fa', 'f9f6'].join('')],
+    ['--color-action', ['#14', '213d'].join('')],
+    ['--color-accent', ['#55', '42f6'].join('')],
+    ['--color-focus', ['#55', '42f6'].join('')],
+    ['--color-focus-ring', ['#c1', 'b8ff'].join('')],
+    ['--color-selection', ['#de', 'd9ff'].join('')],
+    ['--color-selection-fg', ['#14', '213d'].join('')],
   ]);
   for (const [token, value] of tokenContract) {
     if (!tokenDeclaration(css, token, value)) {
       violations.push(`app/globals.css: ${token} must equal ${value}`);
+    }
+  }
+  const websiteType = css.match(/\.website-type\s*\{([^}]+)\}/s)?.[1] ?? '';
+  const websiteInteractionContract = new Map([
+    ['--color-focus', ['#31', '5cff'].join('')],
+    ['--color-focus-ring', ['#c3', 'd3ff'].join('')],
+    ['--color-selection', ['#db', 'eafe'].join('')],
+    ['--color-selection-fg', ['#0f', '172a'].join('')],
+  ]);
+  for (const [token, value] of websiteInteractionContract) {
+    if (!tokenDeclaration(websiteType, token, value)) {
+      violations.push(`app/globals.css: .website-type ${token} must equal ${value}`);
     }
   }
 
@@ -441,9 +510,19 @@ export function productContractViolations(root) {
   }
   const eyebrow = readFileSync(join(root, 'components', 'ui', 'eyebrow.tsx'), 'utf8');
   if (
-    !eyebrow.includes("export const eyebrowClasses = 'font-sans text-xs font-semibold text-muted';")
+    !eyebrow.includes("export const eyebrowClasses = 'font-sans text-xs font-medium text-muted';")
   ) {
     violations.push('components/ui/eyebrow.tsx: product eyebrows must be sentence case');
+  }
+  const card = readFileSync(join(root, 'components', 'ui', 'card-variants.ts'), 'utf8');
+  if (/shadow-|\bborder\b/.test(card.match(/cva\(([^;]+)\)/s)?.[1] ?? '')) {
+    violations.push('components/ui/card-variants.ts: Card must remain flat by default');
+  }
+  const button = readFileSync(join(root, 'components', 'ui', 'button-variants.ts'), 'utf8');
+  if (!button.includes('bg-action text-action-fg')) {
+    violations.push(
+      'components/ui/button-variants.ts: primary action must use the navy action role',
+    );
   }
   if (
     !/\.value-placeholder\s*\{[^}]*font-size:\s*var\(--text-xs\);[^}]*font-weight:\s*400;/s.test(

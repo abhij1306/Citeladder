@@ -77,7 +77,7 @@ export function CompetitorSuggestions({
   return (
     <div className="flex flex-col gap-3 pt-2">
       <div>
-        <h3 className="text-foreground text-base font-semibold">Competitor suggestions</h3>
+        <h3 className="text-foreground text-base font-medium">Competitor suggestions</h3>
         <p className="text-muted mt-0.5 text-xs">
           Observed repeatedly in third-party citations. Verify relevance before adding.
         </p>
@@ -86,7 +86,7 @@ export function CompetitorSuggestions({
         <Alert tone="danger">Could not load competitor suggestions.</Alert>
       ) : null}
       {suggestionsQuery.data?.length ? (
-        <ul className="border-border-subtle bg-panel divide-border-subtle divide-y rounded-md border shadow-sm">
+        <ul className="border-border-subtle bg-panel divide-border-subtle divide-y rounded-md border">
           {suggestionsQuery.data.map((candidate) => (
             <li
               key={candidate.id}

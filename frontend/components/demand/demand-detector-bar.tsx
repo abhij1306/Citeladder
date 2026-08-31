@@ -85,13 +85,13 @@ export function DemandDetectorBar({ snapshot }: Readonly<{ snapshot: DemandSnaps
               key={key}
               content={
                 <div className="max-w-xs p-1 text-xs">
-                  <p className="font-semibold">{meta.label}</p>
+                  <p className="font-medium">{meta.label}</p>
                   <p className="mt-1 opacity-90">{meta.description}</p>
-                  <p className="text-2xs mt-1.5 border-t border-white/20 pt-1.5 opacity-75">
+                  <p className="mt-1.5 border-t border-white/20 pt-1.5 text-xs opacity-75">
                     {meta.requirements}
                   </p>
                   {detectorLimitations.length > 0 && (
-                    <p className="text-warning-text text-2xs mt-1 font-medium">
+                    <p className="text-warning-text mt-1 text-xs font-medium">
                       Note: {detectorLimitations.join(' ')}
                     </p>
                   )}
@@ -100,7 +100,7 @@ export function DemandDetectorBar({ snapshot }: Readonly<{ snapshot: DemandSnaps
             >
               <Pressable
                 type="button"
-                className="bg-panel border-border hover:border-border-strong flex cursor-help items-center gap-1.5 rounded border px-2 py-1 text-xs shadow-xs transition-colors"
+                className="bg-panel border-border hover:border-border-strong flex cursor-help items-center gap-1.5 rounded border px-2 py-1 text-xs transition-colors"
               >
                 <span className="text-foreground font-medium">{meta.label}</span>
                 <Badge variant="status" value={badgeTone}>
@@ -112,7 +112,7 @@ export function DemandDetectorBar({ snapshot }: Readonly<{ snapshot: DemandSnaps
         })}
       </div>
 
-      <div className="text-muted text-2xs flex items-center gap-1.5">
+      <div className="text-muted flex items-center gap-1.5 text-xs">
         <Info className="size-3 shrink-0" aria-hidden="true" />
         <span>
           {limitations.length > 0

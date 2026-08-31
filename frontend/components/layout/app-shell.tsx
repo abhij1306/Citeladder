@@ -17,22 +17,20 @@ import { UserMenu } from './user-menu';
 /**
  * AppShell — the authenticated application chrome.
  *
- * Geometry: a 236px left sidebar (`bg-sidebar`, `--sidebar-width`) stacked as
- * logo row → project switcher → grouped nav → user card, each
- * band separated by a hairline; and a 52px top bar (`--topbar-height`) over
- * the content column carrying the centered command palette and Agent trigger.
+ * Geometry: a quiet structural sidebar and flat top bar frame the editorial
+ * workspace. Tone and whitespace, rather than repeated rules, separate chrome.
  */
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <TooltipProvider>
       <div className="product-app bg-background relative flex h-dvh overflow-hidden">
-        <aside className="border-border-subtle bg-sidebar relative z-1 hidden w-[var(--sidebar-width)] shrink-0 flex-col border-r transition-[width] md:flex">
+        <aside className="bg-sidebar relative z-1 hidden w-[var(--sidebar-width)] shrink-0 flex-col transition-[width] md:flex">
           {/* Logo row — matches topbar height */}
-          <div className="border-border-subtle flex h-[var(--topbar-height)] shrink-0 items-center border-b px-4">
+          <div className="flex h-[var(--topbar-height)] shrink-0 items-center px-4">
             <LogoMark size={22} />
           </div>
 
-          <div className="border-border-subtle border-b p-1.5">
+          <div className="px-2 py-2">
             <ProjectSwitcher />
           </div>
 
@@ -40,14 +38,13 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             <SidebarNav />
           </div>
 
-          <div className="border-border-subtle shrink-0 border-t p-2">
+          <div className="shrink-0 p-2">
             <UserMenu />
           </div>
         </aside>
 
         <div className="relative z-1 flex min-w-0 flex-1 flex-col overflow-hidden">
-          {/* Top bar with frosted glassmorphism utility chrome. */}
-          <header className="border-border-subtle bg-background/80 sticky top-0 z-20 flex h-[var(--topbar-height)] shrink-0 items-center justify-between gap-3 border-b px-[var(--content-gutter)] backdrop-blur-md md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,440px)_minmax(0,1fr)]">
+          <header className="bg-background sticky top-0 z-20 flex h-[var(--topbar-height)] shrink-0 items-center gap-3 px-[var(--content-gutter)]">
             <div className="flex items-center gap-2 md:hidden">
               <Link
                 href="/projects"
@@ -57,8 +54,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
                 <LogoMark size={20} />
               </Link>
             </div>
-            <div aria-hidden className="hidden md:block" />
-            <div className="min-w-0 flex-1 md:w-full md:max-w-110 md:justify-self-center">
+            <PageHeader className="mb-0 min-w-0 flex-1 [&_h1]:truncate" />
+            <div className="ms-auto w-auto sm:w-72 lg:w-96">
               <CommandPalette />
             </div>
             <div className="flex items-center justify-end gap-2.5">
@@ -72,7 +69,6 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           >
             <MobileStationNavigation />
             <div className="mx-auto grid w-full max-w-[var(--content-max-width)] grid-cols-[minmax(0,1fr)] gap-0 p-[var(--content-gutter)]">
-              <PageHeader />
               <RouteContent>{children}</RouteContent>
             </div>
           </main>

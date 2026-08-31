@@ -95,7 +95,7 @@ function PromptGroupBlock({ group }: Readonly<{ group: PromptGroup }>) {
   return (
     <section className="grid gap-3 px-[var(--card-padding)] py-4">
       <div className="flex items-start gap-2">
-        <h3 className="text-foreground text-sm leading-relaxed font-semibold sm:text-base">
+        <h3 className="text-foreground text-sm leading-relaxed font-medium sm:text-base">
           {group.promptText}
         </h3>
       </div>

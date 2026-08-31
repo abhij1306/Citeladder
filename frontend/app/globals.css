@@ -2,47 +2,92 @@
 @import './website-type.css';
 @import './ui-motion.css';
 
-/* CiteLadder's single design-system owner: Geist UI, Plus Jakarta Sans website
-   display, one cobalt accent, and semantic product geometry. See docs/design.md. */
+/* CiteLadder's single design-system owner. The authenticated Prism Evidence
+   workspace uses warm neutrals, navy actions and indigo selection. Public and
+   focused-flow compatibility remains scoped below. See docs/design.md. */
 @theme {
   --font-sans: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-display: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  --color-background: #fafafa;
-  --color-background-alt: #f7f7f7;
+  /* Palette layer. Product code consumes the semantic aliases below. */
+  --color-gray-0: #ffffff;
+  --color-gray-50: #faf9f6;
+  --color-gray-100: #f7f6f2;
+  --color-gray-200: #f1f0eb;
+  --color-gray-300: #e7e5de;
+  --color-gray-400: #c9c7c0;
+  --color-gray-500: #7b8494;
+  --color-gray-600: #536176;
+  --color-gray-700: #475569;
+  --color-gray-800: #253352;
+  --color-gray-900: #14213d;
+  --color-indigo-50: #f8f7ff;
+  --color-indigo-100: #f0efff;
+  --color-indigo-200: #ded9ff;
+  --color-indigo-300: #c1b8ff;
+  --color-indigo-500: #6b5cff;
+  --color-indigo-600: #5542f6;
+  --color-indigo-700: #4033c7;
+  --color-cyan-50: #edf7f7;
+  --color-cyan-100: #ddf1f2;
+  --color-cyan-500: #00a9c5;
+  --color-cyan-700: #155e75;
+  --color-coral-50: #fff3f0;
+  --color-coral-100: #ffe4de;
+  --color-coral-500: #ff6e56;
+  --color-coral-700: #9a3412;
+  --color-lime-50: #f4f8ec;
+  --color-lime-100: #e6f0d1;
+  --color-lime-500: #9acd32;
+  --color-lime-700: #3f6212;
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fde68a;
+  --color-amber-500: #f59e0b;
+  --color-amber-700: #b45309;
+
+  --color-background: #faf9f6;
+  --color-background-alt: #f7f6f2;
   --color-panel: #ffffff;
-  --color-panel-tonal: #f7f7f7;
+  --color-panel-tonal: #f7f6f2;
   --color-elevated: #ffffff;
-  --color-well: #f7f7f7;
-  --color-active: #efefef;
+  --color-well: #f1f0eb;
+  --color-active: #e7e5de;
   --color-input: #ffffff;
-  --color-sidebar: #ffffff;
-  --color-surface-inverse: #171717;
+  --color-sidebar: #f7f6f2;
+  --color-surface-inverse: #14213d;
 
-  --color-border: #e5e5e5;
-  --color-border-subtle: #efefef;
-  --color-border-strong: #d4d4d4;
-  --color-border-bold: #a3a3a3;
+  --color-border: #e7e5de;
+  --color-border-subtle: #f1f0eb;
+  --color-border-strong: #c9c7c0;
+  --color-border-bold: #7b8494;
 
-  --color-foreground: #171717;
-  --color-secondary: #525252;
-  --color-muted: #6b6b6b;
-  --color-subtle: #6b6b6b;
-  --color-disabled: #a3a3a3;
+  --color-foreground: #14213d;
+  --color-secondary: #475569;
+  --color-muted: #536176;
+  --color-subtle: #536176;
+  --color-disabled: #7b8494;
   --color-inverse: #ffffff;
   --color-on-inverse: #ffffff;
-  --color-link: #2563eb;
+  --color-link: #5542f6;
 
-  /* Accent — Cube Cobalt (#315CFF) with accessible #1e40af text/active state and #EFF4FF tint. */
-  --color-accent: #315cff;
-  --color-accent-hover: #2347d9;
-  --color-accent-active: #1a38b5;
+  /* Analytical selection and focus. Primary actions use navy, below. */
+  --color-accent: #5542f6;
+  --color-accent-hover: #4033c7;
+  --color-accent-active: #4033c7;
   --color-accent-fg: #ffffff;
-  --color-accent-subtle: #eff4ff;
-  --color-accent-soft: #f5f8ff;
-  --color-accent-border: #c3d3ff;
-  --color-accent-text: #1e40af;
+  --color-accent-subtle: #f0efff;
+  --color-accent-soft: #f8f7ff;
+  --color-accent-border: #ded9ff;
+  --color-accent-text: #4033c7;
+  --color-focus: #5542f6;
+  --color-focus-ring: #c1b8ff;
+  --color-selection: #ded9ff;
+  --color-selection-fg: #14213d;
+  --color-action: #14213d;
+  --color-action-hover: #253352;
+  --color-action-active: #14213d;
+  --color-action-fg: #ffffff;
 
   /* Answer-engine brand marks (functional identity, marketing engine chips). */
   --color-brand-openai: #10a37f;
@@ -68,118 +113,116 @@
   --color-brand-canvas-secondary: #cbd5e1;
   --color-brand-canvas-muted: #94a3b8;
 
-  /* Status — app-only functional colour harmonized with Cube27. */
-  --color-success: #10b981;
-  --color-success-bg: #ecfdf5;
-  --color-success-border: #a7f3d0;
-  --color-success-text: #047857;
+  /* Status — app-only evidence families. */
+  --color-success: #9acd32;
+  --color-success-bg: #f4f8ec;
+  --color-success-border: #e6f0d1;
+  --color-success-text: #3f6212;
   --color-warning: #f59e0b;
   --color-warning-bg: #fffbeb;
   --color-warning-border: #fde68a;
   --color-warning-text: #b45309;
-  --color-danger: #ef4444;
-  --color-danger-solid: #ef4444;
-  --color-danger-solid-hover: #dc2626;
+  --color-danger: #ff6e56;
+  --color-danger-solid: #9a3412;
+  --color-danger-solid-hover: #7c2d12;
   --color-danger-fg: #ffffff;
-  --color-danger-bg: #fef2f2;
-  --color-danger-border: #fecaca;
-  --color-danger-text: #b91c1c;
-  /* Info tracks the accent — informational == Cube Cobalt. */
-  --color-info: #315cff;
-  --color-info-bg: #eff4ff;
-  --color-info-border: #c3d3ff;
-  --color-info-text: #1e40af;
-  --color-neutral-bg: #f7f7f7;
+  --color-danger-bg: #fff3f0;
+  --color-danger-border: #ffe4de;
+  --color-danger-text: #9a3412;
+  --color-info: #00a9c5;
+  --color-info-bg: #edf7f7;
+  --color-info-border: #ddf1f2;
+  --color-info-text: #155e75;
+  --color-neutral-bg: #f7f6f2;
 
-  --color-sentiment-positive: #10b981;
-  --color-sentiment-positive-bg: #ecfdf5;
-  --color-sentiment-positive-text: #047857;
-  --color-sentiment-neutral: #64748b;
-  --color-sentiment-neutral-bg: #f1f5f9;
-  --color-sentiment-neutral-text: #334155;
-  --color-sentiment-negative: #ef4444;
-  --color-sentiment-negative-bg: #fef2f2;
-  --color-sentiment-negative-text: #b91c1c;
+  --color-sentiment-positive: #9acd32;
+  --color-sentiment-positive-bg: #f4f8ec;
+  --color-sentiment-positive-text: #3f6212;
+  --color-sentiment-neutral: #7b8494;
+  --color-sentiment-neutral-bg: #f7f6f2;
+  --color-sentiment-neutral-text: #475569;
+  --color-sentiment-negative: #ff6e56;
+  --color-sentiment-negative-bg: #fff3f0;
+  --color-sentiment-negative-text: #9a3412;
 
-  /* Owned evidence tracks the brand cobalt; competitor/third-party stay distinct. */
-  --color-citation-owned: #315cff;
-  --color-citation-owned-bg: #eff4ff;
-  --color-citation-owned-border: #c3d3ff;
-  --color-citation-owned-text: #1e40af;
-  --color-citation-competitor: #8b5cf6;
-  --color-citation-competitor-bg: #f5f3ff;
-  --color-citation-competitor-border: #ddd6fe;
-  --color-citation-competitor-text: #6d28d9;
-  --color-citation-third-party: #64748b;
-  --color-citation-third-party-bg: #f1f5f9;
-  --color-citation-third-party-border: #e2e8f0;
-  --color-citation-third-party-text: #334155;
+  /* Owned evidence tracks selection indigo; competitor/third-party stay distinct. */
+  --color-citation-owned: #5542f6;
+  --color-citation-owned-bg: #f0efff;
+  --color-citation-owned-border: #ded9ff;
+  --color-citation-owned-text: #4033c7;
+  --color-citation-competitor: #00a9c5;
+  --color-citation-competitor-bg: #edf7f7;
+  --color-citation-competitor-border: #ddf1f2;
+  --color-citation-competitor-text: #155e75;
+  --color-citation-third-party: #7b8494;
+  --color-citation-third-party-bg: #f7f6f2;
+  --color-citation-third-party-border: #e7e5de;
+  --color-citation-third-party-text: #475569;
 
-  --color-run-draft: #64748b;
-  --color-run-draft-bg: #f1f5f9;
-  --color-run-queued: #64748b;
-  --color-run-queued-bg: #f1f5f9;
-  --color-run-running: #315cff;
-  --color-run-running-bg: #eff4ff;
-  --color-run-analyzing: #8b5cf6;
-  --color-run-analyzing-bg: #f5f3ff;
-  --color-run-completed: #10b981;
-  --color-run-completed-bg: #ecfdf5;
+  --color-run-draft: #7b8494;
+  --color-run-draft-bg: #f7f6f2;
+  --color-run-queued: #7b8494;
+  --color-run-queued-bg: #f7f6f2;
+  --color-run-running: #00a9c5;
+  --color-run-running-bg: #edf7f7;
+  --color-run-analyzing: #5542f6;
+  --color-run-analyzing-bg: #f0efff;
+  --color-run-completed: #9acd32;
+  --color-run-completed-bg: #f4f8ec;
   --color-run-partial: #f59e0b;
   --color-run-partial-bg: #fffbeb;
-  --color-run-failed: #ef4444;
-  --color-run-failed-bg: #fef2f2;
-  --color-run-cancelled: #64748b;
-  --color-run-cancelled-bg: #f1f5f9;
+  --color-run-failed: #ff6e56;
+  --color-run-failed-bg: #fff3f0;
+  --color-run-cancelled: #7b8494;
+  --color-run-cancelled-bg: #f7f6f2;
 
-  /* Score bands — low/mid escalate coral→amber; good is Cube Cobalt; high is green. */
-  --color-score-low: #ef4444;
-  --color-score-low-bg: #fef2f2;
-  --color-score-low-border: #fecaca;
-  --color-score-low-text: #b91c1c;
-  --color-score-low-ring: #ef4444;
+  /* Score bands — low/mid escalate coral→amber; good/high use cyan→lime. */
+  --color-score-low: #ff6e56;
+  --color-score-low-bg: #fff3f0;
+  --color-score-low-border: #ffe4de;
+  --color-score-low-text: #9a3412;
+  --color-score-low-ring: #ff6e56;
   --color-score-mid: #f59e0b;
   --color-score-mid-bg: #fffbeb;
   --color-score-mid-border: #fde68a;
   --color-score-mid-text: #b45309;
   --color-score-mid-ring: #f59e0b;
-  --color-score-good: #315cff;
-  --color-score-good-bg: #eff4ff;
-  --color-score-good-border: #c3d3ff;
-  --color-score-good-text: #1e40af;
-  --color-score-good-ring: #315cff;
-  --color-score-high: #10b981;
-  --color-score-high-bg: #ecfdf5;
-  --color-score-high-border: #a7f3d0;
-  --color-score-high-text: #047857;
-  --color-score-high-ring: #10b981;
+  --color-score-good: #00a9c5;
+  --color-score-good-bg: #edf7f7;
+  --color-score-good-border: #ddf1f2;
+  --color-score-good-text: #155e75;
+  --color-score-good-ring: #00a9c5;
+  --color-score-high: #9acd32;
+  --color-score-high-bg: #f4f8ec;
+  --color-score-high-border: #e6f0d1;
+  --color-score-high-text: #3f6212;
+  --color-score-high-ring: #9acd32;
 
   /* Charts — the brand cobalt is the first series; the rest stay categorical. */
-  --color-chart-1: #315cff;
-  --color-chart-2: #10b981;
+  --color-chart-1: #5542f6;
+  --color-chart-2: #00a9c5;
   --color-chart-3: #f59e0b;
-  --color-chart-4: #ef4444;
-  --color-chart-5: #8b5cf6;
-  --color-chart-6: #06b6d4;
-  --color-chart-7: #eab308;
-  --color-chart-8: #ec4899;
-  --color-series-1: #315cff;
-  --color-series-2: #10b981;
+  --color-chart-4: #ff6e56;
+  --color-chart-5: #9acd32;
+  --color-chart-6: #c1b8ff;
+  --color-chart-7: #155e75;
+  --color-chart-8: #9a3412;
+  --color-series-1: #5542f6;
+  --color-series-2: #00a9c5;
   --color-series-3: #f59e0b;
-  --color-series-4: #ef4444;
-  --color-series-5: #8b5cf6;
-  --color-series-other: #94a3b8;
-  --color-chart-tooltip: #0f172a;
+  --color-series-4: #ff6e56;
+  --color-series-5: #9acd32;
+  --color-series-other: #7b8494;
+  --color-chart-tooltip: #14213d;
   --color-chart-tooltip-fg: #ffffff;
-  --color-overlay-scrim: rgb(15 23 42 / 45%);
+  --color-overlay-scrim: rgb(20 33 61 / 42%);
 
-  /* Radius — Cube27 micro-radius scale (2px–6px); full pill retained for chips. */
-  --radius-xs: 2px;
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 4px;
-  --radius-xl: 6px;
-  --radius-2xl: 6px;
+  --radius-xs: 8px;
+  --radius-sm: 10px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 16px;
+  --radius-2xl: 16px;
   --radius-full: 9999px;
 
   /* Elevation — Specular ambient shadows with crisp 1px hairline definition. */
@@ -194,8 +237,6 @@
   --shadow-lg: 0 0 0 1px rgb(15 23 42 / 0.07), 0 10px 28px -4px rgb(15 23 42 / 0.09), 0 28px 64px -12px rgb(15 23 42 / 0.15);
   --shadow-modal-value: 0 0 0 1px rgb(15 23 42 / 0.08), 0 16px 36px rgb(15 23 42 / 0.14), 0 32px 72px -16px rgb(15 23 42 / 0.24);
 
-  --text-2xs: 0.75rem;
-  --text-2xs--line-height: 1rem;
   --text-xs: 0.75rem;
   --text-xs--line-height: 1rem;
   --text-sm: 0.875rem;
@@ -235,13 +276,13 @@
 
 :root {
   color-scheme: light;
-  --sidebar-width: 236px;
+  --sidebar-width: 220px;
   --topbar-height: 52px;
   --nav-item-height: 36px;
-  --content-gutter: 16px;
+  --content-gutter: 24px;
   --content-max-width: 1360px;
   --container-max: 1360px;
-  --page-section-gap: 24px;
+  --page-section-gap: 32px;
   --workspace-gap: 16px;
   --compact-gap: 12px;
   --card-padding: 16px;
@@ -261,16 +302,16 @@
   --dialog-scroll: 60vh;
   --score-ring: 72px;
   /* Authenticated-app geometry roles. Components consume the role, never a route-local radius. */
-  --radius-control: 6px;
-  --radius-card: 8px;
-  --radius-overlay: 10px;
+  --radius-control: 10px;
+  --radius-card: 16px;
+  --radius-overlay: 16px;
   /* Section rhythm — whitespace as a luxury signal (marketing consumes these). */
   --section-y-desktop: 120px;
   --section-y-tablet: 72px;
   --section-y-phone: 48px;
   /* A 2px panel gap then a solid, opaque accent ring. */
-  --focus-ring: 0 0 0 2px var(--color-panel), 0 0 0 4px rgba(49, 92, 255, 0.3);
-  --skeleton-base: #f1f5f9;
+  --focus-ring: 0 0 0 2px var(--color-panel), 0 0 0 4px var(--color-focus-ring);
+  --skeleton-base: #f1f0eb;
   --skeleton-highlight: #ffffff;
   --value-placeholder: var(--color-subtle);
 }
@@ -292,6 +333,14 @@
   --color-secondary: #334155;
   --color-muted: #526173;
   --color-subtle: #596777;
+  --color-action: #315cff;
+  --color-action-hover: #2347d9;
+  --color-action-active: #1a38b5;
+  --color-action-fg: #ffffff;
+  --color-focus: #315cff;
+  --color-focus-ring: #c3d3ff;
+  --color-selection: #dbeafe;
+  --color-selection-fg: #0f172a;
 }
 
 *,
@@ -333,7 +382,7 @@ body {
   h6 {
     margin: 0;
     font-family: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: normal;
     line-height: 1.2;
     color: var(--color-foreground);
@@ -345,7 +394,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid #315cff;
+  outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
 
@@ -354,13 +403,13 @@ body {
 }
 
 .focus-ring:focus-visible {
-  border-color: #315cff !important;
+  border-color: var(--color-focus) !important;
   box-shadow: var(--focus-ring);
 }
 
 ::selection {
-  background: #dbeafe;
-  color: #0f172a;
+  background: var(--color-selection);
+  color: var(--color-selection-fg);
 }
 
 .mono,

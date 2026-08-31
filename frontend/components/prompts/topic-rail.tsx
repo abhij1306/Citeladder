@@ -87,12 +87,12 @@ export function TopicRail({
 
   return (
     <>
-      {/* Desktop rail: raised shadow-card surface that clips its own content
+      {/* Desktop rail: raised surface that clips its own content
           so nothing from the right pane can overlap it. */}
       <nav
         id={desktopId}
         aria-label="Topics"
-        className="bg-panel shadow-card hidden min-w-0 content-start gap-1 rounded-lg p-1.5 lg:sticky lg:top-4 lg:grid"
+        className="bg-panel hidden min-w-0 content-start gap-1 rounded-lg p-1.5 lg:sticky lg:top-4 lg:grid"
       >
         <div className="flex items-center justify-between px-1">
           <h3 className={eyebrowClasses}>Topics</h3>
@@ -237,7 +237,7 @@ function TopicItem({
           <span className="min-w-0 flex-1 truncate">{label}</span>
         </Tooltip>
         {typeof activeCount === 'number' ? (
-          <span className="mono text-muted text-2xs shrink-0">{activeCount}</span>
+          <span className="mono text-muted shrink-0 text-xs">{activeCount}</span>
         ) : null}
       </Pressable>
       {onDelete ? (

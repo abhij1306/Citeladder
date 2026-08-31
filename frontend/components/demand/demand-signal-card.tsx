@@ -233,12 +233,12 @@ export function DemandSignalCard({
   }[insight.tone];
 
   return (
-    <Card className="bg-panel border-border hover:border-border-strong transition-[border-color,box-shadow] hover:shadow-xs">
+    <Card>
       <CardContent className="grid gap-4 p-4 sm:p-[var(--card-padding)]">
         {/* Header: Rank, Badges, Query Title */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="bg-well text-muted flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums">
+            <span className="bg-well text-muted flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium tabular-nums">
               #{rank}
             </span>
             <div className="grid min-w-0 flex-1 gap-1.5">
@@ -253,7 +253,7 @@ export function DemandSignalCard({
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <h3 className="text-foreground text-base leading-tight font-semibold break-words">
+                <h3 className="text-foreground text-base leading-tight font-medium break-words">
                   {target}
                 </h3>
                 <CopyButton
@@ -301,7 +301,7 @@ export function DemandSignalCard({
           <div className="flex items-start gap-2">
             <Icon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <div className="grid gap-0.5">
-              <span className="font-semibold">{insight.headline}</span>
+              <span className="font-medium">{insight.headline}</span>
               <p className="opacity-90">{insight.detail}</p>
             </div>
           </div>
@@ -309,10 +309,10 @@ export function DemandSignalCard({
           {/* Competing URLs summary pill for cannibalization */}
           {pages.length > 0 && (
             <div className="mt-2.5 grid gap-1.5 border-t border-current/15 pt-2">
-              <span className="text-2xs font-medium opacity-80">Competing URLs:</span>
+              <span className="text-xs font-medium opacity-80">Competing URLs:</span>
               <div className="grid gap-1">
                 {pages.slice(0, 2).map((page) => (
-                  <div key={page.url} className="text-2xs flex items-center justify-between gap-2">
+                  <div key={page.url} className="flex items-center justify-between gap-2 text-xs">
                     <span className="truncate opacity-90">{page.url}</span>
                     <span className="shrink-0 font-medium tabular-nums">
                       {page.impressions.toLocaleString('en-US')} imp (
@@ -321,7 +321,7 @@ export function DemandSignalCard({
                   </div>
                 ))}
                 {pages.length > 2 && (
-                  <span className="text-2xs italic opacity-75">
+                  <span className="text-xs italic opacity-75">
                     +{pages.length - 2} more pages in drawer
                   </span>
                 )}
@@ -334,32 +334,30 @@ export function DemandSignalCard({
         <div className="border-border-subtle flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
           <dl className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
-              <dt className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">
+              <dt className="text-muted text-xs font-medium tracking-[0.06em] uppercase">
                 Impressions
               </dt>
-              <dd className="text-foreground mt-0.5 text-sm font-semibold tabular-nums">
+              <dd className="text-foreground mt-0.5 text-sm font-medium tabular-nums">
                 <DemandMetricValue value={formatCount(numericMetric(signal, 'impressions'))} />
               </dd>
             </div>
             <div>
-              <dt className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">
-                Clicks
-              </dt>
-              <dd className="text-foreground mt-0.5 text-sm font-semibold tabular-nums">
+              <dt className="text-muted text-xs font-medium tracking-[0.06em] uppercase">Clicks</dt>
+              <dd className="text-foreground mt-0.5 text-sm font-medium tabular-nums">
                 <DemandMetricValue value={formatCount(numericMetric(signal, 'clicks'))} />
               </dd>
             </div>
             <div>
-              <dt className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">CTR</dt>
-              <dd className="text-foreground mt-0.5 text-sm font-semibold tabular-nums">
+              <dt className="text-muted text-xs font-medium tracking-[0.06em] uppercase">CTR</dt>
+              <dd className="text-foreground mt-0.5 text-sm font-medium tabular-nums">
                 <DemandMetricValue value={formatCtr(signal)} />
               </dd>
             </div>
             <div>
-              <dt className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">
+              <dt className="text-muted text-xs font-medium tracking-[0.06em] uppercase">
                 Avg Position
               </dt>
-              <dd className="text-foreground mt-0.5 text-sm font-semibold tabular-nums">
+              <dd className="text-foreground mt-0.5 text-sm font-medium tabular-nums">
                 {numericMetric(signal, 'position') === null ? (
                   <UnavailableValue state="not_measured" />
                 ) : (

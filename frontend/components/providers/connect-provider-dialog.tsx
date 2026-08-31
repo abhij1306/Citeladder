@@ -161,13 +161,11 @@ function ConnectEngineForm({
               size="sm"
             />
             <div>
-              <p className="text-foreground text-xs font-semibold">{model.label}</p>
-              <p className="text-muted text-2xs">
-                via {TRANSPORT_LABELS[route.transport_provider]}
-              </p>
+              <p className="text-foreground text-xs font-medium">{model.label}</p>
+              <p className="text-muted text-xs">via {TRANSPORT_LABELS[route.transport_provider]}</p>
             </div>
           </div>
-          <div className="text-muted text-2xs grid gap-0.5 text-right font-mono">
+          <div className="text-muted grid gap-0.5 text-right font-mono text-xs">
             <span className="text-secondary">{route.model}</span>
           </div>
         </div>

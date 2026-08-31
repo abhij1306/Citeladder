@@ -36,7 +36,7 @@ export function TargetDetail({
   return (
     <div className="grid content-start gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-foreground text-lg font-semibold tracking-[-0.015em]">{label}</h2>
+        <h2 className="text-foreground text-lg font-medium tracking-[-0.015em]">{label}</h2>
         <Badge variant="status" value="info">
           {target.kind}
         </Badge>

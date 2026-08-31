@@ -115,7 +115,7 @@ export function TaskHistory({
             )}
           >
             <span className="block truncate text-xs font-medium">{run.objective}</span>
-            <span className="text-muted text-2xs mt-1 flex items-center justify-between gap-2">
+            <span className="text-muted mt-1 flex items-center justify-between gap-2 text-xs">
               <span>{taskLabel(run.task_type)}</span>
               <span>{formatDate(run.created_at)}</span>
             </span>
@@ -170,7 +170,7 @@ function Roadmap({ items }: Readonly<{ items: AgentResult['roadmap_items'] }>) {
   if (!items.length) return null;
   return (
     <section>
-      <h3 className="text-foreground text-sm font-semibold">Prioritized next steps</h3>
+      <h3 className="text-foreground text-sm font-medium">Prioritized next steps</h3>
       <ol className="mt-2 grid gap-2">
         {items.map((item) => (
           <li
@@ -178,7 +178,7 @@ function Roadmap({ items }: Readonly<{ items: AgentResult['roadmap_items'] }>) {
             className="border-border-subtle rounded-md border p-3"
           >
             <div className="flex items-start gap-3">
-              <span className="bg-accent-soft text-accent-text grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold">
+              <span className="bg-accent-soft text-accent-text grid size-6 shrink-0 place-items-center rounded-full text-xs font-medium">
                 {item.rank}
               </span>
               <div className="min-w-0">
@@ -235,7 +235,7 @@ function EmptyRunDetail() {
     <div className="grid min-h-64 place-items-center text-center">
       <div>
         <ShieldCheck aria-hidden className="text-accent-text mx-auto size-6" />
-        <h2 className="text-foreground mt-3 text-lg font-semibold">Choose a bounded task</h2>
+        <h2 className="text-foreground mt-3 text-lg font-medium">Choose a bounded task</h2>
         <p className="text-muted mt-1 max-w-lg text-sm">
           Each run reads persisted project evidence once and records the exact artifacts used.
         </p>
@@ -277,7 +277,7 @@ function RunDetailHeader({
     <header className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <p className="text-muted text-xs">{taskLabel(run.task_type)}</p>
-        <h2 className="text-foreground mt-1 text-lg font-semibold">{run.objective}</h2>
+        <h2 className="text-foreground mt-1 text-lg font-medium">{run.objective}</h2>
         <p className="text-muted mt-1 text-xs">Started {formatDate(run.created_at)}</p>
       </div>
       <div className="flex items-center gap-2">
@@ -305,7 +305,7 @@ function RunErrors({ detail, cancelError }: Readonly<{ detail: string; cancelErr
 function ResultSummary({ result }: Readonly<{ result: AgentResult }>) {
   return (
     <section className="border-border-subtle bg-background-alt rounded-md border p-4 break-words">
-      <h3 className="text-foreground text-sm font-semibold">Summary</h3>
+      <h3 className="text-foreground text-sm font-medium">Summary</h3>
       <p className="text-secondary mt-2 text-sm leading-relaxed whitespace-pre-wrap">
         {result.summary}
       </p>
@@ -326,7 +326,7 @@ function ResultList({
 }: Readonly<{ heading: string; values: string[]; muted?: boolean }>) {
   return (
     <div className="mt-4">
-      <h4 className="text-foreground text-xs font-semibold">{heading}</h4>
+      <h4 className="text-foreground text-xs font-medium">{heading}</h4>
       <ul
         className={cn(
           'mt-2 list-disc space-y-1 pl-4',

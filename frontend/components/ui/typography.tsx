@@ -12,10 +12,8 @@ import { cn } from '@/lib/utils';
  * recipes, not components — the call site keeps whichever heading element is
  * semantic.
  */
-export const displayHeadingLgClasses =
-  'font-display text-xl font-semibold tracking-[-0.015em] text-foreground';
-export const displayHeadingXlClasses =
-  'font-display text-2xl font-semibold tracking-[-0.025em] text-foreground';
+export const displayHeadingLgClasses = 'font-display text-lg font-medium text-foreground';
+export const displayHeadingXlClasses = 'font-display text-2xl font-medium text-foreground';
 
 /** Section heading (card / block level). */
 export function SectionTitle({
@@ -24,13 +22,7 @@ export function SectionTitle({
   ...props
 }: Readonly<ComponentPropsWithoutRef<'h2'>>) {
   return (
-    <h2
-      {...props}
-      className={cn(
-        'font-display text-foreground text-base font-semibold tracking-[-0.015em]',
-        className,
-      )}
-    >
+    <h2 {...props} className={cn('font-display text-foreground text-base font-medium', className)}>
       {children}
     </h2>
   );
@@ -59,7 +51,7 @@ export function Metric({
     <span
       {...props}
       className={cn(
-        'mono font-display text-foreground text-2xl font-semibold tracking-[-0.02em] tabular-nums',
+        'mono font-display text-foreground text-3xl font-medium tracking-[-0.02em] tabular-nums',
         className,
       )}
     >

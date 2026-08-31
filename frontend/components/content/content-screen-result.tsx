@@ -32,10 +32,7 @@ export function GenerationResult({
   onRejectClick: () => void;
 }>) {
   return (
-    <Card
-      data-component-id="content-result-card"
-      className="border-border bg-panel shadow-card min-w-0 rounded-sm border p-[var(--card-padding)]"
-    >
+    <Card data-component-id="content-result-card" className="min-w-0 p-[var(--card-padding)]">
       <CardContent className="flex flex-col gap-[var(--workspace-gap)] p-0">
         {detail.output_truncated ? (
           <div data-component-id="content-truncation-warning">

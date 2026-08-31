@@ -209,7 +209,7 @@ function IssueSummary({
 function SummaryMeasure({ value, label }: Readonly<{ value: number; label: string }>) {
   return (
     <span className="flex items-baseline gap-1.5">
-      <span className="text-foreground text-lg font-semibold tabular-nums">{value}</span>{' '}
+      <span className="text-foreground text-lg font-medium tabular-nums">{value}</span>{' '}
       <span className="text-muted text-xs">{label}</span>
     </span>
   );
@@ -267,11 +267,11 @@ function IssueGroupList({
           >
             <span className="flex items-center justify-between gap-3">
               <IssueMetadata issue={issue} />
-              <span className="text-2xs text-muted whitespace-nowrap">
+              <span className="text-muted text-xs whitespace-nowrap">
                 {issue.affected_url_count} {issue.affected_url_count === 1 ? 'page' : 'pages'}
               </span>
             </span>
-            <span className="text-foreground text-sm font-semibold">{issueTitle(issue)}</span>
+            <span className="text-foreground text-sm font-medium">{issueTitle(issue)}</span>
             <span className="text-secondary line-clamp-2 text-xs">{issue.description}</span>
           </Pressable>
         );
@@ -316,7 +316,7 @@ function IssueDetailRail({
         <header className="border-border-subtle grid shrink-0 gap-3 border-b p-[var(--card-padding)]">
           <div className="flex items-start justify-between gap-[var(--workspace-gap)]">
             <div className="grid min-w-0 gap-2">
-              <h2 className="text-foreground text-lg font-semibold tracking-[-0.02em]">
+              <h2 className="text-foreground text-lg font-medium tracking-[-0.02em]">
                 {issueTitle(issue)}
               </h2>
               <IssueMetadata issue={issue} />
@@ -349,7 +349,7 @@ function IssueDetailRail({
           ) : null}
           {issue.remediation ? (
             <div className="border-border-subtle bg-panel-subtle grid gap-1 rounded-lg border p-3">
-              <span className="text-2xs text-muted font-medium">How to fix</span>
+              <span className="text-muted text-xs font-medium">How to fix</span>
               <p className="text-secondary text-sm whitespace-pre-line">{issue.remediation}</p>
             </div>
           ) : null}
@@ -414,7 +414,7 @@ function OccurrenceList({
                 </span>
               ) : null}
             </span>
-            <span className="mono text-2xs text-muted truncate" title={occurrence.display_url}>
+            <span className="mono text-muted truncate text-xs" title={occurrence.display_url}>
               {occurrence.display_url}
             </span>
           </Link>

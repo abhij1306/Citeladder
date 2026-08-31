@@ -147,7 +147,7 @@ export function UnifiedPerformanceCard({
     });
 
   return (
-    <Card className="shadow-card overflow-hidden">
+    <Card className="overflow-hidden">
       <div data-testid="traffic-stats" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <StatCard
@@ -306,7 +306,7 @@ function StatValues({ stat }: Readonly<{ stat: Stat }>) {
     <>
       <span
         className={cn(
-          'mono text-2xl font-semibold tabular-nums tracking-[-0.02em]',
+          'mono text-2xl font-medium tabular-nums tracking-[-0.02em]',
           stat.placeholder ? 'text-muted' : 'text-foreground',
         )}
       >

@@ -57,10 +57,10 @@ function RouteDetails({ state }: Readonly<{ state: ConnectionState }>) {
   return (
     <div className="bg-background-alt border-border-subtle grid gap-1.5 rounded-md border p-3">
       <div className="flex items-center justify-between">
-        <span className="text-muted text-2xs font-semibold">Route</span>
+        <span className="text-muted text-xs font-medium">Route</span>
         <span className="text-foreground text-xs font-medium">{state.route.label}</span>
       </div>
-      <div className="text-muted text-2xs grid gap-1 font-mono">
+      <div className="text-muted grid gap-1 font-mono text-xs">
         <div className="flex items-center justify-between">
           <span>Model</span>
           <span className="text-secondary">{state.route.model}</span>
@@ -113,7 +113,7 @@ export function EngineCardView({
               websiteUrl={ENGINE_DOMAINS[model.logical_engine]}
               size="sm"
             />
-            <h3 className="text-foreground text-base font-semibold tracking-[-0.015em]">
+            <h3 className="text-foreground text-base font-medium tracking-[-0.015em]">
               {model.label}
             </h3>
           </div>

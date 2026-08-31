@@ -55,7 +55,7 @@ export function EvidenceDrawer({
       ) : (
         <div className="grid gap-4">
           <div className="grid gap-2.5">
-            <h2 className="font-display text-foreground text-base leading-snug font-semibold tracking-tight">
+            <h2 className="font-display text-foreground text-base leading-snug font-medium tracking-tight">
               {detail.title}
             </h2>
             <div className="flex flex-wrap items-center gap-1.5">

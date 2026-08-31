@@ -10,6 +10,7 @@ import { FilterChip } from '@/components/ui/filter-chip';
 import { MutationNotice } from '@/components/ui/mutation-notice';
 import { SearchField } from '@/components/ui/search-field';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EditorialSectionHeader } from '@/components/ui/workspace';
 import { DemandDetectorBar } from '@/components/demand/demand-detector-bar';
 import { DemandEvidenceDrawer } from '@/components/demand/demand-evidence-drawer';
 import { DemandSignalCard } from '@/components/demand/demand-signal-card';
@@ -144,28 +145,22 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
 
   return (
     <div className="grid gap-[var(--workspace-gap)]">
-      {/* Top Header & Recompute Bar */}
-      <div className="border-border-subtle flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="grid gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-foreground font-display text-2xl font-semibold tracking-[-0.025em]">
+      <EditorialSectionHeader
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            <span>
               {snapshot.signals.length === 1
                 ? '1 demand signal observed'
                 : `${snapshot.signals.length} demand signals observed`}
-            </h1>
-            <span className="text-muted hidden sm:inline">•</span>
+            </span>
             <span className="text-muted inline-flex items-center gap-1 text-xs">
               <Calendar className="size-3.5" aria-hidden="true" />
               {windowLabel}
             </span>
-          </div>
-          <p className="text-muted text-sm">
-            Versioned GSC query evidence. Highest-priority signals are shown first; branded demand
-            remains a separate cohort.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+          </span>
+        }
+        description="Versioned GSC query evidence. Highest-priority signals are shown first; branded demand remains a separate cohort."
+        actions={
           <Button
             variant="secondary"
             size="sm"
@@ -185,8 +180,8 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
               </>
             )}
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {recomputeMutation.isError ? (
         <MutationNotice
@@ -266,7 +261,7 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
       ) : snapshot.signals.length === 0 ? (
         <div className="py-[var(--empty-state-padding)] text-center">
           <Sparkles className="text-muted/60 mx-auto size-8" />
-          <h3 className="text-foreground mt-2 text-sm font-semibold">
+          <h3 className="text-foreground mt-2 text-sm font-medium">
             No qualifying search gaps observed
           </h3>
           <p className="text-muted mt-1 text-xs">
@@ -277,9 +272,7 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
       ) : (
         <div className="py-[var(--empty-state-padding)] text-center">
           <Search className="text-muted/60 mx-auto size-8" />
-          <h3 className="text-foreground mt-2 text-sm font-semibold">
-            No signals match your filter
-          </h3>
+          <h3 className="text-foreground mt-2 text-sm font-medium">No signals match your filter</h3>
           <p className="text-muted mt-1 text-xs">
             Try choosing a different filter tab or clearing your search term.
           </p>

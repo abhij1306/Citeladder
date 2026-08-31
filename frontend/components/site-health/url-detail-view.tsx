@@ -229,7 +229,7 @@ function PageKindEvidencePanel({
               {evidence.alternatives.map((candidate) => (
                 <span key={candidate.pageKind} className="flex items-center gap-1">
                   <Badge>{pageKindLabel(candidate.pageKind)}</Badge>
-                  <span className="mono text-2xs text-muted">{candidate.tier}</span>
+                  <span className="mono text-muted text-xs">{candidate.tier}</span>
                 </span>
               ))}
             </div>
@@ -266,7 +266,7 @@ function PageKindEvidencePanel({
           </div>
         ) : null}
         {evidence.signals.length > 0 ? <EvidenceSignals evidence={evidence} /> : null}
-        <p className="text-2xs text-muted">
+        <p className="text-muted text-xs">
           Signals are evaluated in a fixed priority order; the highest-priority match sets the type.
         </p>
       </div>
@@ -308,7 +308,7 @@ function EvidenceSignals({ evidence }: Readonly<{ evidence: PageKindEvidenceView
             <span className={cn('mono text-sm', chosen ? 'text-foreground' : 'text-secondary')}>
               {signal.signal}
               {chosen ? (
-                <span className="text-2xs text-accent-text ms-1.5 font-medium">chosen</span>
+                <span className="text-accent-text ms-1.5 text-xs font-medium">chosen</span>
               ) : null}
             </span>
             <Badge>{pageKindLabel(signal.pageKind)}</Badge>
@@ -356,10 +356,10 @@ function DeliveryMetrics({ delivery }: Readonly<{ delivery: DeliveryFacts }>) {
     <Card>
       <CardContent className="grid gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-foreground text-base font-semibold tracking-[-0.015em]">
+          <h2 className="text-foreground text-base font-medium tracking-[-0.015em]">
             Delivery Metrics
           </h2>
-          <span className="text-2xs text-muted">Static HTTP-level measurements</span>
+          <span className="text-muted text-xs">Static HTTP-level measurements</span>
         </div>
         <dl className="grid gap-4 sm:grid-cols-4">
           {items.map((item) => (
@@ -386,10 +386,10 @@ function IssuesList({ issues }: Readonly<{ issues: IssueOccurrence[] }>) {
     <Card>
       <CardContent className="grid gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-foreground text-base font-semibold tracking-[-0.015em]">
+          <h2 className="text-foreground text-base font-medium tracking-[-0.015em]">
             All Issues ({issues.length})
           </h2>
-          <span className="text-2xs text-muted">Sorted by severity</span>
+          <span className="text-muted text-xs">Sorted by severity</span>
         </div>
         {ordered.length === 0 ? (
           <p className="text-secondary text-sm">No issues detected on this page.</p>

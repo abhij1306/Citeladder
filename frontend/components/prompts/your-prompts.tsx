@@ -192,7 +192,7 @@ export function YourPrompts() {
       </div>
 
       {activePrompts.length === 0 ? (
-        <div className="bg-panel shadow-card border-border/70 grid place-items-center gap-3 rounded-sm border p-[var(--empty-state-padding)] text-center">
+        <div className="bg-panel border-border/70 grid place-items-center gap-3 rounded-sm border p-[var(--empty-state-padding)] text-center">
           <p className={eyebrowClasses}>Your prompts</p>
           <h2 className={displayHeadingLgClasses}>No active prompts yet</h2>
           <p className="text-secondary max-w-md text-sm leading-relaxed">

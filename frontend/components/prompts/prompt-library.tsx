@@ -284,7 +284,7 @@ export function PromptLibrary({ onDoneManaging }: Readonly<{ onDoneManaging?: ()
                 <>
                   {tab.label}
                   {statusCounts[tab.id] > 0 ? (
-                    <span className="mono text-muted text-2xs ml-1.5">{statusCounts[tab.id]}</span>
+                    <span className="mono text-muted ml-1.5 text-xs">{statusCounts[tab.id]}</span>
                   ) : null}
                 </>
               ),

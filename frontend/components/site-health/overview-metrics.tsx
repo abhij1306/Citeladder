@@ -197,7 +197,7 @@ function OverviewMetricCard({
         <div className="flex items-start justify-between gap-3">
           <div className="grid gap-1">
             <Icon aria-hidden className="text-accent size-5" />
-            <p className="text-foreground text-sm font-semibold">{title}</p>
+            <p className="text-foreground text-sm font-medium">{title}</p>
           </div>
           {value === null ? (
             <UnavailableValue state="not_measured" />

@@ -52,7 +52,7 @@ export function EmptyState({
           ) : null}
         </div>
         {action ? <div className="mt-2 flex items-center gap-2">{action}</div> : null}
-        {footnote ? <div className="text-muted text-2xs">{footnote}</div> : null}
+        {footnote ? <div className="text-muted text-xs">{footnote}</div> : null}
       </CardContent>
     </Card>
   );

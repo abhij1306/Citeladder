@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { TrendChart } from '@/components/ui/trend-chart';
 import { displayHeadingLgClasses } from '@/components/ui/typography';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
+import { MetricGroup, MetricItem } from '@/components/ui/workspace';
 import { NO_RANKINGS_MESSAGE, RankingRowsTable } from '@/components/visibility/ranking-rows';
 import { EngineComparison } from '@/components/visibility/engine-comparison';
 import { PromptMovement } from '@/components/visibility/prompt-insights';
@@ -94,11 +95,11 @@ export function VisibilityTrends({
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <MetricGroup className="lg:grid-cols-5">
         {stats.map((stat) => (
           <StatCard key={stat.key} stat={stat} />
         ))}
-      </div>
+      </MetricGroup>
 
       <section className="grid gap-[var(--workspace-gap)]">
         {/* A single run plots one dot. Two full-height empty axes below a banner
@@ -193,24 +194,17 @@ function StatCard({ stat }: Readonly<{ stat: TrendStat }>) {
         ? 'text-score-low'
         : 'text-muted';
   return (
-    <Card>
-      <CardContent className="grid gap-1 p-4">
-        <span className={eyebrowClasses}>{stat.label}</span>
-        {stat.placeholder ? (
+    <MetricItem
+      label={<span className={eyebrowClasses}>{stat.label}</span>}
+      value={
+        stat.placeholder ? (
           <UnavailableValue state="not_measured" />
         ) : (
-          <span
-            className={cn(
-              'mono text-2xl font-semibold tabular-nums tracking-[-0.02em]',
-              valueClass,
-            )}
-          >
-            {stat.value}
-          </span>
-        )}
-        <span className={cn('text-xs font-medium tabular-nums', deltaClass)}>{stat.delta}</span>
-      </CardContent>
-    </Card>
+          <span className={cn('tabular-nums', valueClass)}>{stat.value}</span>
+        )
+      }
+      detail={<span className={cn('font-medium tabular-nums', deltaClass)}>{stat.delta}</span>}
+    />
   );
 }
 
@@ -247,7 +241,7 @@ function TrendCard({
       <CardContent className="grid gap-3">
         <div className="flex gap-3">
           <div
-            className="text-2xs text-muted flex flex-col justify-between py-1 font-mono"
+            className="text-muted flex flex-col justify-between py-1 font-mono text-xs"
             aria-hidden
           >
             {yLabels.map((y) => (
@@ -263,7 +257,7 @@ function TrendCard({
               className="h-45 w-full"
             />
             {chartPoints.length > 1 ? (
-              <div className="text-2xs text-muted mt-1 flex justify-between font-mono" aria-hidden>
+              <div className="text-muted mt-1 flex justify-between font-mono text-xs" aria-hidden>
                 <span>{firstLabel}</span>
                 <span>{lastLabel}</span>
               </div>

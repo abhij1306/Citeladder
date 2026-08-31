@@ -45,7 +45,7 @@ export function TrafficToolbar({
       testId="traffic-toolbar"
       trailing={
         <div className="ml-auto flex items-center gap-3">
-          <span className="text-2xs text-muted">{note}</span>
+          <span className="text-muted text-xs">{note}</span>
           <Button
             variant="secondary"
             size="sm"

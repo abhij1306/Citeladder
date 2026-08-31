@@ -16,6 +16,12 @@ export declare function productUiSourceViolations(
   ownsProductUi: boolean,
 ): string[];
 
+export declare function nestedCardViolations(
+  source: string,
+  label: string,
+  ownsProductUi: boolean,
+): string[];
+
 export declare function productControlViolations(
   source: string,
   label: string,

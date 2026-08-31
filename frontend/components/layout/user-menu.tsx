@@ -41,7 +41,7 @@ export function UserMenu({ className }: Readonly<{ className?: string }>) {
         <DropdownTrigger className="focus-ring hover:bg-background-alt flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1 text-left transition-colors">
           <span
             aria-hidden
-            className="bg-background-alt text-2xs text-secondary flex size-6 shrink-0 items-center justify-center rounded-full font-medium uppercase"
+            className="bg-background-alt text-secondary flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium uppercase"
           >
             {emailInitials(user.email)}
           </span>

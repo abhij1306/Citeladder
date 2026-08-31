@@ -24,15 +24,16 @@ import {
 import { TrendChart } from './trend-chart';
 import { UnavailableValue } from './unavailable-value';
 import { scoreBand } from './score-band';
+import { MetricGroup, MetricItem, WorkspacePane } from './workspace';
 
 describe('Button', () => {
   it('renders default variant/size classes', () => {
     render(<Button>Save</Button>);
     const btn = screen.getByRole('button', { name: 'Save' });
-    // Primary variant → accent fill with its verified foreground and the
+    // Primary variant → navy action fill with its verified foreground and the
     // semantic app control radius; the pill is retired for buttons.
-    expect(btn.className).toContain('bg-accent');
-    expect(btn.className).toContain('text-accent-fg');
+    expect(btn.className).toContain('bg-action');
+    expect(btn.className).toContain('text-action-fg');
     expect(btn.className).toContain('rounded-[var(--radius-control)]');
     expect(btn.className).not.toContain('rounded-full');
     expect(btn.className).toContain('h-[var(--control-height)]');
@@ -70,7 +71,7 @@ describe('Button', () => {
     expect(link.tagName).toBe('A');
     expect(link).toHaveAttribute('href', '/next');
     // The button surface classes are forwarded onto the anchor.
-    expect(link.className).toContain('bg-panel');
+    expect(link.className).toContain('bg-well');
     // asChild must NOT inject a type attribute onto the anchor.
     expect(link).not.toHaveAttribute('type');
   });
@@ -174,6 +175,8 @@ describe('Card', () => {
     );
     expect(screen.getByTestId('card').className).toContain('bg-panel');
     expect(screen.getByTestId('card').className).toContain('rounded-[var(--radius-card)]');
+    expect(screen.getByTestId('card').className).not.toContain('shadow-card');
+    expect(screen.getByTestId('card').className).not.toContain('border');
     expect(screen.getByText('Visibility').tagName).toBe('H3');
     expect(screen.getByText('Body')).toBeInTheDocument();
   });
@@ -182,13 +185,39 @@ describe('Card', () => {
     render(<CardEyebrow>Visibility score</CardEyebrow>);
     const eyebrow = screen.getByText('Visibility score');
     expect(eyebrow.tagName).toBe('SPAN');
-    // Micro-label: 10/14 @600, muted, sentence case, and never the mono face.
+    // Metadata: 12/16 @500, muted, sentence case, and never the mono face.
     expect(eyebrow.className).toContain('text-xs');
     expect(eyebrow.className).toContain('text-muted');
-    expect(eyebrow.className).toContain('font-semibold');
+    expect(eyebrow.className).toContain('font-medium');
     expect(eyebrow.className).not.toContain('uppercase');
     expect(eyebrow.className).not.toContain('tracking-');
     expect(eyebrow.className).not.toContain('font-mono');
+  });
+});
+
+describe('Workspace structures', () => {
+  it('keeps panes open by default and makes semantic object styling explicit', () => {
+    const { rerender } = render(<WorkspacePane data-testid="pane">Open</WorkspacePane>);
+    const pane = screen.getByTestId('pane');
+    expect(pane).not.toHaveClass('bg-panel', 'rounded-[var(--radius-card)]');
+
+    rerender(
+      <WorkspacePane data-testid="pane" surface="object">
+        Object
+      </WorkspacePane>,
+    );
+    expect(screen.getByTestId('pane')).toHaveClass('bg-panel', 'rounded-[var(--radius-card)]');
+  });
+
+  it('resets metric separators and inline padding for responsive rows', () => {
+    render(
+      <MetricGroup data-testid="metrics">
+        <MetricItem label="One" value="1" />
+        <MetricItem label="Two" value="2" />
+      </MetricGroup>,
+    );
+    expect(screen.getByTestId('metrics')).toHaveClass('sm:divide-x-0');
+    expect(screen.getByText('1').parentElement).toHaveClass('sm:odd:ps-0', 'sm:even:pe-0');
   });
 });
 

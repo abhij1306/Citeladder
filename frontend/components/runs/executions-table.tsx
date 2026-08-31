@@ -48,7 +48,7 @@ export function ExecutionsTable({
                 >
                   {execution.prompt_text || `Prompt #${execution.prompt_index + 1}`}
                 </span>
-                <span className="mono text-muted text-2xs">rep {execution.repetition}</span>
+                <span className="mono text-muted text-xs">rep {execution.repetition}</span>
               </div>
             </TableCell>
             <TableCell className="py-3">

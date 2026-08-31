@@ -94,7 +94,7 @@ export function Insight({
       data-insight-id={insight.id}
       data-layer={insight.layer}
       className={cn(
-        'bg-panel border-border shadow-card flex flex-col gap-3 rounded-sm border p-4 sm:p-[var(--card-padding)]',
+        'bg-panel border-border flex flex-col gap-3 rounded-sm border p-4 sm:p-[var(--card-padding)]',
         className,
       )}
     >
@@ -102,7 +102,7 @@ export function Insight({
       <div className="flex items-center justify-between gap-3">
         <span
           className={cn(
-            'text-2xs inline-flex items-center rounded px-1.5 py-0.5 font-semibold',
+            'text-xs inline-flex items-center rounded px-1.5 py-0.5 font-medium',
             PRIORITY_TONE[insight.priority],
           )}
         >
@@ -112,7 +112,7 @@ export function Insight({
       </div>
 
       {/* 2. Claim */}
-      <h3 className="font-display text-foreground text-sm leading-[1.35] font-semibold text-balance">
+      <h3 className="font-display text-foreground text-sm leading-[1.35] font-medium text-balance">
         {insight.claim}
       </h3>
 
@@ -133,7 +133,7 @@ export function Insight({
       {/* 5. Potential impact */}
       <div className="border-border-subtle flex items-center justify-between border-t pt-3">
         <span className={eyebrowClasses}>Potential impact</span>
-        <span className="font-display text-foreground text-xs font-semibold">
+        <span className="font-display text-foreground text-xs font-medium">
           {IMPACT_COPY[insight.potentialImpact]}
         </span>
       </div>

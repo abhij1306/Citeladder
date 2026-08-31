@@ -48,14 +48,11 @@ export function ContentComposer({
   onGenerate: () => void;
 }>) {
   return (
-    <Card
-      data-component-id="content-prompt-box"
-      className="border-border bg-panel shadow-card rounded-sm border p-[var(--card-padding)]"
-    >
+    <Card data-component-id="content-prompt-box" className="p-[var(--card-padding)]">
       <CardContent className="flex flex-col gap-[var(--workspace-gap)] p-0">
         <div className="grid gap-1">
           <span className={eyebrowClasses}>New generation</span>
-          <h2 className="font-display text-foreground text-xl font-semibold tracking-tight">
+          <h2 className="font-display text-foreground text-xl font-medium tracking-tight">
             What can I help you create?
           </h2>
         </div>
@@ -154,7 +151,7 @@ function OpportunityContext({ opportunity }: Readonly<{ opportunity: ContentOppo
       className="border-border bg-well grid min-w-0 gap-2 rounded-sm border p-4 [overflow-wrap:anywhere]"
     >
       <span className={eyebrowClasses}>Based on opportunity</span>
-      <p className="text-foreground min-w-0 text-sm font-semibold">{opportunity.title}</p>
+      <p className="text-foreground min-w-0 text-sm font-medium">{opportunity.title}</p>
       {opportunity.target ? (
         <p className="text-muted min-w-0 text-xs">Target: {opportunity.target}</p>
       ) : null}
@@ -186,7 +183,7 @@ function DemandSource({ source }: Readonly<{ source: string }>) {
       <TrendingUp className="text-accent-text mt-0.5 size-4 shrink-0" aria-hidden />
       <span>
         Brief written from the search demand signal{' '}
-        <span className="text-foreground font-semibold">{source}</span>. Edit anything below before
+        <span className="text-foreground font-medium">{source}</span>. Edit anything below before
         generating.
       </span>
     </div>
@@ -203,10 +200,7 @@ export function GeneratingPanel({
   onCancel: (generationId: string) => void;
 }>) {
   return (
-    <Card
-      data-component-id="content-generating-panel"
-      className="border-border bg-panel shadow-card rounded-sm border p-[var(--card-padding)]"
-    >
+    <Card data-component-id="content-generating-panel" className="p-[var(--card-padding)]">
       <CardContent className="flex items-center gap-4 p-0">
         <output aria-label="Generating content" className="flex items-center gap-3">
           <ICONS.spinner className="text-accent size-5 animate-spin" aria-hidden />
@@ -242,10 +236,7 @@ export function GenerationErrorPanel({
   onDismiss: () => void;
 }>) {
   return (
-    <Card
-      data-component-id="content-error-panel"
-      className="border-danger-border bg-danger-bg shadow-card rounded-sm border p-[var(--card-padding)]"
-    >
+    <Card data-component-id="content-error-panel" className="bg-danger-bg p-[var(--card-padding)]">
       <CardContent className="flex flex-col gap-4 p-0">
         <div role="alert" className="text-danger-text flex items-start gap-2.5 text-sm">
           <ICONS.warning className="mt-0.5 size-4 shrink-0" aria-hidden />

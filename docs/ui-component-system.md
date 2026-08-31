@@ -26,7 +26,10 @@ React Hook Form, Zod, and TanStack Query.
 
 Controls expose default, hover, pressed, focus, selected, pending, disabled,
 invalid, success, and destructive states when the capability needs them. App
-geometry remains 6px controls, 8px cards, and 10px overlays.
+geometry uses 10px controls and 16px semantic objects and overlays. `Card` is
+reserved for real semantic objects and defaults to a flat fill. Metric groups,
+editorial section headers, ledgers, and workspace panes provide structural
+layout without turning every region into a card.
 
 `Input` owns optional `startContent` and `endContent` adornments and its shared
 frame. `containerClassName` targets that frame; `className` continues to target

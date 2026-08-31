@@ -150,7 +150,7 @@ export function MetricPanel({
     <figure className={cn('grid gap-1', className)} data-testid={testId}>
       <figcaption className="grid gap-0.5">
         <span className="text-foreground text-xs font-medium">{title}</span>
-        {description ? <span className="text-muted text-2xs">{description}</span> : null}
+        {description ? <span className="text-muted text-xs">{description}</span> : null}
       </figcaption>
 
       <div ref={ref} className="relative">
@@ -350,7 +350,7 @@ function HoverTooltip({
   return (
     <div
       aria-hidden="true"
-      className="border-border-subtle bg-elevated text-foreground text-2xs shadow-card pointer-events-none absolute top-0 rounded-sm border px-2 py-1"
+      className="border-border-subtle bg-elevated text-foreground pointer-events-none absolute top-0 rounded-sm border px-2 py-1 text-xs"
       style={{ left: `${(point.x / plotWidth) * 100}%` }}
     >
       <span className="text-muted">{point.label}</span>{' '}

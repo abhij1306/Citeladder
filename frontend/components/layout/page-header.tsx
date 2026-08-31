@@ -12,35 +12,16 @@ import { resolveTitle } from './page-titles';
 
 /**
  * PageHeader — the page's accessible label plus its optional description and
- * actions row, rendered as the first row of the content column.
+ * actions row. The app shell places this owner in the top bar.
  *
- * The route-derived title is deliberately NOT painted. The sidebar's active
- * item already names the current destination, so repeating it as a 22px
- * heading spent the most valuable strip of the page restating what the user
- * just clicked — the reference dashboards (Peec, Searchable) put filters and
- * content there instead, and read far calmer for it.
- *
- * It still renders as an `sr-only` `<h1>`, because dropping the heading
- * outright would leave every authed route without a top-level heading: screen
- * readers lose the "what page am I on" landmark and the document outline
- * starts at `<h2>`. Invisible to sighted users, unchanged for assistive tech.
- *
- * A page whose title is real CONTENT rather than a route name (a crawled URL,
- * a product) still renders its own visible `<h1>` — see url-detail.tsx. That is
- * information, not chrome, so it is not what this component suppresses.
- *
- * When a page passes neither `summary` nor `actions` the component collapses to
- * just that `sr-only` heading, contributing no box and no grid gap.
- *
- * Set `showTitle` to render the visible heading anyway — for a route where the
- * title carries information the sidebar does not.
+ * Route titles stay visible so every workspace has a stable orientation point.
  */
 export function PageHeader({
   summary,
   actions,
   title,
   eyebrow,
-  showTitle = false,
+  showTitle,
   className,
 }: Readonly<{
   summary?: ReactNode;
@@ -49,17 +30,18 @@ export function PageHeader({
   title?: string;
   /** Optional contextual overline above the title. */
   eyebrow?: ReactNode;
-  /** Paints the title visibly. Off by default — the sidebar already names it. */
+  /** Allows an entity-owned screen to keep only its own visible title. */
   showTitle?: boolean;
   className?: string;
 }>) {
   const pathname = usePathname() ?? '';
   const resolved = title ?? resolveTitle(pathname);
+  const paintTitle = showTitle ?? !/^\/site\/crawls\/[^/]+\/pages\/[^/]+/.test(pathname);
 
   const heading = (
     <h1
       className={cn(
-        showTitle
+        paintTitle
           ? cn(displayHeadingXlClasses, 'min-w-0 flex-1 [overflow-wrap:break-word]')
           : 'sr-only',
       )}
@@ -68,11 +50,11 @@ export function PageHeader({
     </h1>
   );
 
-  // Nothing visible to lay out — emit the bare landmark so the grid gets no row.
-  if (!showTitle && !summary && !actions && !eyebrow) return heading;
+  // Explicitly hidden titles still retain the accessible page landmark.
+  if (!paintTitle && !summary && !actions && !eyebrow) return heading;
 
   return (
-    <div className={cn('mb-[var(--workspace-gap)] flex flex-col gap-2', className)}>
+    <div className={cn('mb-8 flex flex-col gap-2', className)}>
       {eyebrow ? <p className={eyebrowClasses}>{eyebrow}</p> : null}
       <div className="flex flex-nowrap items-start justify-between gap-4">
         {heading}

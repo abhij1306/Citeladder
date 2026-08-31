@@ -5,11 +5,11 @@
 
 ## Direction and identity
 
-CiteLadder is a light-only, evidence-led enterprise system. It should feel calm,
-precise, and engineered. It began from a Tesla-style restraint and has settled
-into a refined, restrained Material-3-influenced light system: one chromatic accent,
-generous whitespace, crisp micro-shadows over hairline borders, and a few
-deliberate, quiet motion treatments.
+CiteLadder is a light-only, evidence-led enterprise system. The authenticated
+application uses the **Prism Evidence Workspace**: a warm editorial canvas,
+navy ink and actions, indigo analytical selection, semantic pastel evidence
+washes, useful density, and deliberate negative space. It is an operating
+workspace, not a wall of equal-weight KPI cards.
 
 - **Name and domain:** CiteLadder, `citeladder.com`.
 - **Logo:** the canonical full-colour horizontal CiteLadder lockup in
@@ -25,10 +25,11 @@ deliberate, quiet motion treatments.
   Website and flow surfaces use a 16px reading baseline. Size,
   leading, weight, tracking, and
   colour are one role contract, never independent page-level choices.
-- **Accent:** a single Growth Cobalt (`#315CFF`) for primary actions, explicit
-  selection, links, and focus. It is the only chromatic colour on the marketing
-  surface and is always rendered as a flat semantic colour, not an atmospheric
-  field.
+- **Action and selection:** navy (`#14213D`) owns authenticated primary actions.
+  Indigo owns analytical selection, links, and focus. Cyan, coral, lime, and
+  amber are evidence/status families, never route decoration. Deferred public
+  and focused-flow surfaces keep their scoped cobalt contract until their
+  separately approved redesign.
 - **Composition:** state before features. Product pages prioritise current state,
   movement, next action, then evidence. Marketing is more editorial but uses the
   same tokens, type, and restraint.
@@ -64,17 +65,21 @@ properties.
 
 Tokens are semantic; components use the role, not a colour value.
 
-| Role                | Token family                                                                                                                                       | Use                                                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Canvas and surfaces | `background` (`#fafafa`), `panel` / `elevated` (`#ffffff`), `panel-tonal` / `well` (`#f7f7f7`), hover (`#f5f5f5`), `active` (`#efefef`) | Neutral depth through near-white surfaces and hairlines |
-| Text                | `foreground` (`#171717`), `secondary` (`#525252`), `muted` / `subtle` (`#6b6b6b`), disabled (`#a3a3a3`), `inverse` (`#ffffff`) | Three readable product roles; disabled is reserved for inactive controls |
-| Borders             | `border` (`#e5e5e5`), `border-subtle` (`#efefef`), `border-strong` (`#d4d4d4`), `border-bold` (`#a3a3a3`) | Neutral ledger hairlines for structured separation |
-| Primary action      | `accent-*`                                                                                                                                         | Growth Cobalt (`#315CFF`) CTAs, active indicators, explicit selection, links, and focus rings            |
-| Status              | `success-*` (`#31a57a`), `warning-*` (`#d9822b`), `danger-*` (`#d96b55`), `info-*`, `neutral-bg`                                                   | App only; always paired with text or an icon                                                             |
-| Evidence and scores | `citation-*`, `run-*`, `score-*`, `series-*`, `chart-*`                                                                                            | Persisted evidence, audit status, score bands, and charts                                                |
+| Role | Token family | Use |
+| --- | --- | --- |
+| Canvas and structure | `background` (`#FAF9F6`), `background-alt` / `sidebar` (`#F7F6F2`), `well` (`#F1F0EB`) | Warm depth through tone and whitespace |
+| Raised surfaces | `panel`, `input`, `elevated` (`#FFFFFF`) | Inputs, overlays, and meaningful semantic objects |
+| Text | `foreground` (`#14213D`), `secondary` (`#475569`), `muted` / `subtle` (`#536176`), disabled (`#7B8494`) | Editorial ink roles |
+| Borders | gray 200–500 semantic aliases | Minimal ledger rules and input edges, never decorative shells |
+| Primary action | `action-*` | Navy authenticated primary actions |
+| Selection and focus | `accent-*` | Indigo selection, links, tabs, and focus |
+| Status and evidence | cyan, coral, lime, amber, `citation-*`, `run-*`, `score-*`, `chart-*` | Persisted evidence and status, always paired with a label or icon |
 
-The accent is Growth Cobalt: `#315CFF` at rest, `#2347D9` on hover, and `#1A38B5` on press.
-`accent-text` (`#1E40AF`) is the accessible cobalt for text on white or tinted backgrounds. Product canvas is neutral `#fafafa`; panel, card, dialog, and drawer surfaces are crisp white. Marketing and authentication retain their established scoped surface values.
+The authenticated selection accent is indigo: `#5542F6` at rest and `#4033C7`
+for text, hover, and press. Navy owns primary actions. Product canvas is warm
+`#FAF9F6`; structural regions use `#F7F6F2`; wells use `#F1F0EB`; raised inputs
+and overlays are white. Marketing, authentication, and onboarding retain their
+established scoped values.
 
 Text hierarchy is semantic rather than route-specific: `foreground` owns headings,
 primary values, and actions; `secondary` owns body copy and row values; `muted`
@@ -83,12 +88,9 @@ metadata, placeholders, and unavailable-value marks. The design-system policy
 requires all four neutral text roles to meet WCAG 2.1 AA normal-text contrast
 (`4.5:1`) on every shared light surface, including `active`.
 
-**Marketing is monochrome-plus-blue.** It uses only white, the ink ramp, and the
-one cobalt — no status, score, or category colour. **The authenticated app keeps
-the functional families** (status, score bands, run states, citation types, and
-the categorical chart series, whose first series is the brand cobalt), because a
-data view has to stay legible at a glance. Status colour never carries meaning
-alone; it is always paired with a label or icon.
+Deferred marketing remains monochrome-plus-cobalt under `.website-type`.
+The authenticated app keeps functional evidence families because a data view
+must remain legible at a glance. Functional colour never carries meaning alone.
 
 ## Typography
 
@@ -137,20 +139,17 @@ classes.
 
 | Role | Family | Size / line height | Weight | Tracking | Class / Token | Text Colour |
 | --- | --- | ---: | ---: | ---: | :--- | :--- |
-| Secondary / table header | Geist | 12/16px | 400–600 | 0 | `text-xs` | `text-secondary` / `text-muted` |
-| Baseline UI and body | Geist | 14/20px | 400–600 | 0 | `text-sm` | semantic text role |
-| Emphasis / section title | Geist | 16/22px | 500–600 | -0.015em | `text-base` | `text-foreground` |
-| Heading S | Geist | 18/24px | 600 | -0.015em | `text-lg` | `text-foreground` |
-| Heading M | Geist | 20/28px | 600 | -0.015em | `text-xl` | `text-foreground` |
-| Heading L | Geist | 24/32px | 600 | -0.025em | `text-2xl` | `text-foreground` |
-| Metric M | Geist | 28/36px | 600 | -0.02em | `text-3xl` + `tabular-nums` | `text-foreground` |
-| Metric L | Geist | 32/40px | 600 | -0.02em | `text-4xl` + `tabular-nums` | `text-foreground` |
+| Metadata / table header | Geist | 12/16px | 400–500 | 0 | `text-xs` | `text-secondary` / `text-muted` |
+| Body and controls | Geist | 14/20px | 400 | 0 | `text-sm` | semantic text role |
+| Emphasized body | Geist | 14/20px | 500 | 0 | `text-sm font-medium` | semantic text role |
+| Section heading | Geist | 16/22px | 500 | 0 | `text-base font-medium` | `text-foreground` |
+| Panel heading | Geist | 18/24px | 500 | 0 | `text-lg font-medium` | `text-foreground` |
+| Page title | Geist | 24/32px | 500 | 0 | `text-2xl font-medium` | `text-foreground` |
+| Primary metric | Geist | 28/36 or 32/40px | 500 | -0.02em | `text-3xl` / `text-4xl` + `tabular-nums` | `text-foreground` |
 
-Fourteen pixels is the product baseline and 12px is the compact secondary rung.
-Ten-pixel text is not a general product role; legacy `text-2xs` consumers are
-mapped to the 12px rung for compatibility. New components use `text-sm` for body
-and controls and `text-xs` only for short labels, table headers, and supporting
-metadata.
+Fourteen pixels is the product baseline. Twelve pixels is reserved for short
+labels, provenance, badges, and table headers. `text-2xs`, 10px and 11px product
+text, `font-semibold`, and `font-bold` are retired from authenticated UI.
 
 Availability labels such as **Not measured**, **Unavailable**, and **Unknown**
 never inherit metric typography. They use the shared `UnavailableValue`
@@ -161,9 +160,10 @@ treatment: muted, 12/16px, regular weight, and zero tracking on every surface.
 The product app is an enterprise data-dense environment. It uses diffuse elevation
 and crisp semantic hairlines to maintain clear structure without visual clutter:
 
-- **Elevation and borders**: Primary cards and surfaces use `bg-panel border border-border` with `shadow-card`.
-  Hover states slightly deepen the hairline (`border-border-strong`) and lift (`shadow-card-hover`).
-  Elevated menus and popovers use `bg-elevated` and `shadow-elevated`.
+- **Elevation and borders**: structural sections are open on the canvas or use a
+  tonal well. `Card` is reserved for a real semantic object and defaults to a
+  white fill with no border or shadow. Shadows belong only to overlays, menus,
+  drawers, dialogs, the command palette, and toasts.
 - **Drawer and Sheet Composition**: Modals, slide-out drawers, and sheets already provide an
   elevated surface. They must **never** contain nested `<Card>` components. Field groups and
   lists inside drawers use clean structural section divisions (`space-y-4` / borderless rows).
@@ -181,26 +181,22 @@ and crisp semantic hairlines to maintain clear structure without visual clutter:
 | Context                  |     Desktop |     Touch / compact |
 | ------------------------ | ----------: | ------------------: |
 | Top bar                  |        52px |                52px |
-| Sidebar rail             |       236px |       mobile drawer |
-| Content gutter           |        16px |                16px |
+| Sidebar rail             |       220px |       mobile drawer |
+| Content gutter           |        24px |                16px |
 | Navigation / control row |        36px | 44px minimum target |
 | Primary CTA              | 32–36px height | 44px minimum target |
 | Table row                |        40px |     labelled record |
 
-The content area caps at 1360px. Standard cards use 16px internal padding and a 16px workspace
-gap. Compact toolbars use 12px; major page sections separate by 24px; dialogs and drawers use
-20px.
-Authenticated-app geometry is role-driven: controls and fields use 6px corners, cards use
-8px, and drawers, dialogs, menus, and popovers use 10px. Marketing and authentication retain
+The content area caps at 1360px. Internal groups use 16–24px and major sections
+separate by 32px. Compact gutters remain 16px; dialogs and drawers use 20px.
+Authenticated-app geometry is role-driven: controls and fields use 10px corners,
+semantic objects use 16px, and overlays use 16px. Marketing and authentication retain
 their documented website treatment. Fully rounded geometry is reserved for chips, badges,
 status dots, count pills, and filter toggles. Components consume the semantic geometry role;
 they do not select a route-local radius.
 
-Elevation uses the existing shared rungs. `shadow-card` separates a true card from the pearl
-canvas, `shadow-card-hover` is reserved for interactive lift, `shadow-elevated` owns floating
-menus and popovers, and `shadow-modal-value` owns drawers and dialogs. An elevated surface uses
-one crisp semantic hairline plus one shadow rung; tonal inset groups inside it do not receive a
-second elevation layer.
+`shadow-elevated` owns floating menus and popovers; `shadow-modal-value` owns
+drawers and dialogs. No authenticated feature owns a shadow recipe.
 Marketing sections breathe on a generous rhythm (`--section-y-*`, 120px desktop).
 
 Authentication and onboarding share the `[data-flow-surface]` geometry owned by
@@ -294,11 +290,11 @@ to look on every page in the app.
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ Project / context      Date · Compare      Search    Agent   │
+│ Route title                         Search · Ctrl K   Agent   │
 ├────────────┬─────────────────────────────────────────────────┤
 │            │                                                 │
 │ Overview   │  Supporting context                  Actions    │
-│ Analyze    │  (route title remains an sr-only h1)            │
+│ Analyze    │                                                 │
 │ Act        │                                                 │
 │ Track      │  ┌─────────┐ ┌─────────┐ ┌─────────┐            │
 │            │  │ Metric  │ │ Metric  │ │ Metric  │            │
@@ -314,9 +310,9 @@ Fixed responsibilities per region:
 
 | Region             | Owns                                                                                                        | Never                                             |
 | ------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Top bar            | Project and context switching, date range and comparison window, global search, agent entry                 | Page-specific actions                             |
+| Top bar            | Visible route title, global search / command entry, and Agent entry | Route metrics or a second navigation level |
 | Sidebar            | Five loop stations: Overview, Analyze, Act, Track, and Connect; station subnavigation owns its destinations | A third navigation level or disabled future items |
-| Page header        | An sr-only route title, one line of supporting context, and this page's actions; a visible title only when it carries entity/content identity | Metrics |
+| Page header        | The top bar's visible route title; entity detail routes retain an accessible-only route label while their entity heading stays visible | Metrics |
 | Metric row         | Three to five headline numbers, each with coverage                                                          | More than five, or a metric without provenance    |
 | Analytical surface | The one chart, table, or comparison this page exists for                                                    | Competing equal-weight surfaces                   |
 | Insight list       | Ranked insight objects (below)                                                                              | Ad-hoc card shapes                                |
@@ -453,7 +449,7 @@ focused grid, then an optional CTA.
 
 ### Controls
 
-App buttons use the 6px control-radius role with no decorative inset border.
+App buttons use the 10px control-radius role with no decorative inset border.
 Website and flow primary buttons use the same shared Button behaviour and blue
 fill, but add the reference treatment: 12px corners, a subtle light inset edge,
 a defined outer blue edge, and quiet elevation. Secondary, neutral, ghost, and
@@ -486,12 +482,13 @@ never an empty-state label.
 ### Navigation and overlays
 
 The marketing nav floats transparent over the hero and becomes a frosted white on
-scroll, with no shadow. The app sidebar makes the active location obvious through a
-blue fill, a leading blue rail, and a Carbon-Dark label — not through weight.
+scroll, with no shadow. The app sidebar makes the active location obvious through
+a quiet indigo tonal fill and indigo label, never through weight, translation, or
+a leading rail.
 Menus and custom listboxes use `shadow-elevated`, the semantic overlay-radius role, the shared
 menu panel/item recipes, and a short system-curve entrance. Single-select filters use
 radio menu items so the current value is visible without relying on colour.
-Tooltips use the elevated rung and the 10px overlay-radius role; dialogs and drawers use
+Tooltips use the elevated rung and the 16px overlay-radius role; dialogs and drawers use
 `shadow-modal-value` with the same overlay-radius role. Drawers are right-side modal contextual
 sheets owned by `components/ui/drawer.tsx`. Their scrim dims and locks the page;
 outside click, Escape, or the close control dismisses them, and focus returns to
@@ -525,7 +522,6 @@ sanctioned, each one calm and reduced-motion-safe:
 - the rotating answer-engine wordmarks and the product-window walkthrough;
 - scroll **reveal** entrances (GSAP) that fade and rise a small distance and never
   hide server-rendered content after hydration;
-- the interactive-card hover lift;
 - master-detail selection continuity and measured domain-owned expansion.
 - onboarding research results resolving beneath the factual activity list with
   one 220ms fade-and-rise sequence and 60ms staggering.
@@ -546,13 +542,12 @@ Before merging a visual change, verify:
 
 - It uses semantic global tokens and an existing primitive where one applies.
 - Website and focused-flow type use documented content roles with a 16px body
-  baseline; authenticated-app type uses the even Geist product scale. Both stay
-  within weights 400–600.
+  baseline; authenticated-app type uses Geist at weights 400 and 500 only.
 - Marketing stays monochrome-plus-blue; functional colour appears only in the app.
-- The default product canvas is `#fafafa`, quiet tonal panels use `#f7f7f7`, and elevation
-  does not force card backgrounds onto structural regions.
-- Elevation uses the shared shadow tokens; app controls use 6px, cards use 8px, and overlays use
-  10px through semantic geometry roles.
+- The authenticated product canvas is `#FAF9F6`; structural panels use
+  `#F7F6F2`; tonal wells use `#F1F0EB`.
+- App controls use 10px, semantic objects use 16px, and overlays use 16px.
+  Shadows appear only on floating surfaces.
 - Any new motion is calm and stops under `prefers-reduced-motion`.
 - Text, focus, status, loading, error, empty, keyboard, touch, reduced-motion,
   forced-colours, and mobile states remain usable.

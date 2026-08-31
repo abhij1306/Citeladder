@@ -43,7 +43,7 @@ function ProgressHeader({
         <MeasurementContext provenance={audit.model_provenance} />
         {polling ? (
           <span
-            className="mono text-muted text-2xs inline-flex items-center gap-1.5"
+            className="mono text-muted inline-flex items-center gap-1.5 text-xs"
             aria-live="polite"
           >
             <span
@@ -94,7 +94,7 @@ function ProgressBar({
 
   return (
     <div className="grid gap-1">
-      <div className="text-2xs text-muted flex justify-between">
+      <div className="text-muted flex justify-between text-xs">
         <span>Progress</span>
         <span>{percent}%</span>
       </div>

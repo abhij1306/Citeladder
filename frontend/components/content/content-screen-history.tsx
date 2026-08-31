@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { ContentGenerationListItem, ContentGenerationStatus } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
 import { Pressable } from '@/components/ui/pressable';
+import { WorkspacePane } from '@/components/ui/workspace';
 
 const STATUS_BADGE: Record<ContentGenerationStatus, RunStatusValue> = {
   queued: 'queued',
@@ -30,13 +31,13 @@ export function GenerationHistory({
   onSelect: (generationId: string) => void;
 }>) {
   return (
-    <section
+    <WorkspacePane
       data-component-id="content-history"
-      className="bg-panel shadow-card border-border flex flex-col gap-3 rounded-sm border p-[var(--card-padding)]"
+      className="flex flex-col gap-3 p-[var(--card-padding)]"
     >
       <div className="border-border grid gap-1 border-b pb-3">
         <span className={eyebrowClasses}>History</span>
-        <h2 className="font-display text-foreground text-lg leading-tight font-semibold tracking-tight">
+        <h2 className="font-display text-foreground text-lg leading-tight font-medium tracking-tight">
           Recent generations
         </h2>
       </div>
@@ -45,7 +46,7 @@ export function GenerationHistory({
       ) : (
         <HistoryItems items={items} selectedId={selectedId} onSelect={onSelect} />
       )}
-    </section>
+    </WorkspacePane>
   );
 }
 

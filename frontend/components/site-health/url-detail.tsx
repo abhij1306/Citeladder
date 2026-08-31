@@ -166,9 +166,7 @@ function IssueHistory({ crawlId, siteUrlId }: Readonly<{ crawlId: string; siteUr
   return (
     <Card>
       <CardContent className="grid gap-3">
-        <h2 className="text-foreground text-base font-semibold tracking-[-0.015em]">
-          Issue History
-        </h2>
+        <h2 className="text-foreground text-base font-medium tracking-[-0.015em]">Issue History</h2>
         {historyQuery.isError ? <Alert tone="danger">Could not load issue history.</Alert> : null}
         {historyQuery.isLoading ? <HistorySkeleton /> : null}
         {!historyQuery.isLoading && !historyQuery.isError && rows.length === 0 ? (
@@ -211,7 +209,7 @@ function HistoryRows({ rows }: Readonly<{ rows: IssueHistoryPage['items'] }>) {
         <li key={row.id} className="flex items-center justify-between gap-3 py-2">
           <span className="flex min-w-0 flex-col">
             <span className="text-foreground truncate text-sm">{issueTitle(row)}</span>
-            <span className="text-2xs text-muted font-mono">{formatAudited(row.created_at)}</span>
+            <span className="text-muted font-mono text-xs">{formatAudited(row.created_at)}</span>
           </span>
           <span className="flex shrink-0 items-center gap-2">
             <Badge className={cn(row.dimension === 'aeo' ? 'text-accent-text' : 'text-info-text')}>

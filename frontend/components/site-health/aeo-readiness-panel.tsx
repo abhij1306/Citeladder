@@ -216,7 +216,7 @@ function DimensionDrawer({
 function CheckLedger({ checks }: Readonly<{ checks: ReadinessCheck[] }>) {
   return (
     <section className="grid gap-2">
-      <h3 className="text-foreground text-base font-semibold">Checks</h3>
+      <h3 className="text-foreground text-base font-medium">Checks</h3>
       {checks.length === 0 ? (
         <p className="text-secondary text-sm">No determinate checks were recorded.</p>
       ) : (
@@ -267,7 +267,7 @@ function FailingPages({
   return (
     <section className="grid gap-2">
       <div className="grid gap-0.5">
-        <h3 className="text-foreground text-base font-semibold">Pages to fix</h3>
+        <h3 className="text-foreground text-base font-medium">Pages to fix</h3>
         <p className="text-muted text-xs">
           {total === 0
             ? 'No failing pages were recorded.'

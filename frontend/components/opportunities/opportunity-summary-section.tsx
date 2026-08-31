@@ -17,7 +17,7 @@ function SourceLink({
 }: Readonly<{ label: string; href: string; linkText: string }>) {
   return (
     <div className="flex items-start justify-between gap-3 py-1">
-      <span className="text-2xs text-muted shrink-0">{label}</span>
+      <span className="text-muted shrink-0 text-xs">{label}</span>
       <Link href={href} className="text-accent-text text-sm font-medium hover:underline">
         {linkText}
       </Link>

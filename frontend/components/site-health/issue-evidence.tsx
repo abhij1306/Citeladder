@@ -130,7 +130,7 @@ export function IssueEvidence({ occurrence }: Readonly<{ occurrence: IssueOccurr
   const statements = evidenceStatements(occurrence.evidence);
   return (
     <div className="grid gap-1.5">
-      <span className="text-2xs text-muted font-medium">Observed evidence</span>
+      <span className="text-muted text-xs font-medium">Observed evidence</span>
       {statements.length > 0 ? (
         <ul className="text-secondary grid gap-1 text-sm">
           {statements.map((statement, index) => (

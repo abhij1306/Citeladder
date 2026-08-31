@@ -59,7 +59,7 @@ export function StateMetric({
         {value === null ? (
           <UnavailableValue state="not_measured" />
         ) : (
-          <p className="font-display text-foreground text-3xl leading-none font-semibold tracking-[-0.03em] tabular-nums">
+          <p className="font-display text-foreground text-3xl leading-none font-medium tracking-[-0.03em] tabular-nums">
             {metricValue(value, suffix)}
           </p>
         )}
@@ -91,13 +91,13 @@ export function MovementChart({ movements }: Readonly<{ movements: CommandCenter
       {movements.map((row) => (
         <div
           key={row.label}
-          className="bg-background-alt border-border-subtle rounded-[var(--radius-card)] border p-3.5 shadow-xs"
+          className="bg-background-alt border-border-subtle rounded-[var(--radius-card)] border p-3.5"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-foreground text-xs font-semibold capitalize">{row.label}</span>
+            <span className="text-foreground text-xs font-medium capitalize">{row.label}</span>
             <span
               className={cn(
-                'font-display text-xs font-semibold tabular-nums',
+                'font-display text-xs font-medium tabular-nums',
                 row.direction === 'positive' ? 'text-success' : 'text-danger',
               )}
             >
@@ -117,11 +117,11 @@ export function MovementChart({ movements }: Readonly<{ movements: CommandCenter
               style={{ height: `${Math.max(6, ((row.previous ?? 0) / ceiling) * 56)}px` }}
             />
             <span
-              className="bg-accent w-6 rounded-t shadow-xs transition-[height]"
+              className="bg-accent w-6 rounded-t transition-[height]"
               style={{ height: `${Math.max(6, ((row.current ?? 0) / ceiling) * 56)}px` }}
             />
           </div>
-          <p className="text-2xs text-muted mt-2.5 text-center font-sans font-medium">
+          <p className="text-muted mt-2.5 text-center font-sans text-xs font-medium">
             Previous · Current
           </p>
         </div>
@@ -167,7 +167,7 @@ export function ActionRow({
     >
       <div className="flex items-center gap-2">
         <GripVertical className="text-muted hover:text-foreground size-4 cursor-grab" aria-hidden />
-        <span className="text-muted w-5 text-center font-mono text-xs font-semibold tabular-nums">
+        <span className="text-muted w-5 text-center font-mono text-xs font-medium tabular-nums">
           {index + 1}
         </span>
       </div>
@@ -175,7 +175,7 @@ export function ActionRow({
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/opportunities?selected=${action.id}`}
-            className="text-foreground hover:text-accent-text text-sm font-semibold transition-colors"
+            className="text-foreground hover:text-accent-text text-sm font-medium transition-colors"
           >
             {action.title}
           </Link>
@@ -193,7 +193,7 @@ export function ActionRow({
         </p>
       </div>
       <div className="flex items-center justify-end gap-1.5">
-        <span className="text-muted font-display me-2 text-xs font-semibold tabular-nums">
+        <span className="text-muted font-display me-2 text-xs font-medium tabular-nums">
           {action.priority_score.toFixed(1)}
         </span>
         <Button

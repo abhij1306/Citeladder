@@ -106,7 +106,7 @@ export function BillingSettings({ enabled = true }: Readonly<{ enabled?: boolean
 
 function BillingSkeleton() {
   return (
-    <div className="bg-panel shadow-card border-border-subtle grid gap-3 rounded-md border p-[var(--card-padding)]">
+    <div className="bg-panel border-border-subtle grid gap-3 rounded-md border p-[var(--card-padding)]">
       <Skeleton className="h-6 w-40" />
       <Skeleton className="h-20 w-full" />
     </div>
@@ -181,14 +181,12 @@ function CurrentPlan({
   const subscription = entitlement?.subscription ?? null;
   const periodEnd = subscription?.current_period_end;
   return (
-    <div className="bg-panel shadow-card border-border-subtle rounded-md border p-[var(--card-padding)]">
+    <div className="bg-panel border-border-subtle rounded-md border p-[var(--card-padding)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">
-            Current plan
-          </p>
+          <p className="text-muted text-xs font-medium tracking-[0.06em] uppercase">Current plan</p>
           <div className="mt-1 flex items-center gap-2.5">
-            <p className="text-foreground text-base font-semibold tracking-[-0.015em]">
+            <p className="text-foreground text-base font-medium tracking-[-0.015em]">
               {currentPlan?.name ?? subscription?.catalog_key ?? 'No active plan'}
             </p>
             <Badge variant="status" value={subscription ? 'success' : 'info'}>
@@ -239,9 +237,9 @@ function PlanCatalog({
   onCheckout: (key: SelfServePlanKey) => void;
 }>) {
   return (
-    <div className="bg-panel shadow-card border-border-subtle grid gap-4 rounded-md border p-[var(--card-padding)] lg:col-span-7">
+    <div className="bg-panel border-border-subtle grid gap-4 rounded-md border p-[var(--card-padding)] lg:col-span-7">
       <div>
-        <h2 className="text-foreground text-sm font-semibold tracking-tight">Change plan</h2>
+        <h2 className="text-foreground text-sm font-medium tracking-tight">Change plan</h2>
         <p className="text-muted mt-0.5 text-xs">
           Prices are resolved by the server for your billing country. Audits run on your own
           provider keys, billed by those providers directly.
@@ -285,7 +283,7 @@ function CountryInput({
         <label htmlFor="billing-country-input" className="text-secondary block text-xs font-medium">
           Billing country
         </label>
-        <span id="billing-country-help" className="text-muted text-2xs block">
+        <span id="billing-country-help" className="text-muted block text-xs">
           Two-letter ISO code. The server resolves currency, tax and the exact amount from it.
         </span>
       </div>
@@ -295,7 +293,7 @@ function CountryInput({
         onChange={(event) => setCountry(event.target.value.toUpperCase().slice(0, 2))}
         placeholder="US"
         aria-describedby="billing-country-help"
-        className="h-8 w-20 text-center font-mono text-xs font-semibold uppercase"
+        className="h-8 w-20 text-center font-mono text-xs font-medium uppercase"
       />
     </div>
   );
@@ -353,12 +351,12 @@ function PlanRow({
     >
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-foreground text-sm font-semibold">{plan.name}</span>
+          <span className="text-foreground text-sm font-medium">{plan.name}</span>
           <span className="text-muted font-mono text-xs font-medium">{priceLabel}</span>
         </div>
         {plan.description ? <p className="text-muted mt-0.5 text-xs">{plan.description}</p> : null}
         {!selection.ok && !plan.contact_only && selection.reason ? (
-          <p className="text-muted text-2xs mt-0.5">{selection.reason}</p>
+          <p className="text-muted mt-0.5 text-xs">{selection.reason}</p>
         ) : null}
       </div>
       <div className="shrink-0">

@@ -203,7 +203,7 @@ function ProfileTabPanel({
   return (
     <div className="grid gap-[var(--workspace-gap)]">
       <section aria-labelledby="tracked-competitors" className="grid gap-2">
-        <h3 id="tracked-competitors" className="text-foreground text-sm font-semibold">
+        <h3 id="tracked-competitors" className="text-foreground text-sm font-medium">
           Tracked competitors
         </h3>
         {competitors.length ? (

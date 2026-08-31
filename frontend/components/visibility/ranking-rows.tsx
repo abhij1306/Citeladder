@@ -80,7 +80,7 @@ export function RankingRowsTable({
                   />
                   <span className="text-foreground font-medium">{row.name}</span>
                   {row.is_brand ? (
-                    <span className="bg-well text-secondary text-2xs inline-flex items-center rounded-sm px-1.5 py-0.5 font-medium">
+                    <span className="bg-well text-secondary inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-medium">
                       You
                     </span>
                   ) : null}
