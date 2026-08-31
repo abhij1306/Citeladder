@@ -183,7 +183,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Download OpenAPI contract
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: backend-openapi
           path: backend-openapi
