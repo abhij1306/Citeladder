@@ -30,7 +30,7 @@ export function useUrlState<T>(
   options: Readonly<{ history?: UrlHistory; clearKeys?: readonly string[] }> = {},
 ): readonly [T, (value: T, history?: UrlHistory) => void] {
   const location = useSyncExternalStore(subscribe, browserLocation, () => '/');
-  const currentUrl = useMemo(() => new URL(location, 'http://citeladder.local'), [location]);
+  const currentUrl = useMemo(() => new URL(location, 'https://citeladder.local'), [location]);
   const value = useMemo(
     () => codec.parse(currentUrl.searchParams.get(key)),
     [codec, currentUrl.searchParams, key],
