@@ -95,7 +95,7 @@ jobs:
       - name: Export OpenAPI contract
         run: .venv/bin/python -m scripts.export_openapi --output .artifacts/openapi.json
       - name: Publish OpenAPI contract
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: backend-openapi
           path: backend/.artifacts/openapi.json
@@ -143,7 +143,7 @@ jobs:
       - name: Vitest with measured coverage
         run: pnpm test:coverage
       - name: Publish frontend coverage
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: frontend-coverage
@@ -221,7 +221,7 @@ jobs:
         run: ./node_modules/.bin/playwright install --with-deps chromium
       - name: Playwright
         run: pnpm test:e2e
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
