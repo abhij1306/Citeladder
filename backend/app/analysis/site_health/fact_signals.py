@@ -137,20 +137,37 @@ def _editorial_lead(region: Any, container_ids: set[int]) -> str:
         if scanned > taxonomy.REGION_MAX_CONTAINERS_SCANNED:
             break
         tag = str(getattr(node, "tag", "") or "").lower()
-        if tag in {"h1", "h2"} and _page_owned_node(node, region, container_ids):
-            seen_identity = True
+        if tag in {"h1", "h2", "h3", "h4", "h5", "h6"} and _page_owned_node(
+            node, region, container_ids
+        ):
+            if seen_identity:
+                return ""
+            seen_identity = tag in {"h1", "h2"}
             continue
-        if tag != "p" or not seen_identity:
-            continue
-        if not _page_owned_node(node, region, container_ids):
-            continue
-        if _is_metadata_or_cta(node):
-            continue
-        text = " ".join(_text(node).split())
-        if len(text.split()) < 5:
-            continue
-        return text[: config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS]
+        candidate = _editorial_lead_candidate(
+            node, region, container_ids, seen_identity=seen_identity
+        )
+        if candidate:
+            return candidate
     return ""
+
+
+def _editorial_lead_candidate(
+    node: Any,
+    region: Any,
+    container_ids: set[int],
+    *,
+    seen_identity: bool,
+) -> str:
+    tag = str(getattr(node, "tag", "") or "").lower()
+    if tag != "p" or not seen_identity:
+        return ""
+    if not _page_owned_node(node, region, container_ids) or _is_metadata_or_cta(node):
+        return ""
+    text = " ".join(_text(node).split())
+    if len(text.split()) < 5:
+        return ""
+    return text[: config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS]
 
 
 def _direct_answer(region: Any, container_ids: set[int]) -> str:
@@ -204,8 +221,8 @@ def _answer_from_siblings(region: Any, heading: Any, container_ids: set[int]) ->
     except DOM_ERRORS as exc:
         dom_failure("_associated_answer", exc)
         return ""
-    for sibling in siblings:
-        if _is_answer_boundary(sibling):
+    for hops, sibling in enumerate(siblings, start=1):
+        if hops > ANSWER_FIRST_MAX_HOPS or _is_answer_boundary(sibling):
             break
         candidate = _answer_candidate(sibling, region, container_ids)
         if candidate:
@@ -243,6 +260,9 @@ def _is_answer_boundary(node: Any) -> bool:
         "h1",
         "h2",
         "h3",
+        "h4",
+        "h5",
+        "h6",
         "dt",
     }
 
@@ -364,25 +384,18 @@ def _bounded_action_path(href: str) -> str:
 
 
 def _page_owned_node(node: Any, region: Any, container_ids: set[int]) -> bool:
-    if not node_outside_containers(node, container_ids):
+    if not node_outside_containers(node, container_ids) or not region_node_is_visible(
+        node
+    ):
         return False
-    region_tag = str(getattr(region, "tag", "") or "").lower()
-    if region_tag not in {"main", "article"}:
-        return region_node_is_visible(node)
     current = node
     for _depth in range(taxonomy.REGION_MAX_ANCESTOR_DEPTH):
         if current is region:
             return True
         try:
-            tag = str(getattr(current, "tag", "") or "").lower()
-            role = str(current.get("role") or "").strip().casefold()
             current = current.getparent()
         except DOM_ERRORS as exc:
             dom_failure("_page_owned_node", exc)
-            return False
-        if tag in {"aside", "footer", "nav"}:
-            return False
-        if role in {"complementary", "contentinfo", "navigation"}:
             return False
         if current is None:
             return False
@@ -407,14 +420,15 @@ def _has_explicit_cta_marker(node: Any) -> bool:
 
 
 def _is_metadata_copy(text: str) -> bool:
-    return (
-        re.fullmatch(
-            r"(?:by\s+.+|(?:published|updated)\s+.+|\w+\s+\d{1,2},\s+\d{4})",
-            text,
-            re.IGNORECASE,
+    normalized = text.casefold()
+    if normalized.startswith("by "):
+        name = text[3:].strip()
+        return 2 <= len(name) <= 60 and not any(
+            character.isdigit() or character in ".,;" for character in name
         )
-        is not None
-    )
+    if normalized.startswith(("published ", "updated ")):
+        return True
+    return re.fullmatch(r"\w+\s+\d{1,2},\s+\d{4}", text) is not None
 
 
 def _has_metadata_ancestor(node: Any) -> bool:

@@ -1,20 +1,24 @@
 # Site Health measurement reliability — PR4
 
-> **Status:** approved follow-up plan; implementation not started.
+> **Status:** implementation and local acceptance complete. Repository gates,
+> disposable-database migration verification, deterministic calibration, and
+> browser acceptance have been observed. Live Searchable and Flourist crawls
+> remain an external release prerequisite because this repository contains no
+> runnable live-crawl recipe or provider data for those sites.
 >
-> **Dependency:** begin only after PR3 in
-> [`site-health-measurement-cutover.md`](site-health-measurement-cutover.md)
-> merges and its repository gates, disposable-database bootstrap, and visual
-> acceptance complete.
+> **Dependency:** implemented after the PR1–PR3 cutover in
+> [`site-health-measurement-cutover.md`](site-health-measurement-cutover.md).
+> PR4 is not live-calibrated or releasable until the two named live crawls are
+> actually observed; offline labelled cases are not a substitute.
 >
 > **Delivery shape:** one atomic PR with four dependency-ordered internal slices.
 > The slices are implementation checkpoints, not independently shippable
 > contracts or partially enabled runtime modes.
 
-[`../site-health.md`](../site-health.md) remains the authority for shipped Site
-Health behavior. This plan owns the approved post-PR3 reliability cutover. When
-PR4 ships, update that runtime authority atomically and remove superseded
-classifier, rule, scoring, projection, UI, test, and documentation paths.
+[`../site-health.md`](../site-health.md) is the authority for the implemented
+Site Health runtime. This plan records the PR4 reliability contract and its
+remaining completion gates; it is not a second runtime scorer, projection, or
+presentation authority.
 
 The repository-wide rules in [`../../AGENTS.md`](../../AGENTS.md) and
 [`../invariants.md`](../invariants.md) apply. Backend ownership remains the
@@ -25,16 +29,16 @@ single page-understanding seam described in
 
 ## Decision
 
-PR3 establishes the seven-dimension measurement and presentation contract. PR4
-does not replace that contract with Topical Authority, Information Gain, or a
-new Site Health model. It repairs the trust defects exposed by live post-PR3
-crawls:
+PR3 established the seven-dimension measurement and presentation contract. The
+implemented PR4 cutover retains it rather than introducing Topical Authority,
+Information Gain, or a new Site Health model. Its code addresses the trust
+defects exposed by live post-PR3 crawls:
 
-1. page-kind evidence can produce false listings and excessive abstention;
-2. overloaded or page-wide facts can evaluate the wrong content;
-3. rule count can manufacture capability influence;
-4. AEO measurement coverage does not disclose unresolved page purpose; and
-5. `other` pages can display a page-purpose AEO scalar despite classification
+1. page-kind evidence produced false listings and excessive abstention;
+2. overloaded or page-wide facts evaluated the wrong content;
+3. rule count manufactured capability influence;
+4. AEO measurement coverage did not disclose unresolved page purpose; and
+5. `other` pages displayed a page-purpose AEO scalar despite classification
    abstention.
 
 The seven dimensions remain **Answerability**, **Structure**, **Evidence**,
@@ -84,14 +88,14 @@ Searchable exposed the reliability failures:
 - all 11 `category` assignments were inconsistent with the observed page
   purpose: six article details, two documentation pages, two feature pages, and
   one solutions page;
-- 40 of 55 classified articles failed `aeo.editorial_lead_present`, frequently
-  because the extracted lead was author metadata;
+- editorial lead checks frequently read publication metadata instead of the
+  first substantive page-owned paragraph;
 - AEO heading evidence mixed page-owned headings with navigation, footer, and
   repeated-module headings;
-- all 79 editorial-kind observations satisfied `aeo.outbound_citations`
-  because any non-social external domain counted as support; and
-- 81 `other` pages reported AEO 99.6 at 100% measurement coverage even though
-  the UI described their AEO score as not measured.
+- generic non-social external links could earn source-support credit without a
+  deterministic source relationship; and
+- `other` pages reported numeric AEO readiness even though the UI described
+  their page-purpose measurement as unresolved.
 
 These are calibration observations, not target score distributions.
 
@@ -317,10 +321,10 @@ present, the guard adds no separate credit and activates
 `schema_required_valid=1/2`, `schema_matches_content=1/3`, and
 `schema_recommended_present=1/6`.
 
-`aeo.source_support_present` and `aeo.visible_attribution` are clean-cutover
-names. `aeo.outbound_citations` and `aeo.author_present` do not survive as
-aliases. A profile gap cannot add a placeholder checkpoint to manufacture
-coverage.
+The active source-support and visible-attribution checkpoint names are
+clean-cutover contracts. Generic outbound-link and metadata-authorship proxies
+do not survive as aliases, and a profile gap cannot add a placeholder
+checkpoint to manufacture coverage.
 
 #### Page-kind macro scoring
 
@@ -464,7 +468,7 @@ article evidence is stronger.
 
 ### Page-owned editorial and heading facts
 
-Replace the overloaded `first_answer_text` use with separate facts:
+Replace the overloaded shared lead/answer fact with separate facts:
 
 - `editorial_lead`: first substantive page-owned paragraph after identity and
   publication metadata, excluding byline, date, breadcrumb, badge, card, and CTA
@@ -547,7 +551,7 @@ reason; no weak evaluator is added merely to improve coverage.
 
 ### Deterministic source support
 
-Retire the generic `aeo.outbound_citations` scored contract. A supporting source
+The generic outbound-link scored proxy is retired. A supporting source
 is observed only when an external reference appears inside primary content and
 at least one bounded deterministic relationship holds:
 
@@ -602,13 +606,13 @@ outcome.
   collection, comparison, case-study/review, guide, or policy representation.
 - Keep schema absence a modest advisory. Present malformed or contradictory
   markup remains a defect.
-- Remove `aeo.no_expand_gating` from the catalog: server-present collapsed text
-  is extractable and the current signal does not prove interaction-only content.
-- Keep `aeo.server_rendered_content` diagnostic and remove every score role.
+- Remove the expand-gating proxy from the catalog: server-present collapsed text
+  is extractable and the old signal did not prove interaction-only content.
+- Keep server-rendered-content evidence diagnostic and remove every score role.
   Do not rename it into a scored extractability capability. A future evaluator
   requires deterministic healthy and failed evidence.
-- Correct `aeo.editorial_lead_present`, entity proposition, and AEO heading
-  hierarchy to consume the slice-1 page-owned facts.
+- Correct editorial lead, entity proposition, and AEO heading hierarchy to
+  consume the page-owned facts.
 
 ### Page-purpose profile depth
 
@@ -767,8 +771,8 @@ Readiness**, but the classification and measurement coverage lines remain
 visible. Incomplete crawl coverage adds an equally visible **audited pages**
 qualifier and crawl-coverage line.
 
-- `other` rows render **Not measured — page purpose unresolved** rather than a
-  numeric AEO score or generic `WebPage` readiness.
+- `other` rows render **Not measured** rather than a numeric AEO score, generic
+  `WebPage` readiness, or appended internal classification reason.
 - Any present score renders its measurement state and coverage together; a
   limited-evidence number is never visually unqualified.
 - Overview, AEO, exports, and summaries use **readiness of classified audited
@@ -834,6 +838,28 @@ The acceptance record reports:
 
 There is no required score direction or preferred distribution.
 
+#### Observed local calibration — 2026-08-30
+
+- The offline classifier corpus contains 35 labelled pages: 27 classified
+  cases and 8 deliberate abstentions. All 8 abstentions remained `other`.
+- Sanitized labelled coverage includes 14 Searchable cases and 3 Flourist
+  cases. These are offline fixtures, not live crawl results.
+- Per-kind precision and recall were `1.0` for every represented kind; the
+  confusion matrix was an identity matrix. Fixture support was:
+  `about_contact=1`, `article=8`, `case_study_review=1`, `category=3`,
+  `comparison=1`, `docs=1`, `faq=1`, `guide=1`, `homepage=2`, `local=1`,
+  `other=8`, `pricing=1`, `product=2`, `service=3`, and `trust_policy=1`.
+- The 25 mutation-invariant scoring tests passed. A fresh disposable database
+  upgraded from `0001_initial` and `alembic check` reported no drift.
+- Repository static gates, selected backend/frontend/E2E tests, and browser
+  checks of Overview plus AEO Readiness passed. The browser observed the
+  qualified partial-classification headline, adjacent classification coverage,
+  no standalone classification-completeness box in the Website tabs, and all
+  seven named dimensions.
+- No live Searchable or Flourist crawl coverage, score, checkpoint
+  distribution, or reason-code distribution was observed. None is inferred or
+  recorded here.
+
 The deterministic scorer suite includes these mutation invariants:
 
 ```text
@@ -876,7 +902,6 @@ PR4 records but does not implement:
 - body-digest duplicate collapse;
 - advanced page-equivalence handling;
 - cluster- and graph-scoped AEO families;
-- separate unavailable and conflicting outcome states; and
 - additional evaluators for profile rows that remain measurement gaps.
 
 These require separate observed evidence and an explicit successor decision.
@@ -900,18 +925,17 @@ groups above. Before implementation, inventory all affected:
 At cutover:
 
 - delete replaced facts and their callers;
-- delete `aeo.outbound_citations` and `aeo.no_expand_gating` rather than retain
-  aliases;
-- delete `aeo.author_present` when `aeo.visible_attribution` replaces its
-  contract rather than retain an alias;
-- remove the AEO score role from `aeo.server_rendered_content` everywhere;
+- delete the generic outbound-link, metadata-authorship, and expand-gating
+  proxies rather than retain aliases;
+- keep server-rendered-content evidence diagnostic and remove its AEO score role
+  everywhere;
 - delete rule-level scoring paths superseded by family normalization;
 - remove read-time or UI-derived classification ratios;
 - remove old DTO fields rather than dual-write compatibility shapes; and
 - update every active authority in the same change.
 
-The final search for retired names must find only an explicit historical note in
-this plan’s calibration/removal record when needed for auditability.
+The final search for retired names must find no active evaluator, issue,
+handoff, API, UI, fixture, or documentation caller.
 
 ## Implementation verification
 
@@ -935,7 +959,3 @@ The PR is complete only when:
   this successor; and
 - no compatibility scorer, duplicate profile map, second projection owner, or
   superseded rule/fact/UI path remains.
-
-## Calibration record
-
-Pending PR4 implementation. Do not add speculative results.

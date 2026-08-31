@@ -450,6 +450,25 @@ def _measured_row() -> FamilyProfileRow:
     )
 
 
+def _move_checkpoint_to_another_family(
+    rows: tuple[FamilyProfileRow, ...],
+) -> tuple[FamilyProfileRow, ...]:
+    target = next(
+        row
+        for row in CLASSIFIED_KIND_FAMILY_PROFILE
+        if row.status == _MEASURED and row.family_id != "semantic_structure"
+    )
+    return tuple(
+        replace(
+            row,
+            checkpoints=(CheckpointExpression("aeo.heading_hierarchy", 1.0),),
+        )
+        if row is target
+        else row
+        for row in rows
+    )
+
+
 def _validate(
     rows: tuple[FamilyProfileRow, ...],
     families: tuple[CapabilityFamily, ...] = CAPABILITY_FAMILY_MANIFEST,
@@ -491,21 +510,7 @@ def _validate(
             replace(row, checkpoints=()) if row is _measured_row() else row
             for row in rows
         ),
-        lambda rows: tuple(
-            replace(
-                row,
-                checkpoints=(CheckpointExpression("aeo.heading_hierarchy", 1.0),),
-            )
-            if row
-            is next(
-                candidate
-                for candidate in CLASSIFIED_KIND_FAMILY_PROFILE
-                if candidate.status == _MEASURED
-                and candidate.family_id != "semantic_structure"
-            )
-            else row
-            for row in rows
-        ),
+        _move_checkpoint_to_another_family,
     ),
     ids=(
         "omitted-base-family",

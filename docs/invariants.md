@@ -13,10 +13,12 @@ store, prompt resource, content queue, or memory store.
 
 ## 2. Product policy is configuration
 
-Thresholds, transports, limits, schemas, page kinds, classifier signals, rule
+Thresholds, transports, limits, schemas, page kinds, classifier signals,
+capability families, family budgets, trait-conditioned profiles, rule
 applicability, context budgets, models, and templates live under
 `backend/app/core/config/*` or the owning frontend config. Services and workers
-do not embed alternate policy.
+do not embed alternate policy. AEO has exactly 11 config-owned families; rule
+count and page-kind cohort size cannot manufacture score influence.
 
 ## 3. Workspace authorization is mandatory
 
@@ -41,8 +43,19 @@ development database instead of preserving cross-version history.
 
 ## 6. Reads are persisted projections
 
-Read endpoints never crawl, sync, classify, call a model/provider, or silently
-repair state. Missing evidence stays missing.
+Read endpoints never crawl, sync, classify, score, call a model/provider, or
+silently repair state. Missing evidence stays missing.
+
+Site Health has one active score-summary projection and one immutable terminal
+snapshot projection, both written by the same aggregation owner. Classification
+coverage, AEO measurement coverage, and crawl coverage are distinct persisted
+facts with exact provenance; clients never derive or substitute one for another.
+
+Measurement comparison requires compatible persisted classification and scored
+page-kind composition provenance. A changed kind set or count by kind remains
+comparable only with the bounded composition-change reason and both
+compositions; missing projection or incompatible scope/version is
+non-comparable.
 
 ## 7. Unknown states remain distinct
 
@@ -53,12 +66,25 @@ Never collapse them into zero, false, current, neutral, or pass.
 ## 8. Page kind drives page-specific analysis
 
 `page_kind` is a stable structural classification. Structured data is only one
-signal and cannot self-certify the type whose schema contract is being checked.
+signal and cannot self-certify the type whose primary-entity schema contract is
+being checked.
 
-`other` is classification abstention, not an inferred `WebPage`. Page-kind
-rules fail closed for it. Content-reading rules also remain not-applicable when
-the server response is a JS shell; the rendering rule owns that observable
-failure.
+Successful acquisition durably records `classification_expected` for selected,
+non-excluded supported HTML before page-understanding work begins. Terminal
+`other` and post-assignment page-understanding failure remain separate counts
+under the same denominator.
+
+`other` is classification abstention, not an inferred `WebPage`. It retains
+universal technical evidence but has null page-purpose AEO score and coverage,
+state `not_measured`, and reason `page_purpose_unresolved`. Classified page
+profiles enumerate every capability family as `measured`, `measurement_gap`, or
+`not_applicable`; omission never implies N/A.
+
+AEO checkpoint outcomes are exactly `satisfied`, `partial`, `missing`,
+`unknown`, `not_applicable`, or `error`. Unavailable, ambiguous, and conflicting
+evidence remain bounded reasons under `unknown`, not additional AEO outcomes.
+Content-reading expectations on a JS shell preserve this distinction while the
+rendering diagnostic owns the observable delivery limitation.
 
 ## 9. Deterministic code owns measurable facts
 

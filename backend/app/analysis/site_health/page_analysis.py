@@ -9,7 +9,7 @@ from app.analysis.site_health.page_kinds import PageKindAssessment, classify
 from app.analysis.site_health.page_traits import derive_traits
 from app.analysis.site_health.rules import (
     RuleEvaluation,
-    evaluate_rule,
+    evaluate_rules,
     measurement_context,
 )
 from app.analysis.site_health.scoring import AnalysisScores, score_analysis
@@ -52,9 +52,14 @@ def analyze_page(
     if site_facts is not None:
         evaluation_facts["site"] = site_facts
     evaluations = tuple(
-        evaluate_rule(rule, evaluation_facts)
-        for rule in SITE_HEALTH_RULES
-        if rule.applicability_key != APPLICABILITY_CRAWL_FINALIZE
+        evaluate_rules(
+            evaluation_facts,
+            (
+                rule
+                for rule in SITE_HEALTH_RULES
+                if rule.applicability_key != APPLICABILITY_CRAWL_FINALIZE
+            ),
+        )
     )
     scores = score_analysis(
         list(evaluations),

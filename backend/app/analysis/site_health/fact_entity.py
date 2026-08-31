@@ -33,6 +33,8 @@ from app.core.config import site_health_taxonomy as _config
 
 _PRICE_RE: Final = re.compile(_config.PAGE_KIND_PRICE_PATTERN, re.IGNORECASE)
 _RESULT_COUNT_RE: Final = re.compile(_config.RESULT_COUNT_PATTERN, re.IGNORECASE)
+_WORD_RE: Final = re.compile(r"[a-z0-9]+")
+_NON_TOKEN_RE: Final = re.compile(r"[^a-z0-9-]+")
 
 _HOURS_XPATH: Final = (
     ".//*[@itemprop='openingHours']|.//*[@itemprop='openingHoursSpecification']"
@@ -157,7 +159,7 @@ def _has_product_detail_heading(region: Any, container_ids: set[int]) -> bool:
     for node in _find(region, ".//h2"):
         if not node_outside_containers(node, container_ids):
             continue
-        normalized = " ".join(re.findall(r"[a-z0-9]+", _text(node).lower()))
+        normalized = " ".join(_WORD_RE.findall(_text(node).lower()))
         if normalized in _config.PRODUCT_DETAIL_HEADING_PHRASES:
             return True
     return False
@@ -204,7 +206,7 @@ def _is_explicit_list_container(node: Any) -> bool:
         return True
     if tag not in {"div", "ol", "section", "ul"}:
         return False
-    tokens = set(re.findall(r"[a-z0-9]+", identity))
+    tokens = set(_WORD_RE.findall(identity))
     return bool(tokens & {"catalog", "grid", "items", "list", "products", "results"})
 
 
@@ -560,14 +562,31 @@ def _is_pagination(node: Any, blob: str) -> bool:
 
 
 def _is_empty_state(node: Any, blob: str) -> bool:
-    text = " ".join(_text(node).casefold().split())
-    return _has_blob_token(blob, _EMPTY_STATE_TOKENS) or bool(
-        re.fullmatch(
-            r"(?:0\s+(?:results?|items?|products?)|"
-            r"no\s+(?:results?|items?|products?)"
-            r"(?:\s+(?:found|available))?|nothing\s+found)[.!]?",
-            text,
-        )
+    text = " ".join(_text(node).casefold().split()).rstrip(".!")
+    words = text.split()
+    counted_empty = len(words) == 2 and words[0] == "0" and words[1] in {
+        "result",
+        "results",
+        "item",
+        "items",
+        "product",
+        "products",
+    }
+    no_items = len(words) in {2, 3} and words[0] == "no" and words[1] in {
+        "result",
+        "results",
+        "item",
+        "items",
+        "product",
+        "products",
+    }
+    if len(words) == 3 and words[2] not in {"available", "found"}:
+        no_items = False
+    return (
+        _has_blob_token(blob, _EMPTY_STATE_TOKENS)
+        or counted_empty
+        or no_items
+        or words == ["nothing", "found"]
     )
 
 
@@ -585,8 +604,10 @@ def _has_blob_token(blob: str, tokens: frozenset[str]) -> bool:
 
 def _normalized_tokens(value: str) -> set[str]:
     normalized = value.casefold()
-    tokens = set(re.findall(r"[a-z0-9]+", normalized))
-    tokens.update(re.findall(r"[a-z0-9]+-[a-z0-9]+", normalized))
+    tokens = set(_WORD_RE.findall(normalized))
+    tokens.update(
+        chunk for chunk in _NON_TOKEN_RE.split(normalized) if "-" in chunk
+    )
     return tokens
 
 

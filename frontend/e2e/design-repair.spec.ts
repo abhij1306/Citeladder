@@ -482,6 +482,7 @@ test('Site Health keeps its single crawl action and URLs above diagnostics', asy
             aeo_readiness_score: null,
             aeo_measurement_coverage: null,
             aeo_measurement_state: 'not_measured',
+            aeo_measurement_reason: '',
             main_content_indexable: null,
             last_audited: null,
             page_kind: 'homepage',

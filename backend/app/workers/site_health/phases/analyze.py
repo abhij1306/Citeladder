@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.analysis.site_health.parser import extract_page_facts
 from app.connectors.web_evidence.fetcher import FetchError, FetchRequest
 from app.core.config.site_health_acquisition import (
+    CLASSIFICATION_BODYLESS_STATUS_CODES,
     ERROR_BOT_BLOCKED,
     FETCH_PURPOSE_ANALYZE,
 )
@@ -78,7 +79,12 @@ async def _mark_classification_expected(
 ) -> bool:
     """Commit the supported-HTML classification cohort before parsing."""
     async with ctx.session_factory() as session:
-        task = await session.get(SiteCrawlTask, task_id)
+        task = await session.get(
+            SiteCrawlTask,
+            task_id,
+            populate_existing=True,
+            with_for_update=True,
+        )
         if task is None or not lease_is_owned(task, owner=ctx.owner):
             await session.rollback()
             return False
@@ -393,7 +399,8 @@ async def _fetch_analyze(
             status_code=status,
             attempts=result.attempts,
         )
-    await _mark_classification_expected(ctx, task_id=task_id)
+    if status not in CLASSIFICATION_BODYLESS_STATUS_CODES:
+        await _mark_classification_expected(ctx, task_id=task_id)
 
     facts = extract_page_facts(
         result.body,

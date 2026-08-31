@@ -305,72 +305,83 @@ never thinned by unfinished URLs that happen to sort earlier.
 
 `GET /api/v1/projects/{project_id}/site-health/aeo-readiness` is a read-only
 presentation projection frozen in the immutable selected-crawl snapshot. The
-snapshot stores its score, coverage, state, ordered dimensions, checkpoint
-counts, bounded page evidence, limitations, versions, and exact source-analysis
-IDs together. Optional `crawl_id` selects one usable terminal crawl; omission
-selects the latest. The main read never reopens current analyses or evaluations,
-so later current-row changes cannot rewrite historical diagnostics. Raw rows
-remain available only to re-authorize the bounded per-page Content handoff.
-Reads never analyze, enqueue, repair, or call a provider.
+snapshot stores its score, coverage, state, ordered dimensions, family and
+checkpoint counts, bounded page evidence, limitations, versions, classification
+projection, scored-kind composition, and exact source provenance together.
+Optional `crawl_id` selects one usable terminal crawl; omission selects the
+latest. The main read never reopens current analyses or evaluations, so later
+current-row changes cannot rewrite historical diagnostics. Raw rows remain
+available only to re-authorize the bounded per-page Content handoff. Reads never
+analyze, enqueue, repair, or call a provider.
 
-The version-`1` PR2 measurement manifest maps only defensible score-applicable
+The version-`1` PR4 measurement manifest maps only defensible score-applicable
 checkpoints into seven ordered dimensions: **Answerability**, **Structure**,
 **Evidence**, **Machine readability**, **Provenance & trust signals**,
 **Freshness**, and **Crawlability**. The stable machine key for Provenance &
 trust signals remains `authority`.
 
-Each dimension is frozen in page terms, not evaluation terms: applicability,
-measurement state, score, coverage, expected and determinate points, explicit
-uncertainty counts, catalog guidance, and a bounded set of failing pages. The
-bound always travels with the true failing-page total. Request-time reads use
-the snapshot projection only; they never calculate or repair measurement.
+Each dimension is frozen in capability-family terms: applicability, measurement
+state, family-normalized score and coverage, expected and determinate weight,
+six-outcome checkpoint counts, catalog guidance, and a bounded set of failing
+pages. The bound always travels with the true failing-page total. Request-time
+reads use the snapshot projection only; they never calculate or repair
+measurement.
 
 ## Overview presentation
 
 Overview has one live-data subscription: the screen's polling dashboard. Its
-four metric cards stay mounted and read `score_summary` while the crawl is
-active, so values update in place; once the crawl is terminal they switch to
-the immutable Overview snapshot. Overview creates no second polling timer.
-Workers refresh the active summary only after successfully persisted analyses,
-using the same scope-normalized aggregation owner as terminal snapshotting.
-Reads never derive it, and a replayed terminalization cannot overwrite either
-the immutable snapshot or its equivalent terminal summary.
+mounted metrics read the persisted `SiteCrawl.score_summary` while a crawl is
+active and switch to the immutable terminal snapshot after terminalization.
+Both projections are written by the same aggregation owner; reads never derive,
+repair, or reconcile either projection.
+
+Overview presents four distinct facts: AEO Readiness is quality for classified
+audited pages, AEO Measurement Coverage is determinate expected evidence for
+that classified cohort, Classification Coverage is the classified share of
+classification-expected supported HTML, and Crawl Coverage describes the
+selected discovery/acquisition/analysis boundary. Classification, AEO
+measurement, and crawl coverage are separate persisted projections and never
+substitute for or multiply one another.
+
+When classification is incomplete, the score title is **Readiness of classified
+audited pages** and the classification and measurement coverage lines remain
+adjacent and visible above the fold. Incomplete crawl coverage adds its own
+audited-pages qualifier and crawl-coverage line. A present score always renders
+with its measurement state and coverage. A page whose kind is `other` renders
+**Not measured** with a null AEO score and coverage, never a generic `WebPage`
+result or an appended internal classification reason.
 
 Web Fundamentals and AEO Readiness render a non-null score in `measured` and
-`limited_evidence` states. When no measurable evidence exists, including a
-`not_measured` page, the score/`overall_readiness` is null and the UI renders the
-explicit state rather than manufacturing a zero or 100. Coverage and confidence
-remain subordinate metadata beside a present score. The seven AEO rows render
-the persisted label and description, score when present, animated score bar,
-and coverage. A page-level row measured at site scope names that reason rather
-than rendering an unexplained dash.
+`limited_evidence` states. When no measurable expected evidence exists, the
+score/`overall_readiness` is null and the UI renders the explicit state rather
+than manufacturing zero or 100. The seven AEO rows render the persisted label,
+description, family-normalized score, coverage, and bounded evidence. A
+site-scoped family is labelled as site evidence rather than inherited into a
+page score.
 
-The snapshot retains ten ranked issues; the Overview projection returns the
-first five. Its four metric-card counts are frozen separately: Web Fundamentals
-counts include defect findings with the `web_fundamentals` score role, while
-AEO gap counts include readiness-role findings. Site-scoped evidence never fabricates an
-affected page. Defect impact is config-owned severity; advisory impact is its
-config-owned readiness dimension and checkpoint weight, never borrowed
-severity. Rows expose impact, issue, type, affected pages, and effect, and link
-to the URL-backed Issues filter as `/issues?rule=<rule_id>`. The Issues
-route also round-trips its server-backed search, dimension/severity, finding
-class, page-kind, and cursor state through the URL, preserves unrelated query
-parameters, and drops a filter-bound cursor when a filter changes.
+The snapshot retains ten ranked issues; Overview returns the first five. Its
+metric counts are frozen separately: Web Fundamentals counts include defect
+findings with the `web_fundamentals` score role, while AEO gap counts include
+readiness-role findings. Site-scoped evidence never fabricates an affected
+page. Overview maps every persisted impact band to **High**, **Medium**, or
+**Low**. Advisory bands are derived from the persisted readiness dimension and
+family budget, never borrowed severity, but the dimension itself is not shown
+as the impact label. Rows link to the URL-backed Issues filter as
+`/issues?rule=<rule_id>`.
 
 Web Fundamentals renders its four persisted areas—Accessibility, Mobile,
 Security, and Lab—with independent states and retains the evidence drawer.
 Trend is a bounded series of at most 12 version-compatible terminal snapshots;
 without a comparable predecessor it remains unavailable. Change summary
-renders the four persisted deltas for Web Fundamentals score and coverage
-and AEO Readiness score and coverage, each with explicit direction.
+renders persisted directional deltas and their comparability reason.
 
 ## Shipped measurement contract
 
-This section is the canonical logic for the active PR2 measurement contract.
-The three-PR implementation sequence lives in
-[`plans/site-health-measurement-cutover.md`](plans/site-health-measurement-cutover.md).
-This file owns measurement meaning and formulas; the plan owns delivery order
-and acceptance.
+This section is the canonical logic for the active PR4 measurement contract.
+The reliability implementation contract and remaining completion gates live in
+[`plans/site-health-measurement-reliability-pr4.md`](plans/site-health-measurement-reliability-pr4.md);
+the PR1–PR3 cutover plan is a historical delivery record. This file owns shipped
+measurement meaning and formulas.
 
 **Development reset policy.** CiteLadder is pre-launch and does not preserve
 development database history. Schema changes are folded into
@@ -442,8 +453,9 @@ Overview reads the persisted snapshot projection and never derives eligibility
 at request time.
 
 For the selected intended-public cohort, any determinate critical contradiction
-makes the aggregate `blocked`. With no blocker, any expected critical checkpoint
-that is unknown, unavailable, conflicting, or errored makes it `unknown`.
+makes the aggregate `blocked`. With no blocker, an expected critical checkpoint
+whose outcome is `unknown` or `error` makes the gate `unknown`; unavailable,
+ambiguous, and conflicting evidence remain bounded reasons under `unknown`.
 `eligible` requires every expected critical checkpoint to be determinate with no
 blocker. `excluded` requires the declared audit intent to exclude the entire
 selected cohort. Counts and reason groups remain visible beside the headline.
@@ -545,368 +557,196 @@ only from page-owned structural evidence or an independently observed trait.
 | `comparison` | At least two named alternatives; common criteria correctly associated with them; evidence/basis for factual comparisons; conclusion or decision guidance | Table, methodology, measurements, alternatives, Article/ItemList vocabulary. Comparative truth remains unknown without verification. |
 | `case_study_review` | Trait-split: case study requires subject/context, problem, intervention/action, and observed result; review requires reviewed item, evaluator, evaluation basis, benefits/drawbacks, and verdict | Article/Review markup, quantitative evidence, firsthand media. Result truth and review authenticity are unknown. |
 | `trust_policy` | Document/policy identity, responsible organization, scope/audience, operative content, and effective/revised date when state matters; relevant request/appeal/contact path | `WebPage`/`DigitalDocument`, publishing principles. Legal adequacy and jurisdictional compliance are not crawl checks. |
-| `other` | Universal eligibility, technical, and Web Fundamentals checks only | Universal AEO capabilities may be measured when evidence sufficiency is met, but no page-purpose profile or generic `WebPage` verdict is inferred. Unresolved purpose remains a visible limitation. |
+| `other` | Universal eligibility, technical, and diagnostic checks only | Page-purpose AEO is `not_measured` with null score/coverage and reason `page_purpose_unresolved`; no family profile or generic `WebPage` verdict is inferred. |
 
 FAQ, review, procedural, listing, local, contact, about, variant, and comparison
 overlays follow observed traits rather than multiplying the exclusive taxonomy.
 Before expanding those overlays, extraction must distinguish page-owned facts
 from navigation, footer, recommendation, and script noise.
 
-### Target score and coverage formula
+### PR4 family, outcome, score, and coverage contract
 
-Every checkpoint declares a stable ID and development version `1`, scope,
-family, category,
-severity, finding class, zero or more score roles, applicability contract,
-required evidence, page-kind/trait profile, and—when AEO-scored—a readiness
-dimension and positive readiness weight. One observable root condition receives
-one scored checkpoint; diagnostic siblings do not stack points for the same
-capability or remediation.
+The version-`1` measurement configuration owns one executable profile over
+classified `page_kind`, independent trait condition, and capability family.
+Every classified kind enumerates every family as exactly one of:
 
-The initial config-owned checkpoint-family registry is explicit:
+- `measured`, with implemented checkpoint expressions and frozen internal
+  weights;
+- `measurement_gap`, with no checkpoint and a bounded evaluator-gap reason; or
+- `not_applicable`, with no checkpoint and a reason proving semantic
+  irrelevance.
 
-| Family ID | Meaning | Active checkpoints (representative) |
-|---|---|---|
-| `answer_content` | Direct answer or purpose-essential answer content | `aeo.answer_first`, `aeo.editorial_lead_present`, `aeo.entity_value_proposition`, `aeo.product_answer_facts`, `aeo.listing_answer_set` |
-| `semantic_structure` | Recoverable semantic organization and question/answer structure | `aeo.question_headings`, `aeo.heading_hierarchy` |
-| `structured_representation` | Schema applicability, validity, completeness, and visible-content parity | `aeo.schema_expected_for_type`, `aeo.schema_required_valid`, `aeo.schema_recommended_present`, `aeo.schema_matches_content` |
-| `provenance` | Named creator or responsible organization | `aeo.author_present`, `aeo.organization_identity`, `aeo.trust_path_present`, `aeo.product_brand_identity` |
-| `commerce_facts` | Stable product or listing evidence | `aeo.product_evidence_facts`, `aeo.listing_item_facts` |
-| `currency` | Page-kind-specific current-state evidence | `aeo.content_date_present`, `aeo.offer_freshness_signal`, `aeo.assortment_freshness_signal` |
-| `indexability` | Intended-public indexability | `technical.indexable` |
+Omission never implies N/A. Family ownership is the only dimension mapping;
+the profile does not repeat one. The analyzer freezes the resolved profile
+before outcomes, and context decides expectation while evidence decides
+outcome. `other` is classifier abstention outside this matrix: it has no AEO
+family rows and returns `not_measured`, null score and coverage, and
+`page_purpose_unresolved`.
 
-All four schema checkpoints intentionally count as one family. The registry may
-add config-owned families only when genuinely distinct capabilities ship. A
-checkpoint without a declared family cannot satisfy a breadth gate.
+Checkpoint outcomes have exactly six persisted states:
 
-The analyzer constructs and freezes the expected checkpoint profile before any
-evaluation outcome is assigned. `expected_checkpoints(page_kind, page_traits,
-crawl_context)` is its single config-owned authority. `crawl_context` contains
-structural context only; it never contains the title, schema, author, date, or
-other evidence a checkpoint is about to score. Display-only conditional
-guidance remains outside the scored expected profile. An evaluator may not
-remove an expected checkpoint by returning N/A:
+- `satisfied`: complete inspection proves the expectation;
+- `partial`: complete inspection proves the configured partial contract;
+- `missing`: inspectable required evidence is absent or deterministically
+  defective;
+- `unknown`: evidence is insufficient, unavailable, ambiguous, or conflicting;
+- `not_applicable`: independent context proves semantic irrelevance; and
+- `error`: evaluation failed before a semantic result.
 
-- `not_applicable` requires a bounded deterministic reason code proving
-  structural irrelevance, such as `format_has_no_html` or
-  `trait_determinately_absent`;
-- missing or insufficient evidence for an expected checkpoint becomes
-  `unknown` or `unavailable` and lowers coverage; and
-- classification confidence is persisted presentation metadata and never a
-  score or applicability suppressor.
+Bounded `reason_code` preserves diagnostic detail without creating more outcome
+states. A validated defect is `missing` or `partial`; unavailable extraction,
+ambiguous attachment, and conflicting evidence are `unknown` with distinct
+reasons. A profile `measurement_gap` is not a checkpoint outcome.
 
-This ordering is an anti-gaming invariant: **evidence decides outcome; context
-decides applicability.** Expected-set construction is owned by the profile
-function and the readiness role, dimension, family, and weight live on the
-canonical `SiteHealthRule`, not in a parallel checkpoint registry.
+Each scored checkpoint belongs to exactly one of the 11 config-owned capability
+families. Every family has one dimension, one scope, and a fixed budget; family
+budgets within a dimension sum to `1`:
 
-A triggered checkpoint may validate the quality of a present artifact only
-when it declares an absence sibling in the same measurement role and readiness
-dimension. Catalog assembly rejects a missing or cross-dimension sibling.
+| Dimension ID | Capability family | Budget | Scope |
+|---|---|---:|---|
+| `answerability` | `answer_content` | `1` | page |
+| `structure` | `semantic_structure` | `1` | page |
+| `evidence` | `source_support` | `1/2` | page |
+| `evidence` | `commerce_facts` | `1/2` | page |
+| `machine-readability` | `structured_representation` | `1` | page |
+| `authority` | `visible_attribution` | `1/2` | page |
+| `authority` | `site_identity` | `1/2` | site |
+| `freshness` | `currency` | `1` | page |
+| `crawlability` | `indexability` | `1/3` | page |
+| `crawlability` | `snippet_access` | `1/3` | page |
+| `crawlability` | `crawler_access` | `1/3` | site |
 
-Dimension applicability has the same evidentiary bar. The profile registry may
-emit `not_applicable` only when a declared deterministic contract proves that
-the page does not need the capability. A missing checkpoint, evaluator, or
-score-applicability gate never proves irrelevance; when relevance cannot be
-decided, it is applicable but `not_measured` and remains in the coverage
-denominator.
+The complete checkpoint membership is configuration-owned. In particular,
+`source_support` requires a primary-content external reference bound to a
+Sources, References, or Methodology section, a local citation marker, or nearby
+visible attribution; generic outbound links never earn support credit.
+`visible_attribution` separates a visible named creator/responsible publisher
+from schema or metadata attribution, which may receive only explicit partial
+credit. Freshness applicability is established independently by offer,
+assortment, pricing, version, release, current-event, time-bound report, or
+explicit year/version context before date evidence is inspected. Structured-data
+validation binds to primary schema entities and their declared relationships;
+a page-wide type union or generic schema node cannot activate or satisfy a
+purpose-specific contract. Server-present collapsed content is extractable, and
+server-rendering diagnostics do not score.
 
-The target assessment vocabulary is:
+The structured-representation family is guarded. Absent expected schema resolves
+the family through its absence checkpoint. Present schema activates its
+required-validity, visible-content-parity, and recommended-property checks at
+fixed internal weights without adding a second family budget.
 
-- `satisfied`: determinately present/correct;
-- `partial`: determinately present but incomplete under a checkpoint-specific
-  rubric;
-- `missing`: determinately absent/incorrect;
-- `unknown`, `unavailable`, `conflicting`: expected but not determinable from
-  this evidence;
-- `error`: analyzer failure, not a site failure;
-- `not_applicable`: structurally irrelevant;
-- `excluded`: deliberately outside the declared search/audit intent.
-
-The canonical constants use `satisfied` and `missing` directly. The former
-`pass`/`fail` outcome aliases are deleted; they are not a second vocabulary.
-
-Every readiness dimension separately freezes:
+Scoring is family-normalized rather than rule-count normalized:
 
 ```text
-dimension_applicability   = applicable | not_applicable
-dimension_measurement_state = measured | limited_evidence | not_measured
+credit(satisfied) = 1
+credit(partial)   = 0.5
+credit(missing)   = 0
+
+checkpoint outcomes
+  -> family score and coverage per page
+  -> coverage-weighted mean within page kind
+  -> equal macro vote across expected page kinds
+  -> fixed family budgets within each dimension
+  -> fixed dimension weights
+  -> overall AEO Readiness
 ```
 
-`not_measured != not_applicable`. `not_applicable` requires a deterministic
-page-purpose/trait reason proving the page does not need that capability and is
-removed from both score and coverage denominators. When the capability is
-applicable but CiteLadder lacks a trustworthy evaluator,
-`dimension_readiness = null`, `dimension_coverage = 0`, and the state is
-`not_measured`; the dimension remains in the overall coverage denominator but
-not the readiness-score denominator. Uncertain checkpoint evidence is expressed
-by `unknown`, `unavailable`, or `conflicting`, not by a second dimension-level
-relevance state.
+For every weighted set, quality uses only determinate `satisfied`, `partial`,
+and `missing` outcomes; coverage is determinate expected weight divided by total
+expected weight. `unknown` and `error` lower coverage without quality credit or
+penalty. `not_applicable` leaves the expected set. A `measurement_gap` family
+has null quality and zero coverage. A quality result is null when determinate
+weight is zero, and coverage is null when expected weight is zero; rollup never
+coerces null to `0`, `100`, or N/A.
 
-An empty expected-checkpoint set does not decide applicability. The registry
-must freeze one of two explicit outcomes:
+Page-scoped family means are first computed within each expected page kind.
+Every expected kind then receives one equal macro vote, regardless of its page
+count. Adding more pages of a kind can refine that kind's mean but cannot
+increase its cross-kind influence. Site-scoped families are evaluated once and
+enter their dimension directly. Web Fundamentals remains objective-defect
+scoring and does not consume this AEO family formula.
 
-- proven irrelevance -> `not_applicable`, reason
-  `dimension_determinately_irrelevant`;
-- proven relevance but no score-applicable checkpoint in the active manifest ->
-  `applicable` + `not_measured`, zero coverage, reason
-  `no_expected_checkpoint_evaluator`.
-
-These states are distinct from an expected checkpoint that ran but returned
-unknown or unavailable evidence.
-
-The active manifest has one explicit evaluator gap: claim substantiation for
-`homepage`, `about_contact`, `pricing`, `service`, and `local` pages. Evidence
-is semantically relevant on those page kinds, but the parser cannot
-deterministically identify a factual claim, decide whether it requires support,
-or attach support to it. Those five `(page_kind, evidence)` gaps are declared
-as `claim_support_attachment_unavailable` in measurement config and remain
-applicable with zero coverage. They must not be hidden as N/A and the dropped
-`aeo.specific_claims_support` proposal must not be revived with a lexical or
-model proxy.
-
-Page-scoped objective defect observations are binary: `satisfied` or `missing`;
-`partial` is not used to soften one page defect. A cluster/graph entity-set rule
-may persist `partial` when its bounded set contains both healthy and failed
-entities, together with its normalized score and coverage. AEO capability
-checkpoints use discrete, config-owned credit only:
+Aggregate AEO measurement state is:
 
 ```text
-satisfied = 1.0
-partial   = 0.5
-missing   = 0.0
+not_measured      expected weight > 0 and determinate weight == 0
+limited_evidence  0 < determinate weight < expected weight
+measured          determinate weight == expected weight > 0
 ```
 
-Each partial rubric is deterministic and checkpoint-specific. For example, an
-authored article may earn full provenance credit for a named author linked to
-useful provenance, partial credit for a named author alone, and zero for no
-attribution. No model invents continuous quality points.
+No arbitrary classification, sample-size, or determinacy threshold suppresses a
+numeric score. Quality, AEO measurement coverage, classification coverage, and
+crawl coverage remain independent persisted facts.
 
-Scope changes aggregation cardinality, never declared weight. Observations are
-normalized to one rule result before any score role consumes them:
+### Classification coverage and persistence
 
-- `page`: compute score and coverage within each applicable `page_kind`, then
-  macro-roll up page kinds with fixed config-owned weights (equal by default);
-- `site`: evaluate one site entity; repeated copies of the same footer/root
-  evidence are duplicates, not additional weight;
-- `cluster` and `graph`: normalize over the applicable entity set; and
-- entity count determines evidence volume, never rule weight.
-
-Each normalized rule exposes an independent `rule_score` and `rule_coverage`.
-For a page rule, coverage follows the same page-kind macro structure as score.
-There is no minimum-sample gate: every page kind with at least one determinate
-observation participates, while sample size remains confidence metadata.
-Site-scoped evidence never inherits into a page score. A page dimension whose
-only expression is site-scoped is null with reason `measured_at_site_scope`;
-the page UI links to the measured site pillar instead of rendering a bare dash.
-
-Web Fundamentals means objective defects that impair retrieval, resolution,
-canonicalisation, indexing, navigation, or unambiguous machine consumption.
-It consumes scope-normalized checkpoints whose score roles include
-`web_fundamentals`, including the objective Web Fundamentals checks for
-accessible names, document semantics, mobile viewport, and mixed content.
-Search-hygiene guidance such as duplicate titles and descriptions remains an
-evaluation but is not persisted or presented as an issue:
+Successful acquisition records a durable `classification_expected` assignment
+for a selected, non-excluded supported HTML page before parsing, fact
+extraction, classification, or analysis persistence begins. A JS shell remains
+expected and normally terminalizes as `other`. A post-assignment parser, fact,
+classifier, or persistence failure remains separately counted as a
+classification error; it never disappears from the denominator or becomes
+`other`.
 
 ```text
-web_fundamentals_determinate_weight = satisfied_defect_weight + missing_defect_weight
-web_fundamentals =
-    null if web_fundamentals_determinate_weight == 0
-    else 100 * satisfied_defect_weight / web_fundamentals_determinate_weight
-web_fundamentals_coverage =
-    null if expected_web_fundamentals_defect_weight == 0
-    else web_fundamentals_determinate_weight / expected_web_fundamentals_defect_weight
+classification_expected_page_count =
+    classified_page_count
+    + other_page_count
+    + classification_error_page_count
+
+classification_coverage =
+    null when classification_expected_page_count == 0
+    else classified_page_count / classification_expected_page_count
 ```
 
-Analyzer error and unavailable evidence do not make the site objectively
-wrong. They remain expected but non-determinate and lower coverage.
+`classified_page_count` includes only terminal non-`other` classifications.
+`other_page_count` and `classification_error_page_count` are distinct. Failed
+acquisition and supported non-HTML inventory remain outside this denominator
+and are represented by Search eligibility and crawl coverage.
 
-Web Fundamentals has its own presentation state:
+The immutable terminal `SiteHealthSnapshot` freezes the four counts, ratio,
+state, bounded classifier/error reason groups, formula version, exact source
+artifact/execution/analysis IDs, `scored_page_kind_set`, and
+`scored_page_count_by_kind`. The active `SiteCrawl.score_summary` mirrors the
+same result through the same aggregation owner. These are the only terminal and
+active score-summary projections; read APIs never derive, reconcile, or repair
+them.
 
-- `measured`: every critical expected Web Fundamentals checkpoint is determinate and
-  Web Fundamentals coverage meets `TECHNICAL_MEASURED_MIN_COVERAGE`;
-- `limited_evidence`: some Web Fundamentals evidence is determinate but the measured
-  criteria are not met;
-- `not_measured`: no defensible determinate Web Fundamentals measurement exists; and
-- `excluded`: the declared audit intent excludes the page.
+Page, page-kind, crawl summary, snapshot, AEO Readiness, export, trend, and
+change projections consume these persisted values. A comparison lacking the
+classification or scored-cohort projection is `non_comparable`. When the scored
+kind set or count by kind changes, numeric comparison remains available with
+reason `cohort_composition_changed`, added/removed kinds, and prior/current
+counts; the runtime does not invent a quality-versus-composition decomposition.
 
-The active development default is `TECHNICAL_MEASURED_MIN_COVERAGE=0.80`. A
-The Web Fundamentals ratio is serialized and displayed for `measured` and
-`limited_evidence`; it is null for `not_measured` or `excluded`. The state
-appears beside a present ratio as subordinate confidence metadata.
+### Result interpretation
 
-AEO Readiness consumes applicable defect and advisory checkpoints whose score
-roles include `aeo_readiness`. Coverage controls participation weight upward;
-it never changes the quality score of evidence already observed. For each
-dimension:
+Finding class remains independent of score ownership: missing defects may create
+defect issues and Opportunities; missing or partial advisories may create
+readiness gaps but never borrow defect severity or eligibility semantics;
+diagnostics are evidence only. Only checkpoints explicitly assigned to a
+capability family and AEO score role can affect AEO Readiness.
 
-```text
-measured_weight[r] = readiness_weight[r] * rule_coverage[r]
-
-dimension_readiness =
-    null if sum(measured_weight[r]) == 0
-    else 100 * sum(measured_weight[r] * rule_score[r])
-             / sum(measured_weight[r])
-
-dimension_coverage =
-    null if dimension is not_applicable or excluded
-    else sum(measured_weight[r])
-         / sum(readiness_weight[r] for expected rules in the dimension)
-```
-
-Unknown, unavailable, conflicting, and error are deliberately absent from the
-readiness denominator; treating them as zero would collapse missing capability
-and missing evidence. They remain in expected points and therefore lower
-coverage. `not_applicable` and `excluded` leave the expected set entirely.
-
-The overall formulas are fixed explicitly:
-
-```text
-measured_dimension_weight[d] = dimension_weight[d] * dimension_coverage[d]
-
-overall_readiness =
-    null if sum(measured_dimension_weight[d]) == 0
-    else sum(measured_dimension_weight[d] * dimension_readiness[d])
-         / sum(measured_dimension_weight[d])
-
-covered_dimensions = all applicable dimensions
-
-overall_coverage =
-    null if covered_dimensions is empty
-    else sum(measured_dimension_weight[d] for d in covered_dimensions)
-         / sum(dimension_weight[d] for d in covered_dimensions)
-```
-
-An entirely non-determinate applicable dimension contributes no score credit or
-penalty but remains in the coverage denominator. The measurement-state decision
-is made only after both ratios and the breadth requirements are computed.
-Quality determines the displayed score; coverage determines how much that score
-participates above its level. Confidence remains metadata, never a score
-suppressor.
-
-### Deterministic evaluator contracts added by the measurement expansion
-
-Every row below freezes exact parser/persisted inputs, predicate, examples,
-scope, and semantic applicability. Once expected, absent evidence is `missing`
-when the input was available and `unknown` when the crawler could not decide;
-it does not become N/A.
-
-| Rule | Exact evidence inputs | Deterministic predicate and examples | N/A condition | Scope / applicable page kinds |
-|---|---|---|---|---|
-| `aeo.heading_hierarchy` | `accessibility.heading_levels`, `accessibility.heading_level_skips` | satisfied when skips = 0 (H1→H2); missing for H1→H3 | no readable content or `other` | page / every classified kind |
-| `aeo.organization_identity` | `structured_data.blocks[].type|name|url` | satisfied for an `Organization` with non-empty name and URL; missing for name-only markup | no site-root context | site / kinds whose Authority expression is site-owned |
-| `aeo.trust_path_present` | `links.anchors[].url|anchor_text|is_internal` | satisfied for an internal about/contact/privacy/policy/terms path; missing when none exists | no site-root context | site / kinds whose Authority expression is site-owned |
-| `aeo.content_date_present` | `dates.published`, `dates.modified` | satisfied when either date is non-empty; missing when both are empty | non-editorial kind or unreadable content | page / article, guide, docs, comparison, case study/review |
-| `aeo.editorial_lead_present` | `first_answer_text` | satisfied at the config-owned minimum word count; missing below it | non-editorial kind or unreadable content | page / article, guide, docs, comparison, case study/review |
-| `aeo.entity_value_proposition` | `headings.h1_texts`, `first_answer_text`, `page_traits`, `contact_points`, contact-specific `form_fields` tokens | all applicable atoms required: identity plus substantive lead, or identity plus a contact point/contact-specific form path when `contact_intent`; search/newsletter fields do not establish contact; missing when either required atom fails | non-entity kind or unreadable content | page / homepage, about/contact, pricing, service, local |
-| `aeo.product_answer_facts` | `headings.h1_texts`, `structured_data.product.name|price|availability|variants`, `entity.product.has_primary_price|has_variant_control`, `commerce.visible_availability`, `page_traits` | identity, qualified visible-or-schema offer, and availability are required; variant is required only under `has_variants`, whose visible form-label context is independent of the selector/schema evidence that satisfies the atom; required failure = missing, conditional-only failure = partial, all applicable atoms satisfied = satisfied | non-product or unreadable content; the variant atom alone is N/A without `has_variants` | page / product |
-| `aeo.product_evidence_facts` | `structured_data.product.sku|gtin|mpn`, `entity.product.has_sku_marker` | satisfied for any stable identifier; missing for none | non-product or unreadable content | page / product |
-| `aeo.product_brand_identity` | `structured_data.product.brand` | satisfied for a non-empty brand/manufacturer identity; missing when empty | non-product or unreadable content | page / product |
-| `aeo.offer_freshness_signal` | `structured_data.product.price_currency`, `dates.modified|published` | satisfied only when declared currency and a persisted update/publication timestamp are both available; otherwise unknown with bounded reason evidence | non-product or unreadable content | page / product |
-| `aeo.listing_answer_set` | `headings.h1_texts`, `entity.listing.distinct_card_list_targets`, `commerce.product_cards` | collection-purpose and non-empty item-set atoms are both required; both satisfied = satisfied, either failure = missing | non-category or unreadable content | page / category |
-| `aeo.listing_item_facts` | `commerce.product_cards[].title|url`, `entity.listing.distinct_card_list_targets` | satisfied for at least one crawlable named item; missing for an empty/unnamed set | non-category or unreadable content | page / category |
-| `aeo.assortment_freshness_signal` | `dates.modified|published` | satisfied for a persisted update/publication timestamp; otherwise unknown with bounded reason evidence. Item counts remain answer-set evidence, not freshness. | non-category or unreadable content | page / category |
-| `technical.soft_error` | `delivery.status_code`, `title`, `headings.h1_texts` | missing when a status-200 title or H1 contains a bounded error-page phrase (for example “page not found”); body copy is excluded; satisfied for normal 200 content or a real 404 response | non-HTML response | page / HTML pages |
-| `technical.broken_internal_link` | persisted internal `links.anchors[].url|is_internal` plus terminal fetch status | normalized satisfied share over checked targets; one 404 among two checked is partial 0.5, zero failures is satisfied | none; zero internal targets is a determinate empty healthy graph | graph / crawl internal-link graph |
-| `technical.canonical_resolvable` | declared `canonical_url`, analyzed artifact `final_url`, the canonical target's terminal status/final URL, and redirect-chain presence | resolve a declared canonical against the analyzed artifact's final URL; without a declaration, use that artifact final URL as the implicit target. The target must be fetched directly with status below 400 and an empty redirect chain. Any redirect or error is missing rather than followed for scoring; an unchecked target is unknown. Evidence retains the canonical target, fetched final URL, redirect-chain presence, status, and exact resolution source IDs. | no completed page analysis | page / analyzed pages |
-| `technical.sitemap_url_unreachable` | sitemap observations plus terminal fetch status | normalized satisfied share over checked sitemap URLs; failed targets reduce score and unchecked targets reduce coverage | crawl has no sitemap observations | page / sitemap-listed URLs, root-anchored for persistence |
-
-`aeo.product_answer_facts`, `aeo.listing_answer_set`, and
-`aeo.entity_value_proposition` declare their atoms, structural applicability
-conditions, and threshold in the rule catalog. Persisted atom rows power the
-evidence drawer. An all-N/A composite is N/A, never satisfied from an empty
-denominator. `aeo.primary_topic_clear` is intentionally not shipped: the
-proposed lexical head-noun predicate has not been calibrated sufficiently to
-meet this contract.
-
-Finding class still controls user meaning and downstream action:
-
-- missing defect -> defect issue and possible Opportunity;
-- missing/partial advisory -> optimization gap and possible advisory action,
-  never a defect, severity escalation, or eligibility failure;
-- diagnostic -> evidence only, never a score or Opportunity.
-
-Examples of readiness-scored advisories include relevant structured-data
-implementation, creator/organization provenance, concrete supporting evidence,
-meaningful semantic structure, direct answers where the page purpose warrants
-them, and accurate freshness signals where freshness matters. Missing schema
-receives modest machine-readability weight; it never dominates AEO Readiness.
-
-Meta-description presence, Open Graph, `llms.txt`, generic FAQ presence,
-self-canonical preference, fixed title/meta bands, and fixed content/chunk
-lengths receive no core AEO points. They may remain no-score advisories or
-diagnostics when useful. Research may justify a scoped advisory, never a
-universal defect or causal visibility claim.
-
-A critical eligibility failure produces `blocked` regardless of Web Fundamentals or
-AEO scores. The UI leads with that state but retains a sufficiently covered AEO
-Readiness score; it never mathematically caps or zeros unrelated capability
-evidence.
-
-The development presentation policy is config-owned by:
-
-```text
-AEO_MEASURED_MIN_COVERAGE = 0.80
-AEO_MEASURED_MIN_CHECKPOINTS = 4
-AEO_MEASURED_MIN_FAMILIES = 3
-AEO_MEASURED_MIN_DIMENSIONS = 3
-```
-
-The resulting states are:
-
-- `measured`: every critical expected checkpoint is determinate, AEO coverage
-  meets `AEO_MEASURED_MIN_COVERAGE`, and determinate evidence meets all three
-  breadth minimums above;
-- `limited_evidence`: some evidence is useful but those conditions are not met;
-- `not_measured`: there is no defensible expected profile;
-- `excluded`: declared page intent places the page outside public-search audit.
-
-These are config-owned minimums under development policy `1`, not search-engine
-thresholds. They label confidence and breadth; they never suppress a non-null
-score. A result may therefore display `78 · 42% measured · Low confidence`
-without pretending that 42 is its quality score.
-
-Crawl aggregation reads immutable rule evaluations, normalizes every rule by
-its declared scope, then applies the role-specific Web Fundamentals or AEO formula.
-It never aggregates the already-computed page scalar scores. Page-scoped rules
-macro-roll up page kinds before dimension weighting, so adding 100 equivalent
-category pages cannot drown 10 articles. Site facts are counted once, and
-cluster/graph observations are normalized over their entity sets. This single
-path is the scoring authority for both the snapshot and crawl summary.
-
-An applicable unmeasured rule contributes zero coverage; `not_applicable` and
-`excluded` observations are absent. Readiness never averages page score
-percentages or raw observation points. The seven configured dimension weights
-are applied only after rule normalization, so neither crawl composition nor
-duplicated shared evidence can rewrite the 20/15/15/20/10/5/15 policy.
-Aggregate responses also expose
-selected/analyzed/evaluable counts, page-kind/trait splits, acquisition
-coverage, measurement coverage, limitations, exact source IDs, and active
-development identifiers (all `1`).
-The crawl/site `web_fundamentals_state` and `aeo_measurement_state` are
-recomputed from pooled aggregate expected/determinate evidence. They are never
-an average, majority, or best-page state. Aggregate breadth counts unique
-checkpoint IDs, unique checkpoint families, and unique readiness dimensions;
-repeating one checkpoint across 100 pages still counts as one checkpoint and
-one family.
-No Web Fundamentals-only result is silently relabelled Combined. The active contract
-retains Web Fundamentals and AEO Readiness as independent scalars and
-retires the former 50:50 `overall_score` headline.
-
-Web Fundamentals 100 means no observed objective defects within a
-sufficiently covered measurement under the active build. AEO Readiness 100
-means every determinately measured applicable readiness capability earned full
-credit at sufficient coverage. Neither means perfect content, guaranteed
-indexing, rank, authority, or answer-engine citation.
+A critical eligibility failure remains `blocked` regardless of Web Fundamentals
+or AEO scores. It does not mathematically cap or zero unrelated capability
+evidence. Web Fundamentals 100 means no observed objective defect within its
+persisted evidence boundary. AEO Readiness 100 means every determinately
+measured expected capability for the classified scored cohort earned full
+credit. Neither means perfect content, guaranteed indexing, rank, authority, or
+answer-engine citation.
 
 ## Change Intelligence
 
 After a newer crawl terminalizes with usable evidence, Site Health persists one
 immutable comparison for its immediately preceding usable project crawl.
-Comparable pairs require the same root origin, frozen crawl-scope hash,
-extractor version, and page-analyzer version. A missing predecessor is
-`unavailable`; scope or version drift is `non_comparable`, never a regression.
-Completed pairs may report added/removed URLs. Partial or cancelled pairs
-compare shared observed URLs only and suppress all added/removed claims.
+Comparable measurement pairs require the same root origin, frozen crawl-scope
+hash, relevant version set, and persisted classification/scored-cohort
+projection. A missing predecessor is `unavailable`; missing provenance or scope
+or version drift is `non_comparable`, never a regression. A changed scored kind
+set or count by kind remains mathematically comparable with bounded reason
+`cohort_composition_changed` and the prior/current composition. Completed pairs
+may report added/removed URLs. Partial or cancelled pairs compare shared
+observed URLs only and suppress all added/removed claims.
 
 The deterministic analyzer compares title, meta description, H1, canonical,
 robots noindex, JSON-LD presence, internal-link count, and HTTP status. Changes
@@ -952,11 +792,11 @@ tier, conflicts, alternatives, schema suggestion, and `high|medium|low|unknown`
 confidence label persist in `SitePageAnalysis.page_kind_evidence`. `other` is
 abstention and receives no page-kind-specific score.
 
-Each scoped rule is `expectation`, `triggered`, or `universal`. Page kind and
-traits decide whether an expectation applies; the winning classifier tier and
-confidence label do not change the rule or score. Triggered checks rely on a
-present artifact and must declare a same-role, same-dimension sibling that
-scores the artifact's absence.
+Each scoped rule is `expectation`, `triggered`, or `universal`. The resolved
+page-kind/trait family profile decides whether an expectation applies; the
+winning classifier tier and confidence label do not change the profile or
+score. Triggered quality checks rely on a present artifact and must declare a
+same-family absence or root sibling.
 
 ## Page traits
 
@@ -974,11 +814,11 @@ similar classifier signal: for example, `has_faq` requires FAQ markup or
 question-mark subheadings. Traits split bundled contracts such as about versus
 contact and case study versus review. Contact links and fields in header,
 navigation, footer, and aside chrome never activate page-owned
-`contact_intent`. Traits persist in
-`SitePageAnalysis.page_traits` and appear in page detail. Observed traits are
-descriptive classification and presentation metadata; they never decide score
-applicability. In particular, `has_faq` cannot make an article eligible for an
-FAQ checkpoint whose evidence helped produce that trait.
+`contact_intent`. Traits persist in `SitePageAnalysis.page_traits` and appear in
+page detail. An independent trait may select a config-owned family-profile row,
+but the scored evidence cannot manufacture the trait that makes itself
+expected. For example, an FAQ checkpoint cannot use its own evidence to turn a
+generic article into an FAQ-scored profile.
 
 ## Content sufficiency
 
@@ -1013,43 +853,39 @@ body content.
 
 ## Rule applicability
 
-Not-applicable is different from pass and is excluded from scoring.
+Not-applicable is different from satisfied and is excluded from the expected
+set. It requires independent context proving semantic irrelevance; missing
+evidence, failed extraction, uncertainty, conflict, or an absent evaluator
+cannot produce it.
 
-- Delivery and indexability rules read the response and remain
-  applicable to any successful fetch.
+- Delivery and indexability rules read the response and remain applicable to
+  any successful fetch.
 - Title, meta-description, and canonical rules require an HTML response. A
   supported office/PDF/Markdown document is successful inventory evidence and
   is not reported as missing markup its format does not have.
-- Schema presence/type/property rules apply only to classified page kinds.
-- Author and citation rules apply only to authored editorial types.
-  `aeo.author_present` is `not_applicable` on `case_study_review`: a case study
-  is usually published by the organization and owes no named writer.
-- Date rules also include documentation.
-- Question-heading rules apply to the `faq` page kind only. At least 60% of its
-  eligible h2/h3 headings must be questions. An expected FAQ with no eligible
-  subheadings is `missing`, not N/A; absence cannot remove the checkpoint from
-  its denominator.
-- Answer-first structure is an AEO-scored advisory with readiness weight `1.0`
-  on readable `faq` pages only. An observed `has_faq` trait, route/title guess,
-  content-less FAQ, service page, comparison, case study, narrative article, or
-  generic guide/docs page carries no such scoring obligation.
-- A canonical declaration that points away from the page is not a conflict —
-  consolidating a sorted, filtered, or tracked URL onto its parent is what the
-  element is for. Only positive evidence of a broken target fails: a canonical
-  that is unresolvable, points to another origin, or points at a different
-  hreflang alternate of the same page. Campaign and click parameters are
-  removed before the comparison, and a relative canonical is resolved against
-  the page URL first.
-- Product offer completeness applies only to product pages. Visible/schema
-  parity is not scored because artifact absence has no same-dimension sibling.
-- Architecture depth, breadcrumb-conflict, and duplicate-page-kind-metadata rules
-  report positive observations at any coverage. Orphan, parentless-detail,
-  unhubbed-page-kind, and sitemap-orphan absence claims require complete coverage;
-  the evaluator stores `unavailable` with `coverage_not_complete`.
+- Page-purpose schema families require a classified non-`other` HTML page.
+  Validation binds to the primary schema entity and visible page-owned content.
+- Visible attribution applies only where independently established authored or
+  responsible-publisher context requires it. Metadata-only authorship cannot
+  earn full visible-attribution credit.
+- Source support applies only under independent research-sensitive context and
+  requires a deterministically attached primary-content source. A generic
+  external link is neither support nor attribution.
+- Freshness applies only under independent current-state, version, release,
+  news, report, or explicit year/version context. Date presence or absence does
+  not decide applicability.
+- Question-heading requirements apply to the `faq` page kind under its resolved
+  family profile. An expected FAQ with no eligible subheadings is `missing`,
+  never N/A.
+- A canonical declaration pointing away from a page is not itself a conflict;
+  only deterministically broken or contradictory target evidence fails.
+- Architecture absence claims that require complete coverage become `unknown`
+  with a bounded coverage reason when that coverage is incomplete.
 
-A JS shell receives one server-rendering finding. Rules that need unseen body
-content remain not-applicable instead of producing a cascade of fabricated
-missing-content issues.
+A JS shell receives the server-rendering diagnostic. Rules that need unseen body
+content remain semantically not applicable only when independent context proves
+irrelevance; otherwise expected checkpoints resolve `unknown` with the bounded
+primary-content reason rather than producing fabricated missing-content issues.
 
 ## Provenance
 
@@ -1068,12 +904,13 @@ guidance in evidence detail; it cannot create an issue. This is enforced by one
 issue-creation predicate shared by page, finalize, and architecture writers.
 
 Only rules with an explicit score role enter a score or create an issue.
-Web Fundamentals accepts objective defects only. AEO Readiness may consume a
-deterministic advisory when the catalog explicitly assigns its AEO role,
-dimension, family, and readiness weight. Diagnostics and non-scoring guidance
-never create issues or Opportunities. Therefore a displayed issue always
-reduces at least one displayed score; a 100 cannot coexist with one of its own
-failing issues.
+Web Fundamentals accepts objective defects only. AEO Readiness consumes a
+deterministic defect or advisory only through its config-owned capability
+family, dimension, scope, and fixed family budget; internal checkpoint weights
+divide that budget rather than create new influence. Diagnostics and
+non-scoring guidance never create issues or Opportunities. Therefore a
+displayed issue always reduces at least one displayed score; a 100 cannot
+coexist with one of its own failing issues.
 
 Indexability intent follows explicit user policy, canonical declaration,
 sitemap membership, then robots evidence. Intended exclusion is not applicable;

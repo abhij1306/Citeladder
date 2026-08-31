@@ -182,8 +182,10 @@ def _html_facts(**overrides):
                 "Acme widgets are reliable little gadgets that just work for "
                 "every team."
             ),
-            "capability": "Reliable widgets",
-            "audience": "Every team",
+            "provider": "Acme Widgets",
+            "named_capability": "Reliable widgets",
+            "audience_or_outcome": "Every team",
+            "next_action": "Learn more",
         },
         "primary_heading_outline": [
             {"level": 1, "text": "Acme Widgets — everything you need to know"},
@@ -1547,6 +1549,36 @@ def test_unique_corroborated_schema_candidate_resolves_duplicate_declarations() 
     assert evaluation.evidence["primary_schema_type"] == "Product"
 
 
+def test_relative_canonical_binds_schema_entity_to_resolved_document_url() -> None:
+    facts = _product_schema_facts(
+        [
+            {
+                "type": "Product",
+                "syntax": "json-ld",
+                "schema_id": "#canonical-product",
+                "url": "https://x.example/products/acme",
+                "name": "Acme Widget",
+                "props_present": ["name", "offers"],
+            },
+            {
+                "type": "Product",
+                "syntax": "json-ld",
+                "schema_id": "#other-product",
+                "url": "https://x.example/products/other",
+                "name": "Other Widget",
+                "props_present": ["name", "offers"],
+            },
+        ]
+    )
+    facts["delivery"]["final_url"] = "https://x.example/products/current"
+    facts["canonical_url"] = "/products/acme"
+
+    evaluation = _outcome(facts, "aeo.schema_expected_for_type")
+
+    assert evaluation.outcome == RULE_OUTCOME_SATISFIED
+    assert evaluation.evidence["primary_schema_type"] == "Product"
+
+
 def test_conflicting_primary_schema_evidence_normalizes_to_unknown() -> None:
     facts = _product_schema_facts(
         [
@@ -1895,6 +1927,16 @@ def test_soft_error_matches_error_phrase_within_title():
 
     assert evaluation.outcome == RULE_OUTCOME_MISSING
     assert evaluation.evidence["matched_error_phrase"] == "page not found"
+
+
+def test_soft_error_ignores_explanatory_editorial_title():
+    facts = _html_facts(title="Why a page does not exist and what to do next")
+    facts["delivery"]["status_code"] = 200
+
+    evaluation = _outcome(facts, "technical.soft_error")
+
+    assert evaluation.outcome == RULE_OUTCOME_SATISFIED
+    assert evaluation.evidence["matched_error_phrase"] == ""
 
 
 def test_trust_path_matches_terms_without_substring_false_positives():

@@ -44,6 +44,7 @@ COPY frontend/app ./app
 COPY frontend/components ./components
 COPY frontend/lib ./lib
 COPY frontend/public ./public
+COPY frontend/test ./test
 COPY frontend/next.config.ts frontend/postcss.config.mjs frontend/tsconfig.json ./
 RUN pnpm build
 

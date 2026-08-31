@@ -191,6 +191,8 @@ ERROR_ACQUISITION_UNAVAILABLE: Final = "acquisition_unavailable"
 
 ERROR_BOT_BLOCKED: Final = "bot_blocked"
 
+CLASSIFICATION_BODYLESS_STATUS_CODES: Final[frozenset[int]] = frozenset({204, 205})
+
 FETCH_ATTEMPT_OUTCOME_SUCCESS: Final = "success"
 
 FETCH_ATTEMPT_OUTCOME_ERROR: Final = "error"

@@ -132,6 +132,16 @@ def _check_llms_txt_present(facts: dict) -> tuple[str, dict]:
 _SOFT_ERROR_PHRASES = ("page not found", "404 not found", "does not exist")
 
 
+def _matches_soft_error_heading(value: str, phrase: str) -> bool:
+    normalized = " ".join(value.strip().casefold().split())
+    if normalized == phrase:
+        return True
+    prefixes = (f"error: {phrase}", f"404: {phrase}")
+    return normalized.startswith(prefixes) or normalized.startswith(
+        (f"{phrase} |", f"{phrase} -", f"{phrase} —")
+    )
+
+
 def _check_soft_error(facts: dict) -> tuple[str, dict]:
     status_code = (facts.get("delivery") or {}).get("status_code")
     headings = facts.get("headings") or {}
@@ -141,7 +151,7 @@ def _check_soft_error(facts: dict) -> tuple[str, dict]:
         (
             phrase
             for phrase in _SOFT_ERROR_PHRASES
-            if any(phrase in value for value in normalized)
+            if any(_matches_soft_error_heading(value, phrase) for value in normalized)
         ),
         "",
     )

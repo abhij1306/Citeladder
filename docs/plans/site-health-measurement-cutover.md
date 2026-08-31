@@ -1,30 +1,26 @@
 # Site Health measurement cutover
 
-> **Status:** implementation in progress; retained as the cutover and acceptance record.
+> **Status:** historical PR1–PR3 implementation and acceptance record.
+> Post-PR3 measurement semantics are superseded by
+> [`site-health-measurement-reliability-pr4.md`](site-health-measurement-reliability-pr4.md).
 >
-> **Scope:** three sequential pull requests. Start each PR only after the prior
-> PR merges, using a fresh implementation chat.
+> **Scope:** the historical three-PR delivery sequence. Nothing in the
+> manifests below is current scoring, outcome, persistence, comparison, or UI
+> authority.
 
-**Implementation status:** PR1 and PR2 are implemented; PR3 code is pending the
-repository gates, disposable-database bootstrap, calibration crawls, and live
-visual verification required by its acceptance section. The database must be
-rebuilt and calibration crawls rerun whenever this version-`1` contract changes.
+This file preserves the PR1–PR3 cutover sequence. It makes no claim that the
+current PR4 repository gates, disposable-database verification, live
+calibration, or browser acceptance have passed.
 
-[../site-health.md](../site-health.md) is the canonical authority for Site
-Health runtime behavior, measurement meaning, checkpoint applicability, score
-and coverage formulas, and product boundaries. This plan owns only delivery
-sequence, temporary cutover behavior, PR-specific manifests, and acceptance
-criteria. If this plan and the canonical logic disagree, the canonical logic
-wins and this plan must be corrected before implementation.
+[../site-health.md](../site-health.md) is the canonical authority for shipped
+Site Health runtime behavior. The PR4 plan owns the implemented reliability
+contract and its remaining completion gates. When historical PR1–PR3 prose
+differs from either authority, it describes only the state or decision at that
+earlier delivery point and must not be implemented or restored.
 
 The repository-wide invariants in [../../AGENTS.md](../../AGENTS.md) and
 [../invariants.md](../invariants.md) also apply. UI implementation follows
 [../design.md](../design.md). No archived plan is implementation authority.
-
-The post-PR3 reliability follow-up is owned separately by
-[`site-health-measurement-reliability-pr4.md`](site-health-measurement-reliability-pr4.md).
-It does not weaken or reopen a PR1–PR3 gate and begins only after this cutover
-sequence merges.
 
 ## Delivery policy
 
@@ -105,22 +101,11 @@ remain intact so PR2 has one deliberate cutover rather than two migrations.
   PR2 separately introduces the new expected-profile, schema-contract, and
   presentation-policy identifiers. Later PRs retain every value at `1`.
 
-Freeze both meaning and score ownership for the unreliable proxies rather than
-merely setting their weight to zero:
-
-| Rule | PR1 `finding_class` | PR1 `score_roles` |
-|---|---|---|
-| `technical.single_h1` | `advisory` | `none` |
-| `technical.thin_content` | `advisory` | `none` |
-| `aeo.server_rendered_content` | `diagnostic` | `none` |
-| `aeo.outbound_citations` | `advisory` | `none` |
-| generic date presence | `advisory` | `none`; PR2 replaces it with page-kind-specific currency rules |
-| `aeo.no_expand_gating` | `advisory` | `none` |
-| `technical.ai_crawler_access` | `diagnostic` | `none` |
-| `aeo.answer_first` | `advisory` | `none` in PR1; PR2 may assign AEO under its strong gate |
-
-These rows cannot feed defect counts, defect severity, defect Issues, or
-defect-derived Opportunities while their finding class is advisory/diagnostic.
+PR1 removed score ownership from unreliable heading-count, word-count,
+server-rendering, generic outbound-link, generic date, expand-gating,
+training-crawler, and weak answer-first proxies. Objective defects, contextual
+advisories, and diagnostics remained separate, and none of those temporary
+proxy decisions is current post-PR4 scoring authority.
 - Correct archive/listing classification so repeated linked-card collections
   such as `/blogs/news` and `/blog/category/...` do not become individual
   articles without article-owned body evidence.
@@ -131,13 +116,14 @@ defect-derived Opportunities while their finding class is advisory/diagnostic.
   tier never suppresses an expectation or score.
 - Remove Web Fundamentals score weight from word-count-based thin content and
   exact-one-H1. They remain visible guidance, not objective integrity defects.
-- In PR1, remove `aeo.outbound_citations` from guide-wide scoring/failure
-  semantics, replace generic date presence with page-kind-specific freshness
-  expressions, and constrain `aeo.answer_first` to FAQ/answer-task purpose.
-- In PR1, keep `aeo.no_expand_gating` and `aeo.server_rendered_content`
-  non-scoring while correcting copy that claims server-present accordion text
-  is inaccessible. PR2 may assign them AEO roles only through the explicit
-  applicability gates and weights in its manifest below.
+- In PR1, remove generic outbound-link evidence from guide-wide
+  scoring/failure semantics, replace generic date presence with page-kind-
+  specific freshness expressions, and constrain answer-first guidance to
+  FAQ/answer-task purpose.
+- In PR1, keep expand-gating and server-rendering evidence non-scoring while
+  correcting copy that claimed server-present accordion text was inaccessible.
+  The post-PR4 contract retires the expand-gating proxy and keeps
+  server-rendering diagnostic.
 - Keep training-crawler preferences out of Search eligibility and AEO scoring;
   unresolved `technical.ai_crawler_access` evidence is displayed as unknown.
 - Fix the current AEO Readiness projection so coverage means determinate checks
@@ -154,7 +140,7 @@ defect-derived Opportunities while their finding class is advisory/diagnostic.
   `PR1_AEO_MIN_DETERMINATE_CHECKPOINTS=4` and
   `PR1_AEO_MIN_DETERMINATE_DIMENSIONS=3`; a result below either minimum is
   internally treated as limited evidence. This temporary PR1 behavior is
-  superseded by the active PR2/PR3 contract. At that delivery stage, PR1
+  superseded by the PR2/PR3 contract in force at that delivery stage. PR1
   preserved the prior API shapes: page, detail,
   page-kind, and crawl-summary `aeo_score` fields serialize `null`; the existing
   AEO route reports `state=incomplete` with a bounded limitation; and the UI
@@ -227,55 +213,13 @@ same PR; no compatibility scoring facade survives.
 
 ### PR2 readiness scoring manifest
 
-PR2 expands the repaired PR1 contract with deterministic page-kind expressions.
-`readiness_weight` is independent of Web Fundamentals defect weight and is used within
-the seven fixed dimension weights.
-
-| Dimension | Family | Current rule | PR2 score-applicability gate | Within-dimension weight |
-|---|---|---|---|---:|
-| Answerability | `answer_content` | `aeo.answer_first` | FAQ page kind only | 1.0 |
-| Answerability | `answer_content` | `aeo.editorial_lead_present` | editorial page kind | 1.0 |
-| Answerability | `answer_content` | `aeo.entity_value_proposition` | homepage/about/pricing/service/local expression | 1.0 |
-| Answerability | `answer_content` | `aeo.product_answer_facts` | product expression | 1.0 |
-| Answerability | `answer_content` | `aeo.listing_answer_set` | category expression | 1.0 |
-| Structure | `semantic_structure` | `aeo.question_headings` | FAQ page kind only; 60% question-heading threshold | 1.0 |
-| Structure | `semantic_structure` | `aeo.heading_hierarchy` | every classified readable page | 1.0 |
-| Structure | `content_structure` | `aeo.no_expand_gating` | readable content with observed expand-gating evidence | 0.5 |
-| Evidence | `commerce_facts` | `aeo.product_evidence_facts`, `aeo.listing_item_facts` | product/category expression | 1.0 |
-| Evidence | `source_support` | `aeo.outbound_citations` | readable editorial page kind | 1.0 |
-| Machine readability | `structured_representation` | `aeo.schema_expected_for_type` | applicable classified page kind | 1.0 |
-| Machine readability | `structured_representation` | `aeo.schema_required_valid` | relevant schema artifact triggers validation | 1.0 |
-| Machine readability | `structured_representation` | `aeo.schema_recommended_present` | relevant schema artifact triggers completeness guidance | 0.5 |
-| Machine readability | `structured_representation` | `aeo.schema_matches_content` | schema and visible page-owned content are determinate | 1.0 |
-| Machine readability | `primary_content` | `aeo.server_rendered_content` | HTML response | 1.0 |
-| Provenance & trust signals | `provenance` | `aeo.author_present` | authored editorial page kind | 1.0 |
-| Provenance & trust signals | `provenance` | `aeo.organization_identity`, `aeo.trust_path_present` | site-owned authority expression | 1.0 |
-| Provenance & trust signals | `provenance` | `aeo.product_brand_identity` | product expression | 1.0 |
-| Freshness | `currency` | `aeo.content_date_present` | editorial expression | 1.0 |
-| Freshness | `currency` | `aeo.offer_freshness_signal` | product expression | 1.0 |
-| Freshness | `currency` | `aeo.assortment_freshness_signal` | category expression | 1.0 |
-| Crawlability | `indexability` | `technical.indexable` | known intended-public/indexable state | 1.0 |
-
-The family IDs and meanings are owned by the canonical checkpoint-family
-registry. All schema checks count as one family; duplicated checks cannot
-manufacture breadth.
-
-The following remain evaluation guidance but do not create Issues or enter a
-score: word-count thin-content, exact-one-H1, title/meta-description length,
-canonical presence, duplicated structured-data presence, Open Graph, and
-duplicate metadata. `llms.txt` and conflated AI-bot access remain diagnostics.
-Editorial citations, server-rendered primary content, and
-expand-gating retain explicit AEO roles under their narrow page-kind/evidence
-contracts. An applicable dimension without a trustworthy evaluator is
-`not_measured` with zero coverage and remains in the overall coverage
-denominator. `not_applicable` requires a deterministic semantic irrelevance
-reason.
-
-For every other dimension, an empty expected-checkpoint set follows the
-canonical two-way rule. Proven irrelevance is `not_applicable`; proven
-relevance without a score-applicable PR2 checkpoint is `applicable` and
-`not_measured` with `no_expected_checkpoint_evaluator`.
-An empty set cannot silently leave the coverage denominator.
+The original PR2 rule-weight manifest is intentionally not retained as active
+prose. PR4 replaced it with the config-owned 11-family fixed-budget manifest,
+the executable classified-kind/trait family profile, six-outcome contract, and
+equal page-kind macro scoring documented in
+[`site-health-measurement-reliability-pr4.md`](site-health-measurement-reliability-pr4.md)
+and [the canonical Site Health runtime](../site-health.md). No PR2 rule-level
+weight, proxy, breadth threshold, or applicability map is runtime authority.
 
 ### PR2 measurement acceptance
 
@@ -326,8 +270,9 @@ banner can therefore render `eligible`, `blocked`, or `unknown` honestly.
   than limited to Architecture rules, and each retained or changed reason is
   pinned by a deterministic fixture.
 - `SiteRuleEvaluation` freezes display applicability, score applicability,
-  expected-profile membership, bounded reason code, and distinct determinate,
-  unknown, unavailable, conflicting, error, N/A, and excluded outcomes.
+  expected-profile membership, bounded reason code, and the six checkpoint
+  outcomes later retained by PR4. Unavailable, ambiguous, and conflicting
+  evidence are diagnostic reasons under `unknown`, not additional outcomes.
 - `SiteHealthSnapshot` stores pooled crawl measurements, eligibility totals,
   crawl coverage, source manifests, and the four Pages status counts. It pools
   readiness points rather than averaging page scores. It first normalizes
@@ -499,9 +444,9 @@ apply.
 
 ## PR3 — robust AEO pillars and page-kind coverage
 
-**Implementation status:** in progress until repository gates, the disposable-
-database bootstrap, calibration, and live visual verification pass. Calibration
-results remain observations, not score-distribution targets.
+**Historical PR3 gate record:** PR3 completion required repository gates, the
+disposable-database bootstrap, calibration, and live visual verification. This
+record does not assert those observations; calibration had no target direction.
 
 PR3 keeps the PR2 formula, persistence interface, Overview hierarchy, AEO UI,
 and Content-handoff interface stable. It improves the facts and applicability

@@ -121,7 +121,8 @@ async def test_dashboard_projects_persisted_classification_and_scored_cohort(
                 )
             ).all()
         )
-        assert crawl is not None and len(analyses) == 2
+        assert crawl is not None
+        assert len(analyses) == 2
         artifacts: list[SiteFetchArtifact] = []
         for analysis in analyses:
             artifact = await session.get(SiteFetchArtifact, analysis.artifact_id)

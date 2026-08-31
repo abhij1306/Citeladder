@@ -28,7 +28,6 @@
 
 docs
 frontend/e2e
-frontend/test
 frontend/**/*.test.ts
 frontend/**/*.test.tsx
 backend/tests

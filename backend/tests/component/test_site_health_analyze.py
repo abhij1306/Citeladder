@@ -279,6 +279,38 @@ async def test_supported_html_marks_classification_expected_before_parser_failur
 
 
 @pytest.mark.asyncio
+async def test_bodyless_success_is_not_in_classification_cohort(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    root = "https://example.com/bodyless"
+    _seed, _site_url_id, task_id = await _seed_analyze_ready(
+        session_factory, root=root
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            204,
+            headers={"content-type": "text/html"},
+            stream=_ByteStream(b""),
+        )
+
+    worker = SiteHealthWorker(
+        session_factory=session_factory,
+        owner="classification-bodyless-response",
+        resolver=_FakeResolver(),
+        transport=_HttpxHandlerTransport(handler),
+    )
+
+    assert await worker.run_until_idle() == 1
+
+    async with session_factory() as session:
+        task = await session.get(SiteCrawlTask, task_id)
+        assert task is not None
+        assert task.status == TASK_STATUS_SUCCEEDED
+        assert task.classification_expected is False
+
+
+@pytest.mark.asyncio
 async def test_reused_html_marks_classification_expected_before_persistence_failure(
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,

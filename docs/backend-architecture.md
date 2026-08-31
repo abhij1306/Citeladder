@@ -339,33 +339,58 @@ requested, with the sort inside the cursor fingerprint so a cursor cannot be
 replayed under a different ordering. An unmeasured page reports `null`, never
 `0`.
 
-The Site Health measurement owner freezes config-declared page-kind and trait
-profiles before outcomes, persists
-Web Fundamentals and AEO Readiness score/coverage/state independently, and
-pools earned, determinate, and expected evidence by dimension before applying
-the seven configured dimension weights once. Snapshot finalization also freezes
-the config-driven representation, indexability, search/citation-crawler, and
-snippet-access eligibility gate with exact task, attempt, artifact, analysis,
-and evaluation sources. It persists a non-numeric HTTP-evidence Web
-Fundamentals projection with the same provenance. `SiteCrawl.score_summary` is
-only a serializer
-projection of that snapshot; no Combined formula or compatibility scorer exists.
+The Site Health measurement owner freezes the single config-owned classified
+kind × independent trait × capability-family profile before outcomes. The
+profile enumerates all 11 AEO families as `measured`, `measurement_gap`, or
+`not_applicable`; family ownership is the only dimension map. Checkpoints persist
+exactly six outcomes—`satisfied`, `partial`, `missing`, `unknown`,
+`not_applicable`, and `error`—with bounded reason codes carrying unavailable,
+ambiguous, or conflicting detail under `unknown`.
 
-Overview and AEO Readiness are separate read-only projections over the persisted
-snapshot, current page analyses, and rule evaluations. They perform no crawl,
-repair, scoring, model, or provider work. The typed Site Health-to-Content
-handoff accepts only config-declared content-addressable missing/partial gaps,
-re-authorizes the exact workspace/project/crawl/URL/analysis/checkpoint graph,
-and passes observations as untrusted evidence to Content grounding.
+Successful acquisition durably marks a selected, non-excluded supported HTML
+page `classification_expected` before parsing, fact extraction, classification,
+or analysis persistence. Terminal non-`other`, terminal `other`, and
+post-assignment page-understanding failure remain separate classified,
+abstention, and error counts under one fixed denominator. A JS shell remains
+expected; failed acquisition and supported non-HTML inventory do not enter this
+projection.
 
-Its presentation contract is page-shaped rather than evaluation-shaped, because
-the evaluation shape was unreadable. Each dimension carries a plain-language
-description, per-rule rollups with the catalog title and remediation, the count
-of distinct pages a check applied to, the count that failed at least one, and a
-bounded list of failing pages that each name their own failed checks once. The
-bound applies to pages and always travels beside the true failing-page total, so
-a capped list is never presented as the complete one. A rule ID is provenance
-here, never display copy.
+The existing scorer resolves checkpoint results into fixed-budget family
+results, averages page families within kind, and gives every expected page kind
+one equal macro vote before applying family budgets and the seven fixed
+dimension weights. Site-scoped families enter once. Rule or page-count
+duplication cannot manufacture influence. Web Fundamentals remains independent
+objective-defect scoring.
+
+`SiteHealthSnapshot` is the immutable terminal measurement projection. It
+freezes AEO score/coverage/state, classification counts/coverage/state and
+bounded reasons, crawl coverage, scored kind composition, formula version, and
+exact artifact/execution/analysis/evaluation provenance. The active
+`SiteCrawl.score_summary` is the sole live summary projection and mirrors the
+same aggregation owner after successful persisted analyses. Snapshotting and
+live refresh do not serialize or derive one another, and reads never calculate,
+reconcile, or repair either projection.
+
+Overview, Pages, page detail, page-kind summaries, AEO Readiness, exports,
+trend, and change APIs project those persisted values. Classification coverage,
+AEO measurement coverage, and crawl coverage are distinct DTO fields and
+persistence projections. `other` retains universal technical evidence but
+persists null page-purpose AEO score/coverage, `not_measured`, and
+`page_purpose_unresolved`.
+
+Measurement comparison requires the persisted classification and scored-cohort
+projection with exact provenance. Missing projection or incompatible scope or
+versions is non-comparable. A changed scored kind set or count by kind remains
+mathematically comparable with `cohort_composition_changed` and the prior/current
+composition; no quality-versus-cohort decomposition is invented.
+
+The typed Site Health-to-Content handoff accepts only config-declared,
+content-addressable missing/partial gaps, re-authorizes the exact
+workspace/project/crawl/URL/analysis/family/checkpoint graph, and passes
+observations as untrusted evidence. Read projections are page-shaped: each
+dimension exposes its persisted family-normalized score and coverage plus
+bounded page evidence. Capability family and checkpoint evidence remain
+provenance; internal rule IDs are never primary display copy.
 
 Change summary, cursor-paged observation, and detail APIs are persisted reads
 under `/api/v1/projects/{project_id}/site-health/changes`. Both crawl IDs are

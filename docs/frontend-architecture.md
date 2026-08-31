@@ -67,7 +67,7 @@ The site area has exactly three destinations:
 
 | Route | Purpose |
 |---|---|
-| `/site` | Crawl lifecycle, score summary, scores by page kind, URL inventory |
+| `/site` | Crawl lifecycle, readiness and three coverage projections, scores by page kind, URL inventory |
 | `/issues` | Grouped issue catalog with severity, affected pages, and page-kind scope |
 | `/opportunities` | Persisted prioritized actions |
 
@@ -114,34 +114,62 @@ secondary action. The client exposes no separate discovery or analysis buttons.
 
 Website uses one tablist on `/site`: **Overview**, **Pages**, **Architecture**,
 **AEO Readiness**, and **Changes**. Pages is the fallback outside the server's
-`dashboard` phase; Overview is the fallback in `dashboard`
-and reads the cohesive persisted snapshot projection: Search eligibility,
-Web Fundamentals, qualified AEO Readiness, AEO Measurement Coverage, Crawl
-Coverage, seven pillars, top issues, Web Fundamentals, trend, and changes.
-Web Fundamentals opens an Overview drawer over the persisted Accessibility,
-Mobile, Security, and Lab areas; the client does not synthesize browser or
-field-performance evidence. A non-null readiness score always renders;
-`limited_evidence`, measurement coverage, and confidence are subordinate
-qualifiers beside the number, never a replacement label.
+`dashboard` phase; Overview is the fallback in `dashboard`.
+
+Overview reads the backend's persisted measurement projection and presents four
+distinct facts: AEO Readiness is quality for classified audited pages, AEO
+Measurement Coverage is determinate expected evidence for that cohort,
+Classification Coverage is classified / classification-expected supported
+HTML, and Crawl Coverage is the selected discovery/acquisition/analysis
+boundary. The client never derives one from another or uses classification
+coverage to alter the score.
+
+When classification is incomplete, the headline is intrinsically qualified as
+**Readiness of classified audited pages**. Classification and measurement
+coverage are adjacent, above the fold, and never hidden in a tooltip. Incomplete
+crawl coverage adds its own visible audited-pages qualifier and crawl-coverage
+line. Any present score renders with its persisted measurement state and
+coverage; `limited_evidence` is never an unqualified number. A page whose
+persisted kind is `other` renders **Not measured** with no AEO number; the
+browser does not append the internal classification reason to that label.
+
 Overview shares the screen's single dashboard poll while a crawl is active and
-updates its four mounted metric cards in place. It enables the immutable
-snapshot read only after terminalization. Dimension rows render the persisted
-label and description, score bar, and coverage. The snapshot retains ten ranked
-issues while Overview projects five; each row links to `/issues?rule=<rule_id>`.
-Technical defect and AEO-gap cards render their separate persisted role-aware
-issue and affected-page counts. Defects use severity for impact; advisories use
-their persisted readiness dimension/weight label and never borrow severity.
-Trend uses a bounded version-compatible snapshot series, and Change summary
-renders four persisted deltas with directions.
-**Pages** retains the crawl lifecycle and final per-URL metric surface.
-**AEO Readiness** renders the server's seven ordered dimensions, explicit
-applicability/state, uncertainty counts, catalog guidance, and bounded page
-evidence. The dedicated tab starts at the dimension ledger; aggregate readiness,
-coverage, and page counts remain in Overview and are not repeated in a summary
-card. Content-addressable missing or partial checkpoints link to Content
-with stable project/crawl/URL/analysis/dimension/checkpoint references; Content
-re-authorizes the typed handoff before use. The client never remaps rules,
-recomputes coverage, guesses a missing bucket, or displays a Combined score.
+updates mounted metrics from the persisted `score_summary`. After
+terminalization it reads the immutable snapshot. The frontend neither merges
+those projections nor creates a second summary owner. The snapshot's seven
+dimension rows render persisted labels, family-normalized scores, coverage, and
+bounded evidence. Web Fundamentals opens its persisted Accessibility, Mobile,
+Security, and Lab areas; the browser does not synthesize browser or field data.
+
+The snapshot retains ten ranked issues while Overview projects five. Technical
+defect and AEO-gap cards render separate persisted role-aware counts. The
+Overview impact column maps the persisted impact band to **High**, **Medium**,
+or **Low** for every row; it never presents a readiness dimension as an impact
+label. Advisory bands remain derived from the persisted readiness dimension
+and family budget rather than borrowed defect severity. Trend uses only
+version- and projection-compatible snapshots. A scored-kind composition change
+retains its numeric comparison with reason `cohort_composition_changed`; a
+missing classification/scored-cohort projection is non-comparable.
+
+**Pages** retains crawl lifecycle and persisted per-URL metrics. Page and detail
+rows consume the server's score, measurement state, classification state, and
+reasons without remapping checkpoint outcomes. `other` rows never display a
+generic `WebPage` score.
+
+**AEO Readiness** starts at the seven-dimension ledger. Aggregate readiness and
+the three coverage projections remain in Overview rather than a duplicate
+summary card. Evidence drawers name capability family, checkpoint, observed
+evidence, expectation, reason, and remediation; an internal rule ID is
+provenance, not primary copy. Content-addressable missing/partial checkpoints
+link to Content with stable project/crawl/URL/analysis/family/checkpoint
+references, which Content re-authorizes. The client never remaps families,
+recomputes score or coverage, guesses outcome buckets, or displays a Combined
+score.
+
+The shared response schemas accept exactly `satisfied`, `partial`, `missing`,
+`unknown`, `not_applicable`, and `error` as checkpoint outcomes. Unavailable,
+ambiguous, and conflicting evidence is displayed from bounded `unknown` reasons,
+never invented as an additional outcome bucket.
 
 **Changes** reads only persisted Change Intelligence summary and cursor pages.
 It shows the four classes, exact before/after values, analysis provenance, and

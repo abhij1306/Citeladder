@@ -106,11 +106,12 @@ class _ClassifiedEvidence:
 
 
 def _classified_evidence(
-    rows: Sequence[Row], expected_ids: set[uuid.UUID]
+    rows: Sequence[Row], expected_tasks: dict[uuid.UUID, SiteCrawlTask]
 ) -> _ClassifiedEvidence:
     evidence = _ClassifiedEvidence(Counter(), Counter(), [], set(), set())
     for row in rows:
-        if row.site_url_id not in expected_ids:
+        task = expected_tasks.get(row.site_url_id)
+        if task is None or task.result_artifact_id != row.artifact_id:
             continue
         evidence.completed_site_url_ids.add(row.site_url_id)
         evidence.analysis_ids.append(row.id)
@@ -181,7 +182,7 @@ async def load_classification_projection(
         for site_url_id, task in latest_task_by_url(tasks).items()
         if task.classification_expected
     }
-    evidence = _classified_evidence(rows, set(expected_tasks))
+    evidence = _classified_evidence(rows, expected_tasks)
     error_count, error_reasons, error_artifacts = _classification_errors(
         expected_tasks, evidence.completed_site_url_ids
     )

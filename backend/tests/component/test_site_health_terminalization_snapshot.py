@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import select
@@ -27,6 +28,7 @@ from app.core.config.task_queue import (
     TASK_STATUS_SUCCEEDED,
 )
 from app.domain.site_health.score_summary import (
+    _classified_evidence,
     load_crawl_measurement_projection,
     refresh_live_score_summary,
 )
@@ -51,6 +53,27 @@ from tests.component.site_health_worker_helpers import (
     _seed_analyze_ready,
     _worker,
 )
+
+
+def test_classification_projection_rejects_analysis_from_older_task_artifact() -> None:
+    site_url_id = uuid.uuid4()
+    current_artifact_id = uuid.uuid4()
+    stale_row = SimpleNamespace(
+        id=uuid.uuid4(),
+        site_url_id=site_url_id,
+        artifact_id=uuid.uuid4(),
+        page_kind="article",
+        page_kind_evidence={},
+    )
+    current_task = SimpleNamespace(result_artifact_id=current_artifact_id)
+
+    evidence = _classified_evidence(
+        [stale_row],
+        {site_url_id: current_task},
+    )
+
+    assert evidence.classified_count == 0
+    assert evidence.completed_site_url_ids == set()
 
 
 def test_canonical_resolution_is_persisted_for_each_shared_artifact_analysis() -> None:

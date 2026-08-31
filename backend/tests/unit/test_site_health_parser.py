@@ -814,6 +814,30 @@ def test_inline_script_chars_skip_non_js_types():
     assert _facts(body)["inline_script_chars"] == expected
 
 
+def test_js_shell_clears_all_visible_page_owned_evidence() -> None:
+    body = b"""
+      <html><head>
+        <script type="application/ld+json">
+          {"@context":"https://schema.org","@type":"Product","name":"Widget"}
+        </script>
+      </head><body><main>
+        <h1>Widget</h1><p>By Jane Doe</p><p>$99</p>
+        <button>Add to cart</button><a href="mailto:sales@example.com">Email us</a>
+        <script>window.__APP__ = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";</script>
+      </main></body></html>
+    """
+
+    facts = _facts(body)
+
+    assert facts["body"]["word_count"] < 40
+    assert facts["editorial_lead"] == ""
+    assert facts["entity"]["product"]["has_primary_price"] is False
+    assert facts["authorship"]["visible_byline"] == ""
+    assert facts["commerce"]["visible_price"] == ""
+    assert facts["contact_points"] == []
+    assert facts["structured_data"]["types"] == ["Product"]
+
+
 # --- v2 P2 (sh-extractor-2): structured-data recognition + enrichment --------
 
 
@@ -1212,6 +1236,33 @@ def test_standalone_cta_marked_paragraph_is_not_the_editorial_lead() -> None:
     )
 
 
+def test_later_section_paragraph_is_not_promoted_to_editorial_lead() -> None:
+    facts = _facts(
+        b"""
+        <html><body><main>
+          <h1>Enterprise Search</h1>
+          <h2>Implementation details</h2>
+          <p>This paragraph belongs to a later section, not the page lead.</p>
+        </main></body></html>
+        """
+    )
+
+    assert facts["editorial_lead"] == ""
+
+
+def test_byline_prefix_does_not_treat_forecast_copy_as_metadata() -> None:
+    facts = _facts(
+        b"""
+        <html><body><main>
+          <h1>Market forecast</h1>
+          <p>By 2030 the market is expected to serve many more teams worldwide.</p>
+        </main></body></html>
+        """
+    )
+
+    assert facts["editorial_lead"].startswith("By 2030")
+
+
 def test_freshness_context_is_derived_from_identity_without_using_dates() -> None:
     versioned = _facts(
         b"<html><head><title>API v2 migration guide</title></head>"
@@ -1256,6 +1307,21 @@ def test_bare_source_word_does_not_attach_a_generic_external_link() -> None:
 
     assert facts["source_support"]["attached_sources"] == []
     assert facts["source_support"]["ambiguous_source_count"] == 1
+
+
+def test_absolute_same_site_link_in_sources_section_is_not_invalid() -> None:
+    facts = _facts(
+        b"""
+        <html><body><main><h1>Research note</h1>
+          <section><h2>Sources</h2>
+            <a href="https://acme.example.com/research/method">Method</a>
+          </section>
+        </main></body></html>
+        """,
+        final_url="https://acme.example.com/research/note",
+    )
+
+    assert facts["source_support"]["invalid_source_count"] == 0
 
 
 def test_explicit_source_attribution_attaches_an_external_link() -> None:

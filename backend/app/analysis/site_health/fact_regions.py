@@ -80,10 +80,12 @@ def primary_region(root: Any) -> tuple[Any, str]:
         dom_failure("primary_region", exc)
         candidates = []
     eligible: list[tuple[Any, str]] = []
-    for candidate in candidates[: _config.REGION_MAX_PRIMARY_CANDIDATES]:
+    for candidate in candidates:
         if not region_node_is_visible(candidate):
             continue
         eligible.append((candidate, _primary_candidate_source(candidate)))
+        if len(eligible) >= _config.REGION_MAX_PRIMARY_CANDIDATES:
+            break
     if len(eligible) == 1:
         node, source = eligible[0]
         return node, source
@@ -434,16 +436,22 @@ def _adjacent_branches(node: Any, container: Any) -> bool:
         if parent is None:
             continue
         for right_node in right:
-            try:
-                if right_node.getparent() is not parent:
-                    continue
-                siblings = list(parent)
-                if abs(siblings.index(left_node) - siblings.index(right_node)) == 1:
-                    return True
-            except DOM_ERRORS as exc:
-                dom_failure("_adjacent_branches", exc)
-                return False
+            if _are_adjacent_siblings(left_node, right_node, parent):
+                return True
     return False
+
+
+def _are_adjacent_siblings(left: Any, right: Any, parent: Any) -> bool:
+    try:
+        if right.getparent() is not parent:
+            return False
+        siblings = list(parent)
+        return abs(siblings.index(left) - siblings.index(right)) == 1
+    except ValueError:
+        return False
+    except DOM_ERRORS as exc:
+        dom_failure("_adjacent_branches", exc)
+        return False
 
 
 def _bounded_ancestors(node: Any) -> list[Any]:

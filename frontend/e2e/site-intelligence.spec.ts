@@ -50,6 +50,19 @@ const crawl = {
     aeo_measurement_coverage: 0.8,
     aeo_measurement_state: 'measured',
     search_eligibility: 'eligible',
+    classified_page_count: 2,
+    other_page_count: 0,
+    classification_error_page_count: 0,
+    classification_expected_page_count: 2,
+    classification_coverage: 1,
+    classification_state: 'complete',
+    classification_reason_groups: {},
+    classification_formula_version: '1',
+    classification_source_analysis_ids: [SOURCE, TARGET],
+    classification_source_artifact_ids: [SNAPSHOT],
+    classification_source_task_ids: [CRAWL_A],
+    scored_page_kind_set: ['article'],
+    scored_page_count_by_kind: { article: 2 },
     selected_count: 2,
     analyzed_count: 2,
     issue_count: 2,
@@ -152,8 +165,6 @@ async function stubWebsite(page: Page) {
             partial_count: 0,
             missing_count: missingCount,
             unknown_count: 0,
-            unavailable_count: 0,
-            conflicting_count: 0,
             not_applicable_count: notApplicableCount,
             error_count: 0,
             coverage: 1,
@@ -169,8 +180,6 @@ async function stubWebsite(page: Page) {
                 partial_count: 0,
                 missing_count: missingCount,
                 unknown_count: 0,
-                unavailable_count: 0,
-                conflicting_count: 0,
                 not_applicable_count: notApplicableCount,
                 error_count: 0,
                 failing_entity_count: missingCount,
@@ -334,6 +343,8 @@ test('AEO Readiness browser proof: seven named dimensions and page-grouped evide
 
   const panel = page.getByTestId('aeo-readiness');
   await expect(panel).toBeVisible();
+  await expect(panel).toContainText('Scores describe classified audited pages');
+  await expect(panel).not.toContainText('Classification completeness');
   for (const [, label] of dimensions) await expect(panel).toContainText(label);
   for (const heading of ['Score', 'Quality', 'Coverage', 'State']) {
     await expect(panel.getByRole('columnheader', { name: heading })).toBeVisible();

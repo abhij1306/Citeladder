@@ -31,6 +31,7 @@ from app.core.config.site_health_measurement import (
     PAGE_KIND_ROLLUP_WEIGHTS,
     PROFILE_STATUS_MEASURED,
     PROFILE_STATUS_NOT_APPLICABLE,
+    PROFILE_STATUSES,
     READINESS_DIMENSION_WEIGHTS,
     expected_checkpoint_expressions,
     profile_rows,
@@ -204,6 +205,18 @@ def _family_artifact_values(
     artifact: Mapping[str, object],
 ) -> tuple[str, str, str, float, list[object]]:
     family_id = str(artifact.get("family_id") or "")
+    family = CAPABILITY_FAMILIES_BY_ID.get(family_id)
+    if family is None:
+        raise ValueError(f"Unknown capability family: {family_id}")
+    dimension_id = str(artifact.get("dimension_id") or "")
+    if dimension_id not in AEO_READINESS_DIMENSIONS or dimension_id != family.dimension_id:
+        raise ValueError(f"Invalid family dimension: {family_id}")
+    status = str(artifact.get("status") or "")
+    if status not in PROFILE_STATUSES:
+        raise ValueError(f"Invalid family status: {family_id}")
+    scope = str(artifact.get("scope") or "")
+    if scope != family.scope:
+        raise ValueError(f"Invalid family scope: {family_id}")
     budget_value = artifact.get("budget")
     if not isinstance(budget_value, (int, float)) or isinstance(budget_value, bool):
         raise ValueError(f"Family budget must be numeric: {family_id}")
@@ -212,8 +225,8 @@ def _family_artifact_values(
         raise ValueError(f"Family checkpoints must be a sequence: {family_id}")
     return (
         family_id,
-        str(artifact.get("dimension_id") or ""),
-        str(artifact.get("scope") or ""),
+        dimension_id,
+        scope,
         float(budget_value),
         list(checkpoints),
     )

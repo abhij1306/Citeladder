@@ -2,9 +2,9 @@
 # Finalize-scoped rules are evaluated and persisted only by ``finalize.py``.
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from itertools import pairwise
+from itertools import islice, pairwise
 from typing import Any
 
 from app.analysis.site_health.delivery_rules import DELIVERY_CHECKS
@@ -335,11 +335,13 @@ def _check_source_support_present(facts: dict) -> tuple[str, dict]:
     ambiguous = int(support.get("ambiguous_source_count") or 0)
     invalid = int(support.get("invalid_source_count") or 0)
     evidence = {
-        "attached_sources": sources[:24],
+        "attached_sources": list(islice(sources, 24)),
         "attached_source_count": len(sources),
         "ambiguous_source_count": ambiguous,
         "invalid_source_count": invalid,
-        "context_reasons": list(support.get("context_reasons") or ())[:8],
+        "context_reasons": list(
+            islice(support.get("context_reasons") or (), 8)
+        ),
     }
     if not available:
         evidence["reason"] = "primary_content_unavailable"
@@ -729,9 +731,16 @@ def evaluate_rule(
 
 def evaluate_all(facts: dict) -> list[RuleEvaluation]:
     """Evaluate every catalog rule against one frozen measurement profile."""
+    return evaluate_rules(facts, SITE_HEALTH_RULES)
+
+
+def evaluate_rules(
+    facts: dict, rules: Iterable[SiteHealthRule]
+) -> list[RuleEvaluation]:
+    """Evaluate the supplied rules against one immutable measurement profile."""
     frozen = _freeze_measurement_profile(facts)
     return [
-        evaluate_rule(rule, facts, frozen_profile=frozen) for rule in SITE_HEALTH_RULES
+        evaluate_rule(rule, facts, frozen_profile=frozen) for rule in rules
     ]
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from urllib.parse import urlsplit, urlunsplit
 
+from app.analysis.site_health.indexing import resolve_canonical
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_MISSING,
     RULE_OUTCOME_NOT_APPLICABLE,
@@ -95,9 +96,11 @@ def _normalized_document_url(value: object) -> str:
 
 def _document_urls(facts: dict) -> set[str]:
     delivery = facts.get("delivery") or {}
+    final_url = str(delivery.get("final_url") or "")
+    canonical = resolve_canonical(str(facts.get("canonical_url") or ""), final_url)
     return {
         normalized
-        for value in (delivery.get("final_url"), facts.get("canonical_url"))
+        for value in (final_url, canonical)
         if (normalized := _normalized_document_url(value))
     }
 

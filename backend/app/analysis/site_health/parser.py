@@ -510,6 +510,29 @@ def _clear_page_owned_facts(facts: dict[str, Any]) -> None:
     facts.update(empty_page_owned_content_facts())
     facts["entity"] = empty_entity_signals()
     facts["source_support"] = empty_source_support_facts()
+    facts["author"] = ""
+    facts["dates"] = {"published": "", "modified": ""}
+    facts["authorship"] = {
+        "visible_byline": "",
+        "visible_profile_url": "",
+        "visible_date": "",
+        "declared_author": "",
+        "declared_author_source": "",
+    }
+    facts["contact_points"] = []
+    facts["commerce"] = _empty_commerce_facts()
+
+
+def _empty_commerce_facts() -> dict[str, Any]:
+    return {
+        "breadcrumbs": [],
+        "breadcrumb_links": [],
+        "product_cards": [],
+        "category_links": [],
+        "category_role": "unknown",
+        "visible_price": "",
+        "visible_availability": "",
+    }
 
 
 def _is_js_shell(facts: dict[str, Any]) -> bool:
@@ -591,15 +614,7 @@ def _empty_facts() -> dict[str, Any]:
         "source_support": empty_source_support_facts(),
         "inline_script_chars": 0,
         "contact_points": [],
-        "commerce": {
-            "breadcrumbs": [],
-            "breadcrumb_links": [],
-            "product_cards": [],
-            "category_links": [],
-            "category_role": "unknown",
-            "visible_price": "",
-            "visible_availability": "",
-        },
+        "commerce": _empty_commerce_facts(),
     }
 
 
@@ -686,8 +701,6 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
         "total": blocking_scripts + blocking_styles,
     }
     facts["body"] = _body_text(root, max_chars=settings.max_text_chars)
-    if _is_js_shell(facts):
-        _clear_page_owned_facts(facts)
     facts["author"], facts["dates"], facts["authorship"] = author_and_dates(
         root,
         facts["structured_data"],
@@ -700,6 +713,8 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
         )
     except DOM_ERRORS as exc:
         dom_failure("extract_commerce_facts", exc)
+    if _is_js_shell(facts):
+        _clear_page_owned_facts(facts)
     return facts
 
 

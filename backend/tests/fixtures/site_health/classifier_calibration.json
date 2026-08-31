@@ -205,8 +205,8 @@
       "id": "conflicting_semantic_evidence", "source_label": "Synthetic conflicting control", "observation_date": "2026-08-30", "condition": "conflicting",
       "url": "https://conflicting.example.test/answers-and-notes", "content_type": "text/html",
       "fixture": {"kind": "facts", "facts": {"title": "Shipping policy questions and answers", "headings": {"h1_texts": ["Shipping policy questions and answers"], "h2_texts": ["What changed?", "Why did it change?", "How does it work?"]}}},
-      "expected": {"page_kind": "other", "traits": ["has_faq"], "deciding_signal": "none", "allowed_deciding_tiers": [""], "allowed_confidence": ["unknown"], "rejected_kinds": ["faq", "trust_policy"], "other_reason": "conflicting_top_tier_evidence"},
-      "deliberate_abstention": true, "structural_reason": "FAQ content and a trust-policy semantic title conflict in the same semantic tier, so neither is forced."
+      "expected": {"page_kind": "faq", "traits": ["has_faq"], "deciding_signal": "content_heuristic", "allowed_deciding_tiers": ["semantic"], "allowed_confidence": ["low"], "rejected_kinds": ["trust_policy"], "other_reason": null},
+      "deliberate_abstention": false, "structural_reason": "FAQ content and a trust-policy semantic title conflict in the same semantic tier; fixed signal priority selects the more specific FAQ structure and retains the policy conflict in evidence."
     },
     {
       "id": "js_shell_without_owned_content", "source_label": "Synthetic JavaScript shell control", "observation_date": "2026-08-30", "condition": "js_shell",

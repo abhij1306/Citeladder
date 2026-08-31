@@ -49,6 +49,8 @@ FAMILY_CURRENCY: Final = "currency"
 FAMILY_INDEXABILITY: Final = "indexability"
 FAMILY_SNIPPET_ACCESS: Final = "snippet_access"
 FAMILY_CRAWLER_ACCESS: Final = "crawler_access"
+_HEADING_HIERARCHY_CHECKPOINT: Final = "aeo.heading_hierarchy"
+_SCHEMA_EXPECTED_CHECKPOINT: Final = "aeo.schema_expected_for_type"
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,7 +97,7 @@ CAPABILITY_FAMILY_MANIFEST: Final[tuple[CapabilityFamily, ...]] = (
         "structure",
         1.0,
         RULE_SCOPE_PAGE,
-        ("aeo.heading_hierarchy", "aeo.question_headings"),
+        (_HEADING_HIERARCHY_CHECKPOINT, "aeo.question_headings"),
     ),
     CapabilityFamily(
         FAMILY_SOURCE_SUPPORT,
@@ -117,7 +119,7 @@ CAPABILITY_FAMILY_MANIFEST: Final[tuple[CapabilityFamily, ...]] = (
         1.0,
         RULE_SCOPE_PAGE,
         (
-            "aeo.schema_expected_for_type",
+            _SCHEMA_EXPECTED_CHECKPOINT,
             "aeo.schema_required_valid",
             "aeo.schema_recommended_present",
             "aeo.schema_matches_content",
@@ -195,15 +197,15 @@ _EXPRESSIONS: Final[dict[str, tuple[CheckpointExpression, ...]]] = {
     "answer_product": _expressions(("aeo.product_answer_facts", 1.0)),
     "answer_listing": _expressions(("aeo.listing_answer_set", 1.0)),
     "answer_faq": _expressions(("aeo.answer_first", 1.0)),
-    "semantic": _expressions(("aeo.heading_hierarchy", 1.0)),
+    "semantic": _expressions((_HEADING_HIERARCHY_CHECKPOINT, 1.0)),
     "semantic_faq": _expressions(
-        ("aeo.heading_hierarchy", 0.5), ("aeo.question_headings", 0.5)
+        (_HEADING_HIERARCHY_CHECKPOINT, 0.5), ("aeo.question_headings", 0.5)
     ),
     "source": _expressions(("aeo.source_support_present", 1.0)),
     "commerce_product": _expressions(("aeo.product_evidence_facts", 1.0)),
     "commerce_listing": _expressions(("aeo.listing_item_facts", 1.0)),
     "structured": _expressions(
-        ("aeo.schema_expected_for_type", 1.0),
+        (_SCHEMA_EXPECTED_CHECKPOINT, 1.0),
         ("aeo.schema_required_valid", 0.5),
         ("aeo.schema_matches_content", 1.0 / 3.0),
         ("aeo.schema_recommended_present", 1.0 / 6.0),
@@ -528,12 +530,12 @@ def _active_expressions(
         return tuple(
             item
             for item in row.checkpoints
-            if item.checkpoint_id == "aeo.schema_expected_for_type"
+            if item.checkpoint_id == _SCHEMA_EXPECTED_CHECKPOINT
         )
     return tuple(
         item
         for item in row.checkpoints
-        if item.checkpoint_id != "aeo.schema_expected_for_type"
+        if item.checkpoint_id != _SCHEMA_EXPECTED_CHECKPOINT
     )
 
 

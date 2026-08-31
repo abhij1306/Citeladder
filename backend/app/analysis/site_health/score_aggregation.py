@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import replace
+from typing import cast
 
 from app.analysis.site_health.scoring import (
     AggregateMeasurements,
@@ -23,12 +24,15 @@ def _ordered_page_kinds(
 
 
 def _page_only_analysis(analysis: AnalysisMeasurementInput) -> AnalysisMeasurementInput:
-    return replace(
-        analysis,
-        expected_family_profile=tuple(
-            row
-            for row in analysis.expected_family_profile
-            if row.get("scope") == RULE_SCOPE_PAGE
+    return cast(
+        AnalysisMeasurementInput,
+        replace(
+            analysis,
+            expected_family_profile=tuple(
+                row
+                for row in analysis.expected_family_profile
+                if row.get("scope") == RULE_SCOPE_PAGE
+            ),
         ),
     )
 

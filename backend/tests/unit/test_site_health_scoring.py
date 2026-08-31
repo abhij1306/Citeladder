@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.analysis.site_health.rules import RuleEvaluation
 from app.analysis.site_health.scoring import (
     AnalysisMeasurementInput,
@@ -320,6 +322,31 @@ def _analyses(
         _analysis(str(index), kind, crawl_context=crawl_context)
         for index, kind in enumerate(kinds)
     ]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("family_id", "retired_family"),
+        ("dimension_id", "authority"),
+        ("status", "retired_status"),
+        ("scope", "site"),
+    ),
+)
+def test_persisted_family_profile_rejects_invalid_contract_fields(
+    field: str, value: str
+) -> None:
+    analysis = _analysis("invalid-profile", "article")
+    profile = [dict(row) for row in analysis.expected_family_profile]
+    profile[0][field] = value
+    invalid = AnalysisMeasurementInput(
+        analysis_id=analysis.analysis_id,
+        page_kind=analysis.page_kind,
+        expected_family_profile=tuple(profile),
+    )
+
+    with pytest.raises(ValueError):
+        aggregate_measurements([invalid], [])
 
 
 def _aeo_input(

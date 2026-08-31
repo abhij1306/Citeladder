@@ -123,7 +123,11 @@ def _record_anchor(
     absolute = urljoin(final_url, href)
     host = _external_host(absolute, base_host=base_host)
     if not host:
-        if section and href.startswith(("http://", "https://")):
+        if (
+            section
+            and href.startswith(("http://", "https://"))
+            and not _is_self_domain(absolute, base_host=base_host)
+        ):
             facts["invalid_source_count"] += 1
         return
     relationship = section or _local_relationship(node)
@@ -159,6 +163,18 @@ def _external_host(url: str, *, base_host: str) -> str:
     if base and registrable_domain(host) == registrable_domain(base):
         return ""
     return host
+
+
+def _is_self_domain(url: str, *, base_host: str) -> bool:
+    try:
+        hostname = urlsplit(url).hostname or ""
+    except ValueError:
+        return False
+    if not hostname or not base_host:
+        return False
+    host = hostname.casefold().rstrip(".")
+    base = base_host.casefold().rstrip(".")
+    return host == base or registrable_domain(host) == registrable_domain(base)
 
 
 def _local_relationship(node: Any) -> str:

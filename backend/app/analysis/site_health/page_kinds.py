@@ -81,6 +81,7 @@ _TECHNICAL_CONTENT_TOKENS = frozenset(
         "sdk",
     }
 )
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 #: Signal precedence WITHIN a tier. Reaching two signals in one tier is a
 #: genuine disagreement, recorded as a conflict; this table decides it.
@@ -377,8 +378,6 @@ def _winning_signal(matched: list[dict[str, Any]]) -> dict[str, Any] | None:
         for signal in eligible
         if _config.PAGE_KIND_TIERS.index(str(signal["tier"])) == best_tier
     ]
-    if len({str(signal["page_kind"]) for signal in top_tier}) > 1:
-        return None
     return min(
         top_tier,
         key=lambda signal: (
@@ -689,7 +688,7 @@ def _documentation_technical_tokens(facts: dict, heading_texts: list[str]) -> li
             str(facts.get("editorial_lead") or ""),
         ]
     )
-    normalized = set(re.findall(r"[a-z0-9]+", " ".join(text_parts).casefold()))
+    normalized = set(_TOKEN_RE.findall(" ".join(text_parts).casefold()))
     return sorted(normalized & _TECHNICAL_CONTENT_TOKENS)
 
 
@@ -706,7 +705,7 @@ def _has_documentation_breadcrumb(facts: dict) -> bool:
     breadcrumb_tokens = {
         token
         for entry in _str_sequence(commerce.get("breadcrumbs"))
-        for token in re.findall(r"[a-z0-9]+", entry.casefold())
+        for token in _TOKEN_RE.findall(entry.casefold())
     }
     return bool(breadcrumb_tokens & {"api", "developer", "documentation", "reference"})
 

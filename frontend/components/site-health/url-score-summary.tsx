@@ -42,15 +42,7 @@ function ScoreTile({
   return (
     <Card>
       <CardContent className="flex flex-col items-center gap-2 py-[var(--card-padding)]">
-        {value === null ? (
-          state === 'limited_evidence' || state === 'excluded' ? (
-            <span className="text-muted text-xs">
-              {state === 'limited_evidence' ? 'Limited evidence' : 'Excluded'}
-            </span>
-          ) : (
-            <UnavailableValue state="not_measured" />
-          )
-        ) : (
+        {value === null ? scoreUnavailableState(state) : (
           <ScoreRing value={value} size={64} label={`${label}: ${Math.round(value)}`} />
         )}
         <Label>{label}</Label>
@@ -60,6 +52,16 @@ function ScoreTile({
       </CardContent>
     </Card>
   );
+}
+
+function scoreUnavailableState(state: string) {
+  if (state === 'limited_evidence') {
+    return <span className="text-muted text-xs">Limited evidence</span>;
+  }
+  if (state === 'excluded') {
+    return <span className="text-muted text-xs">Excluded</span>;
+  }
+  return <UnavailableValue state="not_measured" />;
 }
 
 function scoreConfidenceLabel(state: string): string {
