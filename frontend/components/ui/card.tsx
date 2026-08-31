@@ -2,7 +2,7 @@ import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 
 import { eyebrowClasses } from '@/components/ui/eyebrow';
 import { cn } from '@/lib/utils';
-import { cardClasses } from './card-variants';
+import { cardClasses, type CardTone } from './card-variants';
 
 /**
  * Card is reserved for a meaningful semantic object. It owns a white fill and
@@ -16,10 +16,11 @@ import { cardClasses } from './card-variants';
 export function Card({
   children,
   className,
+  tone = 'default',
   ...props
-}: Readonly<ComponentPropsWithoutRef<'section'>>) {
+}: Readonly<ComponentPropsWithoutRef<'section'> & { tone?: CardTone }>) {
   return (
-    <section {...props} className={cn(cardClasses(), className)}>
+    <section {...props} className={cn(cardClasses(tone), className)}>
       {children}
     </section>
   );

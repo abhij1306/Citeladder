@@ -66,10 +66,13 @@ describe('ContentMarkdown', () => {
     expect(container.firstElementChild).toHaveClass(
       'min-w-0',
       'max-w-full',
-      'overflow-hidden',
+      'overflow-x-auto',
+      'overflow-y-hidden',
       '[overflow-wrap:anywhere]',
       '[&_pre]:whitespace-pre-wrap',
-      '[&_table]:table-fixed',
+      '[&_table]:min-w-full',
+      '[&_table]:w-max',
+      '[&_table]:table-auto',
     );
   });
 

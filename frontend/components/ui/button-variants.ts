@@ -18,9 +18,9 @@ import { cva } from 'class-variance-authority';
  * (bg-alt 6% → bg-well 14% → bg-active 31%) instead of swapping between two
  * opaque greys. Because the fills are alpha, `neutral` and `ghost` look
  * correct on a white card, on the sunken canvas, and inside a tinted panel —
- * an opaque grey only ever matched one of the three. `secondary` keeps its
- * hairline and panel fill: it is the outline button, and on a sunken canvas
- * that reads as the raised option without needing a shadow.
+ * an opaque grey only ever matched one of the three. `secondary` is the quiet
+ * tonal alternate action; public website and auth surfaces opt into their
+ * approved outlined treatment at those scoped call sites.
  */
 export const buttonVariants = cva(
   'focus-ring inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-control)] border font-sans font-medium no-underline transition-[transform,background-color,color,border-color,box-shadow] duration-[160ms] ease-out active:scale-[0.98] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-75',
@@ -29,8 +29,7 @@ export const buttonVariants = cva(
       variant: {
         primary:
           'border-transparent bg-action text-action-fg hover:bg-action-hover active:bg-action-active',
-        // Secondary is the white alternate action: a panel fill and semantic
-        // hairline distinguish it without competing with the primary action.
+        // Secondary is the quiet tonal alternate action in authenticated flows.
         secondary: 'border-transparent bg-well text-foreground hover:bg-active active:bg-active',
         tonal:
           'border-accent-border bg-accent-subtle text-accent-text hover:border-accent hover:bg-accent-border active:bg-accent-border',

@@ -170,7 +170,7 @@ export function AuthFormShell({
             <Button
               variant="secondary"
               size="lg"
-              className="w-full gap-2 text-sm font-medium"
+              className="border-border-strong bg-panel hover:border-border-bold hover:bg-background-alt w-full gap-2 text-sm font-medium shadow-xs"
               disabled={oauthPending}
               onClick={() => void handleGoogleSignIn()}
             >

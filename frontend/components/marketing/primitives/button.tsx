@@ -11,6 +11,9 @@ type VisualProps = Readonly<{ variant?: Variant; className?: string }>;
 const sharedVariant = (variant: Variant) =>
   variant === 'ghost' ? 'ghost' : variant === 'primary' ? 'primary' : 'secondary';
 
+const marketingSecondary =
+  'border-border-strong bg-panel hover:border-border-bold hover:bg-background-alt shadow-xs';
+
 export function ButtonLink({
   href,
   variant = 'primary',
@@ -25,7 +28,11 @@ export function ButtonLink({
     <SharedButton
       asChild
       variant={sharedVariant(variant)}
-      className={cn('[&_svg]:size-4 [&_svg]:shrink-0', className)}
+      className={cn(
+        '[&_svg]:size-4 [&_svg]:shrink-0',
+        (variant === 'dark' || variant === 'nav') && marketingSecondary,
+        className,
+      )}
     >
       <Link href={href} {...rest}>
         {children}
@@ -91,7 +98,7 @@ export function IconButtonLink({
     <SharedButton
       asChild
       variant={variant === 'default' ? 'primary' : 'secondary'}
-      className={className}
+      className={cn(variant !== 'default' && marketingSecondary, className)}
     >
       <Link href={href} {...targetProps} {...rest}>
         {side === 'left' ? arrow : null}

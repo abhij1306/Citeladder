@@ -69,7 +69,7 @@ Product roles:
 - Section heading: 16/22 at 500.
 - Panel heading: 18/24 at 500.
 - Page title: 24/32 at 500 and visible on every route.
-- Primary metric: 28/34 or 32/38 at 500 with tabular numerals.
+- Primary metric: 28/36 or 32/40 at 500 with tabular numerals.
 
 Remove `text-2xs` after consumers migrate. Product text must never use 10px or 11px, and ordinary body/table content must not use the 12px metadata role.
 

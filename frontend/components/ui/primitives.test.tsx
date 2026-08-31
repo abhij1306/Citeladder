@@ -193,6 +193,11 @@ describe('Card', () => {
     expect(eyebrow.className).not.toContain('tracking-');
     expect(eyebrow.className).not.toContain('font-mono');
   });
+
+  it('adds a semantic border only when a danger object requests it', () => {
+    render(<Card data-testid="danger-card" tone="danger" />);
+    expect(screen.getByTestId('danger-card')).toHaveClass('border', 'border-danger-border');
+  });
 });
 
 describe('Workspace structures', () => {

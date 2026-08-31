@@ -236,7 +236,11 @@ export function GenerationErrorPanel({
   onDismiss: () => void;
 }>) {
   return (
-    <Card data-component-id="content-error-panel" className="bg-danger-bg p-[var(--card-padding)]">
+    <Card
+      data-component-id="content-error-panel"
+      tone="danger"
+      className="bg-danger-bg p-[var(--card-padding)]"
+    >
       <CardContent className="flex flex-col gap-4 p-0">
         <div role="alert" className="text-danger-text flex items-start gap-2.5 text-sm">
           <ICONS.warning className="mt-0.5 size-4 shrink-0" aria-hidden />

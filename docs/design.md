@@ -465,14 +465,11 @@ focus ring on its shared frame rather than a second outline on its native input.
 
 ### Panels, badges, and evidence
 
-Elevation is shared between marketing and the app. The reference card treatment
-uses a crisp near edge plus a soft neutral ambient shadow, as shown in reference
-image 2. Elevation never implies that every region needs a white card: sections,
-tables, and grouped rows may remain borderless on the white canvas or use the
-`#F3F4F6` highlight. A surface receives elevation only when it floats, overlays,
-or needs separation from adjacent content. Interactive cards may raise one rung
-on hover — a deeper shadow and a small rise (`hover:-translate-y-0.5`) — as the
-one sanctioned lift. Badges
+Elevation is shared between marketing and the app. Structural sections remain
+open on the canvas or use a tonal well; semantic object panels use a white fill
+without a shadow. Shadows are reserved for floating surfaces such as menus,
+drawers, dialogs, the command palette, and toasts. Feature code must not restore
+card elevation or hover translation. Badges
 pair a text label with their state mark; a colour, dot, or icon is never the sole
 signal. Evidence rows identify source, measurement context, and the action that
 opens the persisted record. Empty and loading states preserve layout and explain
