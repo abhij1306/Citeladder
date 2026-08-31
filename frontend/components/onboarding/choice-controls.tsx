@@ -8,11 +8,8 @@
  * prose about their own company in a textarea. Every control here is therefore
  * a choice, and free text appears only as a deliberate escape hatch.
  *
- * The review screen used to speak three visual dialects at once — bare chip
- * fieldsets, then bordered cards with uppercase micro-labels and count badges,
- * then blue link-coloured chips that were secretly buttons. Nothing said which
- * controls belonged together or which answer mattered most. One section
- * primitive and one chip shape are what make it read as a single form.
+ * FlowGroup owns the question hierarchy and separation. This module owns only
+ * the answer rows and selection controls.
  */
 
 import { Check, Pencil, Plus } from 'lucide-react';
@@ -20,42 +17,6 @@ import { Check, Pencil, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { cn } from '@/lib/utils';
-
-/**
- * One question in the review form.
- *
- * `meta` carries a count or hint; `action` an affordance such as "Add".
- * Both sit on the title's baseline rather than inside the answer area, so the
- * eye can run down the titles and find a question without reading chips.
- */
-export function ReviewSection({
-  title,
-  meta,
-  action,
-  className,
-  children,
-}: Readonly<{
-  title: string;
-  meta?: React.ReactNode;
-  action?: React.ReactNode;
-  className?: string;
-  children: React.ReactNode;
-}>) {
-  return (
-    <section className={cn('space-y-1.5 py-2.5', className)}>
-      <div className="flex min-h-5 items-center justify-between gap-2">
-        <h2 className="text-foreground text-sm font-semibold">{title}</h2>
-        <div className="flex shrink-0 items-center gap-2">
-          {meta ? (
-            <span className="text-muted text-xs font-medium tabular-nums">{meta}</span>
-          ) : null}
-          {action}
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 /** The row a set of chips lives in, so every group wraps identically. */
 export function ChipRow({
@@ -121,7 +82,7 @@ export function ToggleChip({
         active={selected}
         onClick={onToggle}
         disabled={disabled && !selected}
-        className="group min-w-0"
+        className="flow-choice-chip group min-w-0"
       >
         <ChipMark
           selected={selected}

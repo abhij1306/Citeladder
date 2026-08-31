@@ -24,12 +24,30 @@ const NEUTRAL_TEXT_TOKENS = [
 ];
 
 const CSS_BLOCK_CONTRACTS = new Map([
+  [
+    '[data-flow-surface]',
+    [
+      '--flow-bar-height: 4rem',
+      '--flow-measure: 45rem',
+      '--flow-measure-wide: 55rem',
+      '--flow-header-gap: 2.5rem',
+      '--flow-block: 2rem',
+      '--radius-control: var(--radius-auth-control)',
+    ],
+  ],
+  [
+    '.flow-actions.safe-bottom',
+    ['padding-bottom: calc(var(--flow-answer) + env(safe-area-inset-bottom, 0px))'],
+  ],
   ['.website-hero-display', ['font-size: 2.75rem', 'letter-spacing: -0.04em']],
   ['.website-page-title', ['font-size: 2.5rem', 'letter-spacing: -0.035em']],
   ['.website-section-heading', []],
   ['.website-feature-heading', []],
   ['.website-small-heading', []],
-  ['.auth-form-title', ['font-size: 1.375rem', 'letter-spacing: -0.01em']],
+  ['.flow-title', ['font-size: 1.75rem', 'letter-spacing: -0.025em']],
+  ['.flow-group-title', ['font-size: 1.0625rem', 'letter-spacing: -0.01em']],
+  ['.flow-help', ['font-size: 0.9375rem']],
+  ['.flow-meta', ['font-size: 0.875rem']],
   ['.website-lead', []],
   ['.website-body', []],
   ['.website-nav', []],
@@ -46,10 +64,14 @@ const ROLE_COLOR_CONTRACTS = new Map([
   ['.website-small-heading', 'color: var(--color-foreground)'],
   ['.website-nav', 'color: var(--color-foreground)'],
   ['.website-data-display', 'color: var(--color-foreground)'],
+  ['.flow-title', 'color: var(--color-foreground)'],
+  ['.flow-group-title', 'color: var(--color-foreground)'],
   ['.website-lead', 'color: var(--color-secondary)'],
   ['.website-body', 'color: var(--color-secondary)'],
   ['.website-label', 'color: var(--color-muted)'],
   ['.website-eyebrow', 'color: var(--color-muted)'],
+  ['.flow-help', 'color: var(--color-muted)'],
+  ['.flow-meta', 'color: var(--color-muted)'],
 ]);
 
 const JSX_ROLE_CONTRACTS = new Map([
@@ -59,7 +81,8 @@ const JSX_ROLE_CONTRACTS = new Map([
     'components/marketing/primitives/section.tsx',
     ['website-section-heading', 'website-feature-heading'],
   ],
-  ['components/auth/auth-form.tsx', ['auth-form-title', 'website-body']],
+  ['components/auth/auth-form.tsx', ['flow-title', 'website-body']],
+  ['components/auth/flow-shell.tsx', ['flow-group-title', 'flow-help', 'flow-meta']],
 ]);
 
 function staticBindings(sourceFile) {

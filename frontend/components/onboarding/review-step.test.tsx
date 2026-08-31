@@ -10,7 +10,7 @@ vi.mock('@/lib/brand/logo-dev', () => ({
 }));
 
 describe('ReviewStep competitor limit', () => {
-  it('gives competitors twice the website space with matching headings', () => {
+  it('stacks websites and competitors as flat ruled flow groups', () => {
     render(
       <ReviewStep
         domains={[]}
@@ -25,15 +25,14 @@ describe('ReviewStep competitor limit', () => {
 
     const websites = screen.getByRole('heading', { name: 'Your websites' });
     const competitors = screen.getByRole('heading', { name: 'Competitors' });
-    expect(websites).toHaveClass('text-foreground');
-    expect(competitors).toHaveClass('text-foreground');
+    expect(websites).toHaveClass('flow-group-title');
+    expect(competitors).toHaveClass('flow-group-title');
     expect(websites.closest('section')?.parentElement).toBe(
       competitors.closest('section')?.parentElement,
     );
-    expect(websites.closest('section')?.parentElement).toHaveClass(
-      'md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]',
-    );
-    expect(competitors.closest('section')).toHaveClass('border-border-subtle', 'md:border-l');
+    expect(websites.closest('section')?.parentElement).toHaveClass('flow-groups');
+    expect(competitors.closest('section')).toHaveClass('flow-group');
+    expect(screen.getByText('Auto-verified from your domain.')).toHaveClass('flow-help');
   });
 
   it('shows only the competitor URL beneath its name', () => {
@@ -117,12 +116,8 @@ describe('ReviewStep competitor limit', () => {
       />,
     );
 
-    expect(screen.getByText('5 of 5 tracked')).toBeInTheDocument();
-    const competitorGrid = screen
-      .getByRole('heading', { name: 'Competitors' })
-      .closest('section')
-      ?.querySelector('.sm\\:grid-cols-3');
-    expect(competitorGrid).toHaveClass('grid', 'grid-cols-2', 'sm:grid-cols-3');
+    expect(screen.getByText('5 of 5')).toBeInTheDocument();
+    expect(screen.getByText('Tracked head-to-head in every answer.')).toHaveClass('flow-help');
     const button = screen.getByRole('button', { name: 'Add' });
     expect(button).toBeDisabled();
     await userEvent.click(button);

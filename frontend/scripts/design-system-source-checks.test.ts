@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   directRadixImportViolations,
+  editorialTypographyViolations,
   productUiSourceViolations,
   productControlViolations,
   standalonePlaceholderViolations,
@@ -90,6 +91,16 @@ describe('productUiSourceViolations', () => {
     expect(
       productUiSourceViolations(source, 'components/onboarding/example.tsx', true),
     ).toHaveLength(1);
+  });
+
+  it('allows the onboarding flow to use the website editorial ladder', () => {
+    const source = '<h1 className="flow-title">Confirm</h1>';
+    expect(productUiSourceViolations(source, 'components/onboarding/example.tsx', false)).toEqual(
+      [],
+    );
+    expect(
+      editorialTypographyViolations(source, 'components/onboarding/example.tsx', true),
+    ).toEqual([]);
   });
 });
 

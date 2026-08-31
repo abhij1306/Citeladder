@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { ReviewSection } from '@/components/onboarding/choice-controls';
+import { FlowGroup } from '@/components/auth/flow-shell';
 import { Input } from '@/components/ui/input';
 import { RadioGroup } from '@/components/ui/radio-group';
 import type { DiscoveryProfile } from '@/lib/api/brand-discoveries';
@@ -74,11 +74,11 @@ export function IcpConfirmation({
   const [isOther, setIsOther] = useState(() => !choices.includes(profile.category));
 
   return (
-    <div>
-      <ReviewSection title="What you sell" className="pt-0">
-        <p className="text-muted -mt-1 mb-1 text-sm font-medium">
-          Your competitors and tracked questions are built from this.
-        </p>
+    <div className="flow-groups">
+      <FlowGroup
+        title="What you sell"
+        help="Your competitors and tracked questions are built from this."
+      >
         <RadioGroup
           variant="chip"
           ariaLabel="What you sell"
@@ -111,10 +111,10 @@ export function IcpConfirmation({
             />
           </div>
         ) : null}
-      </ReviewSection>
+      </FlowGroup>
 
-      <div className="border-border-subtle grid border-t md:grid-cols-2">
-        <ReviewSection title="Who buys it" className="md:pr-4">
+      <div className="flow-pair">
+        <FlowGroup title="Who buys it">
           <RadioGroup
             variant="chip"
             ariaLabel="Who buys it"
@@ -122,12 +122,9 @@ export function IcpConfirmation({
             options={BUYER_TYPE_CHOICES}
             onValueChange={(value) => update('business_type', value)}
           />
-        </ReviewSection>
+        </FlowGroup>
 
-        <ReviewSection
-          title="Where they buy it"
-          className="border-border-subtle border-t md:border-t-0 md:border-l md:pl-4"
-        >
+        <FlowGroup title="Where they buy it">
           <RadioGroup
             variant="chip"
             ariaLabel="Where they buy it"
@@ -135,7 +132,7 @@ export function IcpConfirmation({
             options={MARKET_SCOPE_CHOICES}
             onValueChange={(value) => update('market_scope', value)}
           />
-        </ReviewSection>
+        </FlowGroup>
       </div>
     </div>
   );

@@ -21,14 +21,13 @@ function currentStep(discovery: BrandDiscovery | undefined): number {
 
 function countDetail(
   count: number | undefined,
-  adjective: string,
   singular: string,
   plural: string,
   action: string,
 ): string | undefined {
   if (!count) return undefined;
   const noun = count === 1 ? singular : plural;
-  return `${count} ${adjective} ${noun} ${action}`;
+  return `${count} ${noun} ${action}`;
 }
 
 function stepState(index: number, current: number): ActivityStep['state'] {
@@ -45,18 +44,16 @@ export function discoveryActivity(discovery: BrandDiscovery | undefined): Activi
   const current = currentStep(discovery);
   const progress = discovery?.progress;
   const labels = [
-    'Opening your website',
-    'Understanding what you offer',
-    'Finding comparable brands',
-    'Preparing your review',
+    current > 0 ? 'Opened your website' : 'Opening your website',
+    current > 1 ? 'Read what you offer' : 'Reading what you offer',
+    current > 2 ? 'Found comparable brands' : 'Finding comparable brands',
+    current > 3 ? 'Prepared your questions' : 'Preparing your questions',
   ] as const;
   const details = [
-    countDetail(progress?.pages_read, 'useful', 'page', 'pages', 'read') ??
-      'Checking that your website can be read.',
-    'Learning what you offer and who it is most useful for.',
-    countDetail(progress?.competitors_found, 'comparable', 'brand', 'brands', 'found') ??
-      'Looking for genuinely comparable brands.',
-    'Organizing the strongest findings for your review.',
+    countDetail(progress?.pages_read, 'page', 'pages', 'read'),
+    undefined,
+    countDetail(progress?.competitors_found, 'brand', 'brands', 'found'),
+    undefined,
   ] as const;
   return labels.map((label, index) => ({
     id: label,

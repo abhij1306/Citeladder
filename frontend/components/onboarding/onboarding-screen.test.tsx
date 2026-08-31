@@ -174,12 +174,10 @@ describe('OnboardingScreen', () => {
 
     await enterBrand();
 
-    expect(screen.getByText('Opening your website')).toBeInTheDocument();
+    expect(screen.getByText('Opened your website')).toBeInTheDocument();
     expect(screen.getByText('Finding comparable brands')).toBeInTheDocument();
-    expect(screen.getByText('3 useful pages read')).toBeInTheDocument();
-    expect(
-      screen.getByText(/learning what you offer and who it is most useful for/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText('3 pages read')).toBeInTheDocument();
+    expect(screen.getByText(/learning what you offer/i)).toBeInTheDocument();
     expect(document.querySelector('.activity-dot.animate-pulse')).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(
       /finding_competitors|lease|attempt_count|error_detail|provider/i,
@@ -229,17 +227,19 @@ describe('OnboardingScreen', () => {
     renderWithProviders(<OnboardingScreen />);
 
     const user = await enterBrand();
-    // The rail follows the step. A two-field form keeps a narrow measure; the
-    // review step is a dense chip grid and gets the pane's full width, instead
-    // of stacking into a tall ribbon with two-thirds of the screen unused.
-    expect(screen.getByRole('main')).toHaveClass('max-w-xl');
+    expect(screen.getByRole('main').querySelector('[data-flow-measure]')).toHaveAttribute(
+      'data-flow-measure',
+      'default',
+    );
     await user.click(screen.getByRole('button', { name: 'Review' }));
-    expect(screen.getByRole('main')).toHaveClass('max-w-6xl');
-    expect(screen.getByRole('main')).not.toHaveClass('max-w-xl');
-    const footprint = screen.getByText('Online Footprint & Peers');
-    const positioning = screen.getByText('Brand Positioning & Market');
-    expect(footprint.compareDocumentPosition(positioning)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(document.querySelectorAll('section.shadow-card')).toHaveLength(2);
+    expect(screen.getByRole('main').querySelector('[data-flow-measure]')).toHaveAttribute(
+      'data-flow-measure',
+      'wide',
+    );
+    expect(screen.queryByText('Online Footprint & Peers')).toBeNull();
+    expect(screen.queryByText('Brand Positioning & Market')).toBeNull();
+    expect(screen.queryByText('AI Discovered')).toBeNull();
+    expect(document.querySelectorAll('section.shadow-card')).toHaveLength(0);
     const createProject = await screen.findByRole('button', { name: 'Create project' });
     await waitFor(() => expect(createProject).toBeEnabled());
     await user.click(createProject);
@@ -371,7 +371,7 @@ describe('OnboardingScreen', () => {
     const user = await enterBrand();
     await user.click(screen.getByRole('button', { name: 'Review' }));
 
-    expect(await screen.findByText('5 of 5 tracked')).toBeInTheDocument();
+    expect(await screen.findByText('5 of 5')).toBeInTheDocument();
     // The chip keeps its own name in both states; `aria-pressed` carries
     // whether it is tracked.
     expect(screen.getByRole('button', { name: 'Peer 6' })).toHaveAttribute('aria-pressed', 'false');

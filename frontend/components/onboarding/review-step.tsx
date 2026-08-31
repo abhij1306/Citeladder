@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 
-import { ChipRow, ReviewSection, ToggleChip } from '@/components/onboarding/choice-controls';
+import { FlowGroup } from '@/components/auth/flow-shell';
+import { ChipRow, ToggleChip } from '@/components/onboarding/choice-controls';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -72,7 +73,7 @@ function CompetitorChip({
 
   const url = competitorUrl(competitor);
   return (
-    <span className="inline-flex w-full min-w-0 items-center">
+    <span className="inline-flex max-w-full min-w-0 items-center">
       <ToggleChip
         label={displayName}
         selected={competitor.selected}
@@ -121,14 +122,14 @@ export function ReviewStep({
     maximumCompetitors === undefined || selectedCompetitors >= maximumCompetitors;
 
   return (
-    <div className="grid md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-      <ReviewSection
+    <div className="flow-groups">
+      <FlowGroup
         title="Your websites"
         meta={domains.length > 0 ? `${selectedDomains} of ${domains.length}` : undefined}
-        className="pt-0 md:pr-4"
+        help="Auto-verified from your domain."
       >
         {domains.length === 0 ? (
-          <p className="text-muted text-sm font-medium">No websites were found.</p>
+          <p className="flow-help">No websites were found.</p>
         ) : (
           <ChipRow>
             {domains.map((entry, index) => (
@@ -141,15 +142,15 @@ export function ReviewStep({
             ))}
           </ChipRow>
         )}
-      </ReviewSection>
+      </FlowGroup>
 
-      <ReviewSection
+      <FlowGroup
         title="Competitors"
-        meta={`${selectedCompetitors} of ${maximumCompetitors ?? '…'} tracked`}
-        className="border-border-subtle border-t pb-0 md:border-t-0 md:border-l md:pt-0 md:pl-4"
+        meta={`${selectedCompetitors} of ${maximumCompetitors ?? '…'}`}
+        help="Tracked head-to-head in every answer."
         action={
           <Button
-            variant="tonal"
+            variant="ghost"
             size="sm"
             onClick={onAddCompetitor}
             disabled={competitorLimitReached}
@@ -160,11 +161,11 @@ export function ReviewStep({
         }
       >
         {competitors.length === 0 ? (
-          <p className="text-muted text-sm font-medium">
+          <p className="flow-help">
             No competitors were confirmed. Add the companies you lose deals to.
           </p>
         ) : (
-          <ChipRow className="grid grid-cols-2 items-start sm:grid-cols-3">
+          <ChipRow>
             {competitors.map((competitor, index) => (
               <CompetitorChip
                 key={competitor.id}
@@ -176,7 +177,7 @@ export function ReviewStep({
             ))}
           </ChipRow>
         )}
-      </ReviewSection>
+      </FlowGroup>
     </div>
   );
 }

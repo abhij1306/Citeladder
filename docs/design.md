@@ -20,9 +20,9 @@ deliberate, quiet motion treatments.
 - **Voice:** direct, confident, specific. One idea per sentence. Prefer evidence
   and outcomes over generic AI language.
 - **Typography:** Geist for UI, body, and data everywhere, with Plus Jakarta Sans reserved for
-  website and authentication display headings. The authenticated app and onboarding use Geist
-  exclusively. The website and authentication surfaces use a 16px reading baseline and a
-  content-role ladder; the authenticated app uses the even-number product ladder below. Size,
+  website and focused-flow display headings. Authentication and onboarding share that roomier
+  flow ladder; the authenticated application uses Geist and the even-number product ladder.
+  Website and flow surfaces use a 16px reading baseline. Size,
   leading, weight, tracking, and
   colour are one role contract, never independent page-level choices.
 - **Accent:** a single Growth Cobalt (`#315CFF`) for primary actions, explicit
@@ -34,14 +34,14 @@ deliberate, quiet motion treatments.
   same tokens, type, and restraint.
 
 There is no user-selectable dark theme, parallel marketing colour namespace, or
-route-local palette. The dark brand panel on login and onboarding is an intentional,
-fixed composition inside an otherwise light product; it is not a theme.
+route-local palette. Authentication and onboarding use one centred light-ground
+flow; neither surface reserves viewport width for a decorative brand rail.
 
 ## Source of truth and implementation rules
 
 `frontend/app/globals.css` is the sole owner of global tokens, the font binding,
 shared geometry, and global interaction rules. Its imported
-`frontend/app/website-type.css` owns the named website/auth type roles, the
+`frontend/app/website-type.css` owns the named website/auth/onboarding flow roles, the
 legacy scoped size-rung compatibility layer, and the website button treatment;
 it does not own a second palette. Editorial and auth hierarchy uses the named
 roles, while product UI consumes semantic Tailwind utilities and CSS custom
@@ -91,10 +91,10 @@ alone; it is always paired with a label or icon.
 
 ## Typography
 
-Two families only: Geist for UI, body, and data (`font-sans`) and for every authenticated-app and onboarding heading; Plus Jakarta Sans is the website/authentication display face. Both are loaded through `next/font/google` with variable fonts and swap display. Interface weights remain concentrated at 400–600. Metrics, dates, ranks,
+Two families only: Geist for UI, body, and data (`font-sans`) and for every authenticated-app heading; Plus Jakarta Sans is the website and focused-flow display face. Both are loaded through `next/font/google` with variable fonts and swap display. Interface weights remain concentrated at 400–600. Metrics, dates, ranks,
 and percentages use tabular numerals, never a monospace face.
 
-### Website and authentication ladder
+### Website and focused-flow ladder
 
 The website scale is role-based and starts from a 16px reading baseline. A role
 owns its size, leading, weight, tracking, and colour as one unit. Public and auth
@@ -108,7 +108,10 @@ tracking, weight, and colour combinations.
 | Section heading         | Plus Jakarta Sans |         32/38 → 40/46px |     600 |                        -0.03em | foreground                                  |
 | Feature heading         | Plus Jakarta Sans |                 24/30px |     600 |                        -0.02em | foreground                                  |
 | Small heading           | Plus Jakarta Sans |                 20/26px |     600 |                        -0.01em | foreground                                  |
-| Authentication title    | Plus Jakarta Sans |                 22/28px |     600 |                        -0.01em | foreground                                  |
+| Flow title              | Plus Jakarta Sans |         28/34 → 32/38px |     600 |                       -0.025em | foreground                                  |
+| Flow group title        | Geist             |                 17/24px |     600 |                        -0.01em | foreground                                  |
+| Flow help               | Geist             |                 15/22px |     400 |                              0 | muted                                       |
+| Flow metadata           | Geist             |                 14/20px |     500 |                              0 | muted; tabular numerals                     |
 | Lead                    | Geist             |                 20/30px |     400 |                        -0.01em | secondary                                   |
 | Large body              | Geist             |                 18/28px |     400 |                              0 | secondary                                   |
 | Body baseline           | Geist             |                 16/24px |     400 |                              0 | secondary                                   |
@@ -125,7 +128,7 @@ applies to prose or headings.
 
 ### Product app ladder
 
-The authenticated enterprise application and onboarding use a strict Geist-only typography
+The authenticated enterprise application uses a strict Geist-only typography
 ladder. It enforces consistent visual hierarchy, strict tabular numerals for metrics, and
 high-density information architecture.
 Ad-hoc inline text sizes, weights, and color overrides are prohibited in favor of token
@@ -198,6 +201,14 @@ menus and popovers, and `shadow-modal-value` owns drawers and dialogs. An elevat
 one crisp semantic hairline plus one shadow rung; tonal inset groups inside it do not receive a
 second elevation layer.
 Marketing sections breathe on a generous rhythm (`--section-y-*`, 120px desktop).
+
+Authentication and onboarding share the `[data-flow-surface]` geometry owned by
+`website-type.css`: a 64px bar (56px below 640px), 720px content measure, 880px
+review measure, 24px gutters growing to 32px, 40px from title block to first
+group, 32px between groups, 16px from help to controls, and 8px within a title
+stack. Flow controls use 12px corners; selection chips are 36px high on desktop
+and 44px on touch. The shell owns the scrolling main region and bottom action
+bar so content height never creates a dead band above the primary action.
 
 ### Availability vocabulary
 
@@ -428,10 +439,11 @@ focused grid, then an optional CTA.
   workspace canvas carries the visual weight.
 - Keep body copy around 60–70 characters wide and use one H1 per page.
 - Auth uses the website type ladder and shared focus treatment; the form remains
-  the primary task. The existing dark login/onboarding brand panel is preserved.
-- Onboarding review makes positioning, target audience, and products/services
-  editable and required, alongside owned domains and competitors. Prompt
-  generation begins only after the user confirms those structured ICP facts.
+  the primary task. Auth and onboarding use one centred light flow shell with a
+  compact wordmark bar; onboarding adds three-step progress and a sticky action bar.
+- Onboarding review makes the category, buyer type, market scope, owned domains,
+  and competitors directly confirmable. Prompt generation begins only after the
+  user confirms the visible structured ICP facts.
 - Website and app copy, data, feature claims, and workflow behaviour are outside
   this pass. Product previews may change layout, typography, colour, border,
   radius, or elevation only; their strings and scripted content stay unchanged.
@@ -441,7 +453,7 @@ focused grid, then an optional CTA.
 ### Controls
 
 App buttons use the 6px control-radius role with no decorative inset border.
-Website and auth primary buttons use the same shared Button behaviour and blue
+Website and flow primary buttons use the same shared Button behaviour and blue
 fill, but add the reference treatment: 12px corners, a subtle light inset edge,
 a defined outer blue edge, and quiet elevation. Secondary, neutral, ghost, and
 danger remain shared semantic variants. Every control has a direct label, a
@@ -450,8 +462,8 @@ at least a 44px touch target.
 
 Inputs use the semantic input and border roles. Labels sit with their control,
 helper text explains constraints, and errors give a recovery instruction. Never
-use placeholder text as the only label. Authentication fields and large auth
-buttons use the dedicated 12px auth-control radius; a composed input exposes one
+use placeholder text as the only label. Authentication and onboarding fields and
+large flow buttons use the dedicated 12px auth-control radius; a composed input exposes one
 focus ring on its shared frame rather than a second outline on its native input.
 
 ### Panels, badges, and evidence
@@ -514,6 +526,8 @@ sanctioned, each one calm and reduced-motion-safe:
   hide server-rendered content after hydration;
 - the interactive-card hover lift;
 - master-detail selection continuity and measured domain-owned expansion.
+- onboarding research results resolving beneath the factual activity list with
+  one 220ms fade-and-rise sequence and 60ms staggering.
 
 Authenticated route content and tab indicators update immediately. Do not fade
 either surface: navigation opacity transitions create a visible flash during
@@ -530,8 +544,9 @@ usable.
 Before merging a visual change, verify:
 
 - It uses semantic global tokens and an existing primitive where one applies.
-- Website/auth type uses a documented content role with a 16px body baseline;
-  app and onboarding type use the even Geist product scale. Both stay within weights 400–600.
+- Website and focused-flow type use documented content roles with a 16px body
+  baseline; authenticated-app type uses the even Geist product scale. Both stay
+  within weights 400–600.
 - Marketing stays monochrome-plus-blue; functional colour appears only in the app.
 - The default product canvas is `#fafafa`, quiet tonal panels use `#f7f7f7`, and elevation
   does not force card backgrounds onto structural regions.
@@ -544,10 +559,11 @@ Before merging a visual change, verify:
 - App data absence uses an explicit semantic label; observed zero remains distinct and authored
   prose punctuation is unaffected.
 
-This authenticated-app and onboarding refinement does not introduce new colour families, gradients,
-decorative glows, nested cards, or unsupported reference concepts such as AI-context rules or
-new competitor mutations. Marketing and authentication composition remain outside its scope;
-onboarding keeps its existing split composition and transaction flow.
+The focused flow introduces no new colour family, gradient, decorative glow,
+nested card, or competitor mutation. Solid cobalt fill is reserved for the
+primary action and current-step mark; selected answers use the quiet accent
+surface and border without changing font weight. The transaction flow and all
+explicit confirmation gates remain unchanged.
 - Repository-owned static, test, and appropriate visual commands pass. External
   or manual quality tools are never acceptance gates unless a deterministic
   repository command owns them.

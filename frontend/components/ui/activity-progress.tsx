@@ -48,11 +48,13 @@ export function ActivityProgress({
   steps,
   label,
   animateCompletion = false,
+  appearance = 'default',
 }: Readonly<{
   steps: ActivityStep[];
   label: string;
   /** Reveal fast persisted phase jumps one step at a time. */
   animateCompletion?: boolean;
+  appearance?: 'default' | 'flow';
 }>) {
   const targetCompleted = steps.filter((step) => step.state === 'complete').length;
   const [displayedCompleted, setDisplayedCompleted] = useState(
@@ -100,6 +102,36 @@ export function ActivityProgress({
     (step) => step.state === 'active' || step.state === 'attention',
   );
   const progressLabel = `${completed} of ${steps.length} steps complete`;
+
+  if (appearance === 'flow') {
+    return (
+      <section aria-label={label} className="flow-activity grid">
+        <progress
+          className="sr-only"
+          aria-label={progressLabel}
+          aria-valuemin={0}
+          aria-valuemax={steps.length}
+          aria-valuenow={completed}
+          value={completed}
+          max={Math.max(renderedSteps.length, 1)}
+        />
+        <ol className="flow-activity-list list-none p-0">
+          {renderedSteps.map((step) => (
+            <li key={step.id} className="flow-activity-row" data-state={step.state}>
+              <span className="flow-activity-indicator" aria-hidden>
+                <StepIndicator state={step.state} />
+              </span>
+              <p className="flow-help">{step.label}</p>
+              {step.detail ? <p className="flow-meta">{step.detail}</p> : <span />}
+            </li>
+          ))}
+        </ol>
+        <span className="sr-only" aria-live="polite">
+          {progressAnnouncement(activeStep, completed)}
+        </span>
+      </section>
+    );
+  }
 
   return (
     <section aria-label={label} className="grid gap-4">

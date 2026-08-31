@@ -98,7 +98,7 @@ const readyDiscovery = {
   updated_at: '2026-08-09T00:00:01Z',
 };
 
-test('onboarding renders inverse type, sequential progress, and a prompt-free review', async ({
+test('onboarding renders one centered flow, sequential progress, and a prompt-free review', async ({
   page,
 }) => {
   await stubAuthedShell(page, [
@@ -108,23 +108,15 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   ]);
 
   await page.goto('/onboarding');
-  const setupHeading = page.getByRole('heading', { name: 'Set up your project' });
-  await expect(setupHeading).toBeVisible();
-  await expect(setupHeading).toHaveCSS('color', 'rgb(255, 255, 255)');
-  const setupBox = await setupHeading.boundingBox();
-  expect(setupBox).not.toBeNull();
+  await expect(page.locator('[data-brand-canvas]')).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Setup progress' })).toBeVisible();
   const initialHeading = page.getByRole('heading', { name: "Let's get started" });
   const initialHeadingBox = await initialHeading.boundingBox();
   expect(initialHeadingBox).not.toBeNull();
-  // The working stage uses a compact top inset independent of the desktop rail
-  // title. It remains near the top instead of being vertically centred.
-  const initialHeadingOffset = initialHeadingBox!.y - setupBox!.y;
-  expect(Math.abs(initialHeadingOffset)).toBeGreaterThanOrEqual(20);
-  expect(Math.abs(initialHeadingOffset)).toBeLessThanOrEqual(40);
   const stageHeadingFontSize = await initialHeading.evaluate(
     (element) => getComputedStyle(element).fontSize,
   );
-  const brandStage = await page.locator('main#main').boundingBox();
+  const brandStage = await page.locator('[data-flow-measure="default"]').boundingBox();
   expect(brandStage).not.toBeNull();
 
   await page.getByLabel(/^Brand name/).fill('The Asian School');
@@ -133,8 +125,8 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   const discoveryHeading = page.getByRole('heading', { name: 'Finding what to track' });
   const discoveryHeadingBox = await discoveryHeading.boundingBox();
   expect(discoveryHeadingBox).not.toBeNull();
-  expect(discoveryHeadingBox!.y - setupBox!.y).toBeCloseTo(initialHeadingOffset, 0);
-  const discoveryStage = await page.locator('main#main').boundingBox();
+  expect(discoveryHeadingBox!.y).toBeCloseTo(initialHeadingBox!.y, 0);
+  const discoveryStage = await page.locator('[data-flow-measure="default"]').boundingBox();
   expect(discoveryStage).not.toBeNull();
 
   const progress = page.getByRole('progressbar', { name: /steps complete/ });
@@ -146,22 +138,12 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
     'font-size',
     stageHeadingFontSize,
   );
-  const reviewStage = await page.locator('main#main').boundingBox();
+  const reviewStage = await page.locator('[data-flow-measure="wide"]').first().boundingBox();
   expect(reviewStage).not.toBeNull();
-  // The stage never changes HEIGHT between steps: it fills the column, so the
-  // surrounding chrome cannot jump as the user advances. These assertions were
-  // previously unreachable — the alignment check above failed first — and they
-  // also asserted equal WIDTH, which contradicts the layout's explicit
-  // `flow.step === 2 ? 'max-w-6xl' : 'max-w-xl'`. Review is deliberately wider:
-  // it shows the full ICP confirmation rather than a two-field form.
-  expect(reviewStage?.height).toBeCloseTo(brandStage!.height, 0);
-  expect(reviewStage?.height).toBeCloseTo(discoveryStage!.height, 0);
   expect(brandStage?.width).toBeCloseTo(discoveryStage!.width, 0);
   expect(reviewStage!.width).toBeGreaterThan(brandStage!.width);
-  // The review stage's heading is "Does this look right?" (asserted above). A
-  // "Confirm your ICP" heading has not existed since onboarding was rebuilt
-  // around business context; only the rail's step label still reads "Confirm
-  // ICP", and that is a <p>, not a heading.
+  await expect(page.getByText('Online Footprint & Peers')).toHaveCount(0);
+  await expect(page.getByText('AI Discovered')).toHaveCount(0);
   await expect(page.getByText('theasianschool.net')).toBeVisible();
   await expect(page.getByText('The Doon School')).toBeVisible();
   await expect(page.getByText(/Starting Prompts/i)).toHaveCount(0);

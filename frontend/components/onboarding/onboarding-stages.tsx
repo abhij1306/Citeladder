@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import type { CSSProperties } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
 
 import { ActivityProgress } from '@/components/ui/activity-progress';
@@ -25,19 +25,17 @@ export function BrandStage({
   onSubmit: () => void;
 }>) {
   return (
-    <form noValidate onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-foreground text-2xl font-semibold tracking-[-0.025em]">
-          {isAdditional ? 'Add a project' : "Let's get started"}
-        </h1>
-        <p className="text-muted text-sm">
+    <form id="onboarding-brand-form" noValidate onSubmit={onSubmit}>
+      <div className="flow-header">
+        <h1 className="flow-title">{isAdditional ? 'Add a project' : "Let's get started"}</h1>
+        <p className="website-body">
           We&apos;ll review your website, suggest comparable brands, and prepare balanced questions.
         </p>
       </div>
       <div className="grid items-start gap-x-5 gap-y-4 sm:grid-cols-2">
         <Field label="Brand name" required error={form.formState.errors.brand_name?.message}>
           {(props) => (
-            <Input {...props} {...form.register('brand_name')} placeholder="Acme" size="md" />
+            <Input {...props} {...form.register('brand_name')} placeholder="Acme" size="lg" />
           )}
         </Field>
         <Field label="Website" required error={form.formState.errors.website_url?.message}>
@@ -47,7 +45,7 @@ export function BrandStage({
               {...form.register('website_url')}
               placeholder="acme.com"
               inputMode="url"
-              size="md"
+              size="lg"
             />
           )}
         </Field>
@@ -88,16 +86,6 @@ export function BrandStage({
           )}
         </Field>
       </div>
-      <div className="flex items-center gap-3 pt-1">
-        <Button type="submit" size="md" className="text-sm font-medium">
-          Continue
-        </Button>
-        {isAdditional ? (
-          <Button asChild variant="ghost" size="md">
-            <Link href="/projects">Cancel</Link>
-          </Button>
-        ) : null}
-      </div>
     </form>
   );
 }
@@ -106,7 +94,6 @@ export function DiscoveryStage({
   brandName,
   discovery,
   onEdit,
-  onReview,
 }: Readonly<{
   brandName: string | undefined;
   discovery: {
@@ -118,74 +105,73 @@ export function DiscoveryStage({
     retry: () => void;
   };
   onEdit: () => void;
-  onReview: () => void;
 }>) {
+  const found = discoveryResults(discovery.discovery);
   return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-foreground text-2xl font-semibold tracking-[-0.025em]">
-          Finding what to track
-        </h1>
-        <p className="text-muted text-sm">
-          We&apos;re learning about {brandName || 'your brand'} and preparing useful questions. You
-          can review everything before the project is created.
+    <div>
+      <div className="flow-header">
+        <h1 className="flow-title">Finding what to track</h1>
+        <p className="website-body">
+          We&apos;re reading {brandName || 'your website'} and learning what you offer.
         </p>
       </div>
-      <div className="border-border-subtle bg-well/40 rounded-sm border p-3.5">
-        <ActivityProgress
-          label="Discovering your brand"
-          steps={discoveryActivity(discovery.discovery)}
-          animateCompletion
-        />
-      </div>
-      {(discovery.discovery?.warnings ?? []).map((warning) => (
-        <Alert key={warning} tone="warning">
-          {warningMessage(warning)}
-        </Alert>
-      ))}
-      {discovery.discovery?.status === 'failed' ? (
-        <Alert tone="danger">
-          <div className="flex items-center justify-between gap-3">
-            <span>
-              {discovery.discovery.error_code === 'invalid_url'
-                ? 'The website address is invalid. Go back and correct it.'
-                : 'We could not confirm that this website exists. Check the address and try again.'}
-            </span>
-            <Button size="sm" variant="ghost" onClick={onEdit}>
-              Edit website
-            </Button>
-          </div>
-        </Alert>
+      <ActivityProgress
+        label="Discovering your brand"
+        steps={discoveryActivity(discovery.discovery)}
+        animateCompletion
+        appearance="flow"
+      />
+      {found.length > 0 ? (
+        <section className="flow-found">
+          <h2 className="flow-group-title">Found so far</h2>
+          <ul className="flow-found-list">
+            {found.map((item, index) => (
+              <li
+                key={`${item}:${index}`}
+                className="flow-found-item"
+                style={{ '--flow-result-index': index } as CSSProperties}
+              >
+                {item}
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
-      {discovery.error ? (
-        <Alert tone="warning">
-          <div className="flex items-center justify-between gap-3">
-            <span>{onboardingErrorMessage(discovery.error)}</span>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={discovery.retry}
-              disabled={discovery.isRunning}
-            >
-              Retry
-            </Button>
-          </div>
-        </Alert>
-      ) : null}
-      <div className="flex items-center gap-3 pt-1">
-        <Button
-          size="md"
-          onClick={onReview}
-          disabled={
-            discovery.isRunning || !discovery.discovery || discovery.discovery.status !== 'ready'
-          }
-          className="text-sm font-medium"
-        >
-          {discovery.isRunning ? 'Searching…' : 'Review'}
-        </Button>
-        <Button variant="ghost" size="md" onClick={onEdit}>
-          Back
-        </Button>
+      <div className="mt-[var(--flow-block)] grid gap-[var(--flow-answer)]">
+        {(discovery.discovery?.warnings ?? []).map((warning) => (
+          <Alert key={warning} tone="warning">
+            {warningMessage(warning)}
+          </Alert>
+        ))}
+        {discovery.discovery?.status === 'failed' ? (
+          <Alert tone="danger">
+            <div className="flex items-center justify-between gap-3">
+              <span>
+                {discovery.discovery.error_code === 'invalid_url'
+                  ? 'The website address is invalid. Go back and correct it.'
+                  : 'We could not confirm that this website exists. Check the address and try again.'}
+              </span>
+              <Button size="sm" variant="ghost" onClick={onEdit}>
+                Edit website
+              </Button>
+            </div>
+          </Alert>
+        ) : null}
+        {discovery.error ? (
+          <Alert tone="warning">
+            <div className="flex items-center justify-between gap-3">
+              <span>{onboardingErrorMessage(discovery.error)}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={discovery.retry}
+                disabled={discovery.isRunning}
+              >
+                Retry
+              </Button>
+            </div>
+          </Alert>
+        ) : null}
       </div>
     </div>
   );
@@ -201,95 +187,70 @@ export function ReviewStage({
     completionFailed,
     domains,
     hasSelectedDomain,
-    isCompleting,
     maximumCompetitors,
     profile,
     setCompetitors,
     setProfile,
-    setStep,
     toggle,
   } = flow;
   return (
-    <div className="space-y-3.5">
-      <div className="space-y-1">
-        <h1 className="text-foreground text-2xl font-semibold tracking-[-0.025em]">
-          Does this look right?
-        </h1>
-        <p className="text-muted text-sm">
-          Deselect anything you don&apos;t want — you can change all of it after setup.
+    <div>
+      <div className="flow-header">
+        <h1 className="flow-title">Does this look right?</h1>
+        <p className="website-body">
+          Everything below was found automatically. Deselect anything you don&apos;t want to track.
         </p>
       </div>
-      <div className="grid gap-3">
-        <section className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-[var(--radius-card)] border p-4">
-          <div className="border-border-subtle flex items-center justify-between border-b pb-2">
-            <span className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">
-              Online Footprint &amp; Peers
-            </span>
-            <span className="text-2xs text-muted font-medium">Auto-verified domains</span>
-          </div>
-          <ReviewStep
-            domains={domains}
-            competitors={competitors}
-            onToggleDomain={toggle(flow.setDomains)}
-            onToggleCompetitor={(index) =>
-              toggleCompetitor(index, setCompetitors, maximumCompetitors)
-            }
-            onEditCompetitorDomain={(index, domain) =>
-              editCompetitorDomain(index, domain, setCompetitors)
-            }
-            onAddCompetitor={() => addCompetitor(setCompetitors, maximumCompetitors)}
-            maximumCompetitors={maximumCompetitors}
-          />
-        </section>
-        <section className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-[var(--radius-card)] border p-4">
-          <div className="border-border-subtle flex items-center justify-between border-b pb-2">
-            <span className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">
-              Brand Positioning &amp; Market
-            </span>
-            <span className="bg-accent-soft text-accent-text border-accent-border/50 text-2xs inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-semibold">
-              <span className="bg-accent size-1.5 rounded-full" aria-hidden />
-              AI Discovered
-            </span>
-          </div>
-          {profile ? <IcpConfirmation profile={profile} onChange={setProfile} /> : null}
-        </section>
-      </div>
-      {catalog.isError ? (
-        <Alert tone="warning">
-          <div className="flex items-center justify-between gap-3">
-            <span>We could not load the competitor limit.</span>
-            <Button size="sm" variant="ghost" onClick={() => catalog.refetch()}>
-              Try again
-            </Button>
-          </div>
-        </Alert>
-      ) : null}
-      {complete.isError ? (
-        <Alert tone="warning">{onboardingErrorMessage(complete.error)}</Alert>
-      ) : null}
-      <CompletionStateAlert failed={completionFailed} />
-      {!hasSelectedDomain ? (
-        <Alert tone="warning">Keep at least one website address selected.</Alert>
-      ) : null}
-      {!hasConfirmedIcp(profile) ? (
-        <Alert tone="warning">Choose or describe what you sell.</Alert>
-      ) : null}
-      <div className="border-border-subtle flex items-center justify-between gap-3 border-t pt-3">
-        <Button variant="secondary" size="md" onClick={() => setStep(1)} disabled={isCompleting}>
-          Back
-        </Button>
-        <Button
-          size="md"
-          onClick={() => complete.mutate()}
-          disabled={
-            completionFailed || isCompleting || !hasSelectedDomain || !hasConfirmedIcp(profile)
+      <div className="flow-groups">
+        <ReviewStep
+          domains={domains}
+          competitors={competitors}
+          onToggleDomain={toggle(flow.setDomains)}
+          onToggleCompetitor={(index) =>
+            toggleCompetitor(index, setCompetitors, maximumCompetitors)
           }
-        >
-          {isCompleting ? 'Creating…' : 'Create project'}
-        </Button>
+          onEditCompetitorDomain={(index, domain) =>
+            editCompetitorDomain(index, domain, setCompetitors)
+          }
+          onAddCompetitor={() => addCompetitor(setCompetitors, maximumCompetitors)}
+          maximumCompetitors={maximumCompetitors}
+        />
+        {profile ? <IcpConfirmation profile={profile} onChange={setProfile} /> : null}
+      </div>
+      <div className="mt-[var(--flow-block)] grid gap-[var(--flow-answer)]">
+        {catalog.isError ? (
+          <Alert tone="warning">
+            <div className="flex items-center justify-between gap-3">
+              <span>We could not load the competitor limit.</span>
+              <Button size="sm" variant="ghost" onClick={() => catalog.refetch()}>
+                Try again
+              </Button>
+            </div>
+          </Alert>
+        ) : null}
+        {complete.isError ? (
+          <Alert tone="warning">{onboardingErrorMessage(complete.error)}</Alert>
+        ) : null}
+        <CompletionStateAlert failed={completionFailed} />
+        {!hasSelectedDomain ? (
+          <Alert tone="warning">Keep at least one website address selected.</Alert>
+        ) : null}
+        {!hasConfirmedIcp(profile) ? (
+          <Alert tone="warning">Choose or describe what you sell.</Alert>
+        ) : null}
       </div>
     </div>
   );
+}
+
+function discoveryResults(
+  discovery: ReturnType<
+    typeof import('@/lib/onboarding/use-brand-discovery').useBrandDiscovery
+  >['discovery'],
+): string[] {
+  if (!discovery) return [];
+  const website = String(discovery.input_data.website_url ?? '').replace(/^https?:\/\//, '');
+  return [website, ...discovery.competitors.map((competitor) => competitor.name)].filter(Boolean);
 }
 
 function CompletionStateAlert({ failed }: Readonly<{ failed: boolean }>) {

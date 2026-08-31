@@ -246,7 +246,7 @@ screen from its internal presentation files.
 | Growth Agent | `components/agent/growth-agent-workspace.tsx` owns workspace state and actions | `growth-agent-workspace-view.tsx` owns run detail, task form, and task history presentation |
 | AI Referrals | `components/ai-referrals/ai-referrals-screen.tsx` owns project/range queries and toolbar selection | content, dashboard, and skeleton owners render the query states and measurements |
 | Content | `components/content/content-screen.tsx` owns project transitions and generation orchestration | data hooks, generation history, and composer/result panels own their respective concerns |
-| Onboarding | `components/onboarding/onboarding-screen.tsx` selects the active stage | flow, layout, and stage owners contain the transaction state, responsive chrome, and stage UI |
+| Onboarding | `components/onboarding/onboarding-screen.tsx` selects the active stage and actions | `onboarding-flow.ts` owns transaction state, stage owners render domain UI, and `components/auth/flow-shell.tsx` owns shared auth/onboarding chrome |
 | Projects dashboard | `components/projects/dashboard-screen.tsx` owns query gates and project context | dashboard controls, primitives, sections, and command-center action hook own reusable UI and mutations |
 | Traffic | `components/traffic/traffic-screen.tsx` owns query gates and selected analytical controls | toolbar, unified-performance card, and synchronization hook own their scoped behavior |
 | Site Health URL detail | `components/site-health/url-detail.tsx` owns query/rerun control and polling | `url-detail-view.tsx` owns the persisted-detail presentation; `internal-links-card.tsx` owns the link-metric section |

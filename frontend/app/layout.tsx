@@ -18,10 +18,11 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 const DIRECTION_CONTRACT = `<!--
-THESIS: CiteLadder turns persisted AI evidence into the next measurable action; it refuses the metric-card gallery.
-OWN-WORLD: refined light system — white surfaces, neutral-gray highlights, one reference-blue accent, soft crisp elevation, Plus Jakarta Sans website display + Geist UI, and a 16px website reading baseline.
-STORY: See project state, understand comparable movement, act on a ranked evidence-backed queue, then remeasure without causal overclaiming.
-FIRST VIEWPORT: A sentence-led state header above a dominant movement chart and right-hand action queue; report and measurement actions sit with state.
+THESIS: Account access and project setup are one calm guided flow; it refuses the decorative split-screen rail and nested setup cards.
+OWN-WORLD: light neutral ground, crisp hairlines, Plus Jakarta Sans display with Geist body, 12px controls, quiet selected answers, and cobalt reserved for the current step and primary action.
+STORY: Enter the essential site facts, watch evidence resolve, confirm exactly what will be tracked, then create the project.
+FIRST VIEWPORT: A 64px wordmark and progress bar frame one centred 720px column; the scrolling task sits above a persistent action bar, with review widening only to 880px.
+FORM: centred guided flow, code-led, seed key user-locked-one-flow-four-screens.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and docs/design.md
 -->`;
 

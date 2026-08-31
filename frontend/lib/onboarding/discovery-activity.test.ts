@@ -60,10 +60,10 @@ describe('discoveryActivity', () => {
     const steps = discoveryActivity(discovery('finding_competitors'));
 
     expect(steps.map((step) => step.label)).toEqual([
-      'Opening your website',
-      'Understanding what you offer',
+      'Opened your website',
+      'Read what you offer',
       'Finding comparable brands',
-      'Preparing your review',
+      'Preparing your questions',
     ]);
     expect(steps.map((step) => step.state)).toEqual(['complete', 'complete', 'active', 'pending']);
     expect(JSON.stringify(steps)).not.toMatch(/finding_competitors|queue|provider/);
@@ -72,18 +72,13 @@ describe('discoveryActivity', () => {
   it('uses backend counts without inventing time or percentages', () => {
     const steps = discoveryActivity(discovery('preparing_review'));
 
-    expect(steps[0]?.detail).toBe('3 useful pages read');
-    expect(steps[2]?.detail).toBe('2 comparable brands found');
+    expect(steps[0]?.detail).toBe('3 pages read');
+    expect(steps[2]?.detail).toBe('2 brands found');
   });
 
-  it('gives every research step a simple customer-facing subtitle', () => {
+  it('does not invent detail before persisted counts exist', () => {
     const steps = discoveryActivity(undefined);
 
-    expect(steps.map((step) => step.detail)).toEqual([
-      'Checking that your website can be read.',
-      'Learning what you offer and who it is most useful for.',
-      'Looking for genuinely comparable brands.',
-      'Organizing the strongest findings for your review.',
-    ]);
+    expect(steps.map((step) => step.detail)).toEqual([undefined, undefined, undefined, undefined]);
   });
 });

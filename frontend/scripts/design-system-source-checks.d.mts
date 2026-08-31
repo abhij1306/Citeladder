@@ -4,6 +4,12 @@ export declare function standalonePlaceholderViolations(
   ownsProductUi: boolean,
 ): string[];
 
+export declare function editorialTypographyViolations(
+  source: string,
+  label: string,
+  ownsWebsiteEditorialCopy: boolean,
+): string[];
+
 export declare function productUiSourceViolations(
   source: string,
   label: string,

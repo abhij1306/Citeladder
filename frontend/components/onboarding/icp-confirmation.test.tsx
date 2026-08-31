@@ -50,12 +50,12 @@ describe('IcpConfirmation', () => {
     const what = screen.getByRole('heading', { name: 'What you sell' });
     const who = screen.getByRole('heading', { name: 'Who buys it' });
     const where = screen.getByRole('heading', { name: 'Where they buy it' });
-    expect(what).toHaveClass('text-foreground');
-    expect(who).toHaveClass('text-foreground');
-    expect(where).toHaveClass('text-foreground');
+    expect(what).toHaveClass('flow-group-title');
+    expect(who).toHaveClass('flow-group-title');
+    expect(where).toHaveClass('flow-group-title');
     expect(who.closest('section')?.parentElement).toBe(where.closest('section')?.parentElement);
-    expect(who.closest('section')?.parentElement).toHaveClass('md:grid-cols-2');
-    expect(where.closest('section')).toHaveClass('border-border-subtle', 'md:border-l');
+    expect(who.closest('section')?.parentElement).toHaveClass('flow-pair');
+    expect(where.closest('section')).toHaveClass('flow-group');
     expect(screen.queryByLabelText(/positioning/i)).toBeNull();
     expect(screen.queryByLabelText(/description/i)).toBeNull();
   });

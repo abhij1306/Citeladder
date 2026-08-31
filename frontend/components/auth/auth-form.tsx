@@ -158,9 +158,9 @@ export function AuthFormShell({
   }
 
   return (
-    <div className="w-full" data-auth-form>
+    <div className="w-full">
       <div className="text-center">
-        <h1 className="auth-form-title text-foreground">{title}</h1>
+        <h1 className="flow-title">{title}</h1>
         <p className="website-body text-muted mt-1">{description}</p>
       </div>
 

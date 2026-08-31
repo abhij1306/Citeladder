@@ -47,19 +47,78 @@
   line-height: 1.5;
 }
 
-/* Authentication is a focused, touch-friendly form surface. Its controls use
-   the documented auth geometry without changing the denser public navigation
-   controls that share this typography scope. */
-.website-type [data-auth-form] {
+/* Authentication and onboarding are one focused, touch-friendly flow. These
+   tokens own its measure, rhythm, and controls instead of route-local utility
+   constants. */
+[data-flow-surface] {
+  --flow-bar-height: 4rem;
+  --flow-measure: 45rem;
+  --flow-measure-wide: 55rem;
+  --flow-auth-measure: 28rem;
+  --flow-gutter: 1.5rem;
+  --flow-header-gap: 2.5rem;
+  --flow-block: 2rem;
+  --flow-answer: 1rem;
+  --flow-stack: 0.5rem;
+  --flow-step-mark: 1.5rem;
+  --flow-step-connector: clamp(1.5rem, 4vw, 4rem);
+  --flow-result-stagger: 60ms;
+  --control-height-sm: 2.25rem;
   --radius-control: var(--radius-auth-control);
 }
 
-.auth-form-title {
+.flow-title {
   font-family: var(--font-display);
-  font-size: 1.375rem;
-  line-height: 1.75rem;
+  font-size: 1.75rem;
+  line-height: 2.125rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--color-foreground);
+}
+
+.flow-group-title {
+  margin: 0;
+  font-family:
+    var(--font-geist),
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.5rem;
   font-weight: 600;
   letter-spacing: -0.01em;
+  color: var(--color-foreground);
+}
+
+.flow-help {
+  margin: 0;
+  font-family:
+    var(--font-geist),
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--color-muted);
+}
+
+.flow-meta {
+  font-family:
+    var(--font-geist),
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .website-type :where(h1, h2, h3, h4, h5, h6):not(.app-type-scale *) {
@@ -183,21 +242,6 @@
   color: var(--color-muted);
 }
 
-/* The fixed dark auth/onboarding canvas owns inverse type roles. Keep this
-   explicit so named website-role defaults cannot win during font loading or
-   after Tailwind's generated utility order changes. */
-.website-type [data-brand-canvas] :where(.website-feature-heading, .website-small-heading) {
-  color: var(--color-brand-canvas-foreground);
-}
-
-.website-type [data-brand-canvas] :where(.website-body) {
-  color: var(--color-brand-canvas-secondary);
-}
-
-.website-type [data-brand-canvas] :where(.website-label, .website-eyebrow) {
-  color: var(--color-brand-canvas-muted);
-}
-
 .website-lead {
   font-size: 1.25rem;
   line-height: 1.875rem;
@@ -267,8 +311,365 @@
     0 10px 20px -9px rgb(38 103 255 / 0.58);
 }
 
-.website-type [data-auth-form] [data-button-size='lg'] {
+[data-flow-surface] [data-button-size='lg'] {
   border-radius: var(--radius-auth-control);
+}
+
+.flow-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-panel);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.flow-bar-content {
+  display: grid;
+  min-height: var(--flow-bar-height);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--flow-stack);
+  padding-inline: var(--flow-gutter);
+}
+
+.flow-exit {
+  justify-self: end;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color var(--transition-fast) var(--ease-standard);
+}
+
+.flow-exit:hover {
+  color: var(--color-foreground);
+}
+
+.flow-progress ol {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-progress li {
+  display: flex;
+  align-items: center;
+  gap: var(--flow-stack);
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.flow-progress li[aria-current='step'] {
+  color: var(--color-foreground);
+}
+
+.flow-step-mark {
+  display: grid;
+  width: var(--flow-step-mark);
+  height: var(--flow-step-mark);
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 50%;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.flow-step-mark svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  stroke-width: 2.5;
+}
+
+.flow-step-mark-current {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+}
+
+.flow-step-mark-done {
+  border-color: var(--color-border-strong);
+  background: var(--color-active);
+  color: var(--color-secondary);
+}
+
+.flow-step-connector {
+  width: var(--flow-step-connector);
+  height: 1px;
+  margin-inline: var(--flow-stack);
+  background: var(--color-border-strong);
+}
+
+.flow-step-mobile-prefix {
+  display: none;
+}
+
+.flow-progress-rule {
+  height: 2px;
+  overflow: hidden;
+  background: var(--color-border-subtle);
+}
+
+.flow-progress-rule span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--color-accent-border);
+  transform-origin: left center;
+  transition: transform 220ms var(--ease-standard);
+}
+
+.flow-main {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--flow-header-gap) var(--flow-gutter) var(--flow-block);
+}
+
+.flow-main[data-flow-align='center'] {
+  display: grid;
+  align-items: center;
+}
+
+.flow-content,
+.flow-action-content {
+  width: min(100%, var(--flow-measure));
+  margin-inline: auto;
+}
+
+.flow-content[data-flow-measure='wide'],
+.flow-action-content[data-flow-measure='wide'] {
+  width: min(100%, var(--flow-measure-wide));
+}
+
+.flow-auth-content {
+  width: min(100%, var(--flow-auth-measure));
+  margin-inline: auto;
+}
+
+.flow-footer,
+.flow-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-panel);
+  padding: var(--flow-answer) var(--flow-gutter);
+}
+
+.flow-actions.safe-bottom {
+  padding-bottom: calc(var(--flow-answer) + env(safe-area-inset-bottom, 0px));
+}
+
+.flow-action-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--flow-answer);
+}
+
+.flow-header {
+  display: grid;
+  gap: var(--flow-stack);
+  margin-bottom: var(--flow-header-gap);
+}
+
+.flow-header :where(h1, p) {
+  margin: 0;
+}
+
+.flow-groups {
+  display: grid;
+  gap: var(--flow-block);
+}
+
+.flow-group {
+  min-width: 0;
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: var(--flow-answer);
+}
+
+.flow-group-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--flow-answer);
+}
+
+.flow-group-copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--flow-stack);
+}
+
+.flow-group-aside {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--flow-stack);
+}
+
+.flow-answer {
+  margin-top: var(--flow-answer);
+}
+
+.flow-pair {
+  display: grid;
+  gap: var(--flow-block);
+}
+
+[data-flow-surface] .flow-choice-chip,
+[data-flow-surface] [data-radio-variant='chip'] button {
+  border-radius: var(--radius-control);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.flow-activity {
+  gap: var(--flow-answer);
+}
+
+.flow-activity-list {
+  display: grid;
+  gap: var(--flow-stack);
+}
+
+.flow-activity-row {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2rem;
+}
+
+.flow-activity-indicator {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  color: var(--color-muted);
+}
+
+.flow-activity-indicator svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.flow-activity-row[data-state='complete'] .flow-help,
+.flow-activity-row[data-state='active'] .flow-help {
+  color: var(--color-foreground);
+}
+
+.flow-activity-row[data-state='active'] .flow-activity-indicator {
+  color: var(--color-accent-text);
+}
+
+.flow-activity-row[data-state='attention'] .flow-activity-indicator,
+.flow-activity-row[data-state='attention'] .flow-help {
+  color: var(--color-warning-text);
+}
+
+.flow-found {
+  margin-top: var(--flow-block);
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: var(--flow-answer);
+}
+
+.flow-found-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--flow-stack);
+  margin: var(--flow-stack) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-found-item {
+  color: var(--color-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+  animation: flow-result-in 220ms var(--ease-standard) both;
+  animation-delay: calc(var(--flow-result-index, 0) * var(--flow-result-stagger));
+}
+
+.flow-found-item:not(:last-child)::after {
+  content: '·';
+  margin-left: var(--flow-stack);
+  color: var(--color-muted);
+}
+
+@keyframes flow-result-in {
+  from {
+    opacity: 0.35;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-flow-surface] {
+    --flow-gutter: 2rem;
+  }
+
+  .flow-title {
+    font-size: 2rem;
+    line-height: 2.375rem;
+  }
+
+  .flow-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .flow-pair > .flow-group + .flow-group {
+    border-left: 1px solid var(--color-border-subtle);
+    padding-left: var(--flow-block);
+  }
+}
+
+@media (max-width: 639px) {
+  [data-flow-surface] {
+    --flow-bar-height: 3.5rem;
+    --control-height-sm: 2.75rem;
+  }
+
+  .flow-progress li:not([aria-current='step']) {
+    display: none;
+  }
+
+  .flow-step-connector {
+    display: none;
+  }
+
+  .flow-step-mobile-prefix {
+    display: inline;
+  }
+
+  .flow-step-mark {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .flow-action-content > div:last-child [data-button-size] {
+    min-height: 2.75rem;
+  }
+
+  .flow-activity-row {
+    grid-template-columns: 1.5rem minmax(0, 1fr);
+  }
+
+  .flow-activity-row .flow-meta {
+    grid-column: 2;
+  }
 }
 
 /* A coded product preview is product UI, not oversized marketing copy. */
