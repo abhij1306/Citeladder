@@ -229,12 +229,21 @@ describe('OverviewPanel', () => {
     expect(screen.getByText('High')).toBeInTheDocument();
     expect(screen.getByText('Medium')).toBeInTheDocument();
     expect(screen.getByText('Low')).toBeInTheDocument();
+    expect(screen.getByText('AEO Readiness by pillar')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Observed quality and evidence coverage stay separate.'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Highest-impact persisted defects and readiness gaps.'),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText('Authority · 10%')).not.toBeInTheDocument();
     expect(screen.queryByText('Critical')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Author attribution is missing' })).toHaveAttribute(
+    const issueLink = screen.getByRole('link', { name: 'Author attribution is missing' });
+    expect(issueLink).toHaveAttribute(
       'href',
       '/issues?rule=aeo.visible_attribution&finding_class=advisory',
     );
+    expect(issueLink).toHaveClass('font-normal');
     await user.click(screen.getByRole('button', { name: 'View evidence' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('Images missing alt attributes');
     expect(screen.getByRole('dialog')).toHaveTextContent('mobile_layout');

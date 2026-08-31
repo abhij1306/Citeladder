@@ -165,7 +165,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     const stop = screen.getByRole('button', { name: 'Stop crawl' });
     const analysisTabs = screen.getByRole('tablist', { name: 'Website analysis' });
     expect(screen.getByTestId('inventory-section')).not.toContainElement(stop);
-    expect(analysisTabs.parentElement).toContainElement(stop);
+    expect(analysisTabs.parentElement?.parentElement).toContainElement(stop);
     expect(
       analysisTabs.compareDocumentPosition(stop) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();

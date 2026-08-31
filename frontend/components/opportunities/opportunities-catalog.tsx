@@ -9,17 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CursorPager } from '@/components/ui/cursor-pager';
-import {
-  Dropdown,
-  DropdownContent,
-  DropdownItem,
-  DropdownLabel,
-  DropdownRadioGroup,
-  DropdownRadioItem,
-  DropdownTrigger,
-} from '@/components/ui/dropdown';
+import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from '@/components/ui/dropdown';
 import { AccentEyebrow } from '@/components/ui/eyebrow';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Pressable } from '@/components/ui/pressable';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Table,
   TableBody,
@@ -108,27 +102,35 @@ function FilterMenu<T extends string>({
   options: ReadonlyArray<{ key: T; label: string }>;
   onChange: (value: T) => void;
 }>) {
+  const [open, setOpen] = useState(false);
   const selectedLabel = options.find((option) => option.key === value)?.label ?? value;
   return (
-    <Dropdown>
-      <DropdownTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <Button variant="secondary" size="sm" aria-label={`${label}: ${selectedLabel}`}>
           <span className="text-muted">{label}</span>
           <span>{selectedLabel}</span>
           <ChevronDown className="size-4" aria-hidden />
         </Button>
-      </DropdownTrigger>
-      <DropdownContent>
-        <DropdownLabel>{label}</DropdownLabel>
-        <DropdownRadioGroup value={value} onValueChange={(nextValue) => onChange(nextValue as T)}>
-          {options.map((option) => (
-            <DropdownRadioItem key={option.key} value={option.key}>
-              {option.label}
-            </DropdownRadioItem>
-          ))}
-        </DropdownRadioGroup>
-      </DropdownContent>
-    </Dropdown>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="grid min-w-40 gap-1 p-1" aria-label={label}>
+        <p className="text-muted px-2 py-1 text-xs font-medium">{label}</p>
+        {options.map((option) => (
+          <Pressable
+            key={option.key}
+            role="menuitemradio"
+            aria-checked={option.key === value}
+            className="hover:bg-background-alt min-h-8 px-2 py-1.5 text-sm"
+            onClick={() => {
+              onChange(option.key);
+              setOpen(false);
+            }}
+          >
+            <span className={option.key === value ? 'font-medium' : undefined}>{option.label}</span>
+          </Pressable>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -160,7 +162,7 @@ function FeaturedRecommendation({
             <ChevronRight className="size-4" aria-hidden />
           </Button>
         </div>
-        <p className="text-secondary max-w-3xl text-sm whitespace-pre-line">{detail.remediation}</p>
+        <p className="text-secondary text-sm whitespace-pre-line">{detail.remediation}</p>
         {target ? (
           <p className="text-muted min-w-0 truncate text-xs" title={target}>
             Applies to {target}
@@ -177,15 +179,15 @@ function StatusControl({ row, projectId }: Readonly<{ row: Opportunity; projectI
   return (
     <Dropdown>
       <DropdownTrigger asChild>
-        <button
+        <Pressable
           type="button"
           aria-label={`Change status for ${row.title}`}
-          className="focus-ring rounded-full"
+          className="w-auto rounded-full"
           // Row click opens the drawer — the status control must not.
           onClick={(event) => event.stopPropagation()}
         >
           <OpportunityStatusBadge status={row.status} />
-        </button>
+        </Pressable>
       </DropdownTrigger>
       <DropdownContent>
         {STATUS_CHOICES.map((choice) => (

@@ -98,7 +98,6 @@ export function BrandProfilePanel({
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         ariaLabel="Company facts sections"
-        idPrefix="company-facts"
         panel={
           <ProfileTabPanel
             activeTab={activeTab}

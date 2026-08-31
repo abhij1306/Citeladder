@@ -15,6 +15,9 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { CopyButton } from '@/components/ui/copy-button';
+import { Pressable } from '@/components/ui/pressable';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Skeleton } from '@/components/ui/skeleton';
 import { siteHealthQueries, type IssuesParams } from '@/lib/api/site-health';
 import type { IssueDimension, IssuesSummary, SiteIssue, SiteIssueDetail } from '@/lib/api/types';
@@ -69,10 +72,8 @@ function filterCount(filter: FilterKey, summary: IssuesSummary, view: FindingVie
 }
 
 export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
-  const { cursor, filters, navigate } = useIssuesCatalogUrlState();
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const { cursor, filters, selectedGroupId, navigate, selectIssue } = useIssuesCatalogUrlState();
   const [occurrenceCursors, setOccurrenceCursors] = useState<string[]>([]);
-  const [copied, setCopied] = useState(false);
   const findingView: FindingView = filters.finding_class;
   const params = useMemo(() => toIssueParams(filters, cursor, ISSUE_LIMIT), [filters, cursor]);
   const issuesQuery = useQuery(siteHealthQueries.issues(crawlId, params));
@@ -89,24 +90,12 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
 
   const updateFilters = (change: Partial<IssueFilters>) => {
     const changed = changeIssueFilters(filters, change);
-    setSelectedGroupId(null);
     setOccurrenceCursors([]);
     navigate(changed.filters, changed.cursor);
   };
   const chooseGroup = (groupId: string) => {
-    setSelectedGroupId(groupId);
+    selectIssue(groupId);
     setOccurrenceCursors([]);
-    setCopied(false);
-  };
-  const copyPrompt = async () => {
-    if (!selected) return;
-    try {
-      await navigator.clipboard.writeText(buildFixPrompt(selected));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1_500);
-    } catch {
-      // Clipboard access is optional in permission-restricted contexts.
-    }
   };
 
   return (
@@ -129,27 +118,17 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
             updateFilters({ finding_class, severity: '', dimension: '' })
           }
         />
-        <div className="flex flex-wrap items-center gap-1.5">
-          {FILTERS.filter(
+        <SegmentedControl
+          value={selectedFilter(filters)}
+          onChange={(value) => updateFilters(filterChange(value))}
+          ariaLabel="Issue filters"
+          options={FILTERS.filter(
             (item) => findingView === 'defect' || !['high', 'medium', 'low'].includes(item.key),
-          ).map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => updateFilters(filterChange(item.key))}
-              aria-pressed={item.key === selectedFilter(filters)}
-              className={cn(
-                'focus-ring rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                item.key === selectedFilter(filters)
-                  ? 'border-accent-border bg-accent-subtle text-accent-text'
-                  : 'border-border bg-panel text-secondary hover:border-border-strong hover:text-foreground',
-              )}
-            >
-              {item.label}
-              {summary ? ` (${filterCount(item.key, summary, findingView)})` : ''}
-            </button>
-          ))}
-        </div>
+          ).map((item) => ({
+            value: item.key,
+            label: `${item.label}${summary ? ` (${filterCount(item.key, summary, findingView)})` : ''}`,
+          }))}
+        />
       </div>
 
       {issuesQuery.isError ? (
@@ -164,16 +143,17 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
           <CardContent className="text-secondary text-sm">No issues match this view.</CardContent>
         </Card>
       ) : (
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(18rem,0.85fr)_minmax(0,1.65fr)]">
+        <div
+          className="grid items-start gap-4 lg:grid-cols-[minmax(18rem,0.85fr)_minmax(0,1.65fr)]"
+          aria-busy={issuesQuery.isFetching}
+        >
           <IssueGroupList rows={rows} selectedGroupId={selected?.group_id} onSelect={chooseGroup} />
           {selected ? (
             <IssueDetailRail
               issue={selected}
               crawlId={crawlId}
               detailQuery={detailQuery}
-              copied={copied}
               canPrevious={occurrenceCursors.length > 0}
-              onCopy={copyPrompt}
               onPrevious={() => setOccurrenceCursors((values) => values.slice(0, -1))}
               onNext={() => {
                 const next = detailQuery.data?.next_cursor;
@@ -190,7 +170,6 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
             variant="secondary"
             size="sm"
             onClick={() => {
-              setSelectedGroupId(null);
               setOccurrenceCursors([]);
               navigate(filters, null);
             }}
@@ -204,7 +183,6 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
             onClick={() => {
               const next = issuesQuery.data?.next_cursor;
               if (next) {
-                setSelectedGroupId(null);
                 setOccurrenceCursors([]);
                 navigate(filters, next);
               }
@@ -248,27 +226,19 @@ function FindingClassFilter({
   onChange: (value: FindingView) => void;
 }>) {
   return (
-    <div className="flex items-center gap-1" aria-label="Finding class">
-      {(['defect', 'advisory'] as const).map((view) => (
-        <button
-          key={view}
-          type="button"
-          onClick={() => onChange(view)}
-          aria-pressed={value === view}
-          className={cn(
-            'focus-ring rounded-full border px-3 py-1 text-xs font-medium capitalize',
-            value === view
-              ? 'border-accent-border bg-accent-subtle text-accent-text'
-              : 'border-border bg-panel text-secondary',
-          )}
-        >
-          {view === 'defect' ? 'Defects' : 'Advisories'}
-          {summary
+    <SegmentedControl
+      value={value}
+      onChange={onChange}
+      ariaLabel="Finding class"
+      options={(['defect', 'advisory'] as const).map((view) => ({
+        value: view,
+        label: `${view === 'defect' ? 'Defects' : 'Advisories'}${
+          summary
             ? ` (${view === 'defect' ? summary.defect_issue_type_count : summary.advisory_issue_type_count})`
-            : ''}
-        </button>
-      ))}
-    </div>
+            : ''
+        }`,
+      }))}
+    />
   );
 }
 
@@ -286,7 +256,7 @@ function IssueGroupList({
       {rows.map((issue) => {
         const selected = issue.group_id === selectedGroupId;
         return (
-          <button
+          <Pressable
             key={issue.group_id}
             type="button"
             onClick={() => onSelect(issue.group_id)}
@@ -313,7 +283,7 @@ function IssueGroupList({
             </span>
             <span className="text-foreground text-sm font-semibold">{issueTitle(issue)}</span>
             <span className="text-secondary line-clamp-2 text-xs">{issue.description}</span>
-          </button>
+          </Pressable>
         );
       })}
     </div>
@@ -324,44 +294,60 @@ function IssueDetailRail({
   issue,
   crawlId,
   detailQuery,
-  copied,
   canPrevious,
-  onCopy,
   onPrevious,
   onNext,
 }: Readonly<{
   issue: SiteIssue;
   crawlId: string;
-  detailQuery: { data: SiteIssueDetail | undefined; isError: boolean; isLoading: boolean };
-  copied: boolean;
+  detailQuery: {
+    data: SiteIssueDetail | undefined;
+    isError: boolean;
+    isLoading: boolean;
+    isFetching: boolean;
+  };
   canPrevious: boolean;
-  onCopy: () => void;
   onPrevious: () => void;
   onNext: () => void;
 }>) {
   const detail = detailQuery.data;
   return (
-    <Card className="lg:sticky lg:top-[var(--workspace-gap)]">
-      <CardContent className="grid gap-[var(--workspace-gap)]">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {issue.finding_class === 'defect' ? (
-              <Badge variant="status" value={severityBadgeValue(issue.severity)}>
-                {severityLabel(issue.severity)}
-              </Badge>
-            ) : (
-              <Badge>Advisory</Badge>
-            )}
-            <DimensionBadge dimension={issue.dimension} />
+    <Card
+      className="lg:sticky lg:top-[var(--workspace-gap)] lg:max-h-[calc(100dvh-var(--topbar-height)-2*var(--workspace-gap))] lg:overflow-hidden"
+      aria-busy={detailQuery.isFetching}
+    >
+      <CardContent className="flex flex-col p-0 lg:max-h-[calc(100dvh-var(--topbar-height)-2*var(--workspace-gap))]">
+        {detailQuery.isFetching && !detailQuery.isLoading ? (
+          <progress
+            className="bg-neutral-bg [&::-webkit-progress-bar]:bg-neutral-bg [&::-webkit-progress-value]:bg-accent [&::-moz-progress-bar]:bg-accent h-0.5 w-full shrink-0 appearance-none border-0"
+            aria-label="Updating issue evidence"
+          />
+        ) : null}
+        <header className="border-border-subtle grid shrink-0 gap-3 border-b p-[var(--card-padding)]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {issue.finding_class === 'defect' ? (
+                <Badge variant="status" value={severityBadgeValue(issue.severity)}>
+                  {severityLabel(issue.severity)}
+                </Badge>
+              ) : (
+                <Badge>Advisory</Badge>
+              )}
+              <DimensionBadge dimension={issue.dimension} />
+            </div>
+            <span className="text-2xs text-muted whitespace-nowrap">
+              {issue.affected_url_count} {issue.affected_url_count === 1 ? 'page' : 'pages'}{' '}
+              affected
+            </span>
           </div>
-          <span className="text-2xs text-muted whitespace-nowrap">
-            {issue.affected_url_count} {issue.affected_url_count === 1 ? 'page' : 'pages'} affected
-          </span>
-        </div>
-        <div className="grid gap-2">
-          <h2 className="text-foreground text-xl font-semibold tracking-[-0.02em]">
+          <h2 className="text-foreground text-lg font-semibold tracking-[-0.02em]">
             {issueTitle(issue)}
           </h2>
+          <CopyButton value={buildFixPrompt(issue)} size="sm" className="w-fit">
+            Copy fix prompt
+          </CopyButton>
+        </header>
+        <div className="content-scroll grid min-h-0 gap-[var(--workspace-gap)] p-[var(--card-padding)] lg:flex-1 lg:overflow-y-auto">
           {issue.description ? (
             <p className="text-secondary text-sm whitespace-pre-line">{issue.description}</p>
           ) : null}
@@ -373,31 +359,28 @@ function IssueDetailRail({
               ))}
             </span>
           ) : null}
+          {issue.remediation ? (
+            <div className="border-border-subtle bg-panel-subtle grid gap-1 rounded-lg border p-3">
+              <span className="text-2xs text-muted font-medium">How to fix</span>
+              <p className="text-secondary text-sm whitespace-pre-line">{issue.remediation}</p>
+            </div>
+          ) : null}
+          <OccurrenceList
+            detail={detail}
+            crawlId={crawlId}
+            isError={detailQuery.isError}
+            isLoading={detailQuery.isLoading}
+          />
         </div>
-        <Button variant="secondary" size="sm" className="w-fit" onClick={onCopy}>
-          {copied ? 'Copied' : 'Copy fix prompt'}
-        </Button>
-        {issue.remediation ? (
-          <div className="border-border-subtle bg-panel-subtle grid gap-1 rounded-lg border p-3">
-            <span className="text-2xs text-muted font-medium">How to fix</span>
-            <p className="text-secondary text-sm whitespace-pre-line">{issue.remediation}</p>
-          </div>
-        ) : null}
-        <OccurrenceList
-          detail={detail}
-          crawlId={crawlId}
-          isError={detailQuery.isError}
-          isLoading={detailQuery.isLoading}
-        />
         {detail && (detail.occurrences.length > 0 || canPrevious) ? (
-          <div className="flex items-center justify-end gap-2">
+          <footer className="border-border-subtle bg-panel flex shrink-0 items-center justify-end gap-2 border-t p-3">
             <Button variant="secondary" size="sm" onClick={onPrevious} disabled={!canPrevious}>
               Previous
             </Button>
             <Button variant="secondary" size="sm" onClick={onNext} disabled={!detail.next_cursor}>
               Next
             </Button>
-          </div>
+          </footer>
         ) : null}
       </CardContent>
     </Card>
@@ -426,7 +409,7 @@ function OccurrenceList({
   if (!detail || detail.occurrences.length === 0)
     return <p className="text-secondary text-sm">No affected URLs found.</p>;
   return (
-    <ul className="border-border-subtle divide-border-subtle divide-y overflow-hidden rounded-lg border">
+    <ul className="border-border-subtle divide-border-subtle divide-y border-y">
       {detail.occurrences.map((occurrence) => (
         <li key={occurrence.occurrence_id} className="grid gap-3 p-3">
           <Link

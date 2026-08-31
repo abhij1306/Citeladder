@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Pressable } from '@/components/ui/pressable';
 import { Alert } from '@/components/ui/alert';
 import type { CommerceTarget } from '@/lib/api/schemas/commerce-suite';
 import { targetKey } from '@/lib/products/use-commerce-target';
@@ -115,7 +116,7 @@ function CatalogRow({
           }}
           onChange={onToggle}
         />
-        <button
+        <Pressable
           type="button"
           onClick={onSelect}
           aria-label={entry.label}
@@ -130,7 +131,7 @@ function CatalogRow({
           {entry.count === undefined ? null : (
             <span className="text-muted shrink-0 tabular-nums">{entry.count}</span>
           )}
-        </button>
+        </Pressable>
       </div>
     </li>
   );

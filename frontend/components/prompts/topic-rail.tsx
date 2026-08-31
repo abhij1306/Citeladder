@@ -1,12 +1,14 @@
 'use client';
 
-import { ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useId, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { eyebrowClasses } from '@/components/ui/eyebrow';
-import { Input, inputClasses } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Pressable } from '@/components/ui/pressable';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { Topic } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
@@ -25,7 +27,7 @@ function topicErrorMessage(loadError?: boolean, actionError?: string | null): st
  *  - Desktop (lg+): a contained `bg-panel` rail listing the
  *    project's topics with per-status counts, an "All topics" bucket, an inline
  *    add-topic form, and per-topic delete.
- *  - Narrow (< lg): a compact full-width Topics `<select>` stacked above the
+ *  - Narrow (< lg): a compact full-width Topics picker stacked above the
  *    status tabs — the desktop rail would crush the table, so the rail
  *    collapses to a selector, preserving the IA with no overlap.
  * Selection filters the prompt table; deleting a topic detaches its prompts
@@ -151,7 +153,7 @@ export function TopicRail({
         ))}
       </nav>
 
-      {/* Narrow selector: full-width Topics <select> shown below the lg
+      {/* Narrow selector: full-width Topics picker shown below the lg
           breakpoint, stacked above the status tabs. */}
       <TopicSelect
         topics={topics}
@@ -184,25 +186,17 @@ function TopicSelect({
       <span id={labelId} className={eyebrowClasses}>
         Topics
       </span>
-      <div className="relative">
-        <select
-          aria-labelledby={labelId}
-          value={selectedTopicId ?? ''}
-          onChange={(event) => onSelect(event.target.value === '' ? null : event.target.value)}
-          className={cn(inputClasses, 'appearance-none pe-8')}
-        >
-          <option value="">All topics</option>
-          {topics.map((topic) => (
-            <option key={topic.id} value={topic.id}>
-              {topic.name}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          className="text-muted pointer-events-none absolute end-2 top-1/2 size-4 -translate-y-1/2"
-          aria-hidden
-        />
-      </div>
+      <Select
+        ariaLabel="Topics"
+        aria-labelledby={labelId}
+        value={selectedTopicId ?? ''}
+        onValueChange={(value) => onSelect(value === '' ? null : value)}
+        className="w-full"
+        options={[
+          { value: '', label: 'All topics' },
+          ...topics.map((topic) => ({ value: topic.id, label: topic.name })),
+        ]}
+      />
       {topicErrorMessage(loadError, actionError) ? (
         <Alert tone="danger">{topicErrorMessage(loadError, actionError)}</Alert>
       ) : null}
@@ -230,7 +224,7 @@ function TopicItem({
         selected ? 'bg-accent-subtle' : 'hover:bg-background-alt',
       )}
     >
-      <button
+      <Pressable
         type="button"
         onClick={onSelect}
         aria-current={selected ? 'true' : undefined}
@@ -245,21 +239,18 @@ function TopicItem({
         {typeof activeCount === 'number' ? (
           <span className="mono text-muted text-2xs shrink-0">{activeCount}</span>
         ) : null}
-      </button>
+      </Pressable>
       {onDelete ? (
-        <button
+        <Button
           type="button"
+          variant="destructiveGhost"
+          size="icon"
           aria-label={`Delete topic ${label}`}
           onClick={onDelete}
-          className={cn(
-            'focus-ring text-muted hover:text-danger-text flex size-8 shrink-0 items-center justify-center rounded-sm transition-opacity motion-reduce:transition-none',
-            selected
-              ? 'opacity-100'
-              : 'opacity-60 group-focus-within:opacity-100 group-hover:opacity-100',
-          )}
+          className="size-8 shrink-0"
         >
           <Trash2 className="size-4" aria-hidden />
-        </button>
+        </Button>
       ) : null}
     </div>
   );

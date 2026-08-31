@@ -10,42 +10,39 @@ export function useCommandCenterActions(data: CommandCenter, project: Project) {
   const queryClient = useQueryClient();
   const [downloadError, setDownloadError] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [actions, setActions] = useState(data.actions);
-  const [reorderError, setReorderError] = useState(false);
   const orderVersion = useRef(data.action_order_version);
-  const reorderPending = useRef(false);
+  const queryKey = queryKeys.projects.commandCenter(project.id);
   const reorder = useMutation({
     mutationFn: (ordered: Opportunity[]) =>
       opportunitiesApi.updateOrder(project.id, {
         ordered_opportunity_ids: ordered.map((row) => row.id),
         expected_version: orderVersion.current,
       }),
+    onMutate: async (ordered) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<CommandCenter>(queryKey);
+      queryClient.setQueryData<CommandCenter>(queryKey, (current) =>
+        current ? { ...current, actions: ordered } : current,
+      );
+      return { previous };
+    },
     onSuccess: (result) => {
       orderVersion.current = result.version;
-      reorderPending.current = false;
-      setReorderError(false);
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.projects.commandCenter(project.id),
-      });
     },
-    onError: () => {
-      reorderPending.current = false;
+    onError: (_error, _ordered, context) => {
       orderVersion.current = data.action_order_version;
-      setActions(data.actions);
-      setReorderError(true);
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.projects.commandCenter(project.id),
-      });
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey }),
   });
   return {
-    actions,
+    actions: data.actions,
     downloadError,
     downloading,
-    reorderError,
+    reorderError: reorder.isError,
     reorderPending: reorder.isPending,
     move: (from: number, to: number) =>
-      moveActions(from, to, actions, reorderPending, setActions, setReorderError, reorder),
+      moveActions(from, to, data.actions, reorder.isPending, reorder),
     download: () => downloadReport(project, setDownloading, setDownloadError),
   };
 }
@@ -54,13 +51,11 @@ function moveActions(
   from: number,
   to: number,
   actions: Opportunity[],
-  pending: React.MutableRefObject<boolean>,
-  setActions: (actions: Opportunity[]) => void,
-  setError: (value: boolean) => void,
+  pending: boolean,
   reorder: { mutate: (actions: Opportunity[]) => void },
 ) {
   if (
-    pending.current ||
+    pending ||
     from < 0 ||
     to < 0 ||
     from >= actions.length ||
@@ -71,9 +66,6 @@ function moveActions(
   const next = [...actions];
   const [item] = next.splice(from, 1);
   next.splice(to, 0, item);
-  setActions(next);
-  setError(false);
-  pending.current = true;
   reorder.mutate(next);
 }
 

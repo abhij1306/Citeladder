@@ -7,7 +7,8 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
-import { Input, Textarea, inputClasses } from '@/components/ui/input';
+import { Input, Textarea } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import type { PromptInput } from '@/lib/api/prompts';
 import type { Prompt } from '@/lib/api/types';
 import {
@@ -96,13 +97,22 @@ export function PromptFormDialog({
           </Field>
           <Field label="Intent" error={errors.intent?.message}>
             {(props) => (
-              <select {...props} {...register('intent')} className={inputClasses}>
-                {intentValues.map((value) => (
-                  <option key={value || 'unspecified'} value={value}>
-                    {intentLabels[value]}
-                  </option>
-                ))}
-              </select>
+              <Controller
+                control={control}
+                name="intent"
+                render={({ field }) => (
+                  <Select
+                    {...props}
+                    ariaLabel="Intent"
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    options={intentValues.map((value) => ({
+                      value,
+                      label: intentLabels[value],
+                    }))}
+                  />
+                )}
+              />
             )}
           </Field>
         </div>

@@ -330,6 +330,13 @@ Unknown, unavailable, zero, historical, conflicting, excluded, and
 not-applicable states retain distinct labels and are never communicated by
 color alone.
 
+Authenticated interaction state has three owners. TanStack Query owns server
+records and retains prior data during paginated or filtered background work.
+`lib/navigation/url-state.ts` owns typed, shareable tabs, filters, cursors, and
+selected record IDs with explicit push/replace history. Component-local state
+owns only ephemeral drafts and interaction state. The shared UI and motion map
+is [`ui-component-system.md`](ui-component-system.md).
+
 Opportunities renders the backend's persisted three-way source mix and coverage,
 plus server-filtered Owned and Earned paths. Detail renders a typed Content
 handoff with bounded citations, coverage, limitations, suggested skill, and

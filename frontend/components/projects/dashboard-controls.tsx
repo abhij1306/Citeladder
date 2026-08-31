@@ -39,7 +39,7 @@ export function ProjectControls({
   return (
     <Dropdown>
       <DropdownTrigger asChild>
-        <Button variant="secondary" size="sm" className="gap-1.5 shadow-xs">
+        <Button variant="secondary" size="sm" className="gap-1.5">
           Manage project <ChevronDown className="size-3.5 opacity-80" aria-hidden />
         </Button>
       </DropdownTrigger>
@@ -93,12 +93,7 @@ export function FactsDrawer({
   });
   return (
     <>
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() => setOpen(true)}
-        className="gap-1.5 shadow-xs"
-      >
+      <Button variant="secondary" size="sm" onClick={() => setOpen(true)} className="gap-1.5">
         <BookOpen className="size-4" aria-hidden /> Edit facts
       </Button>
       <Drawer

@@ -143,11 +143,11 @@ export function ReviewStep({
         meta={`${selectedCompetitors} of ${maximumCompetitors ?? '…'} tracked`}
         action={
           <Button
-            variant="ghost"
+            variant="tonal"
             size="sm"
             onClick={onAddCompetitor}
             disabled={competitorLimitReached}
-            className="text-accent-text hover:bg-accent-soft border-accent-border/50 bg-accent-subtle/50 h-6.5 gap-1 rounded-full border px-2.5 text-xs font-semibold shadow-2xs"
+            className="h-6.5 gap-1 px-2.5"
           >
             <Plus className="size-3.5" aria-hidden />
             Add

@@ -32,13 +32,9 @@ import {
   type TrendGranularity,
   type TrendRange,
 } from '@/lib/visibility/trends';
-import { cn } from '@/lib/utils';
 
 export type EngineFilter = LogicalEngine | 'all';
 const METRICS_HELP_URL = '/faq';
-const CHIP_CLASS = 'h-[var(--control-height-sm)] rounded-full border-border bg-panel px-3 text-xs';
-const CHIP_ACTIVE_CLASS =
-  'border-accent-border bg-accent-soft text-accent-text hover:border-accent-border hover:bg-accent-soft hover:text-accent-text';
 
 type ToolbarProps = Readonly<{
   activeTab: VisibilityTab;
@@ -86,10 +82,10 @@ const FilterButton = forwardRef<
   return (
     <Button
       ref={ref}
-      variant="secondary"
+      variant={active ? 'tonal' : 'secondary'}
       size="sm"
       aria-label={label}
-      className={cn(CHIP_CLASS, active && CHIP_ACTIVE_CLASS, className)}
+      className={className}
       {...buttonProps}
     >
       {children}
@@ -267,7 +263,7 @@ function ToolbarActions() {
     <div className="ms-auto flex items-center gap-2">
       <LaunchAuditButton size="sm" />
       <Tooltip content="How these metrics are calculated">
-        <Button variant="secondary" size="sm" className="size-8 rounded-full px-0" asChild>
+        <Button variant="secondary" size="icon" asChild>
           <a href={METRICS_HELP_URL} aria-label="About these metrics">
             <CircleHelp className="size-3" aria-hidden strokeWidth={2} />
           </a>
@@ -275,13 +271,7 @@ function ToolbarActions() {
       </Tooltip>
       <Tooltip content="Export is available from a run (coming with reports)">
         <span>
-          <Button
-            variant="secondary"
-            size="sm"
-            className={CHIP_CLASS}
-            disabled
-            aria-disabled="true"
-          >
+          <Button variant="secondary" size="sm" disabled aria-disabled="true">
             <Download className="size-3" aria-hidden strokeWidth={2} />
             Export
           </Button>

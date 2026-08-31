@@ -1,32 +1,27 @@
-import { Check, Copy, Download, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { CopyButton } from '@/components/ui/copy-button';
 import type { ContentFeedbackReason, ContentGenerationDetail } from '@/lib/api/types';
 import { ContentMarkdown } from '@/lib/content/markdown';
 
 export function GenerationResult({
   detail,
-  copied,
-  copyLabel,
   regenerating,
   feedbackPending,
   reasonOpen,
-  onCopy,
   onExport,
   onRegenerate,
   onFeedback,
   onRejectClick,
 }: Readonly<{
   detail: ContentGenerationDetail;
-  copied: boolean;
-  copyLabel: string;
   regenerating: boolean;
   feedbackPending: boolean;
   reasonOpen: boolean;
-  onCopy: () => void;
   onExport: () => void;
   onRegenerate: (generationId: string) => void;
   onFeedback: (
@@ -53,11 +48,8 @@ export function GenerationResult({
         <ResultBody detail={detail} />
         <ResultActions
           detail={detail}
-          copied={copied}
-          copyLabel={copyLabel}
           regenerating={regenerating}
           feedbackPending={feedbackPending}
-          onCopy={onCopy}
           onExport={onExport}
           onRegenerate={onRegenerate}
           onFeedback={onFeedback}
@@ -108,22 +100,16 @@ function groundedWithLabel(detail: ContentGenerationDetail): string {
 
 function ResultActions({
   detail,
-  copied,
-  copyLabel,
   regenerating,
   feedbackPending,
-  onCopy,
   onExport,
   onRegenerate,
   onFeedback,
   onRejectClick,
 }: Readonly<{
   detail: ContentGenerationDetail;
-  copied: boolean;
-  copyLabel: string;
   regenerating: boolean;
   feedbackPending: boolean;
-  onCopy: () => void;
   onExport: () => void;
   onRegenerate: (id: string) => void;
   onFeedback: (
@@ -135,20 +121,13 @@ function ResultActions({
 }>) {
   return (
     <div className="flex flex-wrap items-center gap-3 pt-2">
-      <Button
-        variant="secondary"
+      <CopyButton
+        value={detail.output_text ?? ''}
         size="md"
         data-component-id="content-copy-button"
-        onClick={onCopy}
-        className="shadow-xs"
       >
-        {copied ? (
-          <Check className="text-success mr-1.5 size-4" aria-hidden />
-        ) : (
-          <Copy className="mr-1.5 size-4" aria-hidden />
-        )}
-        {copyLabel}
-      </Button>
+        Copy
+      </CopyButton>
       {detail.opportunity_id ? (
         <Button asChild variant="secondary" size="md">
           <Link href={`/opportunities?opportunity_id=${detail.opportunity_id}`}>
@@ -161,7 +140,6 @@ function ResultActions({
         size="md"
         data-component-id="content-export-button"
         onClick={onExport}
-        className="shadow-xs"
       >
         <Download className="mr-1.5 size-4" aria-hidden />
         Export Markdown
@@ -172,7 +150,6 @@ function ResultActions({
         data-component-id="content-regenerate-button"
         disabled={regenerating}
         onClick={() => onRegenerate(detail.id)}
-        className="shadow-xs"
       >
         <RefreshCw className="mr-1.5 size-4" aria-hidden />
         Regenerate
@@ -234,15 +211,15 @@ function FeedbackReasonPicker({
     >
       <span className="text-secondary text-sm font-medium">Why?</span>
       {FEEDBACK_REASONS.map((reason) => (
-        <button
+        <Button
           key={reason.value}
-          type="button"
+          variant="secondary"
+          size="sm"
           disabled={disabled}
           onClick={() => onSelect(reason.value)}
-          className="border-border text-secondary hover:border-accent-border hover:text-accent-text focus-ring disabled:text-muted rounded-full border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed"
         >
           {reason.label}
-        </button>
+        </Button>
       ))}
     </div>
   );

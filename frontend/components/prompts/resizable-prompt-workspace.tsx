@@ -8,6 +8,8 @@ import type {
 } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Pressable } from '@/components/ui/pressable';
+
 const DEFAULT_RAIL_WIDTH = 240;
 const MIN_RAIL_WIDTH = 208;
 const MAX_RAIL_WIDTH = 400;
@@ -134,7 +136,7 @@ export function ResizablePromptWorkspace({
       style={workspaceStyle}
     >
       <div className="w-full min-w-0 lg:w-[var(--topic-rail-width)] lg:shrink-0">{rail}</div>
-      <button
+      <Pressable
         ref={handleRef}
         type="button"
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Native hr cannot expose value or implement this keyboard-operable splitter.
@@ -165,7 +167,7 @@ export function ResizablePromptWorkspace({
         <span id="topic-rail-resize-help" className="sr-only">
           Use left and right arrow keys to resize. Hold Shift for larger steps.
         </span>
-      </button>
+      </Pressable>
       <div className="w-full min-w-0 flex-1 lg:ps-3">{children}</div>
     </div>
   );

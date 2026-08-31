@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { inputClasses } from '@/components/ui/input';
 import { MutationNotice } from '@/components/ui/mutation-notice';
+import { Select } from '@/components/ui/select';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { queryKeys } from '@/lib/api/query-keys';
 import { runsApi } from '@/lib/api/runs';
@@ -99,45 +100,39 @@ export function AuditSchedules({
           <Alert tone="info">Add prompts before scheduling an audit.</Alert>
         ) : (
           <div className="grid gap-3 border-t pt-4 sm:grid-cols-3">
-            <label className="text-secondary grid gap-1 text-xs font-medium">
+            <div className="text-secondary grid gap-1 text-xs font-medium">
               <span>Prompt set</span>
-              <select
-                className={inputClasses}
+              <Select
+                ariaLabel="Prompt set"
                 value={promptSetId}
-                onChange={(event) => setPromptSetId(event.target.value)}
-              >
-                {promptSets.map((set) => (
-                  <option key={set.id} value={set.id}>
-                    {set.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-secondary grid gap-1 text-xs font-medium">
+                onValueChange={setPromptSetId}
+                options={promptSets.map((set) => ({ value: set.id, label: set.name }))}
+              />
+            </div>
+            <div className="text-secondary grid gap-1 text-xs font-medium">
               <span>Measurement scope</span>
-              <select
-                className={inputClasses}
+              <Select
+                ariaLabel="Measurement scope"
                 value={auditScope}
-                onChange={(event) => setAuditScope(event.target.value as 'brand' | 'commerce')}
-              >
-                <option value="brand">Brand visibility</option>
-                <option value="commerce">Commerce AI Shelf</option>
-              </select>
-            </label>
-            <label className="text-secondary grid gap-1 text-xs font-medium">
+                onValueChange={setAuditScope}
+                options={[
+                  { value: 'brand', label: 'Brand visibility' },
+                  { value: 'commerce', label: 'Commerce AI Shelf' },
+                ]}
+              />
+            </div>
+            <div className="text-secondary grid gap-1 text-xs font-medium">
               <span>Cadence</span>
-              <select
-                className={inputClasses}
+              <Select
+                ariaLabel="Cadence"
                 value={cadence}
-                onChange={(event) => setCadence(event.target.value as AuditScheduleCadence)}
-              >
-                {Object.entries(CADENCE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onValueChange={setCadence}
+                options={Object.entries(CADENCE_LABELS).map(([value, label]) => ({
+                  value: value as AuditScheduleCadence,
+                  label,
+                }))}
+              />
+            </div>
             {cadence === 'every_n_minutes' ? (
               <label className="text-secondary grid gap-1 text-xs font-medium">
                 <span>Minutes</span>

@@ -12,15 +12,14 @@ import { ProjectProvider } from '@/lib/project/project-context';
 import type { SiteHealthDashboard } from '@/lib/api/types';
 import { SiteHealthScreen } from './site-health-screen';
 
-let search = '';
 function setSearch(value: string) {
-  search = value;
+  window.history.replaceState(null, '', value ? `/site?${value}` : '/site');
 }
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => '/site',
-  useSearchParams: () => new URLSearchParams(search),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 const WORKSPACE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -263,7 +262,7 @@ function renderScreen() {
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 beforeEach(() => {
-  search = '';
+  setSearch('');
   mswServer.use(http.post('/api/v1/projects/:id/logos/refresh', () => HttpResponse.json(project)));
 });
 afterEach(() => mswServer.resetHandlers());

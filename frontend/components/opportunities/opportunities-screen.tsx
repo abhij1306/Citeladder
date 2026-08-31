@@ -137,8 +137,8 @@ function RetryButton({
     <Button
       variant={variant}
       size="sm"
-      disabled={recompute.isPending}
-      className={cn(recompute.isPending && 'cursor-wait opacity-90')}
+      pending={recompute.isPending}
+      pendingLabel="Trying again…"
       onClick={() => recompute.mutate({ projectId })}
     >
       <RefreshCw className={cn('size-4', recompute.isPending && 'animate-spin')} aria-hidden />

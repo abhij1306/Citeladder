@@ -97,8 +97,6 @@ function ProjectContentScreen({
 }>) {
   const [prompt, setPrompt] = useState('');
   const [chosenSkillId, setChosenSkillId] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [copyFailed, setCopyFailed] = useState(false);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const [reasonOpen, setReasonOpen] = useState(false);
   const skillCatalog = useSkillCatalog();
@@ -164,7 +162,6 @@ function ProjectContentScreen({
   const trimmedPrompt = prompt.trim();
   const canGenerate =
     trimmedPrompt.length > 0 && trimmedPrompt.length <= CONTENT_PROMPT_MAX_LEN && !generating;
-  const clipboard = useClipboard(detail, setCopied, setCopyFailed);
 
   return (
     <ContentWorkspace
@@ -189,9 +186,6 @@ function ProjectContentScreen({
       mutationError={mutationError}
       failed={failed}
       detail={detail}
-      copied={copied}
-      copyFailed={copyFailed}
-      clipboard={clipboard}
       reasonOpen={reasonOpen}
       setReasonOpen={setReasonOpen}
     />
@@ -218,9 +212,6 @@ function ContentWorkspace({
   mutationError,
   failed,
   detail,
-  copied,
-  copyFailed,
-  clipboard,
   reasonOpen,
   setReasonOpen,
 }: Readonly<{
@@ -243,9 +234,6 @@ function ContentWorkspace({
   mutationError: unknown;
   failed: boolean;
   detail: ContentGenerationDetail | null;
-  copied: boolean;
-  copyFailed: boolean;
-  clipboard: () => Promise<void>;
   reasonOpen: boolean;
   setReasonOpen: (value: boolean) => void;
 }>) {
@@ -291,9 +279,6 @@ function ContentWorkspace({
           mutationError={mutationError}
           failed={failed}
           detail={detail}
-          copied={copied}
-          copyFailed={copyFailed}
-          clipboard={clipboard}
           reasonOpen={reasonOpen}
           setReasonOpen={setReasonOpen}
         />
@@ -316,9 +301,6 @@ function GenerationStatePanels({
   mutationError,
   failed,
   detail,
-  copied,
-  copyFailed,
-  clipboard,
   reasonOpen,
   setReasonOpen,
 }: Readonly<{
@@ -327,9 +309,6 @@ function GenerationStatePanels({
   mutationError: unknown;
   failed: boolean;
   detail: ContentGenerationDetail | null;
-  copied: boolean;
-  copyFailed: boolean;
-  clipboard: () => Promise<void>;
   reasonOpen: boolean;
   setReasonOpen: (value: boolean) => void;
 }>) {
@@ -357,11 +336,8 @@ function GenerationStatePanels({
   return (
     <GenerationResult
       detail={detail}
-      copied={copied}
-      copyLabel={copyLabel(copied, copyFailed)}
       regenerating={generation.regenerateMutation.isPending}
       feedbackPending={generation.feedbackMutation.isPending}
-      onCopy={clipboard}
       onExport={() => exportMarkdown(detail)}
       onRegenerate={generation.regenerateMutation.mutate}
       reasonOpen={reasonOpen}
@@ -433,38 +409,6 @@ function dismiss(generation: ReturnType<typeof useContentGenerations>) {
   generation.cancelMutation.reset();
   generation.feedbackMutation.reset();
   generation.setSelectedId(null);
-}
-
-function useClipboard(
-  detail: ContentGenerationDetail | null,
-  setCopied: (value: boolean) => void,
-  setCopyFailed: (value: boolean) => void,
-) {
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
-  return async () => {
-    if (!detail?.output_text) return;
-    if (timer.current) clearTimeout(timer.current);
-    try {
-      await navigator.clipboard.writeText(detail.output_text);
-      setCopyFailed(false);
-      setCopied(true);
-      timer.current = setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-      setCopyFailed(true);
-      timer.current = setTimeout(() => setCopyFailed(false), 2000);
-    }
-  };
-}
-
-function copyLabel(copied: boolean, copyFailed: boolean) {
-  return copied ? 'Copied' : copyFailed ? 'Copy failed' : 'Copy';
 }
 
 function exportMarkdown(detail: ContentGenerationDetail) {

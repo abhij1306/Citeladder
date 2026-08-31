@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Pressable } from '@/components/ui/pressable';
 import {
   integrationsApi,
   type IntegrationConnection,
@@ -48,7 +49,7 @@ function PropertyOption({
   onSelect: () => void;
 }>) {
   return (
-    <button
+    <Pressable
       type="button"
       onClick={onSelect}
       disabled={disabled}
@@ -66,7 +67,7 @@ function PropertyOption({
       </span>
       {pending ? <Loader2 className="text-muted size-4 shrink-0 animate-spin" aria-hidden /> : null}
       {selected && !pending ? <Check className="text-accent size-4 shrink-0" aria-hidden /> : null}
-    </button>
+    </Pressable>
   );
 }
 
@@ -166,7 +167,7 @@ export function PropertyPicker({
         <Button
           variant="ghost"
           size="sm"
-          className="text-muted hover:text-foreground h-6 px-1.5 text-xs font-medium"
+          className="h-6 px-1.5 text-xs"
           onClick={() => setOpen(true)}
           disabled={disabled}
           data-testid={`select-property-${connection.provider}`}

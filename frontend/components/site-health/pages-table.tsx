@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/table';
 import { scoreTextClass } from '@/components/ui/score-band';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
+import { Pressable } from '@/components/ui/pressable';
 import { cn } from '@/lib/utils';
 import type { PagesSort } from '@/lib/api/site-health';
 import type { PageSummary } from '@/lib/api/types';
@@ -71,17 +72,17 @@ function SortableHead({
   const Icon = active ? (descending ? ArrowDown : ArrowUp) : ArrowUpDown;
   return (
     <TableHead numeric aria-sort={active ? (descending ? 'descending' : 'ascending') : undefined}>
-      <button
+      <Pressable
         type="button"
         onClick={onSort}
         className={cn(
-          'inline-flex items-center gap-1',
+          'inline-flex w-auto items-center gap-1',
           active ? 'text-accent-text' : 'hover:text-foreground',
         )}
       >
         {label}
         <Icon className={cn('size-3', !active && 'text-muted')} aria-hidden />
-      </button>
+      </Pressable>
     </TableHead>
   );
 }

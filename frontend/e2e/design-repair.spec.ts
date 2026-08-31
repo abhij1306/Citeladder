@@ -329,7 +329,9 @@ test('Growth Agent opens as a bounded task workspace with plain-language data us
   await expect(page.getByText('Prioritize the admissions journey first.')).toBeVisible();
   await expect(page.getByLabel('Objective')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Start task' })).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Task' })).toHaveValue('explain');
+  await expect(page.getByRole('combobox', { name: 'Task' })).toContainText(
+    'Explain my latest data',
+  );
   await expect(page.getByText('Data used')).toBeVisible();
   await expect(page.getByText('opportunities.read_ranked')).toHaveCount(0);
   await expect(page.getByText(/conversation/i)).toHaveCount(0);

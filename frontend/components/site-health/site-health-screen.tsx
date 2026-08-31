@@ -1,12 +1,11 @@
 'use client';
 
-import { type ReactNode, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { type ReactNode, useMemo } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { MutationNotice } from '@/components/ui/mutation-notice';
-import { tabItemClasses, tabListClasses } from '@/components/ui/tabs';
+import { Tabs } from '@/components/ui/tabs';
 import { SiteHealthDashboardLayout } from '@/components/site-health/dashboard-layout';
 import { AeoReadinessPanel } from '@/components/site-health/aeo-readiness-panel';
 import { ArchitecturePanel } from '@/components/site-health/architecture-panel';
@@ -16,6 +15,7 @@ import { ScreenHeader, ScreenSkeleton } from '@/components/site-health/screen-st
 import { mutationNoticeForError } from '@/lib/api/mutation-notice';
 import { useProjectContext } from '@/lib/project/project-context';
 import { useSiteHealthScreen } from '@/lib/site-health/use-site-health-screen';
+import { stringUrlCodec, useUrlState } from '@/lib/navigation/url-state';
 
 export function SiteHealthScreen() {
   const { activeProject, isLoading } = useProjectContext();
@@ -35,13 +35,6 @@ function LoadedSiteHealthScreen({
   projectId,
   screen,
 }: Readonly<{ projectId: string; screen: ReturnType<typeof useSiteHealthScreen> }>) {
-  const searchParams = useSearchParams();
-  const search = searchParams.toString();
-  const [selectedTab, setSelectedTab] = useState<{
-    value: AnalysisTab;
-    sourceSearch: string;
-  } | null>(null);
-  const requestedTab = analysisTabFrom(searchParams.get('tab'));
   const {
     entitlementQuery,
     dashboardQuery,
@@ -58,17 +51,16 @@ function LoadedSiteHealthScreen({
     exporting,
     exportError,
   } = screen;
-  const tab =
-    (selectedTab?.sourceSearch === search ? selectedTab.value : null) ??
-    requestedTab ??
-    (phase === 'dashboard' ? 'overview' : 'pages');
-  const selectTab = (nextTab: AnalysisTab) => {
-    setSelectedTab({ value: nextTab, sourceSearch: search });
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', nextTab);
-    if (nextTab !== 'pages') params.delete('sort');
-    window.history.pushState(null, '', `?${params.toString()}`);
-  };
+  const defaultTab: AnalysisTab = phase === 'dashboard' ? 'overview' : 'pages';
+  const tabCodec = useMemo(
+    () =>
+      stringUrlCodec(
+        ANALYSIS_TABS.map((item) => item.value),
+        defaultTab,
+      ),
+    [defaultTab],
+  );
+  const [tab, selectTab] = useUrlState('tab', tabCodec, { clearKeys: ['cursor', 'sort'] });
   const blockingState = screenBlockingState({
     entitlementLoading: entitlementQuery.isLoading,
     dashboardLoading: dashboardQuery.isLoading,
@@ -132,11 +124,6 @@ const ANALYSIS_TABS: ReadonlyArray<{ value: AnalysisTab; label: string }> = [
   { value: 'changes', label: 'Changes' },
 ];
 
-function analysisTabFrom(value: string | null): AnalysisTab | null {
-  if (ANALYSIS_TABS.some((tab) => tab.value === value)) return value as AnalysisTab;
-  return null;
-}
-
 function AnalysisTabs({
   tab,
   setTab,
@@ -151,24 +138,14 @@ function AnalysisTabs({
   // the selected tab's underline flush with the rule under the buttons.
   return (
     <div className="border-border relative z-10 flex min-h-10 items-center gap-3 border-b">
-      <div
-        className={`${tabListClasses} before:hidden`}
-        role="tablist"
-        aria-label="Website analysis"
-      >
-        {ANALYSIS_TABS.map(({ value, label }) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={tab === value}
-            className={tabItemClasses(tab === value)}
-            onClick={() => setTab(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={tab as AnalysisTab}
+        onValueChange={setTab}
+        items={ANALYSIS_TABS}
+        ariaLabel="Website analysis"
+        rootClassName="min-w-0 flex-1"
+        className="border-b-0"
+      />
       {actions ? <div className="ml-auto flex shrink-0 items-center">{actions}</div> : null}
     </div>
   );

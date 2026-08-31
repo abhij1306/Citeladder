@@ -4,9 +4,8 @@ import { cn } from '@/lib/utils';
 
 /**
  * Control-height input (§8, --control-height = 32px); focus = --focus-ring via
- * `.focus-ring` plus the ADS focused border (`focus:border-accent`). Native
- * <select> controls consume `inputClasses` too, so the same treatment flows
- * to every select.
+ * `.focus-ring` plus the ADS focused border (`focus:border-accent`). Text-like
+ * controls consume `inputClasses`; selection is owned by the shared Select.
  *
  * The field text is `text-sm` (14/20) — the ADS body default, so what the
  * user types reads as primary body text next to the labels above it.

@@ -3,7 +3,9 @@ import { extname, join, relative, resolve } from 'node:path';
 
 import {
   editorialTypographyViolations,
+  directRadixImportViolations,
   productContractViolations,
+  productControlViolations,
   productUiSourceViolations,
   standalonePlaceholderViolations,
   textContrastViolations,
@@ -54,9 +56,7 @@ for (const path of files(root)) {
   if (path !== tokenOwner && path !== import.meta.filename && /@theme\b/.test(source)) {
     violations.push(`${label}: @theme outside app/globals.css`);
   }
-  if (!label.startsWith('components/ui/') && /from\s+['"]@radix-ui\//.test(source)) {
-    violations.push(`${label}: feature code must use components/ui instead of importing Radix`);
-  }
+  violations.push(...directRadixImportViolations(source, label));
   const ownsWebsiteEditorialCopy =
     (label.startsWith('components/marketing/') &&
       !label.startsWith('components/marketing/scenes/')) ||
@@ -77,6 +77,7 @@ for (const path of files(root)) {
   violations.push(...editorialTypographyViolations(source, label, ownsWebsiteEditorialCopy));
   violations.push(...standalonePlaceholderViolations(source, label, ownsProductUi));
   violations.push(...productUiSourceViolations(source, label, ownsProductUi));
+  violations.push(...productControlViolations(source, label, ownsProductUi));
 }
 
 violations.push(...websiteContractViolations(root));

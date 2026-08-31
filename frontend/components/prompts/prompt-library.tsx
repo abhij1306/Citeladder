@@ -17,7 +17,7 @@ import type {
 } from '@/lib/api/types';
 import { emptyFilters, filterPrompts, type PromptFilters } from '@/lib/prompts/filter';
 import { usePromptSet } from '@/lib/prompts/use-prompt-set';
-import { segmentedItemClasses, segmentedTrackClasses } from '@/components/ui/segmented';
+import { Tabs } from '@/components/ui/tabs';
 
 import { PromptEmptyState } from './prompt-empty-state';
 import { PromptLibraryDialogs } from './prompt-library-dialogs';
@@ -274,27 +274,22 @@ export function PromptLibrary({ onDoneManaging }: Readonly<{ onDoneManaging?: ()
         }
       >
         <div className="grid min-w-0 content-start gap-3">
-          <div role="tablist" aria-label="Prompt status" className={segmentedTrackClasses}>
-            {STATUS_TABS.map((tab) => {
-              const selected = tab.id === statusTab;
-              const count = statusCounts[tab.id];
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  onClick={() => setStatusTab(tab.id)}
-                  className={segmentedItemClasses(selected)}
-                >
+          <Tabs
+            value={statusTab}
+            onValueChange={setStatusTab}
+            ariaLabel="Prompt status"
+            items={STATUS_TABS.map((tab) => ({
+              value: tab.id,
+              label: (
+                <>
                   {tab.label}
-                  {count > 0 ? (
-                    <span className="mono text-muted text-2xs ml-1.5">{count}</span>
+                  {statusCounts[tab.id] > 0 ? (
+                    <span className="mono text-muted text-2xs ml-1.5">{statusCounts[tab.id]}</span>
                   ) : null}
-                </button>
-              );
-            })}
-          </div>
+                </>
+              ),
+            }))}
+          />
 
           {!hasPrompts ? (
             <PromptEmptyState onAdd={openAdd} onImport={() => setImportOpen(true)} />

@@ -72,4 +72,14 @@ describe('evidenceStatements', () => {
     expect(lines[2]).toBe(`C: ${'x'.repeat(160)}.`);
     expect(lines).not.toContain('G: 7.');
   });
+
+  it('keeps persisted reasons out of occurrence evidence', () => {
+    expect(
+      evidenceStatements({
+        reason: 'freshness_signal_missing',
+        reason_code: 'freshness_signal_missing',
+        offer: true,
+      }),
+    ).toEqual(['Offer: true.']);
+  });
 });

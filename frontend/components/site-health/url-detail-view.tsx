@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label, displayHeadingXlClasses } from '@/components/ui/typography';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
+import { Pressable } from '@/components/ui/pressable';
 import { InternalLinksCard } from '@/components/site-health/internal-links-card';
 import { IssueEvidence } from '@/components/site-health/issue-evidence';
 import { UrlScoreSummary } from '@/components/site-health/url-score-summary';
@@ -117,7 +118,7 @@ function HeaderCard({
             <Label>Page Kind</Label>
             <PageKindBadge pageKind={detail.page_kind} />
             {pageKindEvidence ? (
-              <button
+              <Pressable
                 type="button"
                 aria-expanded={evidenceOpen}
                 aria-controls="page-kind-evidence"
@@ -141,7 +142,7 @@ function HeaderCard({
                     aria-hidden
                   />
                 ) : null}
-              </button>
+              </Pressable>
             ) : null}
           </span>
           <span className="flex items-center gap-1.5">

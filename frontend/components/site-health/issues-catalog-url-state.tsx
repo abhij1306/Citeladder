@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-import { Input } from '@/components/ui/input';
+import { SearchField } from '@/components/ui/search-field';
 import {
   parseCursor,
   parseIssueFilters,
@@ -19,15 +19,24 @@ export function useIssuesCatalogUrlState() {
   const urlParams = useMemo(() => new URLSearchParams(searchParamString), [searchParamString]);
   const filters = useMemo(() => parseIssueFilters(urlParams), [urlParams]);
   const cursor = useMemo(() => parseCursor(urlParams), [urlParams]);
+  const selectedGroupId = urlParams.get('issue');
 
   const navigate = (nextFilters: IssueFilters, nextCursor: string | null) => {
-    const nextQuery = serializeIssueFilters(nextFilters, nextCursor, urlParams).toString();
+    const nextParams = serializeIssueFilters(nextFilters, nextCursor, urlParams);
+    nextParams.delete('issue');
+    const nextQuery = nextParams.toString();
     const href = nextQuery ? `${pathname}?${nextQuery}` : pathname;
     const currentHref = searchParamString ? `${pathname}?${searchParamString}` : pathname;
     if (href !== currentHref) router.push(href, { scroll: false });
   };
 
-  return { cursor, filters, navigate };
+  const selectIssue = (groupId: string) => {
+    const nextParams = new URLSearchParams(urlParams);
+    nextParams.set('issue', groupId);
+    router.push(`${pathname}?${nextParams.toString()}`, { scroll: false });
+  };
+
+  return { cursor, filters, selectedGroupId, navigate, selectIssue };
 }
 
 export function IssueSearch({
@@ -42,10 +51,9 @@ export function IssueSearch({
         onApply(draft);
       }}
     >
-      <Input
-        type="search"
+      <SearchField
         value={draft}
-        onChange={(event) => setDraft(event.target.value)}
+        onValueChange={setDraft}
         placeholder="Search issues…"
         aria-label="Search issues"
         className="max-w-xs"

@@ -22,8 +22,7 @@ import { PagesTable } from '@/components/site-health/pages-table';
 import { RootErrorsBlock } from '@/components/site-health/root-errors-block';
 import { siteHealthQueries, type PagesParams, type PagesSort } from '@/lib/api/site-health';
 import type { PagesPage, SiteCrawl } from '@/lib/api/types';
-import { tabItemClasses, tabListClasses } from '@/components/ui/tabs';
-import { cn } from '@/lib/utils';
+import { Tabs } from '@/components/ui/tabs';
 import { useCursorStack } from '@/lib/site-health/use-cursor-stack';
 import { PAGE_LIMIT, statusLabel, type InventoryMode } from '@/lib/site-health/status';
 
@@ -338,26 +337,23 @@ function ScoredInventoryState({
   return (
     <div className="grid gap-3">
       <div className="flex min-h-10 flex-wrap items-end gap-2">
-        <div
-          className={cn(tabListClasses, 'min-w-0 flex-1')}
-          role="tablist"
-          aria-label="Page inventory views"
-        >
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              onMouseEnter={() => prefetchTab(t)}
-              onFocus={() => prefetchTab(t)}
-              role="tab"
-              aria-selected={t.key === tab}
-              className={tabItemClasses(t.key === tab)}
-            >
-              {active && tab === 'monitored' && t.key === 'monitored' ? 'Audited so far' : t.label}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          value={tab}
+          onValueChange={setTab}
+          onIntent={(value) => {
+            const item = TABS.find((candidate) => candidate.key === value);
+            if (item) prefetchTab(item);
+          }}
+          items={TABS.map((item) => ({
+            value: item.key,
+            label:
+              active && tab === 'monitored' && item.key === 'monitored'
+                ? 'Audited so far'
+                : item.label,
+          }))}
+          ariaLabel="Page inventory views"
+          rootClassName="min-w-0 flex-1"
+        />
         <div className="mb-1 ml-auto flex items-center gap-2">
           <PageKindSelect value={pageKind} onChange={selectPageKind} />
         </div>

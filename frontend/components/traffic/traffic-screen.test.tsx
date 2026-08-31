@@ -261,7 +261,7 @@ describe('TrafficScreen — populated dashboard', () => {
     expect(pagesTab).toHaveAttribute('aria-selected', 'true');
     expect(pagesTab).toHaveAttribute('aria-controls', rankingPanel.id);
     expect(queriesTab).toHaveAttribute('aria-selected', 'false');
-    expect(queriesTab).not.toHaveAttribute('aria-controls');
+    expect(queriesTab).toHaveAttribute('aria-controls');
     expect(screen.getByText(/Chart interval does not change their order/)).toBeInTheDocument();
   });
 

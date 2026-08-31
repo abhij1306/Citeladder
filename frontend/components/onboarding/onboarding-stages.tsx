@@ -281,7 +281,6 @@ export function ReviewStage({
           disabled={
             completionFailed || isCompleting || !hasSelectedDomain || !hasConfirmedIcp(profile)
           }
-          className="text-sm font-semibold shadow-xs"
         >
           {isCompleting ? 'Creating…' : 'Create project'}
         </Button>

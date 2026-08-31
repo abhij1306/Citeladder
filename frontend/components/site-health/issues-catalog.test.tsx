@@ -181,10 +181,7 @@ describe('IssuesCatalog', () => {
     expect(seen.at(-1)?.get('page_kind')).toBe('article');
     expect(seen.at(-1)?.get('cursor')).toBe('page-two');
     expect(screen.getByRole('searchbox', { name: 'Search issues' })).toHaveValue('schema');
-    expect(screen.getByRole('button', { name: 'AEO (17)' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    expect(screen.getByRole('radio', { name: 'AEO (17)' })).toHaveAttribute('aria-checked', 'true');
   });
 
   it('writes filters to history and reflects back/forward navigation', async () => {
@@ -198,15 +195,15 @@ describe('IssuesCatalog', () => {
     renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
     await screen.findAllByText('WebSite schema is missing');
 
-    await user.click(screen.getByRole('button', { name: 'Medium (23)' }));
+    await user.click(screen.getByRole('radio', { name: 'Medium (23)' }));
     await waitFor(() => expect(navigation.get()).toContain('severity=medium'));
     expect(navigation.get()).toContain('rule=aeo.website_schema');
     expect(navigation.get()).toContain('campaign=overview');
 
     act(() => navigation.back());
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'All (47)' })).toHaveAttribute(
-        'aria-pressed',
+      expect(screen.getByRole('radio', { name: 'All (47)' })).toHaveAttribute(
+        'aria-checked',
         'true',
       ),
     );
@@ -214,8 +211,8 @@ describe('IssuesCatalog', () => {
 
     act(() => navigation.forward());
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Medium (23)' })).toHaveAttribute(
-        'aria-pressed',
+      expect(screen.getByRole('radio', { name: 'Medium (23)' })).toHaveAttribute(
+        'aria-checked',
         'true',
       ),
     );
@@ -252,9 +249,9 @@ describe('IssuesCatalog', () => {
     expect(await screen.findAllByText('WebSite schema is missing')).not.toHaveLength(0);
     // Chip counts (tiles removed): All (47), Medium (23), AEO (17). The counts
     // come from the API-owned summary, not a client re-count.
-    expect(screen.getByRole('button', { name: 'All (47)' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Medium (23)' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'AEO (17)' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'All (47)' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Medium (23)' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'AEO (17)' })).toBeInTheDocument();
     // Severity + dimension badges + affected-count copy.
     expect(screen.getAllByText('HIGH')).toHaveLength(2);
     expect(screen.getAllByText('AEO').length).toBeGreaterThan(0);
@@ -263,7 +260,14 @@ describe('IssuesCatalog', () => {
       screen.getAllByText('Search engines cannot find WebSite structured data on this page.'),
     ).toHaveLength(2);
     expect(await screen.findByText('Expected WebSite; found Organization.')).toBeInTheDocument();
+    expect(screen.queryByText('Reason: expected_schema_absent')).not.toBeInTheDocument();
     expect(screen.getByText('Add a JSON-LD WebSite schema.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'WebSite schema is missing' }).closest('section'),
+    ).toHaveClass(
+      'lg:max-h-[calc(100dvh-var(--topbar-height)-2*var(--workspace-gap))]',
+      'lg:overflow-hidden',
+    );
     // No unsupported "mark reviewed/resolved" action is rendered.
     expect(screen.queryByText(/mark reviewed/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/mark resolved/i)).not.toBeInTheDocument();
@@ -283,7 +287,7 @@ describe('IssuesCatalog', () => {
     renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
     await screen.findAllByText('WebSite schema is missing');
 
-    await user.click(screen.getByRole('button', { name: 'Medium (23)' }));
+    await user.click(screen.getByRole('radio', { name: 'Medium (23)' }));
     await waitFor(() => expect(seen).toContain('medium'));
   });
 
@@ -319,13 +323,13 @@ describe('IssuesCatalog', () => {
     expect(screen.getByText('94 defect occurrences')).toBeInTheDocument();
     expect(screen.getByText('50 affected URLs')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Advisories (2)' }));
+    await user.click(screen.getByRole('radio', { name: 'Advisories (2)' }));
     expect(await screen.findAllByText('Title length outside recommended band')).not.toHaveLength(0);
     expect(screen.getAllByText('Advisory')).toHaveLength(2);
     expect(
       screen.getByText((_, element) => element?.textContent === '2 advisory issue types'),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /High/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /High/ })).not.toBeInTheDocument();
     expect(screen.getByText('94 advisory occurrences')).toBeInTheDocument();
     expect(seen).toContain('advisory');
   });
@@ -355,7 +359,7 @@ describe('IssuesCatalog', () => {
     // fresh combination via a chip and assert THAT request omits page_kind.
     await user.click(trigger);
     await user.click(await screen.findByRole('menuitemradio', { name: 'All page kinds' }));
-    await user.click(screen.getByRole('button', { name: 'Medium (23)' }));
+    await user.click(screen.getByRole('radio', { name: 'Medium (23)' }));
     await waitFor(() => expect(seen.at(-1)).toBeNull());
   });
 
@@ -369,8 +373,12 @@ describe('IssuesCatalog', () => {
       ),
     );
 
+    const user = userEvent.setup();
     renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
     await screen.findAllByText('WebSite schema is missing');
+
+    await user.click(screen.getByRole('button', { name: /WebSite schema is missing/ }));
+    await waitFor(() => expect(navigation.get()).toContain(`issue=${ISSUE_A}`));
 
     expect(await screen.findByText('Add a JSON-LD WebSite schema.')).toBeInTheDocument();
     const link = await screen.findByRole('link', { name: /Homepage/ });

@@ -1,29 +1,86 @@
-import { tabItemVariants, tabListVariants } from './tabs-variants';
+'use client';
 
-/**
- * ADS underline tablist recipes — the one tab treatment for the app
- * (docs/design.md calls these "underline tabs"; the pill segmented look they
- * replaced never matched that name). Shared by the Visibility workspace
- * tabs, the Products nested tablists, and the Settings sections, which each
- * render `role=tablist` with roving tabindex on top of these classes.
- *
- * Anatomy (ADS `tab-list` compiled CSS):
- *  - the tablist carries a 1px full-width rule along its block end (the
- *    `before:`), which is what makes a row of text read as "tabs"
- *  - `[role=tab]` is font.body (14/20) at weight 500 in `text-secondary`
- *    (ADS `color.text.subtle`); hover gets the neutral-subtle fill
- *  - the selected tab flips to `text-accent-text` (ADS `color.text.selected`)
- *    and draws a 2px accent underline inset 8px on both inline edges (the
- *    `after:`), which sits on top of the tablist rule
- *  - the row stays single-line and scrolls horizontally at narrow widths —
- *    `overflow-x-auto` + `flex-nowrap` are part of the contract and are
- *    pinned by e2e/visibility.spec.ts
- *
- * Exported as CLASS RECIPES rather than a component: the three call sites own
- * slightly different ARIA wiring and panel mounting (one panel vs all panels
- * mounted), and sharing the classes keeps them identical without forcing one
- * structure.
- */
-export const tabListClasses = tabListVariants({});
+import type { ReactNode } from 'react';
+import { createContext, useContext } from 'react';
+import * as TabsPrimitive from '@radix-ui/react-tabs';
 
-export const tabItemClasses = (selected: boolean) => tabItemVariants({ selected });
+import { cn } from '@/lib/utils';
+
+type TabItem<T extends string> = { value: T; label: ReactNode; disabled?: boolean };
+const ActiveTabContext = createContext<string | null>(null);
+
+export type TabsProps<T extends string> = {
+  value: T;
+  onValueChange: (value: T) => void;
+  items: readonly TabItem<T>[];
+  ariaLabel: string;
+  children?: ReactNode;
+  className?: string;
+  rootClassName?: string;
+  onIntent?: (value: T) => void;
+};
+
+export function Tabs<T extends string>({
+  value,
+  onValueChange,
+  items,
+  ariaLabel,
+  children,
+  className,
+  rootClassName,
+  onIntent,
+}: Readonly<TabsProps<T>>) {
+  return (
+    <ActiveTabContext value={value}>
+      <TabsPrimitive.Root
+        value={value}
+        onValueChange={(next) => onValueChange(next as T)}
+        className={rootClassName}
+      >
+        <TabsPrimitive.List
+          aria-label={ariaLabel}
+          className={cn(
+            'border-border relative flex w-full max-w-full flex-nowrap gap-1 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            className,
+          )}
+        >
+          {items.map((item) => (
+            <TabsPrimitive.Trigger
+              key={item.value}
+              value={item.value}
+              disabled={item.disabled}
+              onMouseEnter={() => onIntent?.(item.value)}
+              onFocus={() => onIntent?.(item.value)}
+              className="focus-ring text-secondary hover:bg-background-alt hover:text-foreground data-[state=active]:text-accent-text relative inline-flex h-10 shrink-0 items-center rounded-t-[var(--radius-control)] px-3 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50"
+            >
+              {item.label}
+              {item.value === value ? (
+                <span className="bg-accent absolute inset-x-2 bottom-0 h-0.5 rounded-full" />
+              ) : null}
+            </TabsPrimitive.Trigger>
+          ))}
+        </TabsPrimitive.List>
+        {children}
+      </TabsPrimitive.Root>
+    </ActiveTabContext>
+  );
+}
+
+export function TabPanel({
+  value,
+  className,
+  children,
+  forceMount,
+}: Readonly<{ value: string; className?: string; children: ReactNode; forceMount?: true }>) {
+  const activeValue = useContext(ActiveTabContext);
+  return (
+    <TabsPrimitive.Content
+      value={value}
+      forceMount={forceMount}
+      hidden={activeValue !== value}
+      className={cn('outline-none', className)}
+    >
+      {children}
+    </TabsPrimitive.Content>
+  );
+}

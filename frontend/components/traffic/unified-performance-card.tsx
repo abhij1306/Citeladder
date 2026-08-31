@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { eyebrowClasses } from '@/components/ui/eyebrow';
+import { Pressable } from '@/components/ui/pressable';
 import { MetricPanel } from '@/components/traffic/metric-panel';
 import type { TrafficDashboard } from '@/lib/api/traffic';
 import {
@@ -216,7 +217,7 @@ function StatCard(props: StatCardProps) {
     );
   }
   return (
-    <button
+    <Pressable
       type="button"
       data-testid={`stat-${props.stat.key}`}
       onClick={() => props.toggleMetric(state.key)}
@@ -229,7 +230,7 @@ function StatCard(props: StatCardProps) {
         granularity={props.granularity}
         impressionMax={props.impressionMax}
       />
-    </button>
+    </Pressable>
   );
 }
 

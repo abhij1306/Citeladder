@@ -145,7 +145,7 @@ describe('AEO Readiness', () => {
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
 
     await screen.findByRole('heading', { name: 'Readiness dimensions' });
-    expect(screen.getByText(/Scores describe classified audited pages/)).toBeInTheDocument();
+    expect(screen.queryByText(/Scores describe classified audited pages/)).not.toBeInTheDocument();
     expect(screen.queryByTestId('classification-summary')).not.toBeInTheDocument();
     for (const [, label] of DIMENSIONS) expect(screen.getByText(label)).toBeInTheDocument();
     expect(screen.getByText(/what answerability means in one sentence/i)).toBeInTheDocument();

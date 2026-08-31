@@ -342,7 +342,7 @@ test('AEO Readiness browser proof: seven named dimensions and page-grouped evide
 
   const panel = page.getByTestId('aeo-readiness');
   await expect(panel).toBeVisible();
-  await expect(panel).toContainText('Scores describe classified audited pages');
+  await expect(panel).not.toContainText('Scores describe classified audited pages');
   await expect(panel).not.toContainText('Classification completeness');
   for (const [, label] of dimensions) await expect(panel).toContainText(label);
   for (const heading of ['Score', 'Quality', 'Coverage', 'State']) {

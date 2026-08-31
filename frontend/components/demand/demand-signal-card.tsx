@@ -1,12 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowUpRight,
-  Check,
   ChevronRight,
-  Copy,
   ExternalLink,
   FileText,
   HelpCircle,
@@ -17,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
+import { CopyButton } from '@/components/ui/copy-button';
 import { Button } from '@/components/ui/button';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { Card, CardContent } from '@/components/ui/card';
@@ -214,7 +212,6 @@ export function DemandSignalCard({
   rank: number;
   onInspect: (signal: DemandSignal) => void;
 }>) {
-  const [copied, setCopied] = useState(false);
   const targetKind = signalTargetKind(signal);
   const target = signalTarget(signal);
   const meta = SIGNAL_METAS[signal.signal_type] ?? {
@@ -226,16 +223,6 @@ export function DemandSignalCard({
   const Icon = meta.icon;
   const pages = competingPages(signal);
   const linkablePageUrl = safePageUrl(signal.page_url);
-
-  const copyTarget = async () => {
-    try {
-      await navigator.clipboard.writeText(target);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // clipboard write failed gracefully
-    }
-  };
 
   const insightToneClasses = {
     info: 'bg-info-bg/30 border-info-border/40 text-info-text',
@@ -269,19 +256,15 @@ export function DemandSignalCard({
                 <h3 className="text-foreground text-base leading-tight font-semibold break-words">
                   {target}
                 </h3>
-                <button
-                  type="button"
-                  onClick={copyTarget}
-                  className="text-muted hover:text-foreground shrink-0 rounded p-0.5 transition-colors"
+                <CopyButton
+                  value={target}
+                  iconOnly
+                  variant="ghost"
+                  size="icon"
+                  className="size-6 shrink-0"
                   title="Copy search query"
                   aria-label="Copy query text"
-                >
-                  {copied ? (
-                    <Check className="text-success size-3.5" />
-                  ) : (
-                    <Copy className="size-3.5" />
-                  )}
-                </button>
+                />
               </div>
               {linkablePageUrl && targetKind === 'Query' && (
                 <div className="text-muted flex items-center gap-1.5 text-xs">
@@ -389,24 +372,14 @@ export function DemandSignalCard({
           {/* Direct Workflow Links */}
           <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
             {signal.signal_type !== 'branded_query_performance' && (
-              <Button
-                variant="ghost"
-                size="sm"
-                asChild
-                className="text-accent-text hover:bg-accent-soft text-xs"
-              >
+              <Button variant="tonal" size="sm" asChild>
                 <Link href="/opportunities" className="inline-flex items-center">
                   <span>Opportunities</span>
                   <ChevronRight className="ml-1 size-3" />
                 </Link>
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              asChild
-              className="text-accent-text hover:bg-accent-soft text-xs"
-            >
+            <Button variant="tonal" size="sm" asChild>
               <Link href={contentBriefHref(signal)} className="inline-flex items-center">
                 <FileText className="mr-1 size-3" />
                 <span>Draft</span>

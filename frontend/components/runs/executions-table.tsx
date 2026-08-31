@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -72,13 +73,9 @@ export function ExecutionsTable({
             </TableCell>
             <TableCell className="py-3 text-right">
               {execution.status === 'succeeded' ? (
-                <button
-                  type="button"
-                  onClick={() => onSelectEvidence(execution)}
-                  className="text-accent-text hover:text-accent-hover inline-flex items-center gap-1 text-sm font-medium hover:underline"
-                >
+                <Button variant="ghost" size="sm" onClick={() => onSelectEvidence(execution)}>
                   Evidence
-                </button>
+                </Button>
               ) : (
                 <UnavailableValue state="unavailable" />
               )}

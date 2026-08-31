@@ -228,6 +228,77 @@ export function productUiSourceViolations(source, label, ownsProductUi) {
   return violations;
 }
 
+const BUTTON_COLOR_ROLE =
+  /^text-(?:foreground|secondary|muted|subtle|accent|danger|success|warning|info|on-|inverse)/;
+
+function cosmeticButtonToken(token) {
+  const utility = token.split(':').at(-1) ?? token;
+  return (
+    utility.startsWith('rounded') ||
+    utility.startsWith('bg-') ||
+    utility === 'border' ||
+    utility.startsWith('border-') ||
+    utility.startsWith('shadow') ||
+    utility.startsWith('opacity-') ||
+    utility.startsWith('scale-') ||
+    utility.startsWith('transition') ||
+    utility.startsWith('duration-') ||
+    utility.startsWith('ease-') ||
+    BUTTON_COLOR_ROLE.test(utility)
+  );
+}
+
+/** Product controls must route behavior and appearance through shared owners. */
+export function productControlViolations(source, label, ownsProductUi) {
+  if (!ownsProductUi || !label.endsWith('.tsx') || label.startsWith('components/ui/')) return [];
+  const sourceFile = ts.createSourceFile(
+    label,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const bindings = staticBindings(sourceFile);
+  const violations = [];
+  const visit = (node) => {
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const tag = node.tagName.getText(sourceFile);
+      const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+      if (tag === 'select') {
+        violations.push(`${label}:${line}: native select must use components/ui/select`);
+      }
+      if (tag === 'button') {
+        violations.push(`${label}:${line}: raw product button must use Button or Pressable`);
+      }
+      if (tag === 'Button') {
+        const classAttribute = node.attributes.properties.find(
+          (property) =>
+            ts.isJsxAttribute(property) && property.name.getText(sourceFile) === 'className',
+        );
+        if (classAttribute && ts.isJsxAttribute(classAttribute)) {
+          const tokens = classFragments(classAttribute.initializer, bindings)
+            .join(' ')
+            .split(/\s+/);
+          if (tokens.some(cosmeticButtonToken)) {
+            violations.push(
+              `${label}:${line}: Button cosmetics belong in its semantic variant, not className`,
+            );
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return violations;
+}
+
+export function directRadixImportViolations(source, label) {
+  return !label.startsWith('components/ui/') && /from\s+['"]@radix-ui\//.test(source)
+    ? [`${label}: feature code must use components/ui instead of importing Radix`]
+    : [];
+}
+
 /**
  * Tailwind v4 generates EVERY utility family from every theme token, so
  * `--color-subtle` / `--color-muted` / `--color-secondary` (the Gray-500/600/700

@@ -113,12 +113,12 @@ describe('TopicRail narrow selector', () => {
 
     renderRail({ topics: [topic], onSelect });
 
-    // The narrow variant is a labelled <select>, not part of the rail nav.
+    // The narrow variant is the shared labelled Select, not part of the rail nav.
     const select = screen.getByRole('combobox', { name: 'Topics' });
-    expect(select).toHaveValue('');
-    expect(within(select).getByRole('option', { name: 'All topics' })).toBeInTheDocument();
-
-    await user.selectOptions(select, topic.id);
+    expect(select).toHaveTextContent('All topics');
+    await user.click(select);
+    expect(screen.getByRole('option', { name: 'All topics' })).toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'Footwear' }));
     expect(onSelect).toHaveBeenCalledWith(topic.id);
   });
 
@@ -130,8 +130,9 @@ describe('TopicRail narrow selector', () => {
     renderRail({ topics: [topic], selectedTopicId: topic.id, onSelect });
 
     const select = screen.getByRole('combobox', { name: 'Topics' });
-    expect(select).toHaveValue(topic.id);
-    await user.selectOptions(select, '');
+    expect(select).toHaveTextContent('Footwear');
+    await user.click(select);
+    await user.click(screen.getByRole('option', { name: 'All topics' }));
     expect(onSelect).toHaveBeenCalledWith(null);
   });
 });

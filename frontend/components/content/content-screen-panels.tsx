@@ -85,7 +85,7 @@ export function ContentComposer({
             data-component-id="content-generate-button"
             disabled={!canGenerate}
             onClick={onGenerate}
-            className="gap-2 shadow-xs"
+            className="gap-2"
           >
             <Sparkles className="size-4" aria-hidden /> Generate
           </Button>

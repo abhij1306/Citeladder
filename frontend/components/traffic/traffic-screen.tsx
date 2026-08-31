@@ -264,7 +264,6 @@ function PopulatedTrafficDashboard({
           activeTab={tableView}
           onSelectTab={setTableView}
           ariaLabel="Traffic rankings"
-          idPrefix="traffic-rankings"
           panel={
             <TrafficRankings
               projectId={projectId}

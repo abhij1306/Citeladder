@@ -17,6 +17,8 @@
 
 import { Check, Pencil, Plus } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
+import { Pressable } from '@/components/ui/pressable';
 import { cn } from '@/lib/utils';
 
 /**
@@ -155,12 +157,12 @@ export function ToggleChip({
         disabled && !selected && 'opacity-60',
       )}
     >
-      <button
+      <Pressable
         type="button"
         onClick={onToggle}
         disabled={disabled && !selected}
         aria-pressed={selected}
-        className="flex min-w-0 cursor-pointer items-center gap-1.5 disabled:cursor-not-allowed"
+        className="flex w-auto min-w-0 cursor-pointer items-center gap-1.5 disabled:cursor-not-allowed"
       >
         <ChipMark
           selected={selected}
@@ -172,16 +174,18 @@ export function ToggleChip({
             on whether it was on — and a voice-control user could not say the
             word they could see. */}
         <span className="truncate">{label}</span>
-      </button>
+      </Pressable>
       {onEdit ? (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           onClick={onEdit}
           aria-label={editLabel ?? `Edit ${label}`}
-          className="text-muted hover:text-foreground hover:bg-accent-soft shrink-0 cursor-pointer rounded-full p-1 transition-colors"
+          className="size-6 shrink-0"
         >
           <Pencil className="size-3" aria-hidden />
-        </button>
+        </Button>
       ) : null}
     </span>
   );

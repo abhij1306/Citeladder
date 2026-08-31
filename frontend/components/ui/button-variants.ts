@@ -36,7 +36,9 @@ export const buttonVariants = cva(
         // label, and a Pale Silver hairline — an outline button, not a raised
         // one, now that elevation is essentially none. Hover warms the fill.
         secondary:
-          'border-border bg-panel text-secondary hover:bg-background-alt active:bg-well shadow-xs',
+          'border-border-strong bg-panel text-foreground hover:border-border-bold hover:bg-background-alt active:bg-well shadow-xs',
+        tonal:
+          'border-accent-border bg-accent-subtle text-accent-text hover:border-accent hover:bg-accent-border active:bg-accent-border',
         neutral:
           'border-transparent bg-background-alt text-foreground hover:bg-well active:bg-active',
         ghost:
@@ -50,6 +52,8 @@ export const buttonVariants = cva(
         // the fill. globals.test.ts gates both `danger-fg` ↔ fill pairs.
         destructive:
           'border-transparent bg-danger-solid text-danger-fg hover:bg-danger-solid-hover active:bg-danger-solid-hover shadow-xs',
+        destructiveGhost:
+          'border-transparent bg-transparent text-danger-text hover:bg-danger-bg active:bg-danger-bg',
       },
       size: {
         sm: 'h-[var(--control-height-sm)] px-2.5 text-xs font-medium',

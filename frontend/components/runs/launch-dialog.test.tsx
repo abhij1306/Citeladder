@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { promptsApi } from '@/lib/api/prompts';
@@ -137,6 +138,7 @@ describe('LaunchDialog prompt batching', () => {
   }
 
   it('runs a chosen batch of ten as an explicit prompt id list', async () => {
+    const user = userEvent.setup();
     // The launch screen used to offer no choice: picking a set ran every
     // prompt in it, however large and however expensive.
     const launch = stubApis();
@@ -147,10 +149,10 @@ describe('LaunchDialog prompt batching', () => {
     );
 
     const batchSelect = await screen.findByLabelText(/Prompts to run/);
+    await user.click(batchSelect);
     expect(screen.getByRole('option', { name: 'All 23 prompts' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Prompts 21-23' })).toBeInTheDocument();
-
-    fireEvent.change(batchSelect, { target: { value: '1' } });
+    await user.click(screen.getByRole('option', { name: 'Prompts 11-20' }));
     await selectEngineAndLaunch();
 
     await waitFor(() =>
@@ -184,6 +186,7 @@ describe('LaunchDialog prompt batching', () => {
   });
 
   it('does not turn a stale batch selection into a whole-set launch after refresh', async () => {
+    const user = userEvent.setup();
     const launch = stubApis();
     vi.spyOn(promptsApi, 'listPromptSets').mockResolvedValue(setWithPrompts(23) as never);
 
@@ -191,7 +194,8 @@ describe('LaunchDialog prompt batching', () => {
       <LaunchDialog open onOpenChange={() => undefined} projectId={PROJECT_ID} />,
     );
 
-    fireEvent.change(await screen.findByLabelText(/Prompts to run/), { target: { value: '2' } });
+    await user.click(await screen.findByLabelText(/Prompts to run/));
+    await user.click(screen.getByRole('option', { name: 'Prompts 21-23' }));
     fireEvent.click(screen.getByRole('button', { name: 'ChatGPT' }));
     expect(screen.getByRole('button', { name: 'Launch audit' })).toBeEnabled();
 
@@ -206,8 +210,9 @@ describe('LaunchDialog prompt batching', () => {
     expect(launch).not.toHaveBeenCalled();
 
     const recoverySelect = screen.getByLabelText(/Prompts to run/);
+    await user.click(recoverySelect);
     expect(screen.getByRole('option', { name: 'All 7 prompts' })).toBeInTheDocument();
-    fireEvent.change(recoverySelect, { target: { value: 'all' } });
+    await user.click(screen.getByRole('option', { name: 'All 7 prompts' }));
     expect(screen.getByRole('button', { name: 'Launch audit' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'Launch audit' }));
     await waitFor(() =>

@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { TablePagination, useTablePage } from '@/components/ui/table-pagination';
 import { Tooltip } from '@/components/ui/tooltip';
+import { Switch } from '@/components/ui/switch';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
 import type { Prompt, PromptStatus } from '@/lib/api/types';
 import { buyerStageLabels, intentLabels } from '@/lib/prompts/forms';
@@ -95,20 +96,12 @@ export function PromptTable({
               </TableCell>
               <TableCell className="text-secondary">{intentLabels[prompt.intent]}</TableCell>
               <TableCell>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={prompt.enabled}
-                  aria-label={`${prompt.enabled ? 'Disable' : 'Enable'} prompt`}
+                <Switch
+                  checked={prompt.enabled}
+                  label={`${prompt.enabled ? 'Disable' : 'Enable'} prompt`}
                   disabled={busyId === prompt.id}
-                  onClick={() => onToggleEnabled(prompt)}
-                  className="focus-ring border-border-strong bg-background-alt aria-checked:border-accent aria-checked:bg-accent group inline-flex h-5 w-10 items-center rounded-full border px-0.5 transition-colors disabled:opacity-50 aria-checked:justify-end"
-                >
-                  <span
-                    className="bg-border-bold group-aria-checked:bg-accent-fg size-4 rounded-full"
-                    aria-hidden
-                  />
-                </button>
+                  onCheckedChange={() => onToggleEnabled(prompt)}
+                />
               </TableCell>
               <TableCell className="text-right">
                 <Dropdown>

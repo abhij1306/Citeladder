@@ -1,9 +1,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Calendar } from 'lucide-react';
 import Link from 'next/link';
 
+import { RouteContent } from '@/components/providers/product-motion-provider';
 import { CommandPalette } from '@/components/ui/command-palette';
 import { LogoMark } from '@/components/ui/logo-mark';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -20,8 +20,7 @@ import { UserMenu } from './user-menu';
  * Geometry: a 236px left sidebar (`bg-sidebar`, `--sidebar-width`) stacked as
  * logo row → project switcher → grouped nav → user card, each
  * band separated by a hairline; and a 52px top bar (`--topbar-height`) over
- * the content column carrying the centered command palette, date range badge,
- * and Agent trigger.
+ * the content column carrying the centered command palette and Agent trigger.
  */
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   return (
@@ -63,12 +62,6 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
               <CommandPalette />
             </div>
             <div className="flex items-center justify-end gap-2.5">
-              <div className="border-border-subtle bg-panel text-muted hidden items-center gap-2 rounded-sm border px-3 py-1.5 text-xs font-medium shadow-xs lg:flex">
-                <Calendar className="text-muted size-3.5 shrink-0" aria-hidden />
-                <span>Last 28 days</span>
-                <span className="text-border-strong">|</span>
-                <span className="text-muted">vs previous</span>
-              </div>
               <AgentSheet />
             </div>
           </header>
@@ -80,7 +73,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             <MobileStationNavigation />
             <div className="mx-auto grid w-full max-w-[var(--content-max-width)] grid-cols-[minmax(0,1fr)] gap-0 p-[var(--content-gutter)]">
               <PageHeader />
-              {children}
+              <RouteContent>{children}</RouteContent>
             </div>
           </main>
 

@@ -10,6 +10,7 @@ import {
 } from '@/components/agent/growth-agent-workspace';
 import { Button } from '@/components/ui/button';
 import { Drawer } from '@/components/ui/drawer';
+import { Pressable } from '@/components/ui/pressable';
 import type { AgentTaskType } from '@/lib/api/agent';
 import { useProjectContext } from '@/lib/project/project-context';
 
@@ -50,8 +51,7 @@ export function AgentLauncher({
   className?: string;
 }>) {
   return (
-    <button
-      type="button"
+    <Pressable
       className={className}
       onClick={() =>
         window.dispatchEvent(
@@ -60,7 +60,7 @@ export function AgentLauncher({
       }
     >
       {children}
-    </button>
+    </Pressable>
   );
 }
 
@@ -105,11 +105,11 @@ export function AgentSheet() {
   return (
     <>
       <Button
-        variant="secondary"
+        variant="tonal"
         size="sm"
         onClick={() => setOpen(true)}
         aria-label="Open Growth Agent"
-        className="bg-accent-soft border-accent-border text-accent-text hover:bg-accent-subtle h-8 gap-1.5 rounded-sm px-2.5 text-xs font-semibold shadow-xs"
+        className="gap-1.5"
       >
         <Bot className="text-accent size-3.5" aria-hidden />
         <span className="hidden sm:inline">Agent</span>

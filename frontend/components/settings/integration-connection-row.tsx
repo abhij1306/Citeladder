@@ -110,13 +110,7 @@ function ConnectionActions({
             'Sync now'
           )}
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-danger-text hover:bg-danger-bg hover:text-danger-text"
-          onClick={onDisconnect}
-          disabled={busy}
-        >
+        <Button variant="destructiveGhost" size="sm" onClick={onDisconnect} disabled={busy}>
           Disconnect
         </Button>
       </div>

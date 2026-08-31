@@ -6,13 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAppQueryClient } from '@/lib/api/query-client';
 import type { Project, SessionUser } from '@/lib/api/types';
 
-// Stub next/navigation (Link uses it in jsdom). `search` is mutable per test
-// so the ?tab= deep link can be exercised.
-let search = '';
+// Stub imperative navigation used by the delete-project flow. Shallow tab
+// state uses the browser History API, matching production.
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/settings',
-  useSearchParams: () => new URLSearchParams(search),
 }));
 
 // Session is mocked per test so the screen renders without a real SessionGuard.
@@ -82,7 +80,7 @@ describe('SettingsScreen', () => {
   beforeEach(() => {
     deleteProject.mockClear();
     setActiveProjectId.mockClear();
-    search = '';
+    window.history.replaceState(null, '', '/settings');
   });
 
   it('renders the five settings tabs with Account selected by default', () => {
@@ -140,25 +138,28 @@ describe('SettingsScreen', () => {
     await ue.click(screen.getByRole('tab', { name: 'Providers' }));
     expect(screen.getByTestId('provider-settings-panel')).toBeVisible();
     // Account content is hidden while another tab is active.
-    expect(document.getElementById('settings-panel-account')).toHaveAttribute('hidden');
+    const accountPanelId = screen
+      .getByRole('tab', { name: 'Account' })
+      .getAttribute('aria-controls');
+    expect(document.getElementById(accountPanelId ?? '')).toHaveAttribute('hidden');
   });
 
   it('opens the Provider Settings tab from a ?tab=providers deep link', () => {
-    search = 'tab=providers';
+    window.history.replaceState(null, '', '/settings?tab=providers');
     renderScreen();
     expect(screen.getByRole('tab', { name: 'Providers' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('provider-settings-panel')).toBeVisible();
   });
 
   it('opens Billing from a ?tab=billing deep link', () => {
-    search = 'tab=billing';
+    window.history.replaceState(null, '', '/settings?tab=billing');
     renderScreen();
     expect(screen.getByRole('tab', { name: 'Billing' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('billing-settings-panel')).toBeVisible();
   });
 
   it('opens the Integrations tab from a ?tab=integrations deep link (the C2 OAuth-callback landing)', () => {
-    search = 'tab=integrations';
+    window.history.replaceState(null, '', '/settings?tab=integrations');
     renderScreen();
     expect(screen.getByRole('tab', { name: 'Integrations' })).toHaveAttribute(
       'aria-selected',
@@ -166,9 +167,9 @@ describe('SettingsScreen', () => {
     );
     expect(screen.getByTestId('integration-settings-panel')).toBeVisible();
     // The tab's aria-controls resolves to the mounted panel.
-    expect(screen.getByRole('tab', { name: 'Integrations' })).toHaveAttribute(
-      'aria-controls',
-      'settings-panel-integrations',
+    const panelId = screen.getByRole('tab', { name: 'Integrations' }).getAttribute('aria-controls');
+    expect(document.getElementById(panelId ?? '')).toContainElement(
+      screen.getByTestId('integration-settings-panel'),
     );
   });
 
@@ -186,7 +187,7 @@ describe('SettingsScreen', () => {
   });
 
   it('falls back to Account on an unknown ?tab value', () => {
-    search = 'tab=nonsense';
+    window.history.replaceState(null, '', '/settings?tab=nonsense');
     renderScreen();
     expect(screen.getByRole('tab', { name: 'Account' })).toHaveAttribute('aria-selected', 'true');
   });

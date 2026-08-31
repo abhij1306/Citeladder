@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './website-type.css';
+@import './ui-motion.css';
 
 /* CiteLadder's single design-system owner: Geist UI, Plus Jakarta Sans website
    display, one cobalt accent, and semantic product geometry. See docs/design.md. */
@@ -386,7 +387,6 @@ samp {
 }
 
 .menu-panel {
-  transform-origin: var(--radix-dropdown-menu-content-transform-origin, top);
   transition:
     opacity var(--transition-fast) var(--ease-standard),
     transform var(--transition-fast) var(--ease-standard);

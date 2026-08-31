@@ -2,9 +2,10 @@ import { ConnectProviderDialog } from '@/components/providers/connect-provider-d
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
-import { filterChipClasses } from '@/components/ui/filter-chip-variants';
-import { Input, inputClasses } from '@/components/ui/input';
+import { FilterChip } from '@/components/ui/filter-chip';
+import { Input } from '@/components/ui/input';
 import { MutationNotice } from '@/components/ui/mutation-notice';
+import { Select } from '@/components/ui/select';
 import type { MutationNotice as MutationNoticeData } from '@/lib/api/mutation-notice';
 import type { LogicalEngine, Prompt, PromptSet } from '@/lib/api/types';
 import { ENGINE_LABELS } from '@/lib/providers/catalog';
@@ -67,19 +68,16 @@ function PromptSetField({
           );
         }
         return (
-          <select
+          <Select
             {...props}
-            className={inputClasses}
+            ariaLabel="Prompt set"
             value={promptSetId ?? ''}
-            onChange={(event) => setPromptSetId(event.target.value)}
-          >
-            {promptSets.map((set) => (
-              <option key={set.id} value={set.id}>
-                {set.name}
-                {typeof set.prompt_count === 'number' ? ` (${set.prompt_count})` : ''}
-              </option>
-            ))}
-          </select>
+            onValueChange={setPromptSetId}
+            options={promptSets.map((set) => ({
+              value: set.id,
+              label: `${set.name}${typeof set.prompt_count === 'number' ? ` (${set.prompt_count})` : ''}`,
+            }))}
+          />
         );
       }}
     </Field>
@@ -110,21 +108,19 @@ function BatchField({
       hint="Run the whole set, or one batch at a time to keep a run short and its cost predictable."
     >
       {(props) => (
-        <select
+        <Select
           {...props}
-          className={inputClasses}
+          ariaLabel="Prompts to run"
           value={batchIndex === null ? 'all' : String(batchIndex)}
-          onChange={(event) =>
-            setBatchIndex(event.target.value === 'all' ? null : Number(event.target.value))
-          }
-        >
-          <option value="all">All {total} prompts</option>
-          {batches.map((batch, index) => (
-            <option key={batchLabel(index, batch)} value={index}>
-              {batchLabel(index, batch)}
-            </option>
-          ))}
-        </select>
+          onValueChange={(value) => setBatchIndex(value === 'all' ? null : Number(value))}
+          options={[
+            { value: 'all', label: `All ${total} prompts` },
+            ...batches.map((batch, index) => ({
+              value: String(index),
+              label: batchLabel(index, batch),
+            })),
+          ]}
+        />
       )}
     </Field>
   );
@@ -231,15 +227,13 @@ export function LaunchDialogView({
             ) : (
               <div className="flex flex-wrap gap-2">
                 {configuredEngines.map((engine) => (
-                  <button
+                  <FilterChip
                     key={engine}
-                    type="button"
-                    aria-pressed={selected.has(engine)}
+                    active={selected.has(engine)}
                     onClick={() => setEngines((current) => toggleEngine(current, engine))}
-                    className={filterChipClasses(selected.has(engine))}
                   >
                     {ENGINE_LABELS[engine]}
-                  </button>
+                  </FilterChip>
                 ))}
               </div>
             )}

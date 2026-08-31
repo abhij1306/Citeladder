@@ -9,6 +9,8 @@ import { SessionGuard } from '@/lib/auth/session-guard';
 import { EntitlementProvider } from '@/lib/billing/entitlement-context';
 import { ProjectProvider } from '@/lib/project/project-context';
 import { ProductTourProvider } from '@/components/tour/product-tour-provider';
+import { ProductMotionProvider } from '@/components/providers/product-motion-provider';
+import { ToastProvider } from '@/components/ui/toast';
 
 /**
  * Authed-area layout (F5).
@@ -29,9 +31,13 @@ export default function AppLayout({ children }: Readonly<{ children: ReactNode }
         <Suspense fallback={<ShellFallback />}>
           <ProductTourProvider>
             <EntitlementProvider>
-              <OnboardingGate>
-                <AppShell>{children}</AppShell>
-              </OnboardingGate>
+              <ProductMotionProvider>
+                <ToastProvider>
+                  <OnboardingGate>
+                    <AppShell>{children}</AppShell>
+                  </OnboardingGate>
+                </ToastProvider>
+              </ProductMotionProvider>
             </EntitlementProvider>
           </ProductTourProvider>
         </Suspense>

@@ -5,7 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import type { RunStatusValue } from '@/components/ui/badge-variants';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
-import { inputClasses, Textarea } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Pressable } from '@/components/ui/pressable';
 import type { AgentTaskRun, AgentTaskRunSummary, AgentTaskType } from '@/lib/api/agent';
 import { formatUtcTimestamp } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -100,7 +102,7 @@ export function TaskHistory({
       </summary>
       <div className="border-border-subtle grid gap-1 border-t p-2" aria-label="Task history">
         {runs.map((run) => (
-          <button
+          <Pressable
             key={run.id}
             type="button"
             onClick={() => onSelect(run.id)}
@@ -117,7 +119,7 @@ export function TaskHistory({
               <span>{taskLabel(run.task_type)}</span>
               <span>{formatDate(run.created_at)}</span>
             </span>
-          </button>
+          </Pressable>
         ))}
       </div>
     </details>
@@ -394,19 +396,14 @@ export function TaskForm({
       <div className="flex flex-wrap items-end gap-3">
         <Field label="Task" className="min-w-0 flex-1">
           {(props) => (
-            <select
+            <Select
               {...props}
-              className={inputClasses}
+              ariaLabel="Task"
               value={taskType}
-              onChange={(event) => onTaskTypeChange(requestedTask(event.target.value))}
+              onValueChange={(value) => onTaskTypeChange(requestedTask(value))}
               disabled={submitting}
-            >
-              {TASKS.map((task) => (
-                <option key={task.value} value={task.value}>
-                  {task.label}
-                </option>
-              ))}
-            </select>
+              options={TASKS.map((task) => ({ value: task.value, label: task.label }))}
+            />
           )}
         </Field>
         <Button type="submit" disabled={submitting || !objective.trim()}>

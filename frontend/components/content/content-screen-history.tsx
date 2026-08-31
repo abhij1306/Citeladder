@@ -6,6 +6,7 @@ import { eyebrowClasses } from '@/components/ui/eyebrow';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ContentGenerationListItem, ContentGenerationStatus } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
+import { Pressable } from '@/components/ui/pressable';
 
 const STATUS_BADGE: Record<ContentGenerationStatus, RunStatusValue> = {
   queued: 'queued',
@@ -71,7 +72,7 @@ function HistoryItems({
     <ul className="flex flex-col gap-2">
       {items.map((item) => (
         <li key={item.id}>
-          <button
+          <Pressable
             type="button"
             onClick={() => onSelect(item.id)}
             className={cn(
@@ -87,7 +88,7 @@ function HistoryItems({
             <Badge variant="run-status" value={STATUS_BADGE[item.status]}>
               {item.status.replace('_', ' ')}
             </Badge>
-          </button>
+          </Pressable>
         </li>
       ))}
     </ul>

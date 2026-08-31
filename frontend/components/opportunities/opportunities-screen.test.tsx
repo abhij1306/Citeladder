@@ -325,6 +325,7 @@ describe('OpportunitiesScreen', () => {
     // three-fetch chain (projects -> list -> detail), so allow a longer wait.
     expect(await screen.findByText('Next best action', {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByText('Applies to best crm for small teams')).toHaveClass('truncate');
+    expect(screen.getByText(detail.remediation)).not.toHaveClass('max-w-3xl');
   });
 
   it('shows the stale badge only when newer evidence exists (C4c)', async () => {

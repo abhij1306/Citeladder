@@ -1,6 +1,7 @@
 import { Info } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
+import { Pressable } from '@/components/ui/pressable';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { DemandSnapshot } from '@/lib/api/demand';
 import { detectorStates } from '@/lib/demand/signals';
@@ -97,7 +98,7 @@ export function DemandDetectorBar({ snapshot }: Readonly<{ snapshot: DemandSnaps
                 </div>
               }
             >
-              <button
+              <Pressable
                 type="button"
                 className="bg-panel border-border hover:border-border-strong flex cursor-help items-center gap-1.5 rounded border px-2 py-1 text-xs shadow-xs transition-colors"
               >
@@ -105,7 +106,7 @@ export function DemandDetectorBar({ snapshot }: Readonly<{ snapshot: DemandSnaps
                 <Badge variant="status" value={badgeTone}>
                   {stateText}
                 </Badge>
-              </button>
+              </Pressable>
             </Tooltip>
           );
         })}

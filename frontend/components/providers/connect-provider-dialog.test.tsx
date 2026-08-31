@@ -133,12 +133,12 @@ describe('ConnectProviderDialog', () => {
     // Engine picker lists the three logical engines and defaults to the first
     // unconfigured one (none configured yet → ChatGPT).
     const picker = within(dialog).getByLabelText('AI engine');
-    expect(within(picker).getByRole('option', { name: 'ChatGPT' })).toBeInTheDocument();
-    expect(within(picker).getByRole('option', { name: 'Gemini' })).toBeInTheDocument();
-    expect(within(picker).getByRole('option', { name: 'Claude' })).toBeInTheDocument();
-    expect(picker).toHaveValue('chatgpt');
-
-    await user.selectOptions(picker, 'claude');
+    expect(picker).toHaveTextContent('ChatGPT');
+    await user.click(picker);
+    expect(screen.getByRole('option', { name: 'ChatGPT' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Gemini' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Claude' })).toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'Claude' }));
     // The picked engine's direct route is shown before connecting.
     expect(await within(dialog).findByText(/claude-sonnet-5/)).toBeInTheDocument();
 
@@ -209,7 +209,7 @@ describe('ConnectProviderDialog', () => {
     // ChatGPT holds a key but has never probed, so it is still the engine that
     // needs attention — the picker opens on it rather than skipping ahead.
     const picker = within(dialog).getByLabelText('AI engine');
-    await waitFor(() => expect(picker).toHaveValue('chatgpt'));
+    await waitFor(() => expect(picker).toHaveTextContent('ChatGPT'));
 
     const keyInput = within(dialog).getByLabelText(/api key/i);
     await user.type(keyInput, 'sk-rotated');
@@ -246,7 +246,8 @@ describe('ConnectProviderDialog', () => {
 
     renderWithProviders(<Harness />);
     const dialog = await findDialog();
-    await user.selectOptions(within(dialog).getByLabelText('AI engine'), 'chatgpt');
+    await user.click(within(dialog).getByLabelText('AI engine'));
+    await user.click(screen.getByRole('option', { name: 'ChatGPT' }));
 
     await user.click(within(dialog).getByRole('button', { name: /test connection/i }));
     expect(await within(dialog).findByText('Invalid API key')).toBeInTheDocument();
@@ -256,7 +257,7 @@ describe('ConnectProviderDialog', () => {
 
   // Regression: the default-engine fallback used to accept any card without a
   // route, so once all three shipped engines were configured it selected a
-  // PLANNED provider — a value the <select> cannot even display.
+  // PLANNED provider — a value the engine picker cannot display.
   it('never defaults to a planned provider when every shipped engine is configured', async () => {
     // All three VERIFIED, so no card is left needing attention and the default
     // falls through to the fallback this regression is about.
@@ -276,8 +277,8 @@ describe('ConnectProviderDialog', () => {
     const dialog = await findDialog();
     await within(dialog).findByLabelText(/api key/i);
 
-    const select = within(dialog).getByLabelText(/ai engine/i) as HTMLSelectElement;
-    expect(['chatgpt', 'gemini', 'claude']).toContain(select.value);
+    const select = within(dialog).getByLabelText(/ai engine/i);
+    expect(select).toHaveTextContent(/ChatGPT|Gemini|Claude/);
   });
 
   it('shows a save error and stays open', async () => {
@@ -308,7 +309,8 @@ describe('ConnectProviderDialog', () => {
 
     renderWithProviders(<Harness />);
     const dialog = await findDialog();
-    await user.selectOptions(within(dialog).getByLabelText('AI engine'), 'chatgpt');
+    await user.click(within(dialog).getByLabelText('AI engine'));
+    await user.click(screen.getByRole('option', { name: 'ChatGPT' }));
 
     const keyInput = within(dialog).getByLabelText(/api key/i);
     expect(keyInput).toHaveAttribute('type', 'password');

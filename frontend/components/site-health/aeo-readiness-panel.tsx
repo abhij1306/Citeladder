@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Drawer } from '@/components/ui/drawer';
 import { ScoreBar } from '@/components/ui/score-bar';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
@@ -113,10 +113,6 @@ function ReadinessLedger({
     <Card>
       <CardHeader bordered className="gap-1">
         <CardTitle className="text-lg">Readiness dimensions</CardTitle>
-        <CardDescription>
-          Scores describe classified audited pages; coverage shows how much expected evidence was
-          measured.
-        </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
         <Table className="block md:table" wrapperClassName="overflow-hidden md:overflow-auto">

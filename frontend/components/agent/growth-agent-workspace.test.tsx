@@ -47,10 +47,12 @@ describe('GrowthAgentWorkspace', () => {
   });
 
   it('offers exactly the two plain-language bounded tasks', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<GrowthAgentWorkspace />);
     expect(
       await screen.findByRole('heading', { name: 'Build an admissions roadmap' }),
     ).toBeVisible();
+    await user.click(screen.getByRole('combobox', { name: 'Task' }));
     expect(screen.getByRole('option', { name: 'Explain my latest data' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Prioritize next steps' })).toBeInTheDocument();
     expect(screen.queryByText(/conversation/i)).not.toBeInTheDocument();
@@ -59,7 +61,8 @@ describe('GrowthAgentWorkspace', () => {
   it('submits only the fixed task, objective, and selected project', async () => {
     const user = userEvent.setup();
     renderWithProviders(<GrowthAgentWorkspace />);
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Task' }), 'build_roadmap');
+    await user.click(screen.getByRole('combobox', { name: 'Task' }));
+    await user.click(screen.getByRole('option', { name: 'Prioritize next steps' }));
     await user.type(screen.getByRole('textbox', { name: /Objective/ }), 'Prioritize admissions');
     await user.click(screen.getByRole('button', { name: 'Start task' }));
     await waitFor(() =>

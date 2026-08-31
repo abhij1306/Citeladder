@@ -3,7 +3,8 @@ import { Sparkles } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
-import { Input, inputClasses } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { httpErrorStatus, humanizeApiError } from '@/lib/api/errors';
 import type { PromptGenerateResponse, Topic } from '@/lib/api/types';
 
@@ -128,7 +129,7 @@ export function GeneratePromptsDialogView({
         ) : null}
         {error ? <GenerateErrorAlert error={error} /> : null}
         {result && !error ? <GenerateResultAlert result={result} /> : null}
-        <label className="grid gap-1.5">
+        <div className="grid gap-1.5">
           <span className="text-secondary text-xs font-medium">
             Number of prompts (1–{maxCount})
           </span>
@@ -141,23 +142,19 @@ export function GeneratePromptsDialogView({
             aria-label="Number of prompts"
             aria-invalid={!countValid}
           />
-        </label>
-        <label className="grid gap-1.5">
+        </div>
+        <div className="grid gap-1.5">
           <span className="text-secondary text-xs font-medium">Topic</span>
-          <select
+          <Select
             value={topicId}
-            onChange={(event) => setTopicId(event.target.value)}
-            aria-label="Topic"
-            className={inputClasses}
-          >
-            <option value="">All existing topics</option>
-            {topics.map((topic) => (
-              <option key={topic.id} value={topic.id}>
-                {topic.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            onValueChange={setTopicId}
+            ariaLabel="Topic"
+            options={[
+              { value: '', label: 'All existing topics' },
+              ...topics.map((topic) => ({ value: topic.id, label: topic.name })),
+            ]}
+          />
+        </div>
       </div>
     </Dialog>
   );

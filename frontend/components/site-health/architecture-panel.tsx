@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Pressable } from '@/components/ui/pressable';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
 import {
   Table,
@@ -143,6 +144,7 @@ function ArchitectureLedger({ data }: Readonly<{ data: SiteArchitecture }>) {
             medianDepth={median(depths)}
             duplicatePages={duplicatePages}
             orphanCount={data.internal_linking.orphan_page_count}
+            coverageState={data.coverage_state}
           />
           {data.limitations.map((limitation) => (
             <Alert key={limitation} tone="info">
@@ -167,19 +169,24 @@ function ArchitectureMetrics({
   medianDepth,
   duplicatePages,
   orphanCount,
+  coverageState,
 }: Readonly<{
   pageKinds: number;
   pages: number;
   medianDepth: number | null;
   duplicatePages: number;
   orphanCount: number | null;
+  coverageState: CoverageState;
 }>) {
   const items = [
     ['Page kinds', String(pageKinds)],
     ['Pages', String(pages)],
     ['Median depth', medianDepth === null ? PLACEHOLDER : String(medianDepth)],
     ['Duplicate metadata', String(duplicatePages)],
-    ['Orphaned pages', orphanCount === null ? PLACEHOLDER : String(orphanCount)],
+    [
+      'Orphaned pages',
+      orphanCount === null ? orphanCoverageExplanation(coverageState) : String(orphanCount),
+    ],
   ];
   return (
     <dl className="border-border-subtle grid grid-cols-2 border-y sm:grid-cols-3 lg:grid-cols-5">
@@ -189,7 +196,13 @@ function ArchitectureMetrics({
           className="border-border-subtle grid gap-0.5 border-b px-3 py-2 last:border-b-0 sm:border-r sm:border-b-0 sm:last:border-r-0"
         >
           <dt className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">{label}</dt>
-          <dd className="text-foreground text-2xl font-semibold tabular-nums">
+          <dd
+            className={
+              value.startsWith('Count withheld')
+                ? 'text-muted text-xs font-normal'
+                : 'text-foreground text-2xl font-semibold tabular-nums'
+            }
+          >
             {value === PLACEHOLDER ? <UnavailableValue state="not_measured" /> : value}
           </dd>
         </div>
@@ -229,15 +242,15 @@ function PageKindTable({
             <Fragment key={pageKind.page_kind}>
               <TableRow className="grid h-auto grid-cols-1 py-2 md:table-row md:h-[var(--table-row-height)] md:py-0">
                 <TableCell className="block border-b-0 px-4 py-1 md:table-cell md:border-b md:px-[var(--table-cell-padding-x)] md:py-[var(--table-cell-padding-y)]">
-                  <button
+                  <Pressable
                     type="button"
                     aria-expanded={open}
                     onClick={() => setOpenKind(open ? null : pageKind.page_kind)}
-                    className="inline-flex min-h-11 items-center gap-2 text-left md:min-h-9"
+                    className="inline-flex min-h-11 w-auto items-center gap-2 text-left md:min-h-9"
                   >
                     <Chevron className="text-muted size-4 shrink-0" aria-hidden />
                     <PageKindBadge pageKind={pageKind.page_kind} className="text-xs" />
-                  </button>
+                  </Pressable>
                 </TableCell>
                 <TableRecordMetricCell label="Pages">{pageKind.page_count}</TableRecordMetricCell>
                 <TableRecordMetricCell label="Median depth">
@@ -408,7 +421,9 @@ function ArchitectureEvidence({ data }: Readonly<{ data: SiteArchitecture }>) {
           <EvidenceMetric
             label="Orphaned pages"
             value={
-              linking.orphan_page_count === null ? PLACEHOLDER : String(linking.orphan_page_count)
+              linking.orphan_page_count === null
+                ? orphanCoverageExplanation(data.coverage_state)
+                : String(linking.orphan_page_count)
             }
           />
           <Button asChild variant="secondary" size="sm" className="col-span-3 justify-self-start">
@@ -450,6 +465,12 @@ function ArchitectureEvidence({ data }: Readonly<{ data: SiteArchitecture }>) {
   );
 }
 
+function orphanCoverageExplanation(coverageState: CoverageState): string {
+  return coverageState === 'partial'
+    ? 'Count withheld · partial coverage'
+    : 'Count withheld · coverage unknown';
+}
+
 function EvidenceMetric({
   label,
   value,
@@ -460,6 +481,8 @@ function EvidenceMetric({
       <span className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">{label}</span>
       {value === PLACEHOLDER ? (
         <UnavailableValue state="not_measured" />
+      ) : value.startsWith('Count withheld') ? (
+        <span className="text-muted text-xs leading-4">{value}</span>
       ) : (
         <span className="mono text-foreground text-2xl font-semibold tracking-[-0.02em] tabular-nums">
           {value}

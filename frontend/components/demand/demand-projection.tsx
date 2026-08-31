@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Calendar, Loader2, RefreshCw, Search, Sparkles, X } from 'lucide-react';
+import { Calendar, Loader2, RefreshCw, Search, Sparkles } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { FilterChip } from '@/components/ui/filter-chip';
-import { Input } from '@/components/ui/input';
 import { MutationNotice } from '@/components/ui/mutation-notice';
+import { SearchField } from '@/components/ui/search-field';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DemandDetectorBar } from '@/components/demand/demand-detector-bar';
 import { DemandEvidenceDrawer } from '@/components/demand/demand-evidence-drawer';
@@ -26,6 +26,12 @@ import {
 } from '@/lib/demand/signals';
 import { formatWindowDate } from '@/lib/format';
 import { useProjectContext } from '@/lib/project/project-context';
+import { optionalStringUrlCodec, stringUrlCodec, useUrlState } from '@/lib/navigation/url-state';
+
+const DEMAND_TAB_CODEC = stringUrlCodec(
+  FILTER_TABS.map(({ tab }) => tab),
+  'all' as FilterTab,
+);
 
 function DemandProjectionSkeleton() {
   return (
@@ -74,10 +80,12 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
   const { activeProject } = useProjectContext();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const [activeTab, setActiveTab] = useUrlState('view', DEMAND_TAB_CODEC, {
+    clearKeys: ['signal'],
+  });
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSignal, setSelectedSignal] = useState<DemandSignal | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedSignalId, setSelectedSignalId] = useUrlState('signal', optionalStringUrlCodec);
+  const selectedSignal = snapshot.signals.find((signal) => signal.id === selectedSignalId) ?? null;
 
   /**
    * Recompute is a QUEUED job, not a synchronous rebuild: the endpoint returns
@@ -98,8 +106,7 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
     queryClient.invalidateQueries({ queryKey: ['demand', activeProject?.id, 'latest'] });
 
   const handleInspect = (signal: DemandSignal) => {
-    setSelectedSignal(signal);
-    setDrawerOpen(true);
+    setSelectedSignalId(signal.id);
   };
 
   const windowLabel = `${formatWindowDate(snapshot.window_start)} – ${formatWindowDate(snapshot.window_end)}`;
@@ -233,24 +240,13 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
         </div>
 
         {/* Search Input */}
-        <div className="relative w-full sm:w-64">
-          <Search className="text-muted pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
-          <Input
+        <div className="w-full sm:w-64">
+          <SearchField
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onValueChange={setSearchQuery}
             placeholder="Filter queries or URLs..."
-            className="pr-8 pl-8 text-xs"
+            aria-label="Filter queries or URLs"
           />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="text-muted hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
-              aria-label="Clear filter search"
-            >
-              <X className="size-3.5" />
-            </button>
-          )}
         </div>
       </div>
 
@@ -303,8 +299,10 @@ function SearchDemandView({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) 
       {/* Evidence Inspection Drawer */}
       <DemandEvidenceDrawer
         signal={selectedSignal}
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
+        open={selectedSignal !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedSignalId(null);
+        }}
       />
     </div>
   );

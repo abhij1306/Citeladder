@@ -63,6 +63,16 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
   })) as unknown as typeof window.matchMedia;
 }
 
+// Radix Select uses pointer capture and element scrolling in browsers. jsdom
+// does not implement either API, so install inert contract-compatible stubs.
+if (typeof Element !== 'undefined') {
+  Element.prototype.hasPointerCapture ??= () => false;
+  Element.prototype.setPointerCapture ??= () => {};
+  Element.prototype.releasePointerCapture ??= () => {};
+  Element.prototype.scrollIntoView ??= () => {};
+}
+
 afterEach(() => {
   cleanup();
+  if (typeof window !== 'undefined') window.history.replaceState(null, '', '/');
 });

@@ -93,7 +93,6 @@ function DimensionLedger({
         <div className="flex items-start justify-between gap-3">
           <div>
             <CardTitle>AEO Readiness by pillar</CardTitle>
-            <CardDescription>Observed quality and evidence coverage stay separate.</CardDescription>
           </div>
           <Button asChild variant="secondary" size="sm">
             <Link href="/site?tab=aeo-readiness">View details</Link>
@@ -164,7 +163,6 @@ function TopIssues({ issues }: Readonly<{ issues: SiteHealthOverview['top_issues
         <div className="flex items-start justify-between gap-3">
           <div>
             <CardTitle>Top issues</CardTitle>
-            <CardDescription>Highest-impact persisted defects and readiness gaps.</CardDescription>
           </div>
           <Button asChild variant="secondary" size="sm">
             <Link href="/issues">View all issues</Link>
@@ -199,7 +197,7 @@ function TopIssues({ issues }: Readonly<{ issues: SiteHealthOverview['top_issues
                   </TableCell>
                   <TableCell>
                     <Link
-                      className="text-foreground font-medium underline decoration-transparent hover:decoration-current"
+                      className="text-foreground font-normal underline decoration-transparent hover:decoration-current"
                       href={issueHref(issue.rule_id, issue.finding_class)}
                     >
                       {issue.description || issue.rule_id}

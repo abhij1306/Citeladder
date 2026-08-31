@@ -1,0 +1,38 @@
+/* Authenticated interaction motion. Timing lives in globals.css; feature files
+   consume semantic component classes rather than defining local animation. */
+.menu-panel {
+  transform-origin: var(
+    --radix-dropdown-menu-content-transform-origin,
+    var(--radix-popover-content-transform-origin, var(--radix-select-content-transform-origin, top))
+  );
+}
+
+@keyframes disclosure-open {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes disclosure-close {
+  from {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+.disclosure-content[data-state='open'] {
+  animation: disclosure-open var(--transition-fast) var(--ease-standard);
+}
+
+.disclosure-content[data-state='closed'] {
+  animation: disclosure-close var(--transition-fast) var(--ease-standard);
+}

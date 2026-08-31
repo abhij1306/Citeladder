@@ -7,7 +7,7 @@ import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
-import { inputClasses } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { providersApi } from '@/lib/api/providers';
 import { queryKeys } from '@/lib/api/query-keys';
 import type { LogicalEngine, ProviderConnection } from '@/lib/api/types';
@@ -73,8 +73,8 @@ export function ConnectProviderDialog({
 
   // Only connectable engines are candidates. Planned providers have no route,
   // so the old `card.route ? … : true` fallback selected one of them as soon
-  // as all three shipped engines were configured — a default the <select>
-  // below cannot even display, since it lists ENGINE_ORDER only.
+  // as all three shipped engines were configured — a default the engine
+  // picker below cannot display, since it lists ENGINE_ORDER only.
   //
   // "Still needs attention" means UNVERIFIED, not key-less: an engine whose key
   // is stored but has never passed a probe cannot launch an audit, so it is
@@ -100,18 +100,13 @@ export function ConnectProviderDialog({
       <div className="grid gap-4">
         <Field label="AI engine">
           {(props) => (
-            <select
+            <Select
               {...props}
-              className={inputClasses}
+              ariaLabel="AI engine"
               value={engine}
-              onChange={(event) => setSelected(event.target.value as LogicalEngine)}
-            >
-              {ENGINE_ORDER.map((key) => (
-                <option key={key} value={key}>
-                  {ENGINE_LABELS[key]}
-                </option>
-              ))}
-            </select>
+              onValueChange={setSelected}
+              options={ENGINE_ORDER.map((key) => ({ value: key, label: ENGINE_LABELS[key] }))}
+            />
           )}
         </Field>
 

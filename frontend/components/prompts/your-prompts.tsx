@@ -15,6 +15,7 @@ import { scoreBand, scoreBandText } from '@/components/ui/score-band';
 import { Skeleton } from '@/components/ui/skeleton';
 import { displayHeadingLgClasses } from '@/components/ui/typography';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
+import { Pressable } from '@/components/ui/pressable';
 import {
   Table,
   TableBody,
@@ -231,7 +232,7 @@ export function YourPrompts() {
                   <Fragment key={group.key}>
                     <TableRow className="bg-background-alt/50">
                       <TableCell>
-                        <button
+                        <Pressable
                           type="button"
                           aria-expanded={!isCollapsed}
                           aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} topic ${label}`}
@@ -243,7 +244,7 @@ export function YourPrompts() {
                           ) : (
                             <ChevronDown className="size-4" aria-hidden />
                           )}
-                        </button>
+                        </Pressable>
                       </TableCell>
                       <TableCell>
                         <span className="inline-flex items-center gap-2">

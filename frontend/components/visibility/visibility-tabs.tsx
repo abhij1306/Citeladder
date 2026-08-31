@@ -1,12 +1,9 @@
 'use client';
 
-import { useRef, type KeyboardEvent, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
-import { tabItemClasses, tabListClasses } from '@/components/ui/tabs';
+import { TabPanel, Tabs } from '@/components/ui/tabs';
 import { VISIBILITY_TABS, type VisibilityTab } from '@/lib/visibility/dashboard';
-
-const TAB_ID = (tab: VisibilityTab) => `visibility-tab-${tab}`;
-const PANEL_ID = (tab: VisibilityTab) => `visibility-panel-${tab}`;
 
 /**
  * Accessible three-tab navigation for the Visibility workspace (WAI-ARIA tabs).
@@ -35,85 +32,18 @@ export function VisibilityTabs({
   /** The rendered content of the active panel (the parent owns composition). */
   panel: ReactNode;
 }>) {
-  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-
-  const activeIndex = VISIBILITY_TABS.findIndex((tab) => tab.id === activeTab);
-
-  function focusTab(index: number) {
-    const tab = VISIBILITY_TABS[index];
-    if (!tab) return;
-    onSelectTab(tab.id);
-    // Move DOM focus to the newly selected tab (roving tabindex + focus xfer).
-    tabRefs.current[tab.id]?.focus();
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    const last = VISIBILITY_TABS.length - 1;
-    switch (event.key) {
-      case 'ArrowRight':
-      case 'ArrowDown':
-        event.preventDefault();
-        focusTab(activeIndex >= last ? 0 : activeIndex + 1);
-        break;
-      case 'ArrowLeft':
-      case 'ArrowUp':
-        event.preventDefault();
-        focusTab(activeIndex <= 0 ? last : activeIndex - 1);
-        break;
-      case 'Home':
-        event.preventDefault();
-        focusTab(0);
-        break;
-      case 'End':
-        event.preventDefault();
-        focusTab(last);
-        break;
-      default:
-        break;
-    }
-  }
-
   return (
     <div className="grid gap-4">
-      <div
-        role="tablist"
-        aria-label="Visibility views"
-        aria-orientation="horizontal"
-        className={tabListClasses}
+      <Tabs
+        value={activeTab}
+        onValueChange={onSelectTab}
+        items={VISIBILITY_TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
+        ariaLabel="Visibility views"
       >
-        {VISIBILITY_TABS.map((tab) => {
-          const selected = tab.id === activeTab;
-          return (
-            <button
-              key={tab.id}
-              ref={(node) => {
-                tabRefs.current[tab.id] = node;
-              }}
-              type="button"
-              role="tab"
-              id={TAB_ID(tab.id)}
-              aria-selected={selected}
-              aria-controls={PANEL_ID(tab.id)}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => onSelectTab(tab.id)}
-              onKeyDown={onKeyDown}
-              className={tabItemClasses(selected)}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div
-        role="tabpanel"
-        id={PANEL_ID(activeTab)}
-        aria-labelledby={TAB_ID(activeTab)}
-        tabIndex={0}
-        className="focus-ring outline-none"
-      >
-        {panel}
-      </div>
+        <TabPanel value={activeTab} className="focus-ring">
+          {panel}
+        </TabPanel>
+      </Tabs>
     </div>
   );
 }

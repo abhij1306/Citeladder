@@ -9,6 +9,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/ca
 import { CursorPager } from '@/components/ui/cursor-pager';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
+import { Pressable } from '@/components/ui/pressable';
 import {
   Table,
   TableBody,
@@ -81,11 +82,11 @@ function SortableColumnHead({
   const descending = sortDirection(sort) === 'descending';
   return (
     <TableHead numeric aria-sort={active ? (descending ? 'descending' : 'ascending') : undefined}>
-      <button
+      <Pressable
         type="button"
         onClick={() => onSort(columnKey)}
         className={cn(
-          'inline-flex items-center gap-1',
+          'inline-flex w-auto items-center gap-1',
           active ? 'text-accent-text' : 'hover:text-foreground',
         )}
       >
@@ -99,7 +100,7 @@ function SortableColumnHead({
         ) : (
           <ArrowUpDown className="text-muted size-3" aria-hidden />
         )}
-      </button>
+      </Pressable>
     </TableHead>
   );
 }

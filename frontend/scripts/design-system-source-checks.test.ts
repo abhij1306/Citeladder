@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  directRadixImportViolations,
   productUiSourceViolations,
+  productControlViolations,
   standalonePlaceholderViolations,
   textRoleBackgroundViolations,
 } from './design-system-source-checks.mjs';
@@ -37,6 +39,35 @@ describe('standalonePlaceholderViolations', () => {
         false,
       ),
     ).toEqual([]);
+  });
+});
+
+describe('directRadixImportViolations', () => {
+  it('allows Radix only inside shared UI owners', () => {
+    const radixModule = ['@radix-ui', 'react-tabs'].join('/');
+    const source = `import * as Tabs from '${radixModule}';`;
+    expect(directRadixImportViolations(source, 'components/feature/tabs.tsx')).toHaveLength(1);
+    expect(directRadixImportViolations(source, 'components/ui/tabs.tsx')).toEqual([]);
+  });
+});
+
+describe('productControlViolations', () => {
+  it('rejects native selects, raw buttons, and cosmetic Button overrides', () => {
+    const source = `
+      <select><option>One</option></select>
+      <button type="button">Open</button>
+      <Button className="rounded-full bg-panel text-muted shadow-sm">Save</Button>
+    `;
+    expect(productControlViolations(source, 'components/example.tsx', true)).toHaveLength(3);
+  });
+
+  it('allows shared controls and semantic Button layout classes', () => {
+    const source = `
+      <Select ariaLabel="Status" options={options} />
+      <Pressable className="grid w-full gap-2">Open</Pressable>
+      <Button variant="secondary" className="w-full justify-start">Save</Button>
+    `;
+    expect(productControlViolations(source, 'components/example.tsx', true)).toEqual([]);
   });
 });
 

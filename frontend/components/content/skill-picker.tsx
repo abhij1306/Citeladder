@@ -3,6 +3,7 @@
 import { Check } from 'lucide-react';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { Pressable } from '@/components/ui/pressable';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { ContentSkillView } from '@/lib/api/content';
 import { cn } from '@/lib/utils';
@@ -88,7 +89,7 @@ export function SkillPicker({
             const selected = skill.id === value;
             return (
               <Tooltip key={skill.id} content={<SkillDetail skill={skill} />}>
-                <button
+                <Pressable
                   type="button"
                   // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Button-based radio preserves tooltip wrapping and the compact format-picker interaction.
                   role="radio"
@@ -96,7 +97,7 @@ export function SkillPicker({
                   disabled={disabled}
                   onClick={() => onChange(skill.id)}
                   className={cn(
-                    'focus-ring inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                    'focus-ring inline-flex w-auto items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                     selected
                       ? 'border-accent-border bg-accent-soft text-accent-text font-medium'
                       : 'border-border text-secondary hover:border-border-strong hover:text-foreground',
@@ -104,7 +105,7 @@ export function SkillPicker({
                 >
                   {selected ? <Check className="size-3.5" aria-hidden /> : null}
                   {skill.label}
-                </button>
+                </Pressable>
               </Tooltip>
             );
           })}

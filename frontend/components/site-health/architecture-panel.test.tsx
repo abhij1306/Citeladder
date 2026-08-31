@@ -156,7 +156,29 @@ describe('Architecture panel', () => {
     expect(await screen.findByText('Partial coverage')).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('page budget');
     const orphans = screen.getAllByText('Orphaned pages')[0]!.closest('div');
-    expect(within(orphans!).getByText('Not measured')).toHaveClass('value-placeholder');
+    expect(within(orphans!).getByText('Count withheld · partial coverage')).toBeInTheDocument();
+  });
+
+  it('renders an observed zero only when coverage is complete', async () => {
+    stubArchitecture({
+      internal_linking: { ...architecture().internal_linking, orphan_page_count: 0 },
+    });
+    renderWithProviders(<ArchitecturePanel projectId={PROJECT} crawlId={CRAWL} />);
+
+    const orphans = (await screen.findAllByText('Orphaned pages'))[0]!.closest('div');
+    expect(within(orphans!).getByText('0')).toBeInTheDocument();
+    expect(within(orphans!).queryByText(/withheld/i)).not.toBeInTheDocument();
+  });
+
+  it('names unknown coverage instead of calling the orphan count not measured', async () => {
+    stubArchitecture({
+      coverage_state: 'unknown',
+      page_kinds: [{ ...architecture().page_kinds[0], orphan_count: null }],
+      internal_linking: { ...architecture().internal_linking, orphan_page_count: null },
+    });
+    renderWithProviders(<ArchitecturePanel projectId={PROJECT} crawlId={CRAWL} />);
+
+    expect(await screen.findAllByText('Count withheld · coverage unknown')).not.toHaveLength(0);
   });
 
   it('explains when the persisted projection is unavailable', async () => {

@@ -49,6 +49,7 @@ Both are subordinate to the canonical runtime and measurement logic in
 | [`api-error-contract.md`](api-error-contract.md) | Canonical API error envelope |
 | [`security-fix.md`](security-fix.md) | 2026-08 security boundary and deployment compatibility reference |
 | [`design.md`](design.md) | UI tokens, geometry, and interaction rules |
+| [`ui-component-system.md`](ui-component-system.md) | Authenticated component, state, motion, and enforcement map |
 | [`integrations-traffic-analytics.md`](integrations-traffic-analytics.md) | Integration and traffic evidence contracts |
 | [`commerce-intelligence.md`](commerce-intelligence.md) | Commerce specialization boundary |
 | [`DEVELOPMENT.md`](DEVELOPMENT.md) | Local development runbook |

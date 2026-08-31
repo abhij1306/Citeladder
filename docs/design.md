@@ -485,6 +485,9 @@ queries). They provide keyboard navigation and preserve the selected tab's
 focus. Segmented controls use one bordered-track recipe for compact single-select
 changes within a view. Filter chips are the shared pill treatment for independent
 or multi-select filters; they live in `components/ui`, not a feature directory.
+The complete authenticated capability and ownership map lives in
+[`ui-component-system.md`](ui-component-system.md). HeroUI is a reference for
+state completeness, not an installed dependency.
 
 Changing a chart interval retains the previous analytical content while the new
 persisted projection loads. Mark the analytical region busy and show compact
@@ -493,7 +496,7 @@ data that has not arrived.
 
 ## Motion and accessibility
 
-Pointer-opened menus use a barely visible 150–180ms origin-aware fade/shift.
+Authenticated routes are wrapped by the lazy Motion provider. Pointer-opened menus use a barely visible 150–180ms origin-aware fade/shift.
 Keyboard-opened command interfaces are immediate. Drawers use a short 220–260ms
 right-side transition that remains interruptible. Press feedback starts on
 pointer-down. Beyond that, a small, deliberate set of explanatory motions is
@@ -502,7 +505,12 @@ sanctioned, each one calm and reduced-motion-safe:
 - the rotating answer-engine wordmarks and the product-window walkthrough;
 - scroll **reveal** entrances (GSAP) that fade and rise a small distance and never
   hide server-rendered content after hydration;
-- the interactive-card hover lift.
+- the interactive-card hover lift;
+- master-detail selection continuity and measured disclosure expansion.
+
+Authenticated route content and tab indicators update immediately. Do not fade
+either surface: navigation opacity transitions create a visible flash during
+fast route and query-state changes.
 
 Every one of these stops under `prefers-reduced-motion: reduce`: CSS animations and
 transitions are neutralised globally, the SMIL pipeline dots are hidden, and the

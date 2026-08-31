@@ -154,8 +154,9 @@ function PdfButton({
       variant="secondary"
       size="sm"
       onClick={onDownload}
-      disabled={downloading}
-      className="gap-1.5 shadow-xs"
+      pending={downloading}
+      pendingLabel="Preparing…"
+      className="gap-1.5"
     >
       {downloading ? (
         <LoaderCircle className="size-4 animate-spin" aria-hidden />
@@ -361,8 +362,9 @@ export function ActionsAndProof({
               variant="secondary"
               size="sm"
               onClick={onDownload}
-              disabled={downloading}
-              className="shrink-0 gap-1.5 shadow-xs"
+              pending={downloading}
+              pendingLabel="Preparing…"
+              className="shrink-0 gap-1.5"
             >
               <Download className="size-4" aria-hidden /> Download PDF
             </Button>
