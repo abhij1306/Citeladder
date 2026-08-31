@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.connectors.web_evidence.url_policy import UrlPolicyError, canonicalize
+
 
 class ResearchEvidenceItem(BaseModel):
     evidence_ref: str
@@ -63,9 +65,13 @@ def bounded_evidence(
     distinct: list[ResearchEvidenceItem] = []
     seen_urls: set[str] = set()
     for item in items:
-        if item.source_url in seen_urls:
+        try:
+            source_identity = canonicalize(item.source_url)
+        except UrlPolicyError:
+            source_identity = item.source_url.strip().casefold()
+        if source_identity in seen_urls:
             continue
-        seen_urls.add(item.source_url)
+        seen_urls.add(source_identity)
         distinct.append(item)
 
     remaining = max_chars

@@ -162,6 +162,27 @@ def test_evidence_uses_one_shared_character_budget(monkeypatch) -> None:
     assert sum(len(item.text) for item in bounded) == 7
 
 
+def test_evidence_budget_deduplicates_canonical_source_urls() -> None:
+    evidence = tuple(
+        ResearchEvidenceItem(
+            evidence_ref=evidence_ref,
+            source_url=source_url,
+            text="evidence",
+            source_kind="external_search",
+            supports=["competitors"],
+        )
+        for evidence_ref, source_url in (
+            ("first", "https://Example.com/page?utm_source=research#summary"),
+            ("duplicate", "https://example.com/page"),
+            ("other", "https://other.example/page"),
+        )
+    )
+
+    bounded = bounded_evidence(evidence, max_chars=100)
+
+    assert [item.evidence_ref for item in bounded] == ["first", "other"]
+
+
 def test_broad_retailer_pool_exposes_every_distinct_source(monkeypatch) -> None:
     """Long early fetches must not hide later retailer search results."""
     from app.domain.projects.onboarding import competitor_research as module
