@@ -105,18 +105,14 @@ export function GeneratePromptsDialogView({
       open={open}
       onOpenChange={onOpenChange}
       title="Generate prompts"
-      description="CiteLadder drafts prompt suggestions for your existing topics."
+      description="CiteLadder drafts prompt suggestions and creates starting topics from confirmed offerings when needed."
       className="w-130"
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {result ? 'Close' : 'Cancel'}
           </Button>
-          <Button
-            variant="primary"
-            onClick={onSubmit}
-            disabled={isGenerating || !countValid || topics.length === 0}
-          >
+          <Button variant="primary" onClick={onSubmit} disabled={isGenerating || !countValid}>
             <Sparkles className="size-4" aria-hidden />
             {isGenerating ? 'Generating…' : 'Generate'}
           </Button>
@@ -125,7 +121,10 @@ export function GeneratePromptsDialogView({
     >
       <div className="grid gap-4">
         {topics.length === 0 ? (
-          <Alert tone="warning">Create or discover a topic before generating prompts.</Alert>
+          <Alert tone="info">
+            No topics exist yet. CiteLadder will create them from your confirmed offerings, then
+            generate prompts.
+          </Alert>
         ) : null}
         {error ? <GenerateErrorAlert error={error} /> : null}
         {result && !error ? <GenerateResultAlert result={result} /> : null}
@@ -143,18 +142,20 @@ export function GeneratePromptsDialogView({
             aria-invalid={!countValid}
           />
         </div>
-        <div className="grid gap-1.5">
-          <span className="text-secondary text-xs font-medium">Topic</span>
-          <Select
-            value={topicId}
-            onValueChange={setTopicId}
-            ariaLabel="Topic"
-            options={[
-              { value: '', label: 'All existing topics' },
-              ...topics.map((topic) => ({ value: topic.id, label: topic.name })),
-            ]}
-          />
-        </div>
+        {topics.length > 0 ? (
+          <div className="grid gap-1.5">
+            <span className="text-secondary text-xs font-medium">Topic</span>
+            <Select
+              value={topicId}
+              onValueChange={setTopicId}
+              ariaLabel="Topic"
+              options={[
+                { value: '', label: 'All existing topics' },
+                ...topics.map((topic) => ({ value: topic.id, label: topic.name })),
+              ]}
+            />
+          </div>
+        ) : null}
       </div>
     </Dialog>
   );

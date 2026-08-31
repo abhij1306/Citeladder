@@ -44,21 +44,21 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         </aside>
 
         <div className="relative z-1 flex min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="bg-background sticky top-0 z-20 flex h-[var(--topbar-height)] shrink-0 items-center gap-3 px-[var(--content-gutter)]">
-            <div className="flex items-center gap-2 md:hidden">
+          <header className="bg-background sticky top-0 z-20 grid h-[var(--topbar-height)] shrink-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-[var(--content-gutter)] sm:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)_minmax(0,1fr)]">
+            <div className="flex min-w-0 items-center gap-2">
               <Link
                 href="/projects"
-                className="flex shrink-0 items-center gap-2"
+                className="flex shrink-0 items-center gap-2 md:hidden"
                 aria-label="CiteLadder command center"
               >
                 <LogoMark size={20} />
               </Link>
+              <PageHeader className="mb-0 min-w-0 flex-1 [&_h1]:truncate" />
             </div>
-            <PageHeader className="mb-0 min-w-0 flex-1 [&_h1]:truncate" />
-            <div className="ms-auto w-auto sm:w-72 lg:w-96">
+            <div className="w-auto justify-self-center sm:w-full">
               <CommandPalette />
             </div>
-            <div className="flex items-center justify-end gap-2.5">
+            <div className="flex items-center justify-end gap-2.5 justify-self-end">
               <AgentSheet />
             </div>
           </header>

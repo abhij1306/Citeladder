@@ -136,4 +136,25 @@ describe('MarketSelect', () => {
     expect(options).toHaveLength(1);
     expect(options[0]).toHaveTextContent('Portuguese (Brazil)');
   });
+
+  it('shows SVG country flags in the control and option list when requested', async () => {
+    const user = userEvent.setup();
+    const { container } = renderSelect({ showCountryFlags: true });
+
+    const input = screen.getByRole('combobox', { name: /^country$/i });
+    expect(input).toHaveValue('United States');
+    expect(container.querySelector('[data-country-flag="US"]')).toBeInTheDocument();
+
+    await user.click(input);
+    expect(container.querySelector('[data-country-flag="DE"]')).toBeInTheDocument();
+  });
+
+  it('keeps the familiar globe glyph for the Global market', () => {
+    const { container } = renderSelect({
+      value: 'GLOBAL',
+      options: [{ value: 'GLOBAL', label: 'Global' }, ...COUNTRY_OPTIONS],
+      showCountryFlags: true,
+    });
+    expect(container.querySelector('[data-country-flag="GLOBAL"]')).toHaveTextContent('🌐');
+  });
 });

@@ -106,6 +106,34 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
     expect(screen.getByRole('tab', { name: /Active/ })).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('generates starting topics and prompts when onboarding left no topics', async () => {
+    const user = userEvent.setup();
+    usePromptPageHandlers([makePrompt()], []);
+    let generateBody: Record<string, unknown> | null = null;
+    mswServer.use(
+      http.post(`/api/v1/prompt-sets/${SET_ID}/generate`, async ({ request }) => {
+        generateBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { generated: [], topics: [], dropped_duplicates: 0, requested_count: 10 },
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderPromptsPage();
+    await screen.findByText('Best running shoes?', undefined, { timeout: 5000 });
+    await user.click(screen.getByRole('button', { name: 'Generate prompts' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/create them from your confirmed offerings/i)).toBeVisible();
+    expect(within(dialog).queryByRole('combobox', { name: 'Topic' })).toBeNull();
+    const generateButton = within(dialog).getByRole('button', { name: 'Generate' });
+    expect(generateButton).toBeEnabled();
+    await user.click(generateButton);
+
+    await waitFor(() => expect(generateBody).toEqual({ count: 10 }));
+  });
+
   it('rejects fractional prompt counts', async () => {
     const user = userEvent.setup();
     usePromptPageHandlers([makePrompt()], [makeTopic()]);

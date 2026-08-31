@@ -722,8 +722,12 @@ padded lead-ins" prose that models ignore, so the surface kept reproducing the
 register this contract exists to eliminate. Two instruction sets meant two
 registers.
 
-It still targets existing topics only. Expanding the taxonomy is Pass B's job,
-never the prompt generator's.
+It targets existing topics in normal use. One recovery case is deliberate: when
+onboarding left a completed project with no topics, the explicit action first
+reuses the deterministic confirmed-offering fallback from onboarding, commits
+those generated-origin topic rows, and then runs Pass C. This does not ask the
+prompt model to expand or infer the taxonomy; without confirmed offerings the
+request fails before provider I/O.
 
 ## Acceptance
 

@@ -112,6 +112,8 @@ describe('Architecture panel', () => {
     );
     expect(screen.getByText('67%')).toBeInTheDocument();
     expect(screen.getByText('8')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /View pages by inbound links/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /View pages by depth/i })).toBeNull();
     const linking = screen.getByText('Internal linking').closest('section');
     const pageKinds = screen.getByRole('heading', { name: 'Page kinds' }).closest('section');
     expect(

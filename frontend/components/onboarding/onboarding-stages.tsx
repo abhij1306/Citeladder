@@ -62,6 +62,7 @@ export function BrandStage({
                   onChange={field.onChange}
                   onBlur={field.onBlur}
                   options={MARKET_OPTIONS}
+                  showCountryFlags
                 />
               )}
             />

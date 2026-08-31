@@ -50,7 +50,7 @@ export const buttonVariants = cva(
           'border-transparent bg-transparent text-danger-text hover:bg-danger-bg active:bg-danger-bg',
       },
       size: {
-        sm: 'h-[var(--control-height-sm)] px-2.5 text-xs font-medium',
+        sm: 'h-[var(--control-height-sm)] px-2.5 text-sm font-medium',
         md: 'h-[var(--control-height)] px-3.5 text-sm font-medium',
         lg: 'h-[var(--control-height-lg)] px-[var(--card-padding-large)] text-sm font-medium',
         icon: 'size-[var(--control-height)] px-0',

@@ -369,10 +369,10 @@ async def test_generate_rejects_count_over_cap(
 
 
 @pytest.mark.asyncio
-async def test_generate_requires_an_existing_topic(
+async def test_generate_creates_topics_from_confirmed_offerings_when_none_exist(
     client: httpx.AsyncClient, fake_agent: FakeAgent
 ) -> None:
-    _project, prompt_set_id = await _make_project_and_set(
+    project, prompt_set_id = await _make_project_and_set(
         client, "gen-products@example.com", create_default_topic=False
     )
 
@@ -381,9 +381,43 @@ async def test_generate_requires_an_existing_topic(
         json={"count": 3, "confirm_send_evidence": True},
     )
 
+    assert resp.status_code == 201
+    body = resp.json()
+    assert len(body["generated"]) == 3
+    assert {topic["name"] for topic in body["topics"]} == {"running shoes"}
+    assert {topic["origin"] for topic in body["topics"]} == {"generated"}
+    assert all(
+        prompt["topic_id"] == body["topics"][0]["id"] for prompt in body["generated"]
+    )
+
+    topics = (await client.get(f"/api/v1/projects/{project['id']}/topics")).json()
+    assert [(topic["name"], topic["origin"]) for topic in topics] == [
+        ("running shoes", "generated")
+    ]
+    assert len(fake_agent.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_generate_without_topics_or_offerings_rejects_before_provider(
+    client: httpx.AsyncClient, fake_agent: FakeAgent
+) -> None:
+    project, prompt_set_id = await _make_project_and_set(
+        client, "gen-no-offerings@example.com", create_default_topic=False
+    )
+    profile = await client.put(
+        f"/api/v1/projects/{project['id']}/brand-profile",
+        json={"products_services": []},
+    )
+    assert profile.status_code == 200
+
+    resp = await client.post(
+        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
+        json={"count": 3, "confirm_send_evidence": True},
+    )
+
     assert resp.status_code == 422
     assert resp.json()["detail"]["code"] == "generation_invalid"
-    assert "at least one topic" in resp.json()["detail"]["message"]
+    assert "confirmed offering" in resp.json()["detail"]["message"]
     assert fake_agent.calls == []
 
 

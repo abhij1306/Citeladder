@@ -56,6 +56,10 @@ from app.domain.prompts.locks import acquire_project_lock, acquire_prompt_set_lo
 from app.domain.prompts.normalization import prompt_text_hash
 from app.domain.prompts.query_patterns import PromptSlot, build_prompt_slots
 from app.domain.prompts.service import PromptSetNotFoundError, prepare_prompt_inserts
+from app.domain.prompts.topic_recovery import (
+    confirmed_offerings,
+    recover_topics_from_confirmed_offerings,
+)
 from app.domain.prompts.topical_binding import (
     BindingVocabulary,
     build_project_vocabulary,
@@ -190,9 +194,9 @@ def _validate_generation_payload(prompt_set: PromptSet, payload: Any) -> Topic |
         raise GenerationValidationError(
             "Commerce buyer prompts are generated from /commerce/buyer-prompts"
         )
-    if not prompt_set.project.topics:
+    if not prompt_set.project.topics and not confirmed_offerings(prompt_set.project):
         raise GenerationValidationError(
-            "Add at least one topic before generating prompts"
+            "Add at least one confirmed offering before generating prompts"
         )
     return target_topic
 
@@ -641,6 +645,16 @@ async def generate_prompts(
             session, workspace_id=workspace_id, prompt_set_id=prompt_set_id
         )
     _validate_generation_payload(prompt_set, payload)
+    if not prompt_set.project.topics:
+        project_id = prompt_set.project.id
+        await recover_topics_from_confirmed_offerings(
+            session, workspace_id=workspace_id, project_id=project_id
+        )
+        session.expire_all()
+        prompt_set = await _load_prompt_set_with_project(
+            session, workspace_id=workspace_id, prompt_set_id=prompt_set_id
+        )
+        _validate_generation_payload(prompt_set, payload)
     project_id = prompt_set.project.id
     (
         suggestions,

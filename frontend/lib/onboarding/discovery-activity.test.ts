@@ -61,7 +61,7 @@ describe('discoveryActivity', () => {
 
     expect(steps.map((step) => step.label)).toEqual([
       'Opened your website',
-      'Read what you offer',
+      'Reading what you offer',
       'Finding comparable brands',
       'Preparing your questions',
     ]);

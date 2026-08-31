@@ -500,8 +500,12 @@ minimum. If selection returns no topics, completion creates them from the
 offerings the user explicitly confirms, preserving that wording and provenance
 instead of blocking onboarding or padding with built-in categories.
 
-Prompt generation receives those persisted UUIDs and cannot create, rename,
-repair, or replace topics. One config-owned buyer-query planner freezes short
+Prompt generation receives persisted topic UUIDs and cannot rename, repair, or
+replace them. If a completed project has no topics, the explicit **Generate
+prompts** action first applies onboarding's deterministic recovery rule: create
+topics from the confirmed `products_services` wording with generated origin,
+commit them, and then call the prompt provider. With neither topics nor confirmed
+offerings, generation fails validation before provider I/O. One config-owned buyer-query planner freezes short
 slots across buyer-stage archetypes for organic, brand-diagnostic, and
 brand-versus-competitor queries. The model returns only slot ID and text; code
 owns topic, cohort, buyer stage, intent, archetype, form, and count, then
@@ -509,8 +513,8 @@ deterministically validates archetype fit, topical binding, template lead-ins,
 pasted positioning, and brand leakage. Onboarding and later library generation
 use this same contract, and every persisted prompt records the generator and
 buyer-query archetype versions. A topic that yields no usable prompt is reported
-as a warning, not a failure. Later library generation remains restricted to
-existing project topic IDs. See
+as a warning, not a failure. Apart from that no-topic recovery, later library
+generation remains restricted to existing project topic IDs. See
 [`visibility-prompt.md`](visibility-prompt.md) for the complete runtime
 contract and model instructions.
 

@@ -1,11 +1,80 @@
 'use client';
 
+import {
+  AE,
+  AR,
+  AT,
+  AU,
+  BE,
+  BR,
+  CA,
+  CH,
+  CL,
+  CO,
+  DE,
+  DK,
+  ES,
+  FI,
+  FR,
+  GB,
+  IE,
+  IL,
+  IN,
+  IT,
+  JP,
+  KR,
+  MX,
+  NL,
+  NO,
+  NZ,
+  PL,
+  PT,
+  SE,
+  SG,
+  US,
+  ZA,
+} from 'country-flag-icons/react/3x2';
 import { useId, useRef, useState } from 'react';
 
 import { Input } from '@/components/ui/input';
 import { menuItemVariants, menuPanelClasses } from '@/components/ui/menu-variants';
 import type { MarketOption } from '@/lib/setup/markets';
 import { cn } from '@/lib/utils';
+
+const COUNTRY_FLAGS = {
+  AE,
+  AR,
+  AT,
+  AU,
+  BE,
+  BR,
+  CA,
+  CH,
+  CL,
+  CO,
+  DE,
+  DK,
+  ES,
+  FI,
+  FR,
+  GB,
+  IE,
+  IL,
+  IN,
+  IT,
+  JP,
+  KR,
+  MX,
+  NL,
+  NO,
+  NZ,
+  PL,
+  PT,
+  SE,
+  SG,
+  US,
+  ZA,
+} as const;
 
 /**
  * MarketSelect (F6) — a lightweight searchable select (combobox) for the
@@ -27,6 +96,7 @@ export function MarketSelect({
   onBlur,
   options,
   placeholder,
+  showCountryFlags = false,
   'aria-describedby': ariaDescribedBy,
   'aria-invalid': ariaInvalid,
   'aria-required': ariaRequired,
@@ -38,6 +108,7 @@ export function MarketSelect({
   onBlur?: () => void;
   options: readonly MarketOption[];
   placeholder?: string;
+  showCountryFlags?: boolean;
   'aria-describedby'?: string;
   'aria-invalid'?: boolean;
   'aria-required'?: boolean;
@@ -98,6 +169,12 @@ export function MarketSelect({
 
   return (
     <div ref={containerRef} className="relative">
+      {showCountryFlags && selected ? (
+        <CountryFlag
+          code={selected.value}
+          className="pointer-events-none absolute top-1/2 left-3 z-1 -translate-y-1/2"
+        />
+      ) : null}
       <Input
         id={id}
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- This is the semantic input in an editable ARIA combobox; a native select is not editable.
@@ -113,6 +190,7 @@ export function MarketSelect({
         autoComplete="off"
         placeholder={placeholder}
         value={text}
+        className={showCountryFlags ? 'pl-10' : undefined}
         onFocus={() => {
           setOpen(true);
           setQuery('');
@@ -172,10 +250,14 @@ export function MarketSelect({
               onMouseEnter={() => setHighlight(index)}
               className={cn(
                 menuItemVariants({ selected: option.value === value }),
-                'grid grid-cols-[minmax(0,1fr)_auto] gap-3 text-xs leading-5',
+                'grid gap-3 text-xs leading-5',
+                showCountryFlags
+                  ? 'grid-cols-[1.25rem_minmax(0,1fr)_auto]'
+                  : 'grid-cols-[minmax(0,1fr)_auto]',
                 index === highlight && option.value !== value && 'bg-background-alt',
               )}
             >
+              {showCountryFlags ? <CountryFlag code={option.value} /> : null}
               <span className="min-w-0 truncate">{option.label}</span>
               {option.value.trim().toLowerCase() !== option.label.trim().toLowerCase() ? (
                 <span className="mono text-muted max-w-24 truncate text-xs">{option.value}</span>
@@ -186,4 +268,29 @@ export function MarketSelect({
       ) : null}
     </div>
   );
+}
+
+function CountryFlag({ code, className }: Readonly<{ code: string; className?: string }>) {
+  if (code === 'GLOBAL') {
+    return (
+      <span
+        data-country-flag="GLOBAL"
+        className={cn(
+          'flex size-5 shrink-0 items-center justify-center text-base leading-none',
+          className,
+        )}
+        aria-hidden
+      >
+        🌐
+      </span>
+    );
+  }
+  const Flag = COUNTRY_FLAGS[code as keyof typeof COUNTRY_FLAGS];
+  return Flag ? (
+    <Flag
+      data-country-flag={code}
+      className={cn('h-3.5 w-5 shrink-0 overflow-hidden rounded-[2px]', className)}
+      aria-hidden
+    />
+  ) : null;
 }

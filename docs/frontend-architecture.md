@@ -48,6 +48,10 @@ completion response or persisted discovery carries `project_id`; it does not
 wait for the background portfolio to reach `project_created`. A shell-less
 terminal completion failure remains visible instead of being presented as work
 that is still running.
+The prompt library's explicit generation dialog remains usable when onboarding
+left the project with no topics. It explains that confirmed offerings will become
+starting topics, omits the empty topic selector, and lets the backend create those
+topics before generating prompts.
 
 ## Core rules
 

@@ -8,7 +8,6 @@ import { ChevronDown, ChevronRight, Link2, ListTree } from 'lucide-react';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Pressable } from '@/components/ui/pressable';
@@ -424,9 +423,6 @@ function ArchitectureEvidence({ data }: Readonly<{ data: SiteArchitecture }>) {
                 : String(linking.orphan_page_count)
             }
           />
-          <Button asChild variant="secondary" size="sm" className="col-span-3 justify-self-start">
-            <Link href="/site?tab=pages&sort=inbound">View pages by inbound links</Link>
-          </Button>
         </CardContent>
       </Card>
       <Card>
@@ -454,9 +450,6 @@ function ArchitectureEvidence({ data }: Readonly<{ data: SiteArchitecture }>) {
               {data.structure_depth.unmeasured_page_count} pages have no measured depth.
             </p>
           ) : null}
-          <Button asChild variant="secondary" size="sm" className="justify-self-start">
-            <Link href="/site?tab=pages&sort=depth">View pages by depth</Link>
-          </Button>
         </CardContent>
       </Card>
     </div>

@@ -45,7 +45,7 @@ export function discoveryActivity(discovery: BrandDiscovery | undefined): Activi
   const progress = discovery?.progress;
   const labels = [
     current > 0 ? 'Opened your website' : 'Opening your website',
-    current > 1 ? 'Read what you offer' : 'Reading what you offer',
+    'Reading what you offer',
     current > 2 ? 'Found comparable brands' : 'Finding comparable brands',
     current > 3 ? 'Prepared your questions' : 'Preparing your questions',
   ] as const;
