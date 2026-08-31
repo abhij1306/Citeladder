@@ -1388,13 +1388,21 @@ def test_malformed_source_authority_preserves_prior_sources(monkeypatch) -> None
     ]
 
 
-def test_malformed_source_href_skips_only_that_anchor() -> None:
+def test_malformed_source_href_skips_only_that_anchor(monkeypatch) -> None:
+    real_urljoin = fact_source_support.urljoin
+
+    def guarded_urljoin(base: str, href: str) -> str:
+        if "bad.example.test" in href:
+            raise ValueError("malformed source href")
+        return real_urljoin(base, href)
+
+    monkeypatch.setattr(fact_source_support, "urljoin", guarded_urljoin)
     facts = _facts(
         b"<html><body><main><h1>Research summary</h1>"
         b"<h2>Sources</h2>"
-        b"<a href='https://data.example.org/one'>First source</a>"
-        b"<a href='https://[broken.example/report'>Broken source</a>"
-        b"<a href='https://data.example.net/two'>Second source</a>"
+        b"<p><a href='https://data.example.org/one'>First source</a>; "
+        b"<a href='https://bad.example.test/report'>Broken source</a>; "
+        b"<a href='https://data.example.net/two'>Second source</a></p>"
         b"</main></body></html>"
     )
 

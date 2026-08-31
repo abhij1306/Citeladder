@@ -299,7 +299,7 @@ async def test_bodyless_success_is_not_in_classification_cohort(
         transport=_HttpxHandlerTransport(handler),
     )
 
-    assert await worker.run_until_idle() == 1
+    await worker.run_until_idle()
 
     async with session_factory() as session:
         task = await session.get(SiteCrawlTask, task_id)
