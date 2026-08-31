@@ -10,8 +10,8 @@
 #     ``rule_catalog_version -> rule_version``;
 #   - grouped-issue / evaluation ``title`` reads the CURRENT
 #     ``SITE_HEALTH_RULES_BY_ID[rule_id].display_label`` (unknown -> rule_id);
-#   - the grouped-issue canonical id is the earliest immutable ``SiteIssue`` UUID
-#     by ``(created_at, id)`` (never a synthetic id);
+#   - grouped issue selection uses a deterministic crawl/rule/finding-class
+#     ``group_id`` while stored ``SiteIssue.id`` is always an occurrence id;
 #   - ``blocked`` = the latest analyze task ended under a config-owned policy
 #     denial code (robots/SSRF); any other terminal-unsuccessful analysis maps to
 #     ``error``; ``failed`` is internal and never surfaced as page copy;

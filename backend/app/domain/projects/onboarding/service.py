@@ -454,18 +454,16 @@ def _generated_prompts(
     return generated
 
 
-async def _persist_project(
+async def _persist_project_shell(
     session: AsyncSession,
     *,
     workspace_id: uuid.UUID,
     row: BrandDiscovery,
     payload: BrandDiscoveryComplete,
-    prompts: list[dict],
     discovery_topics: list[DiscoveryTopic],
-    prompt_provider: str,
-    prompt_model: str,
     profile_sources: dict[str, dict[str, str]],
 ) -> uuid.UUID:
+    """Persist the immediately usable project and empty onboarding portfolio."""
     data = row.input_data
     profile = payload.profile
     project = await create_project(
@@ -492,7 +490,7 @@ async def _persist_project(
         commit=False,
         brand_profile_sources=profile_sources,
     )
-    research_snapshot_id = await _attach_research_source_artifacts(
+    await _attach_research_source_artifacts(
         session,
         workspace_id=workspace_id,
         row=row,
@@ -503,14 +501,57 @@ async def _persist_project(
         id=uuid.uuid4(), project_id=project.id, name=ONBOARDING_PROMPT_SET_NAME
     )
     session.add(prompt_set)
+    session.add_all(_generated_topics(project.id, discovery_topics))
+    return project.id
+
+
+async def _persist_generated_prompts(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    row: BrandDiscovery,
+    prompts: list[dict],
+    prompt_provider: str,
+    prompt_model: str,
+) -> None:
+    """Fill the shell's existing prompt set exactly once under the row lock."""
+    if row.project_id is None:
+        raise BrandDiscoveryError("Completion project shell is missing")
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == row.project_id,
+            Project.workspace_id == workspace_id,
+        )
+    )
+    if project is None:
+        raise BrandDiscoveryError("Completion project shell is unavailable")
+    prompt_set = await session.scalar(
+        select(PromptSet).where(
+            PromptSet.project_id == project.id,
+            PromptSet.name == ONBOARDING_PROMPT_SET_NAME,
+        )
+    )
+    if prompt_set is None:
+        raise BrandDiscoveryError("Onboarding prompt set is missing")
     approved_hashes = await prepare_prompt_inserts(
         session,
         workspace_id=workspace_id,
         prompt_set_id=prompt_set.id,
         texts=[str(item["text"]) for item in prompts],
     )
-    topics = _generated_topics(project.id, discovery_topics)
-    session.add_all(topics)
+    topics = list(
+        (
+            await session.scalars(select(Topic).where(Topic.project_id == project.id))
+        ).all()
+    )
+    research_snapshot_id = await session.scalar(
+        select(BrandResearchSnapshot.id)
+        .where(
+            BrandResearchSnapshot.workspace_id == workspace_id,
+            BrandResearchSnapshot.discovery_id == row.id,
+        )
+        .order_by(BrandResearchSnapshot.created_at.desc())
+    )
     prompt_rows = _generated_prompts(
         prompt_set_id=prompt_set.id,
         discovery_id=row.id,
@@ -526,7 +567,6 @@ async def _persist_project(
     if len(retained) != len(prompts):
         raise BrandDiscoveryError("Reviewed prompts must remain unique")
     session.add_all(retained)
-    return project.id
 
 
 # The context fields that survive onboarding. `business_type` and `price_tier`

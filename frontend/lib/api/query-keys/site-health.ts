@@ -66,7 +66,7 @@ export const siteHealthKeys = {
     ['site-health', 'issue-history', crawlId, siteUrlId, filters] as const,
   issues: (crawlId: string, filters: ListFilters = {}) =>
     ['site-health', 'issues', crawlId, filters] as const,
-  issue: (crawlId: string, issueId: string, filters: ListFilters = {}) =>
-    ['site-health', 'issue', crawlId, issueId, filters] as const,
+  issue: (crawlId: string, groupId: string, filters: ListFilters = {}) =>
+    ['site-health', 'issue', crawlId, groupId, filters] as const,
   events: (crawlId: string) => ['site-health', 'events', crawlId] as const,
 };

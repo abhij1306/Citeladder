@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import httpx
@@ -15,13 +17,10 @@ from app.core.config.brand_discovery import (
     ERROR_BRAND_DISCOVERY,
 )
 from app.core.config.entitlements import KEY_PROJECT_SLOTS, KEY_PROMPT_SLOTS
-from app.core.config.task_queue import TASK_STATUS_QUEUED, TASK_STATUS_SUCCEEDED
+from app.core.config.task_queue import TASK_STATUS_QUEUED, TASK_STATUS_RETRY_WAIT
 from app.core.config.visibility_prompts import CONFIRMED_OFFERING_SOURCE_REF
-from app.domain.entitlements.enforcement import (
-    OccupancyLimitExceededError,
-    OccupancySnapshot,
-)
 from app.domain.entitlements.types import GrantSpec
+from app.domain.projects.discovery_schemas import BrandDiscoveryComplete
 from app.domain.projects.onboarding import completion as onboarding_completion
 from app.domain.projects.onboarding import service as onboarding_service
 from app.domain.projects.onboarding.portfolio_generation import PortfolioResult
@@ -33,7 +32,7 @@ from app.models.discovery import (
     BrandResearchSnapshot,
 )
 from app.models.project import Project
-from app.models.prompt import Prompt, Topic
+from app.models.prompt import Prompt, PromptSet, Topic
 from app.models.site_health.crawl import SiteCrawl
 from app.models.workspace import Workspace
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
@@ -216,7 +215,11 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    generation_calls = 0
+
     async def fixture_portfolio(**kwargs) -> PortfolioResult:
+        nonlocal generation_calls
+        generation_calls += 1
         topic_ids = [str(topic.topic_id) for topic in kwargs["topics"]]
         organic_texts = (
             "how can teams understand inefficient business workflows",
@@ -276,21 +279,29 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
         await session.commit()
         discovery_id = discovery.id
 
-    response = await client.post(
-        f"/api/v1/brand-discoveries/{discovery_id}/complete",
-        headers={"Idempotency-Key": "complete-1"},
-        json=_completion_payload(),
+    # Independent request sessions race on the discovery lock. Both must see
+    # the same atomically committed shell and durable task.
+    response, concurrent_replay = await asyncio.gather(
+        client.post(
+            f"/api/v1/brand-discoveries/{discovery_id}/complete",
+            headers={"Idempotency-Key": "complete-1"},
+            json=_completion_payload(),
+        ),
+        client.post(
+            f"/api/v1/brand-discoveries/{discovery_id}/complete",
+            headers={"Idempotency-Key": "complete-1"},
+            json=_completion_payload(),
+        ),
     )
-    # Accepted, not finished: the portfolio takes far longer than a client will
-    # hold a request open, so generation happens on the worker.
     assert response.status_code == 202, response.text
+    assert concurrent_replay.status_code == 202, concurrent_replay.text
     accepted = response.json()
     assert accepted["status"] == "completing"
-    assert accepted["project_id"] is None
+    assert accepted["project_id"] is not None
     assert accepted["crawl_id"] is None
+    assert concurrent_replay.json() == accepted
 
-    # The key is claimed by the REQUEST, so a retry while the job is still in
-    # flight replays it rather than starting a second generation.
+    # A normal sequential replay also returns the same shell.
     replay = await client.post(
         f"/api/v1/brand-discoveries/{discovery_id}/complete",
         headers={"Idempotency-Key": "complete-1"},
@@ -307,6 +318,31 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
     assert conflict.status_code == 409
 
     async with session_factory() as session:
+        task = await session.scalar(
+            select(BrandDiscoveryTask).where(
+                BrandDiscoveryTask.discovery_id == discovery_id,
+                BrandDiscoveryTask.task_kind == "brand_completion",
+            )
+        )
+        assert task is not None
+        assert await session.scalar(select(func.count()).select_from(Project)) == 1
+        assert await session.scalar(select(func.count()).select_from(PromptSet)) == 1
+        assert await session.scalar(select(func.count()).select_from(Topic)) == 3
+        assert await session.scalar(select(func.count()).select_from(Prompt)) == 0
+        # A replay repairs the only non-atomic operational failure still
+        # possible: an operator deleting the durable task after the shell
+        # transaction committed. It must not create another shell.
+        await session.delete(task)
+        await session.commit()
+
+    repaired = await client.post(
+        f"/api/v1/brand-discoveries/{discovery_id}/complete",
+        headers={"Idempotency-Key": "complete-1"},
+        json=_completion_payload(),
+    )
+    assert repaired.status_code == 202
+    assert repaired.json() == accepted
+    async with session_factory() as session:
         assert (
             await session.scalar(
                 select(func.count())
@@ -318,17 +354,84 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
             )
             == 1
         )
-        assert await session.scalar(select(func.count()).select_from(Project)) == 0
+        assert await session.scalar(select(func.count()).select_from(Project)) == 1
 
     # The worker's queue binds the real SessionLocal at import; point both at
-    # the test database so run_once claims the completion task we just queued.
+    # the test database so the durable task can be claimed and recovered.
     monkeypatch.setattr(brand_discovery_worker, "SessionLocal", session_factory)
     monkeypatch.setattr(
         brand_discovery_worker,
         "_queue",
         PostgresTaskQueue(session_factory, BRAND_DISCOVERY_QUEUE_SPEC),
     )
+
+    # Simulate a process dying after provider I/O and prompt insertion flush,
+    # but before the completion transaction commits. The session rollback must
+    # discard that effect while the abandoned lease remains reclaimable.
+    claimed = await brand_discovery_worker._queue.claim(
+        owner="completion-abandoned", limit=1
+    )
+    assert len(claimed) == 1
+    claimed_task = claimed[0]
+    assert await brand_discovery_worker._queue.mark_running(
+        task_id=claimed_task.id, owner="completion-abandoned"
+    )
+    persist_prompts = onboarding_completion._persist_generated_prompts
+
+    async def fail_before_completion_commit(*args, **kwargs) -> None:
+        await persist_prompts(*args, **kwargs)
+        await args[0].flush()
+        raise RuntimeError("worker stopped before completion commit")
+
+    monkeypatch.setattr(
+        onboarding_completion,
+        "_persist_generated_prompts",
+        fail_before_completion_commit,
+    )
+    async with session_factory() as session:
+        row = await session.get(BrandDiscovery, discovery_id)
+        assert row is not None
+        with pytest.raises(RuntimeError, match="before completion commit"):
+            await onboarding_completion.run_completion(session, row)
+        await session.rollback()
+
+    async with session_factory() as session:
+        task = await session.get(BrandDiscoveryTask, claimed_task.id)
+        persisted = await session.get(BrandDiscovery, discovery_id)
+        assert task is not None
+        assert persisted is not None and persisted.status == "completing"
+        assert await session.scalar(select(func.count()).select_from(Prompt)) == 0
+        task.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        await session.commit()
+
+    monkeypatch.setattr(
+        onboarding_completion,
+        "_persist_generated_prompts",
+        persist_prompts,
+    )
+    await brand_discovery_worker._reap_expired()
+    async with session_factory() as session:
+        task = await session.get(BrandDiscoveryTask, claimed_task.id)
+        assert task is not None and task.status == TASK_STATUS_RETRY_WAIT
+
     assert await brand_discovery_worker.run_once("completion-test") is True
+    assert generation_calls == 2
+
+    # Simulate at-least-once delivery after the completion effect committed but
+    # before the original worker could durably acknowledge its queue row.
+    async with session_factory() as session:
+        task = await session.scalar(
+            select(BrandDiscoveryTask).where(
+                BrandDiscoveryTask.discovery_id == discovery_id,
+                BrandDiscoveryTask.task_kind == "brand_completion",
+            )
+        )
+        assert task is not None
+        task.status = TASK_STATUS_QUEUED
+        task.completed_at = None
+        await session.commit()
+    assert await brand_discovery_worker.run_once("completion-redelivery") is True
+    assert generation_calls == 2
 
     settled = await client.post(
         f"/api/v1/brand-discoveries/{discovery_id}/complete",
@@ -397,27 +500,12 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
 
 
 @pytest.mark.asyncio
-async def test_completion_capacity_race_remains_retryable(
+async def test_completion_rolls_back_shell_when_task_scheduling_fails(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fixture_portfolio(**kwargs) -> PortfolioResult:
-        topic_id = str(kwargs["topics"][0].topic_id)
-        return PortfolioResult(
-            prompts=(
-                {
-                    "topic_id": topic_id,
-                    "text": "which tools help teams understand workflow bottlenecks",
-                    "intent": "discovery",
-                    "cohort": "core",
-                },
-            ),
-            provider="agent.test",
-            model="fake-model",
-        )
-
-    await _register(client, "completion-capacity-race@example.com")
+    await _register(client, "completion-rollback@example.com")
     async with session_factory() as session:
         workspace_id = await session.scalar(select(Workspace.id).limit(1))
         assert workspace_id is not None
@@ -433,68 +521,35 @@ async def test_completion_capacity_race_remains_retryable(
         await session.commit()
         discovery_id = discovery.id
 
-    monkeypatch.setattr(onboarding_service, "generate_portfolio", fixture_portfolio)
-    original_persist = onboarding_completion._persist_project
+    async def scheduling_failure(*_args, **_kwargs) -> None:
+        raise RuntimeError("task insert failed")
 
-    async def capacity_race(*_args, **_kwargs):
-        raise OccupancyLimitExceededError(
-            "The final project slot was consumed",
-            snapshot=OccupancySnapshot(
-                key=KEY_PROJECT_SLOTS,
-                allowance=1,
-                current=1,
-                requested=1,
-                remaining=-1,
-            ),
-        )
-
-    monkeypatch.setattr(onboarding_completion, "_persist_project", capacity_race)
-    response = await client.post(
-        f"/api/v1/brand-discoveries/{discovery_id}/complete",
-        headers={"Idempotency-Key": "completion-capacity-race"},
-        json=_completion_payload(),
-    )
-    assert response.status_code == 202
-    monkeypatch.setattr(brand_discovery_worker, "SessionLocal", session_factory)
     monkeypatch.setattr(
-        brand_discovery_worker,
-        "_queue",
-        PostgresTaskQueue(session_factory, BRAND_DISCOVERY_QUEUE_SPEC),
+        onboarding_completion, "_ensure_completion_task", scheduling_failure
     )
-    assert await brand_discovery_worker.run_once("completion-capacity-race") is True
+    async with session_factory() as session:
+        with pytest.raises(RuntimeError, match="task insert failed"):
+            await onboarding_completion.complete_discovery(
+                session,
+                workspace_id=workspace_id,
+                discovery_id=discovery_id,
+                payload=BrandDiscoveryComplete.model_validate(_completion_payload()),
+                idempotency_key="completion-rollback",
+                reviewer_id=uuid.uuid4(),
+            )
+        await session.rollback()
 
     async with session_factory() as session:
         persisted = await session.get(BrandDiscovery, discovery_id)
         assert persisted is not None
-        assert persisted.status == "failed"
-        assert persisted.error_code == "occupancy_limit_exceeded"
-        task = await session.scalar(
-            select(BrandDiscoveryTask).where(
-                BrandDiscoveryTask.discovery_id == discovery_id,
-                BrandDiscoveryTask.task_kind == "brand_completion",
-            )
+        assert persisted.status == "ready"
+        assert persisted.project_id is None
+        assert await session.scalar(select(func.count()).select_from(Project)) == 0
+        assert (
+            await session.scalar(select(func.count()).select_from(BrandDiscoveryTask))
+            == 0
         )
-        assert task is not None
-        assert task.status == TASK_STATUS_SUCCEEDED
-
-    monkeypatch.setattr(onboarding_completion, "_persist_project", original_persist)
-    retry = await client.post(
-        f"/api/v1/brand-discoveries/{discovery_id}/complete",
-        headers={"Idempotency-Key": "completion-capacity-race"},
-        json=_completion_payload(),
-    )
-    assert retry.status_code == 202
-    assert retry.json()["status"] == "completing"
-    async with session_factory() as session:
-        task = await session.scalar(
-            select(BrandDiscoveryTask).where(
-                BrandDiscoveryTask.discovery_id == discovery_id,
-                BrandDiscoveryTask.task_kind == "brand_completion",
-            )
-        )
-        assert task is not None
-        assert task.status == TASK_STATUS_QUEUED
-        assert task.attempt_count == 0
+        assert await session.scalar(select(func.count()).select_from(PromptSet)) == 0
 
 
 @pytest.mark.asyncio

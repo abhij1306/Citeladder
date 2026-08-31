@@ -275,6 +275,11 @@ def card_list_containers(region: Any) -> list[Any]:
         dom_failure("card_list_containers", exc)
         return containers
     for candidate in walker:
+        # The selected primary region is the page-content owner, never one
+        # repeated-card module. Treating <main> itself as a card list erases
+        # its identity heading whenever several linked sections share a shape.
+        if candidate is region:
+            continue
         scanned += 1
         if scanned > _config.REGION_MAX_CONTAINERS_SCANNED:
             break
@@ -285,6 +290,8 @@ def card_list_containers(region: Any) -> list[Any]:
 
 def _is_card_list(candidate: Any) -> bool:
     """Whether one container's direct children form a repeated card list."""
+    if _is_rich_text_container(candidate):
+        return False
     counts: dict[tuple[str, tuple[str, ...]], int] = {}
     try:
         children = list(candidate)
@@ -307,6 +314,18 @@ def _is_card_list(candidate: Any) -> bool:
         >= _config.CARD_LIST_MIN_ITEMS
         for shape in counts
     )
+
+
+def _is_rich_text_container(candidate: Any) -> bool:
+    try:
+        identity = " ".join(
+            str(candidate.get(name) or "") for name in ("id", "class", "data-testid")
+        ).casefold()
+    except DOM_ERRORS as exc:
+        dom_failure("_is_rich_text_container", exc)
+        return False
+    tokens = {token for token in identity.replace("_", "-").split() if token}
+    return bool(tokens & _config.RICH_TEXT_CONTAINER_TOKENS)
 
 
 def _card_shapes_compatible(

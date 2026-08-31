@@ -102,7 +102,6 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         ),
         page_kind="article",
         confidence="medium",
-        must_fail=frozenset({"aeo.visible_attribution"}),
         why="from a newsletter, so a tracking parameter must not read as a conflict",
     ),
     FixtureContract(
@@ -110,7 +109,6 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         url="https://northgate.example/blog/kiln-dried-oak",
         page_kind="article",
         confidence="medium",
-        must_fail=frozenset({"aeo.visible_attribution"}),
         why="visible byline, visible date, real citations, zero JSON-LD",
     ),
     FixtureContract(
@@ -132,7 +130,6 @@ _CONTRACTS: tuple[FixtureContract, ...] = (
         url="https://northgate.example/guides/re-oiling-an-oak-table",
         page_kind="guide",
         confidence="medium",
-        must_fail=frozenset({"aeo.visible_attribution"}),
         why="a real how-to with steps and an outcome, and no HowTo markup",
     ),
     FixtureContract(

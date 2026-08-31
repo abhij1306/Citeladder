@@ -9,21 +9,33 @@ export const issueSeveritySchema = z.enum(['critical', 'high', 'medium', 'low', 
 export const issueDimensionSchema = z.enum(['technical', 'aeo']);
 export const findingClassSchema = z.enum(['defect', 'advisory', 'diagnostic']);
 
-// A single affected-URL summary on an issue projection. `page_kind` is the
-// affected page's classification; it is OPTIONAL — the v1 backend DTO has no
-// such key, so the badge renders only when the projection carries it (same
-// absent-or-null treatment as the Free-redacted count fields).
-export const affectedUrlSchema = responseObject({
+export const issueOccurrenceSchema = responseObject({
+  occurrence_id: uuid(),
+  evaluation_id: uuid(),
+  crawl_id: uuid(),
+  rule_id: z.string(),
   site_url_id: uuid(),
   normalized_url: z.string(),
   display_url: z.string(),
   title: z.string().nullable(),
-  page_kind: pageKindSchema.nullable().optional(),
+  page_kind: pageKindSchema.nullable(),
+  dimension: issueDimensionSchema,
+  category: z.string(),
+  severity: issueSeveritySchema,
+  finding_class: findingClassSchema,
+  issue_title: z.string(),
+  description: z.string(),
+  remediation: z.string(),
+  reason_code: z.string(),
+  evidence: z.record(z.string(), z.unknown()),
+  analyzer_version: z.string(),
+  rule_version: z.string(),
+  created_at: z.string(),
 });
 
 // One issue catalog row (failure projection with remediation snapshot).
 export const siteIssueSchema = responseObject({
-  id: uuid(),
+  group_id: uuid(),
   crawl_id: uuid(),
   rule_id: z.string(),
   // Page TYPES this group affects. Pack-free page-kind ids, sorted.
@@ -55,12 +67,10 @@ export const issuesSummarySchema = responseObject({
   monitored_affected_url_count: z.number().int(),
 });
 
-// Full grouped-issue detail — remediation + evidence + keyset-paginated
-// affected URLs. `id` is the stable canonical (representative) issue id for the
-// rule group; `affected_url_count` is the full deduplicated total and
-// `next_cursor` walks the affected-URL page.
+// Full grouped-issue detail with keyset-paginated persisted occurrences.
+// Evidence belongs to each occurrence and its directly linked evaluation.
 export const siteIssueDetailSchema = responseObject({
-  id: uuid(),
+  group_id: uuid(),
   crawl_id: uuid(),
   rule_id: z.string(),
   dimension: issueDimensionSchema,
@@ -70,8 +80,8 @@ export const siteIssueDetailSchema = responseObject({
   title: z.string(),
   description: z.string(),
   remediation: z.string(),
-  evidence: z.record(z.string(), z.unknown()),
-  affected_urls: z.array(affectedUrlSchema),
+  occurrences: z.array(issueOccurrenceSchema),
+  occurrence_count: z.number().int(),
   affected_url_count: z.number().int(),
   analyzer_version: z.string(),
   rule_version: z.string(),

@@ -224,9 +224,11 @@ series retain visual gaps for unavailable points and explain those gaps accessib
   discovery and analysis are not separate user actions. Before a first run, use
   the actionable empty placeholder. During discovery, keep the first ten
   persisted inventory rows visible and enrich them in place as analysis
-  arrives. Issue rows show severity, affected-page count, plain-language name,
-  frozen problem description, and an evidence chip; persisted remediation is
-  disclosed on expand as **How to fix**.
+  arrives. Issues use one responsive master-detail workspace: a compact group
+  list on the left and the selected group's occurrence evidence, affected URLs,
+  remediation, and actions in a sticky right rail. Narrow screens stack the
+  same regions without hiding evidence. Do not restore per-card expansion,
+  queries, or cursor state.
 - Site Health progress names blocked and failed work beside completed work:
   **Blocked by robots.txt**, **HTTP 4xx**, **HTTP 5xx**, and **Timeouts** appear
   when non-zero. Waiting copy names a healthy host-gate or retry-backoff wait;
@@ -238,6 +240,11 @@ series retain visual gaps for unavailable points and explain those gaps accessib
   switching views; supporting counters say class-labelled **occurrences** and
   **affected URLs** so visually adjacent quantities never masquerade as one
   number. Advisory rows use an Advisory label, not a severity chip.
+- Issue evidence belongs to a persisted occurrence and its directly linked
+  evaluation. Group detail and URL detail reuse one bounded presenter for exact
+  schema types/properties, heading transitions and scope, and offending control
+  descriptors. Unknown shapes use labelled bounded fields, never raw JSON or a
+  generic site-wide claim.
 - AEO Readiness is a dimension ledger, never a gauge or mystery number. Its
   dedicated tab opens directly on that ledger; aggregate score, coverage, and
   page-count summaries stay in Overview instead of repeating in a second card.

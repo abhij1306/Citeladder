@@ -242,7 +242,7 @@ _DetailSections = tuple[
 
 
 async def _detail_analysis_sections(
-    session: AsyncSession, analysis: SitePageAnalysis | None
+    session: AsyncSession, analysis: SitePageAnalysis | None, site_url: SiteUrl
 ) -> _DetailSections:
     facts: dict | None = None
     artifact_id: uuid.UUID | None = None
@@ -257,11 +257,23 @@ async def _detail_analysis_sections(
         artifact_id = artifact.id
         html_bytes = artifact.decoded_bytes
     issue_rows = await session.execute(
-        select(SiteIssue)
+        select(SiteIssue, SiteRuleEvaluation)
+        .join(SiteRuleEvaluation, SiteRuleEvaluation.id == SiteIssue.evaluation_id)
         .where(SiteIssue.analysis_id == analysis.id)
         .order_by(SiteIssue.created_at.asc(), SiteIssue.id.asc())
     )
-    issues = [_issue_row(issue, 1) for issue in issue_rows.scalars().all()]
+    issues = [
+        _issue_row(
+            issue,
+            evaluation,
+            site_url_id=site_url.id,
+            normalized_url=site_url.normalized_url,
+            display_url=site_url.display_url,
+            page_title=site_url.latest_title,
+            page_kind=analysis.page_kind,
+        )
+        for issue, evaluation in issue_rows.all()
+    ]
     evaluation_rows = await session.execute(
         select(SiteRuleEvaluation)
         .where(SiteRuleEvaluation.analysis_id == analysis.id)
@@ -373,7 +385,7 @@ async def get_page_detail(
         html_bytes,
         issues,
         evaluations,
-    ) = await _detail_analysis_sections(session, analysis)
+    ) = await _detail_analysis_sections(session, analysis, site_url)
     link_metrics = await _link_metrics_by_site_url(
         session, crawl=crawl, site_url_ids=[site_url_id]
     )

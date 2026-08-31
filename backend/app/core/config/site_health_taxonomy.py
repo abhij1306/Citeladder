@@ -153,6 +153,7 @@ PAGE_KIND_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
 # post such as /blogs/news/story on the article path.
 PAGE_KIND_ARCHIVE_PATH_PATTERNS: Final[tuple[str, ...]] = (
     r"^/news/?$",
+    r"^/(?:[^/]+/)*?blogs?/(?:news|stories|journal|articles)/?$",
     r"^/(?:[^/]+/)*?blogs?/news/?$",
     r"^/(?:[^/]+/)*?blogs?/(?:category|categories|topics?|tags?)/[^/]+/?$",
 )
@@ -255,6 +256,12 @@ CARD_LIST_MIN_ITEMS: Final = 3
 
 # Only this many direct child tags contribute to a repeated-card shape.
 CARD_SHAPE_MAX_CHILDREN: Final = 8
+CONTENT_RECOMMENDATION_TOKENS: Final[frozenset[str]] = frozenset(
+    {"more-like", "recommend", "related", "suggested", "you-may-also"}
+)
+RICH_TEXT_CONTAINER_TOKENS: Final[frozenset[str]] = frozenset(
+    {"article-body", "article-content", "prose", "rich-text", "rte"}
+)
 
 # A listing PAGE needs a substantially larger grid than an incidental carousel.
 LISTING_MIN_CARD_ITEMS: Final = 6

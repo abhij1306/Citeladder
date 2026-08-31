@@ -437,8 +437,8 @@ class DeliveryFacts(_Model):
     blocking_resource_count: int | None
 
 
-class SiteIssue(_Model):
-    id: uuid.UUID
+class SiteIssueGroup(_Model):
+    group_id: uuid.UUID
     crawl_id: uuid.UUID
     rule_id: str
     # The page TYPES this group affects, sorted. A group can legitimately span
@@ -454,6 +454,30 @@ class SiteIssue(_Model):
     description: str
     remediation: str
     affected_url_count: int
+    analyzer_version: str
+    rule_version: str
+    created_at: str
+
+
+class IssueOccurrence(_Model):
+    occurrence_id: uuid.UUID
+    evaluation_id: uuid.UUID
+    crawl_id: uuid.UUID
+    rule_id: str
+    site_url_id: uuid.UUID
+    normalized_url: str
+    display_url: str
+    title: str | None
+    page_kind: str | None = None
+    dimension: IssueDimension
+    category: str
+    severity: IssueSeverity
+    finding_class: FindingClass
+    issue_title: str
+    description: str
+    remediation: str
+    reason_code: str
+    evidence: dict[str, object]
     analyzer_version: str
     rule_version: str
     created_at: str
@@ -563,7 +587,7 @@ class PageDetail(_Model):
     delivery: DeliveryFacts
     # None when this crawl persisted no link metric for the URL.
     internal_links: InternalLinks | None = None
-    issues: list[SiteIssue]
+    issues: list[IssueOccurrence]
     evaluations: list[RuleEvaluation]
     artifact_id: uuid.UUID | None
     extractor_version: str
@@ -575,16 +599,6 @@ class PageDetail(_Model):
 # =========================================================================
 # Issues (grouped) + detail + history
 # =========================================================================
-class AffectedUrl(_Model):
-    site_url_id: uuid.UUID
-    normalized_url: str
-    display_url: str
-    title: str | None
-    # Classified page type of the affected analysis (v2 P1; None when the
-    # URL has no classified analysis).
-    page_kind: str | None = None
-
-
 class IssuesSummary(_Model):
     issue_count: int
     defect_issue_type_count: int
@@ -597,13 +611,13 @@ class IssuesSummary(_Model):
 
 
 class SiteIssuesPage(_Model):
-    items: list[SiteIssue]
+    items: list[SiteIssueGroup]
     next_cursor: str | None
     summary: IssuesSummary
 
 
 class SiteIssueDetail(_Model):
-    id: uuid.UUID
+    group_id: uuid.UUID
     crawl_id: uuid.UUID
     rule_id: str
     dimension: IssueDimension
@@ -613,8 +627,8 @@ class SiteIssueDetail(_Model):
     title: str
     description: str
     remediation: str
-    evidence: dict[str, object]
-    affected_urls: list[AffectedUrl]
+    occurrences: list[IssueOccurrence]
+    occurrence_count: int
     affected_url_count: int
     analyzer_version: str
     rule_version: str

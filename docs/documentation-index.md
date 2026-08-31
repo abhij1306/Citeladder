@@ -25,7 +25,7 @@ listed here must prove a current operational purpose or move to the archive.
 | [`plans/commerce-suite-retirement-manifest.md`](plans/commerce-suite-retirement-manifest.md) | Exact retired Commerce authorities and version lineage for the atomic cutover |
 | [`plans/site-health-measurement-cutover.md`](plans/site-health-measurement-cutover.md) | Active three-PR Site Health stabilization, measurement-contract, Overview/AEO UI, and checkpoint-coverage cutover |
 | [`plans/site-health-measurement-reliability-pr4.md`](plans/site-health-measurement-reliability-pr4.md) | Approved post-PR3 Site Health reliability cutover for classifier evidence, checkpoint semantics, capability-family scoring, classification coverage, and calibrated presentation |
-| [`plans/crawl-onboarding-prompt-repair.md`](plans/crawl-onboarding-prompt-repair.md) | Implemented repair of five long-standing defects: the crawl that always finished one page short, discovery starving analysis on a cold crawl, commerce category prompts generated for the wrong industry, the onboarding completion timeout, and brand-dominated portfolios for brands named with ordinary words |
+| [`plans/site-health-correctness-and-debt-reduction.md`](plans/site-health-correctness-and-debt-reduction.md) | Approved frozen-corpus Site Health correctness audit, occurrence evidence, master-detail issues workspace, and immediate onboarding shell |
 | [`plans/aeo-opportunity-loop.md`](plans/aeo-opportunity-loop.md) | Implemented buyer-stage priority, owned/competitive/earned routing, Content handoff, implementation linkage, and comparable verification contract |
 
 ## Active implementation plans

@@ -6,7 +6,11 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from app.analysis.site_health.content_heuristics import visible_byline, visible_date
+from app.analysis.site_health.content_heuristics import (
+    visible_author_name,
+    visible_byline,
+    visible_date,
+)
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure, node_text
 from app.analysis.site_health.fact_regions import primary_region, region_node_is_visible
 from app.core.config import site_health_acquisition as acquisition_config
@@ -52,14 +56,27 @@ class _VisibleAuthorshipEvidence:
 
     def observe(self, node: Any) -> None:
         tokens = _attribute_tokens(node)
-        text = node_text(node)
-        if not self.author and tokens & authorship_config.VISIBLE_AUTHOR_NODE_TOKENS:
+        text = _visible_node_text(node)
+        tag = str(getattr(node, "tag", "") or "").lower()
+        author_tokens = tokens & authorship_config.VISIBLE_AUTHOR_NODE_TOKENS
+        if not self.author and (author_tokens or tag in {"h1", "h2", "h3"}):
             self.author = visible_byline(text)
+            if not self.author:
+                self.author = visible_author_name(text)
             self.profile_url = _visible_profile_url(node) if self.author else ""
         if not self.published and (
             node.tag == "time" or tokens & authorship_config.VISIBLE_DATE_NODE_TOKENS
         ):
             self.published = visible_date(text)
+
+
+def _visible_node_text(node: Any) -> str:
+    """Preserve boundaries between inline descendants such as ``<br>``."""
+    try:
+        return " ".join(" ".join(str(part) for part in node.itertext()).split())
+    except DOM_ERRORS as exc:
+        dom_failure("_visible_node_text", exc)
+        return node_text(node)
 
 
 def _visible_values(root: Any) -> tuple[str, str, str]:

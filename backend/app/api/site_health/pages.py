@@ -236,12 +236,12 @@ async def get_issues_endpoint(
 
 
 @router.get(
-    "/site-crawls/{crawl_id}/issues/{canonical_id}",
+    "/site-crawls/{crawl_id}/issues/{group_id}",
     response_model=SiteIssueDetail,
 )
 async def get_issue_detail_endpoint(
     crawl_id: uuid.UUID,
-    canonical_id: uuid.UUID,
+    group_id: uuid.UUID,
     ctx: _WorkspaceDep,
     session: _SessionDep,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -252,7 +252,7 @@ async def get_issue_detail_endpoint(
             session,
             workspace_id=ctx.workspace_id,
             crawl_id=crawl_id,
-            canonical_id=canonical_id,
+            group_id=group_id,
             limit=limit,
             cursor=cursor,
         )

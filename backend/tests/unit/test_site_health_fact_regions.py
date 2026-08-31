@@ -143,6 +143,25 @@ def test_card_list_tolerates_optional_child_markup() -> None:
     assert len(card_list_containers(region)) == 1
 
 
+def test_primary_region_is_never_erased_as_a_card_list() -> None:
+    tree = lxml_html.fromstring(
+        """<html><body><main><h1>Recipes</h1>
+        <section><a href='/a'>A</a></section>
+        <section><a href='/b'>B</a></section>
+        <section><a href='/c'>C</a></section>
+        </main></body></html>"""
+    )
+    region, _source = primary_region(tree)
+
+    assert card_list_containers(region) == []
+    facts = extract_page_facts(
+        lxml_html.tostring(tree),
+        final_url="https://example.test/recipes",
+        content_type="text/html",
+    )
+    assert facts["primary_heading_outline"] == [{"level": 1, "text": "Recipes"}]
+
+
 def test_product_signals_ignore_the_recommendation_carousel() -> None:
     # The carousel carries four prices and four "Add to cart" buttons. None of
     # them describe this page, so none of them may speak for it.

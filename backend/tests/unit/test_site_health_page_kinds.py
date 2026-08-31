@@ -479,6 +479,7 @@ def test_article_with_related_item_list_stays_article() -> None:
     ("fixture", "url"),
     [
         ("allbirds_news_archive.html", "https://www.allbirds.com/blogs/news"),
+        ("allbirds_news_archive.html", "https://www.allbirds.com/blogs/stories"),
         ("allbirds_news_archive.html", "https://www.allbirds.com/news"),
         (
             "asian_school_education_archive.html",
@@ -499,6 +500,13 @@ def test_blog_archives_with_page_owned_card_lists_are_categories(
 
 def test_individual_blog_post_with_related_cards_stays_article() -> None:
     url = "https://www.allbirds.com/blogs/news/story-1"
+    facts = _fixture_facts("allbirds_news_archive.html", url)
+
+    assert classify(url, facts).page_kind == "article"
+
+
+def test_generic_single_depth_blog_post_is_not_an_archive() -> None:
+    url = "https://www.allbirds.com/blogs/my-post"
     facts = _fixture_facts("allbirds_news_archive.html", url)
 
     assert classify(url, facts).page_kind == "article"

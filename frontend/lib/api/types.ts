@@ -65,6 +65,7 @@ import type {
   deliveryFactsSchema,
   inventoryPageSchema,
   issueDimensionSchema,
+  issueOccurrenceSchema,
   issueHistoryPageSchema,
   issueSeveritySchema,
   issuesSummarySchema,
@@ -171,6 +172,7 @@ export type MonitoredUrlsResponse = z.infer<typeof monitoredUrlsResponseSchema>;
 export type DeliveryFacts = z.infer<typeof deliveryFactsSchema>;
 export type IssueSeverity = z.infer<typeof issueSeveritySchema>;
 export type IssueDimension = z.infer<typeof issueDimensionSchema>;
+export type IssueOccurrence = z.infer<typeof issueOccurrenceSchema>;
 export type SiteIssue = z.infer<typeof siteIssueSchema>;
 export type SiteIssueDetail = z.infer<typeof siteIssueDetailSchema>;
 export type SiteIssuesPage = z.infer<typeof siteIssuesPageSchema>;

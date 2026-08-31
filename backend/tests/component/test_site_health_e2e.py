@@ -110,13 +110,13 @@ async def test_full_read_journey_completed_crawl(
     page_rows = {row["site_url_id"]: row for row in pages.json()["items"]}
     assert page_rows[str(scn.monitored_url_id)]["monitored"] is True
 
-    # 5. Issues catalog: the failing-title group with its canonical id.
+    # 5. Issues catalog: the failing-title group with its stable group id.
     issues = await client.get(
         f"/api/v1/site-crawls/{scn.crawl_id}/issues", headers=headers
     )
     assert issues.status_code == 200
     group = issues.json()["items"][0]
-    assert group["id"] == str(scn.canonical_issue_id)
+    assert group["group_id"] == str(scn.canonical_issue_id)
     assert group["affected_url_count"] == 1
 
     # 6. Navigate from the issue's affected URL to that URL's detail.

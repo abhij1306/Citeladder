@@ -16,7 +16,10 @@ from app.analysis.site_health.fact_regions import (
 )
 from app.core.config import site_health_acquisition as config
 from app.core.config import site_health_taxonomy as taxonomy
-from app.core.config.site_health_rules import ANSWER_FIRST_MAX_HOPS
+from app.core.config.site_health_rules import (
+    ANSWER_FIRST_MAX_HOPS,
+    ANSWER_FIRST_MIN_WORDS,
+)
 
 _PAGE_METADATA_TOKENS: Final[frozenset[str]] = frozenset(
     {
@@ -41,7 +44,7 @@ _NEXT_ACTION_RE: Final = re.compile(
 _PROVIDER_RE: Final = re.compile(
     r"^(?P<provider>(?:we|[A-Z][A-Za-z0-9&'.-]*"
     r"(?:\s+[A-Z][A-Za-z0-9&'.-]*){0,5}))\s+"
-    r"(?P<verb>provides?|offers?|delivers?|builds?|manages?|"
+    r"(?P<verb>provides?|offers?|delivers?|builds?|manages?|brings\s+together|"
     r"helps?|enables?|specializes\s+in)\s+",
 )
 _OFFER_CAPABILITY_RE: Final = re.compile(
@@ -82,9 +85,19 @@ def page_owned_content_facts(root: Any) -> dict[str, Any]:
     try:
         region, _source = primary_region(root)
         containers = card_list_containers(region)
-        container_ids = {id(item) for item in containers}
+        container_ids = {
+            id(item)
+            for item in containers
+            if _is_recommendation_container(item)
+            or not _contains_rich_text_content(item)
+        }
         outline = _primary_heading_outline(region, container_ids)
         lead = _editorial_lead(region, container_ids)
+        proposition = (
+            lead
+            if len(lead.split()) >= ANSWER_FIRST_MIN_WORDS
+            else _substantive_proposition(region, container_ids)
+        )
         direct = _direct_answer(region, container_ids)
         facts["primary_heading_outline"] = outline
         facts["editorial_lead"] = lead
@@ -93,7 +106,7 @@ def page_owned_content_facts(root: Any) -> dict[str, Any]:
             region,
             container_ids,
             outline=outline,
-            proposition=lead,
+            proposition=proposition,
         )
     except DOM_ERRORS as exc:
         dom_failure("page_owned_content_facts", exc)
@@ -122,6 +135,35 @@ def _primary_heading_outline(
         if len(outline) >= config.SITE_HEALTH_MAX_HEADINGS_KEPT:
             break
     return outline
+
+
+def _is_recommendation_container(node: Any) -> bool:
+    try:
+        identity = " ".join(
+            str(node.get(name) or "")
+            for name in ("id", "class", "aria-label", "data-testid")
+        ).casefold()
+    except DOM_ERRORS as exc:
+        dom_failure("_is_recommendation_container", exc)
+        return False
+    normalized = "-".join(identity.split())
+    return any(token in normalized for token in taxonomy.CONTENT_RECOMMENDATION_TOKENS)
+
+
+def _contains_rich_text_content(node: Any) -> bool:
+    try:
+        candidates = [node, *node.xpath(".//*")]
+    except DOM_ERRORS as exc:
+        dom_failure("_contains_rich_text_content", exc)
+        return False
+    for candidate in candidates[: taxonomy.REGION_MAX_CONTAINERS_SCANNED]:
+        identity = " ".join(
+            str(candidate.get(name) or "") for name in ("id", "class", "data-testid")
+        ).casefold()
+        tokens = {token for token in identity.replace("_", "-").split() if token}
+        if tokens & taxonomy.RICH_TEXT_CONTAINER_TOKENS:
+            return True
+    return False
 
 
 def _editorial_lead(region: Any, container_ids: set[int]) -> str:
@@ -168,6 +210,24 @@ def _editorial_lead_candidate(
     if len(text.split()) < 5:
         return ""
     return text[: config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS]
+
+
+def _substantive_proposition(region: Any, container_ids: set[int]) -> str:
+    """First bounded primary-content paragraph that can state page value."""
+    try:
+        paragraphs = region.xpath(".//p")
+    except DOM_ERRORS as exc:
+        dom_failure("_substantive_proposition", exc)
+        return ""
+    for paragraph in paragraphs[: taxonomy.REGION_MAX_CONTAINERS_SCANNED]:
+        if not _page_owned_node(paragraph, region, container_ids):
+            continue
+        candidate = " ".join(_text(paragraph).split())
+        if len(candidate.split()) >= ANSWER_FIRST_MIN_WORDS and not _is_metadata_or_cta(
+            paragraph
+        ):
+            return candidate[: config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS]
+    return ""
 
 
 def _direct_answer(region: Any, container_ids: set[int]) -> str:
@@ -292,6 +352,7 @@ def _entity_proposition(
         "",
     )
     provider = _provider_identity(identity, proposition)
+    identity = identity or provider
     capability = _named_capability(identity, provider, proposition)
     audience_or_outcome = _audience_or_outcome(f"{identity}. {proposition}")
     next_action = _next_action_path(region, container_ids)

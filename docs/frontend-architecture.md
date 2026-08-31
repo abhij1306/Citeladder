@@ -42,12 +42,12 @@ The standalone Facts route is deleted; the reusable BrandProfile editor remains
 the only editor owner. Onboarding's confirmation step edits the discovered ICP
 fields and requires positioning, target audience, and products/services before
 completion can create prompts.
-The completion request returns an accepted job rather than waiting for prompt
-generation. The review stage keeps polling the persisted discovery through
-`completing`, redirects only after `project_created`, and reports a terminal
-completion failure without replaying the exhausted job. Occupancy failures are
-the exception: the confirmed review is restored and offers an explicit retry
-after the user frees a project slot or restores billing access.
+The completion request returns the committed project shell rather than waiting
+for prompt generation. The review stage enters the project whenever the
+completion response or persisted discovery carries `project_id`; it does not
+wait for the background portfolio to reach `project_created`. A shell-less
+terminal completion failure remains visible instead of being presented as work
+that is still running.
 
 ## Core rules
 
@@ -180,10 +180,13 @@ browser never computes a diff or turns a neutral/expected change into an action.
 
 The inventory remains mounted and progressive: discovery renders the first ten
 persisted rows as they arrive, and rows later receive their analysis status and
-scores in place. The Issues row uses persisted description copy for what is
-wrong, an affected-page evidence chip, and persisted remediation only inside
-the expanded fix guidance. It does not generate browser-side recommendation
-copy.
+scores in place. The Issues workspace renders a compact group list beside one
+sticky selected-detail rail. It owns one selected-group query and one
+occurrence cursor; filters and catalog pagination remain server-backed.
+Persisted remediation is distinct from the failure-specific description. The
+shared occurrence presenter renders the same direct evaluation evidence here
+and on URL detail, with no per-card query/expansion state and no browser-made
+recommendation copy.
 
 During an active recrawl, the first page tab is labelled **Audited so far** and
 reads only completed persisted page projections. This prevents the frozen
@@ -215,7 +218,9 @@ confidence, and `other` reason. It never reclassifies in the browser.
 
 Issue groups show affected page-kind badges so a product-schema issue is visibly
 different from a universal title or delivery issue. Not-applicable evaluations
-do not appear as passes or issues.
+do not appear as passes or issues. Catalog selection uses `group_id`; affected
+rows and URL detail use `occurrence_id` and the occurrence's persisted
+`evaluation_id`. The frontend never associates evidence by `rule_id`.
 
 ## Frontend owner boundaries and shared mechanics
 

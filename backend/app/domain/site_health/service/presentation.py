@@ -10,6 +10,7 @@ of only reachable through a component test with a database.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 from datetime import datetime
 from typing import TypedDict, cast
@@ -544,22 +545,35 @@ def _evaluation_row(evaluation: SiteRuleEvaluation) -> dict:
     }
 
 
-def _issue_row(issue: SiteIssue, affected_count: int) -> dict:
+def _issue_row(
+    issue: SiteIssue,
+    evaluation: SiteRuleEvaluation,
+    *,
+    site_url_id: uuid.UUID,
+    normalized_url: str,
+    display_url: str,
+    page_title: str | None,
+    page_kind: str | None,
+) -> dict:
     return {
-        "id": issue.id,
+        "occurrence_id": issue.id,
+        "evaluation_id": issue.evaluation_id,
         "crawl_id": issue.crawl_id,
         "rule_id": issue.rule_id,
+        "site_url_id": site_url_id,
+        "normalized_url": normalized_url,
+        "display_url": display_url or normalized_url,
+        "title": page_title,
+        "page_kind": page_kind,
         "dimension": issue.dimension,
         "category": issue.category,
         "severity": issue.severity,
         "finding_class": issue.finding_class,
-        # Sole caller is the per-URL page detail (``affected_count`` is always
-        # 1), so this row describes ONE occurrence and can name which side of
-        # a two-sided rule fired.
-        "title": display_label_for(issue.rule_id, issue.evidence),
+        "issue_title": display_label_for(issue.rule_id, issue.evidence),
         "description": issue.description or "",
         "remediation": issue.remediation or "",
-        "affected_url_count": affected_count,
+        "reason_code": evaluation.reason_code,
+        "evidence": issue.evidence or {},
         "analyzer_version": issue.analyzer_version,
         "rule_version": issue.rule_version,
         "created_at": _iso(issue.created_at),

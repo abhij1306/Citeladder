@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Final
 
 BYLINE_PATTERN: Final = r"\b[Bb]y\s+[A-Z][\w'’-]+(?:\s+[A-Z][\w'’-]+){1,2}\b"
+VISIBLE_AUTHOR_NAME_PATTERN: Final = r"^[A-Z][\w'’-]+(?:\s+[A-Z][\w'’-]+){0,3}$"
 
 # ISO, month-first, and day-first publication-shaped dates.
 DATE_PATTERN: Final = (

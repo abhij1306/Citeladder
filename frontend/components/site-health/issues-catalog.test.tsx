@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 
 import { mswServer } from '@/test/msw-server';
 import { renderWithProviders } from '@/test/render';
-import type { SiteIssue } from '@/lib/api/types';
+import type { IssueOccurrence, SiteIssue } from '@/lib/api/types';
 import { IssuesCatalog } from './issues-catalog';
 
 const navigation = vi.hoisted(() => {
@@ -65,7 +65,7 @@ const URL_A = 'cccccccc-1111-4111-8111-111111111111';
 
 function issue(overrides: Partial<SiteIssue> = {}): SiteIssue {
   return {
-    id: ISSUE_A,
+    group_id: ISSUE_A,
     crawl_id: CRAWL,
     rule_id: 'aeo.website_schema',
     page_kinds: [],
@@ -80,6 +80,56 @@ function issue(overrides: Partial<SiteIssue> = {}): SiteIssue {
     analyzer_version: 'a1',
     rule_version: 'r1',
     created_at: '2026-07-15T00:00:00Z',
+    ...overrides,
+  };
+}
+
+function occurrence(overrides: Partial<IssueOccurrence> = {}): IssueOccurrence {
+  return {
+    occurrence_id: 'dddddddd-1111-4111-8111-111111111111',
+    evaluation_id: 'eeeeeeee-1111-4111-8111-111111111111',
+    crawl_id: CRAWL,
+    rule_id: 'aeo.website_schema',
+    site_url_id: URL_A,
+    normalized_url: 'https://acme.com/',
+    display_url: 'https://acme.com/',
+    title: 'Homepage',
+    page_kind: 'article',
+    dimension: 'aeo',
+    category: 'schema',
+    severity: 'high',
+    finding_class: 'defect',
+    issue_title: 'WebSite schema is missing',
+    description: 'Expected WebSite structured data is absent.',
+    remediation: 'Add a JSON-LD WebSite schema.',
+    reason_code: 'expected_schema_absent',
+    evidence: { expected_types: ['WebSite'], found_types: ['Organization'] },
+    analyzer_version: 'a1',
+    rule_version: 'r1',
+    created_at: '2026-07-15T00:00:00Z',
+    ...overrides,
+  };
+}
+
+function issueDetail(overrides: Record<string, unknown> = {}) {
+  return {
+    group_id: ISSUE_A,
+    crawl_id: CRAWL,
+    rule_id: 'aeo.website_schema',
+    dimension: 'aeo',
+    category: 'schema',
+    severity: 'high',
+    finding_class: 'defect',
+    title: 'WebSite schema is missing',
+    description: 'Search engines cannot find WebSite structured data on this page.',
+    remediation: 'Add a JSON-LD WebSite schema.',
+    occurrences: [occurrence()],
+    occurrence_count: 1,
+    affected_url_count: 1,
+    analyzer_version: 'a1',
+    rule_version: 'r1',
+    created_at: '2026-07-15T00:00:00Z',
+    next_cursor: null,
     ...overrides,
   };
 }
@@ -99,6 +149,11 @@ beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 beforeEach(() => {
   navigation.set('');
   navigation.push.mockClear();
+  mswServer.use(
+    http.get(`/api/v1/site-crawls/${CRAWL}/issues/${ISSUE_A}`, () =>
+      HttpResponse.json(issueDetail()),
+    ),
+  );
 });
 afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
@@ -118,7 +173,7 @@ describe('IssuesCatalog', () => {
 
     renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
 
-    expect(await screen.findByText('WebSite schema is missing')).toBeInTheDocument();
+    expect(await screen.findAllByText('WebSite schema is missing')).not.toHaveLength(0);
     expect(screen.getByRole('button', { name: 'First page' })).not.toBeDisabled();
     expect(seen.at(-1)?.get('rule')).toBe('aeo.website_schema');
     expect(seen.at(-1)?.get('dimension')).toBe('aeo');
@@ -141,7 +196,7 @@ describe('IssuesCatalog', () => {
     );
     const user = userEvent.setup();
     renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
-    await screen.findByText('WebSite schema is missing');
+    await screen.findAllByText('WebSite schema is missing');
 
     await user.click(screen.getByRole('button', { name: 'Medium (23)' }));
     await waitFor(() => expect(navigation.get()).toContain('severity=medium'));
@@ -194,21 +249,21 @@ describe('IssuesCatalog', () => {
 
     renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
 
-    expect(await screen.findByText('WebSite schema is missing')).toBeInTheDocument();
+    expect(await screen.findAllByText('WebSite schema is missing')).not.toHaveLength(0);
     // Chip counts (tiles removed): All (47), Medium (23), AEO (17). The counts
     // come from the API-owned summary, not a client re-count.
     expect(screen.getByRole('button', { name: 'All (47)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Medium (23)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'AEO (17)' })).toBeInTheDocument();
     // Severity + dimension badges + affected-count copy.
-    expect(screen.getByText('HIGH')).toBeInTheDocument();
+    expect(screen.getAllByText('HIGH')).toHaveLength(2);
     expect(screen.getAllByText('AEO').length).toBeGreaterThan(0);
     expect(screen.getByText('32 pages affected')).toBeInTheDocument();
     expect(
-      screen.getByText('Search engines cannot find WebSite structured data on this page.'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Evidence · 32 pages')).toBeInTheDocument();
-    expect(screen.queryByText('Add a JSON-LD WebSite schema.')).not.toBeInTheDocument();
+      screen.getAllByText('Search engines cannot find WebSite structured data on this page.'),
+    ).toHaveLength(2);
+    expect(await screen.findByText('Expected WebSite; found Organization.')).toBeInTheDocument();
+    expect(screen.getByText('Add a JSON-LD WebSite schema.')).toBeInTheDocument();
     // No unsupported "mark reviewed/resolved" action is rendered.
     expect(screen.queryByText(/mark reviewed/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/mark resolved/i)).not.toBeInTheDocument();
@@ -226,7 +281,7 @@ describe('IssuesCatalog', () => {
 
     const user = userEvent.setup();
     renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
-    await screen.findByText('WebSite schema is missing');
+    await screen.findAllByText('WebSite schema is missing');
 
     await user.click(screen.getByRole('button', { name: 'Medium (23)' }));
     await waitFor(() => expect(seen).toContain('medium'));
@@ -265,8 +320,8 @@ describe('IssuesCatalog', () => {
     expect(screen.getByText('50 affected URLs')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Advisories (2)' }));
-    expect(await screen.findByText('Title length outside recommended band')).toBeInTheDocument();
-    expect(screen.getByText('Advisory')).toBeInTheDocument();
+    expect(await screen.findAllByText('Title length outside recommended band')).not.toHaveLength(0);
+    expect(screen.getAllByText('Advisory')).toHaveLength(2);
     expect(
       screen.getByText((_, element) => element?.textContent === '2 advisory issue types'),
     ).toBeInTheDocument();
@@ -288,7 +343,7 @@ describe('IssuesCatalog', () => {
     renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
     const trigger = await screen.findByRole('button', { name: 'Filter by page kind' });
     // The initial unfiltered request carries no page-kind param.
-    await screen.findByText('WebSite schema is missing');
+    await screen.findAllByText('WebSite schema is missing');
     expect(seen.at(-1)).toBeNull();
 
     await user.click(trigger);
@@ -304,47 +359,18 @@ describe('IssuesCatalog', () => {
     await waitFor(() => expect(seen.at(-1)).toBeNull());
   });
 
-  it('expands affected URLs linking to the per-URL detail route', async () => {
+  it('uses the selected issue right rail and links each occurrence to page detail', async () => {
     mswServer.use(
       http.get(`/api/v1/site-crawls/${CRAWL}/issues`, () =>
         HttpResponse.json({ items: [issue()], next_cursor: null, summary }),
       ),
       http.get(`/api/v1/site-crawls/${CRAWL}/issues/${ISSUE_A}`, () =>
-        HttpResponse.json({
-          id: ISSUE_A,
-          crawl_id: CRAWL,
-          rule_id: 'aeo.website_schema',
-          dimension: 'aeo',
-          category: 'schema',
-          severity: 'high',
-          finding_class: 'defect',
-          title: 'WebSite schema is missing',
-          description: 'Search engines cannot find WebSite structured data on this page.',
-          remediation: 'Add a JSON-LD WebSite schema.',
-          evidence: {},
-          affected_urls: [
-            {
-              site_url_id: URL_A,
-              normalized_url: 'https://acme.com/',
-              display_url: 'https://acme.com/',
-              title: 'Homepage',
-              page_kind: 'article',
-            },
-          ],
-          affected_url_count: 1,
-          analyzer_version: 'a1',
-          rule_version: 'r1',
-          created_at: '2026-07-15T00:00:00Z',
-          next_cursor: null,
-        }),
+        HttpResponse.json(issueDetail()),
       ),
     );
 
-    const user = userEvent.setup();
     renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
-    await screen.findByText('WebSite schema is missing');
-
-    await user.click(screen.getByRole('button', { name: 'View affected URLs' }));
+    await screen.findAllByText('WebSite schema is missing');
 
     expect(await screen.findByText('Add a JSON-LD WebSite schema.')).toBeInTheDocument();
     const link = await screen.findByRole('link', { name: /Homepage/ });
@@ -354,57 +380,45 @@ describe('IssuesCatalog', () => {
     expect(within(link).getByText('Article')).toBeInTheDocument();
   });
 
-  it('pages affected URLs with a cursor-aware Next/Previous control', async () => {
+  it('pages occurrences with a cursor-aware Next/Previous control', async () => {
     const seenCursors: (string | null)[] = [];
     mswServer.use(
       http.get(`/api/v1/site-crawls/${CRAWL}/issues`, () =>
-        HttpResponse.json({ items: [issue()], next_cursor: null, summary }),
+        HttpResponse.json({ items: [issue()], next_cursor: 'catalog-page-2', summary }),
       ),
       http.get(`/api/v1/site-crawls/${CRAWL}/issues/${ISSUE_A}`, ({ request }) => {
         const url = new URL(request.url);
         const cursor = url.searchParams.get('cursor');
         seenCursors.push(cursor);
         const onFirstPage = cursor === null;
-        return HttpResponse.json({
-          id: ISSUE_A,
-          crawl_id: CRAWL,
-          rule_id: 'aeo.website_schema',
-          dimension: 'aeo',
-          category: 'schema',
-          severity: 'high',
-          finding_class: 'defect',
-          title: 'WebSite schema is missing',
-          description: 'Search engines cannot find WebSite structured data on this page.',
-          remediation: 'Add a JSON-LD WebSite schema.',
-          evidence: {},
-          affected_urls: [
-            {
-              site_url_id: onFirstPage ? URL_A : 'cccccccc-2222-4111-8111-111111111111',
-              normalized_url: onFirstPage ? 'https://acme.com/' : 'https://acme.com/page-2',
-              display_url: onFirstPage ? 'https://acme.com/' : 'https://acme.com/page-2',
-              title: onFirstPage ? 'Homepage' : 'Page Two',
-            },
-          ],
-          affected_url_count: 2,
-          analyzer_version: 'a1',
-          rule_version: 'r1',
-          created_at: '2026-07-15T00:00:00Z',
-          next_cursor: onFirstPage ? 'cursor-page-2' : null,
-        });
+        return HttpResponse.json(
+          issueDetail({
+            occurrences: [
+              occurrence({
+                occurrence_id: onFirstPage
+                  ? 'dddddddd-1111-4111-8111-111111111111'
+                  : 'dddddddd-2222-4111-8111-111111111111',
+                site_url_id: onFirstPage ? URL_A : 'cccccccc-2222-4111-8111-111111111111',
+                normalized_url: onFirstPage ? 'https://acme.com/' : 'https://acme.com/page-2',
+                display_url: onFirstPage ? 'https://acme.com/' : 'https://acme.com/page-2',
+                title: onFirstPage ? 'Homepage' : 'Page Two',
+              }),
+            ],
+            occurrence_count: 2,
+            affected_url_count: 2,
+            next_cursor: onFirstPage ? 'cursor-page-2' : null,
+          }),
+        );
       }),
     );
 
     const user = userEvent.setup();
     renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
-    await screen.findByText('WebSite schema is missing');
+    await screen.findAllByText('WebSite schema is missing');
 
-    await user.click(screen.getByRole('button', { name: 'View affected URLs' }));
     await screen.findByRole('link', { name: /Homepage/ });
 
-    // Two Previous/Next pairs exist on screen: the issue-list pager (outer)
-    // and the affected-URLs pager (inner, inside the expanded card). The
-    // inner one renders first in DOM order since it's inside the card.
-    const [innerPrev] = screen.getAllByRole('button', { name: 'Previous' });
+    const innerPrev = screen.getByRole('button', { name: 'Previous' });
     const [innerNext] = screen.getAllByRole('button', { name: 'Next' });
     expect(innerPrev).toBeDisabled();
     expect(innerNext).not.toBeDisabled();
@@ -412,7 +426,7 @@ describe('IssuesCatalog', () => {
     await user.click(innerNext);
     await screen.findByRole('link', { name: /Page Two/ });
     expect(seenCursors).toEqual([null, 'cursor-page-2']);
-    const [innerPrevAfterNext] = screen.getAllByRole('button', { name: 'Previous' });
+    const innerPrevAfterNext = screen.getByRole('button', { name: 'Previous' });
     const [innerNextAfterNext] = screen.getAllByRole('button', { name: 'Next' });
     expect(innerPrevAfterNext).not.toBeDisabled();
     expect(innerNextAfterNext).toBeDisabled();
@@ -423,6 +437,18 @@ describe('IssuesCatalog', () => {
     // (already fetched above), so no new request is issued — seenCursors
     // stays at the two requests already made.
     expect(seenCursors).toEqual([null, 'cursor-page-2']);
+
+    await user.click(screen.getAllByRole('button', { name: 'Next' })[0]!);
+    await screen.findByRole('link', { name: /Page Two/ });
+    await user.click(screen.getAllByRole('button', { name: 'Next' })[1]!);
+    await waitFor(() => expect(navigation.get()).toContain('cursor=catalog-page-2'));
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
+
+    await user.click(screen.getAllByRole('button', { name: 'Next' })[0]!);
+    await screen.findByRole('link', { name: /Page Two/ });
+    await user.click(screen.getByRole('button', { name: 'First page' }));
+    await waitFor(() => expect(navigation.get()).not.toContain('cursor='));
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
   });
 
   it('shows which page types an issue affects, and says nothing when it spans none', async () => {
@@ -457,7 +483,7 @@ describe('IssuesCatalog', () => {
 
     renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
 
-    expect(await screen.findByText('WebSite schema is missing')).toBeInTheDocument();
+    expect(await screen.findAllByText('WebSite schema is missing')).not.toHaveLength(0);
     expect(screen.queryByText('Affects')).not.toBeInTheDocument();
   });
 });

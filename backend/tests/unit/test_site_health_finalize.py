@@ -8,6 +8,8 @@ Web Fundamentals, so a displayed issue can never coexist with an unaffected
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 
 from app.analysis.site_health.finalize import (
@@ -31,6 +33,11 @@ from app.core.config.site_health_rule_types import (
     RULE_SCOPE_GRAPH,
     RULE_SCOPE_PAGE,
     SCORE_ROLE_WEB_FUNDAMENTALS,
+)
+from app.workers.site_health.lifecycle_finalize import (
+    _internal_link_targets,
+    _resolution_set_evaluation,
+    _source_link_evaluation,
 )
 
 
@@ -118,6 +125,87 @@ def test_broken_internal_links_remain_unknown_without_checked_targets():
         "checked_count": 0,
     }
     _assert_technical_score_metadata(ev, scope=RULE_SCOPE_GRAPH)
+
+
+def test_broken_internal_link_evidence_is_scoped_to_each_source_page():
+    broken = "https://example.test/missing"
+    healthy = "https://example.test/healthy"
+    first_targets = _internal_link_targets(
+        [
+            (
+                "https://example.test/first",
+                {
+                    "links": {
+                        "anchors": [
+                            {"url": broken, "is_internal": True},
+                            {"url": broken, "is_internal": True},
+                        ]
+                    }
+                },
+            )
+        ]
+    )
+    second_targets = _internal_link_targets(
+        [
+            (
+                "https://example.test/second",
+                {"links": {"anchors": [{"url": healthy, "is_internal": True}]}},
+            )
+        ]
+    )
+    broken_source = uuid.uuid4()
+    healthy_source = uuid.uuid4()
+    resolutions = {
+        broken: (404, broken, False, broken_source, uuid.uuid4(), None),
+        healthy: (200, healthy, False, healthy_source, uuid.uuid4(), None),
+    }
+
+    first = _resolution_set_evaluation(
+        first_targets,
+        resolutions=resolutions,
+        evaluator=evaluate_broken_internal_links,
+        failure_key="broken_urls",
+    )
+    second = _resolution_set_evaluation(
+        second_targets,
+        resolutions=resolutions,
+        evaluator=evaluate_broken_internal_links,
+        failure_key="broken_urls",
+    )
+
+    assert first.outcome == RULE_OUTCOME_MISSING
+    assert first.evidence["failing_targets"] == [{"url": broken, "status_code": 404}]
+    assert str(broken_source) in first.evidence["resolution_source_ids"]
+    assert second.outcome == RULE_OUTCOME_SATISFIED
+    assert second.evidence["failing_targets"] == []
+
+
+def test_source_link_evaluation_keeps_target_evidence_without_a_global_override():
+    broken = "https://example.test/missing"
+    evaluation = _resolution_set_evaluation(
+        [broken, "https://example.test/healthy"],
+        resolutions={
+            broken: (404, broken, False, uuid.uuid4(), uuid.uuid4(), None),
+            "https://example.test/healthy": (
+                200,
+                "https://example.test/healthy",
+                False,
+                uuid.uuid4(),
+                uuid.uuid4(),
+                None,
+            ),
+        },
+        evaluator=evaluate_broken_internal_links,
+        failure_key="broken_urls",
+    )
+
+    source_observation = _source_link_evaluation(evaluation)
+
+    assert source_observation.evidence["failing_targets"] == [
+        {"url": broken, "status_code": 404}
+    ]
+    assert "normalized_score" not in source_observation.evidence
+    assert "normalized_coverage" not in source_observation.evidence
 
 
 def test_sitemap_url_unreachable_is_not_applicable_without_a_sitemap():

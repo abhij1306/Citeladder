@@ -8,9 +8,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Label, displayHeadingXlClasses } from '@/components/ui/typography';
 import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { InternalLinksCard } from '@/components/site-health/internal-links-card';
+import { IssueEvidence } from '@/components/site-health/issue-evidence';
 import { UrlScoreSummary } from '@/components/site-health/url-score-summary';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
-import type { DeliveryFacts, PageDetail, SiteIssue } from '@/lib/api/types';
+import type { DeliveryFacts, IssueOccurrence, PageDetail } from '@/lib/api/types';
 import { ICONS } from '@/lib/icons';
 import {
   pageKindConfidenceLabel,
@@ -21,7 +22,6 @@ import {
 } from '@/lib/site-health/page-kinds';
 import {
   dimensionLabel,
-  issueTitle,
   severityBadgeValue,
   severityLabel,
   severityRank,
@@ -381,7 +381,7 @@ function DeliveryMetrics({ delivery }: Readonly<{ delivery: DeliveryFacts }>) {
   );
 }
 
-function IssuesList({ issues }: Readonly<{ issues: SiteIssue[] }>) {
+function IssuesList({ issues }: Readonly<{ issues: IssueOccurrence[] }>) {
   const ordered = [...issues].sort((a, b) => severityRank(a.severity) - severityRank(b.severity));
   return (
     <Card>
@@ -397,23 +397,28 @@ function IssuesList({ issues }: Readonly<{ issues: SiteIssue[] }>) {
         ) : (
           <ol className="divide-border-subtle divide-y">
             {ordered.map((issue, index) => (
-              <li key={issue.id} className="flex items-center justify-between gap-3 py-2">
-                <span className="flex min-w-0 items-center gap-3">
-                  <span className="mono text-muted w-6 shrink-0 text-xs">{index + 1}</span>
-                  <span className="text-foreground truncate text-sm">{issueTitle(issue)}</span>
+              <li key={issue.occurrence_id} className="grid gap-2 py-3">
+                <span className="flex items-center justify-between gap-3">
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="mono text-muted w-6 shrink-0 text-xs">{index + 1}</span>
+                    <span className="text-foreground text-sm font-medium">{issue.issue_title}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <Badge
+                      className={cn(
+                        issue.dimension === 'aeo' ? 'text-accent-text' : 'text-info-text',
+                      )}
+                    >
+                      {dimensionLabel(issue.dimension)}
+                    </Badge>
+                    <Badge variant="status" value={severityBadgeValue(issue.severity)}>
+                      {severityLabel(issue.severity)}
+                    </Badge>
+                  </span>
                 </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <Badge
-                    className={cn(
-                      issue.dimension === 'aeo' ? 'text-accent-text' : 'text-info-text',
-                    )}
-                  >
-                    {dimensionLabel(issue.dimension)}
-                  </Badge>
-                  <Badge variant="status" value={severityBadgeValue(issue.severity)}>
-                    {severityLabel(issue.severity)}
-                  </Badge>
-                </span>
+                <div className="pl-9">
+                  <IssueEvidence occurrence={issue} />
+                </div>
               </li>
             ))}
           </ol>

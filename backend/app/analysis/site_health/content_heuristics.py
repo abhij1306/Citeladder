@@ -14,6 +14,7 @@ from app.core.config import site_health_authorship as _authorship_config
 from app.core.config import site_health_taxonomy as _config
 
 _BYLINE_RE = re.compile(_authorship_config.BYLINE_PATTERN)
+_AUTHOR_NAME_RE = re.compile(_authorship_config.VISIBLE_AUTHOR_NAME_PATTERN)
 _DATE_RE = re.compile(_authorship_config.DATE_PATTERN, re.IGNORECASE)
 
 
@@ -25,6 +26,12 @@ def visible_byline(text: str) -> str:
     """
     match = _BYLINE_RE.search(str(text or ""))
     return match.group(0).strip() if match else ""
+
+
+def visible_author_name(text: str) -> str:
+    """A short person/organization name from an explicitly authored node."""
+    candidate = " ".join(str(text or "").split())
+    return candidate if _AUTHOR_NAME_RE.fullmatch(candidate) else ""
 
 
 def visible_date(text: str) -> str:

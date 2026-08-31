@@ -348,8 +348,13 @@ async def test_pages_and_issues_projection(
     assert dbody["title"] == "Missing page title"
     assert dbody["affected_url_count"] == 1
     assert any(
-        au["site_url_id"] == str(scn.issue_url_id) for au in dbody["affected_urls"]
+        occurrence["site_url_id"] == str(scn.issue_url_id)
+        for occurrence in dbody["occurrences"]
     )
+    occurrence = dbody["occurrences"][0]
+    assert occurrence["occurrence_id"] != dbody["group_id"]
+    assert occurrence["evaluation_id"] != occurrence["occurrence_id"]
+    assert "evidence" not in dbody
 
 
 async def test_completed_pages_filter_precedes_keyset_pagination(
@@ -522,7 +527,7 @@ async def test_issue_catalog_separates_defect_and_advisory_quantities(
     body = advisories.json()
     assert body["items"][0]["finding_class"] == "advisory"
     assert body["items"][0]["description"] == "Advisory metadata"
-    assert body["items"][0]["id"] != defect_body["items"][0]["id"]
+    assert body["items"][0]["group_id"] != defect_body["items"][0]["group_id"]
     assert body["summary"]["occurrence_count"] == 1
     assert body["summary"]["affected_url_count"] == 1
     assert body["summary"]["severity_counts"] == {
@@ -533,7 +538,7 @@ async def test_issue_catalog_separates_defect_and_advisory_quantities(
         "info": 0,
     }
     detail = await client.get(
-        f"/api/v1/site-crawls/{scn.crawl_id}/issues/{body['items'][0]['id']}",
+        f"/api/v1/site-crawls/{scn.crawl_id}/issues/{body['items'][0]['group_id']}",
         headers=headers,
     )
     assert detail.status_code == 200
@@ -541,7 +546,7 @@ async def test_issue_catalog_separates_defect_and_advisory_quantities(
     assert detail_body["finding_class"] == "advisory"
     assert detail_body["description"] == "Advisory metadata"
     assert detail_body["affected_url_count"] == 1
-    assert [row["site_url_id"] for row in detail_body["affected_urls"]] == [
+    assert [row["site_url_id"] for row in detail_body["occurrences"]] == [
         str(scn.issue_url_id)
     ]
 
@@ -631,7 +636,7 @@ async def test_page_type_projection_filters_and_exports(
         headers=headers,
     )
     assert issue_detail.status_code == 200
-    affected = issue_detail.json()["affected_urls"]
+    affected = issue_detail.json()["occurrences"]
     assert len(affected) == 1
     assert affected[0]["page_kind"] == "product"
 

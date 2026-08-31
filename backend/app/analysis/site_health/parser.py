@@ -7,7 +7,6 @@
 # ORM) so the same input always yields the same facts (invariant 9), and every
 # extraction step is guarded so a malformed/hostile page yields PARTIAL facts,
 # never a crash (subplan Persistence contract).
-#
 # The lxml parser runs with ``no_network=True`` (never resolves an external
 # DTD/entity) and JSON-LD is parsed with the stdlib loader, so there is no XML
 # external-entity attack surface; defusedxml is used for any raw XML parse.
@@ -50,6 +49,7 @@ from app.analysis.site_health.robots_directives import (
     merge_x_robots_tag,
 )
 from app.analysis.site_health.structured_data import (
+    microdata_product_values,
     parse_jsonld_blocks,
     product_facts,
     validate_microdata_types,
@@ -352,15 +352,25 @@ def _structured_data(root: Any, *, max_blocks: int) -> dict[str, Any]:
     jsonld_facts = parse_jsonld_blocks(raw_jsonld, max_blocks=max_blocks)
 
     itemtypes: list[str] = []
+    product_nodes: list[Any] = []
     try:
         for node in root.xpath("//*[@itemscope][@itemtype]"):
             itemtype = (node.get("itemtype") or "").strip()
             if itemtype:
                 itemtypes.append(itemtype)
+                if any(
+                    candidate.rstrip("/").rsplit("/", 1)[-1] == "Product"
+                    for candidate in itemtype.split()
+                ):
+                    product_nodes.append(node)
     except DOM_ERRORS as exc:
         dom_failure("_structured_data", exc)
         itemtypes = []
-    microdata_facts = validate_microdata_types(itemtypes, max_blocks=max_blocks)
+    microdata_facts = validate_microdata_types(
+        itemtypes,
+        max_blocks=max_blocks,
+        product_values=microdata_product_values(product_nodes),
+    )
 
     blocks = (jsonld_facts + microdata_facts)[:max_blocks]
     return {
@@ -570,6 +580,7 @@ def _empty_facts() -> dict[str, Any]:
         "accessibility": {
             "control_count": 0,
             "controls_missing_accessible_name": 0,
+            "controls_missing_accessible_name_descriptors": [],
             "heading_levels": [],
             "heading_level_skips": 0,
             "document_language": "",

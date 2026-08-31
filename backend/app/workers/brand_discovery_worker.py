@@ -141,10 +141,10 @@ async def _run_research(session, discovery, *, task_id) -> None:
 
 
 async def _run_completion(session, discovery, *, task_id) -> None:
-    """Generate the confirmed portfolio and create the project.
+    """Generate the confirmed portfolio for the committed project shell.
 
     Only a row the request already moved to ``completing`` has work to do: a
-    replayed task whose project already exists must not build a second one.
+    replayed task whose portfolio already landed must not insert it twice.
     """
     if discovery.status == DISCOVERY_STATUS_PROJECT_CREATED:
         logger.info(

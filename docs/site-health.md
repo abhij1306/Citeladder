@@ -743,6 +743,30 @@ measured expected capability for the classified scored cohort earned full
 credit. Neither means perfect content, guaranteed indexing, rank, authority, or
 answer-engine citation.
 
+## Issue identity and evidence
+
+The issue catalog groups occurrences by deterministic
+`(crawl_id, rule_id, finding_class)` identity and exposes that value as
+`group_id`. A stored `SiteIssue.id` is always `occurrence_id`; its persisted
+`evaluation_id` is the only relationship used to obtain reason and evaluation
+evidence. Page detail does not match evaluations by `rule_id`, because a page
+may contain more than one occurrence or evaluation for a rule.
+
+One occurrence DTO is shared by grouped issue detail and per-URL detail. It
+contains the affected URL and page kind, frozen description/remediation and
+versions, `reason_code`, and bounded evidence. Group detail owns no canonical
+evidence copy. The two heading rules remain separate structural signals:
+**Web — Full-document heading hierarchy** reads the document-wide sequence;
+**AEO — Primary-content heading hierarchy** reads the parser's existing
+`primary_heading_outline` from its single `<main>`/content-region boundary.
+Evidence names exact transitions and scope without treating every skip as an
+automatic accessibility conformance violation.
+
+Crawl-finalized broken-link evaluations are projected onto each source page,
+not onto the crawl root. Their occurrence evidence names the bounded failed
+target and observed HTTP status, so page detail can explain the actual link
+defect without presenting a site-global statement as a homepage defect.
+
 ## Change Intelligence
 
 After a newer crawl terminalizes with usable evidence, Site Health persists one
@@ -901,9 +925,10 @@ primary-content reason rather than producing fabricated missing-content issues.
 reference the same immutable artifact; only one row per page in a crawl is
 current. Rule rows carry exact source IDs and relevant version fields.
 
-Grouped issue IDs are deterministic UUID5 values derived from the crawl and
-rule. Filtering or adding another occurrence cannot change the group URL;
-historical occurrence IDs remain accepted by the detail endpoint.
+Grouped issue IDs are deterministic UUID5 values derived from the crawl, rule,
+and finding class. Filtering or adding another occurrence cannot change the group URL.
+Catalog detail routes accept only `group_id`; `occurrence_id` identifies the
+persisted page evidence inside that group and is not a compatibility route key.
 
 Every failing scored evaluation freezes its description, remediation, and
 analyzer/catalog versions onto `SiteIssue`. Reads use that stored copy, never

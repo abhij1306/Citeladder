@@ -15,6 +15,7 @@ from app.core.config.site_health_contracts import (
 from app.core.config.site_health_crawl_policy import (
     INVENTORY_SOURCE_CRAWL_IDS_KEY,
 )
+from app.models.site_health.analysis import SiteIssue
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.urls import SiteUrl, SiteUrlObservation
@@ -183,19 +184,22 @@ async def test_issue_history_bounded_to_crawl_chronology(
     }
 
 
-async def test_issue_detail_canonicalizes_non_representative_member_id(
+async def test_issue_detail_requires_group_id_and_exposes_member_occurrences(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Item 4: a non-representative issue id resolves to the canonical group.
-
-    Two issues share a rule on two URLs. Requesting either occurrence UUID must
-    resolve to the deterministic ``(crawl, rule)`` group UUID and the same
-    affected-URL projection.
-    """
+    """Occurrence identity is never accepted as ambiguous group identity."""
     await _register(client, "canon@example.com")
     async with session_factory() as session:
         scn = await _seed_scenario(session, email="canon@example.com")
+        original_issue_id = await session.scalar(
+            select(SiteIssue.id).where(
+                SiteIssue.crawl_id == scn.crawl_id,
+                SiteIssue.site_url_id == scn.issue_url_id,
+                SiteIssue.rule_id == "technical.title_present",
+            )
+        )
+        assert original_issue_id is not None
         # Add a second issue for the SAME rule on url_c (a later member).
         url_c = await session.scalar(
             select(SiteUrl).where(
@@ -214,17 +218,24 @@ async def test_issue_detail_canonicalizes_non_representative_member_id(
         await session.commit()
     headers = {"X-Workspace-Id": str(scn.workspace_id)}
 
-    # Request the later member id: detail canonicalizes to the group id.
-    detail = await client.get(
+    occurrence_request = await client.get(
         f"/api/v1/site-crawls/{scn.crawl_id}/issues/{member_id}",
+        headers=headers,
+    )
+    assert occurrence_request.status_code == 404
+
+    detail = await client.get(
+        f"/api/v1/site-crawls/{scn.crawl_id}/issues/{scn.canonical_issue_id}",
         headers=headers,
     )
     assert detail.status_code == 200
     body = detail.json()
-    assert body["id"] == str(scn.canonical_issue_id)
-    assert body["id"] != str(member_id)
-    # The group now spans both affected URLs.
+    assert body["group_id"] == str(scn.canonical_issue_id)
     assert body["affected_url_count"] == 2
+    assert {row["occurrence_id"] for row in body["occurrences"]} == {
+        str(original_issue_id),
+        str(member_id),
+    }
 
 
 async def test_grouped_issues_canonical_id_stable_under_filters(
@@ -262,7 +273,7 @@ async def test_grouped_issues_canonical_id_stable_under_filters(
     )
     groups = unfiltered.json()["items"]
     assert len(groups) == 1
-    assert groups[0]["id"] == str(scn.canonical_issue_id)
+    assert groups[0]["group_id"] == str(scn.canonical_issue_id)
     assert groups[0]["affected_url_count"] == 2
 
     # Filter to only url_c: the group id is unchanged, only the affected count
@@ -273,7 +284,7 @@ async def test_grouped_issues_canonical_id_stable_under_filters(
     )
     fgroups = filtered.json()["items"]
     assert len(fgroups) == 1
-    assert fgroups[0]["id"] == str(scn.canonical_issue_id)
+    assert fgroups[0]["group_id"] == str(scn.canonical_issue_id)
     assert fgroups[0]["affected_url_count"] == 1
 
 

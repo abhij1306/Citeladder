@@ -122,35 +122,47 @@ function detail(overrides: Partial<PageDetail> = {}): PageDetail {
     },
     issues: [
       {
-        id: ISSUE_L,
+        occurrence_id: ISSUE_L,
+        evaluation_id: 'eeeeeeee-1111-4111-8111-111111111111',
         crawl_id: CRAWL,
         rule_id: 'aeo.faq',
-        page_kinds: [],
+        site_url_id: URL_ID,
+        normalized_url: 'https://acme.com/',
+        display_url: 'https://acme.com/',
+        title: 'Best&Less Online',
+        page_kind: 'article',
         dimension: 'aeo',
         category: 'schema',
         severity: 'low',
         finding_class: 'defect',
-        title: 'FAQ schema not present',
+        issue_title: 'FAQ schema not present',
         description: 'FAQ structured data is not present.',
         remediation: '',
-        affected_url_count: 1,
+        reason_code: 'expected_schema_absent',
+        evidence: { expected_types: ['FAQPage'], found_types: [] },
         analyzer_version: 'a1',
         rule_version: 'r1',
         created_at: '2026-07-16T00:00:00Z',
       },
       {
-        id: ISSUE_H,
+        occurrence_id: ISSUE_H,
+        evaluation_id: 'eeeeeeee-2222-4111-8111-111111111111',
         crawl_id: CRAWL,
         rule_id: 'aeo.website_schema',
-        page_kinds: [],
+        site_url_id: URL_ID,
+        normalized_url: 'https://acme.com/',
+        display_url: 'https://acme.com/',
+        title: 'Best&Less Online',
+        page_kind: 'homepage',
         dimension: 'aeo',
         category: 'schema',
         severity: 'high',
         finding_class: 'defect',
-        title: 'WebSite schema is missing',
+        issue_title: 'WebSite schema is missing',
         description: 'WebSite structured data is not present.',
         remediation: '',
-        affected_url_count: 1,
+        reason_code: 'expected_schema_absent',
+        evidence: { expected_types: ['WebSite'], found_types: ['Organization'] },
         analyzer_version: 'a1',
         rule_version: 'r1',
         created_at: '2026-07-16T00:00:00Z',
@@ -205,6 +217,7 @@ describe('UrlDetail', () => {
     const high = screen.getByText('WebSite schema is missing');
     const low = screen.getByText('FAQ schema not present');
     expect(high.compareDocumentPosition(low) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('Expected WebSite; found Organization.')).toBeInTheDocument();
   });
 
   it('shows observed traits beside the page kind, so a hybrid page reads as both', async () => {

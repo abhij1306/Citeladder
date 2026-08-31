@@ -323,13 +323,17 @@ def test_display_label_ignores_evidence_for_rules_without_variants() -> None:
     assert display_label_for("nope.not_a_rule", {"h1_count": 0}) == "nope.not_a_rule"
 
 
-def test_issue_row_carries_the_affected_count_passed_by_the_caller() -> None:
-    # Grouped issues count DISTINCT affected URLs; the per-page detail passes 1.
+def test_issue_row_projects_one_occurrence_with_its_evaluation_and_url() -> None:
+    """Occurrence DTOs own page identity and evaluation context directly."""
+    occurrence_id = uuid.uuid4()
+    evaluation_id = uuid.uuid4()
+    site_url_id = uuid.uuid4()
     row = _issue_row(
         cast(
             SiteIssue,
             SimpleNamespace(
-                id=uuid.uuid4(),
+                id=occurrence_id,
+                evaluation_id=evaluation_id,
                 crawl_id=uuid.uuid4(),
                 rule_id="aeo.structured_data_present",
                 dimension="aeo",
@@ -344,12 +348,23 @@ def test_issue_row_carries_the_affected_count_passed_by_the_caller() -> None:
                 created_at=_NOW,
             ),
         ),
-        7,
+        cast(SiteRuleEvaluation, SimpleNamespace(reason_code="missing_schema")),
+        site_url_id=site_url_id,
+        normalized_url="https://example.com/products/widget",
+        display_url="https://example.com/products/widget",
+        page_title="Widget",
+        page_kind="product",
     )
 
-    assert row["title"] == "Missing structured data"
+    assert row["occurrence_id"] == occurrence_id
+    assert row["evaluation_id"] == evaluation_id
+    assert row["site_url_id"] == site_url_id
+    assert row["normalized_url"] == "https://example.com/products/widget"
+    assert row["title"] == "Widget"
+    assert row["page_kind"] == "product"
+    assert row["reason_code"] == "missing_schema"
+    assert row["issue_title"] == "Missing structured data"
     assert row["remediation"] == ""
-    assert row["affected_url_count"] == 7
 
 
 # --------------------------------------------------------------------------

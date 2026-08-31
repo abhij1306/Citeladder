@@ -52,6 +52,13 @@
       "backendTests": ["tests/unit/test_export_openapi.py"]
     },
     {
+      "sources": [
+        "backend/scripts/audit_site_health_50.py",
+        "backend/scripts/site_health_audit_reporting.py"
+      ],
+      "backendTests": ["tests/unit/test_site_health_audit_helper.py"]
+    },
+    {
       "sources": ["backend/app/core/db_conflicts.py"],
       "backendTests": [
         "tests/unit/test_site_health_worker_conflicts.py",
@@ -526,6 +533,7 @@
         "frontend/lib/api/schemas/site-health/**"
       ],
       "frontendTests": [
+        "components/site-health/*.test.ts",
         "components/site-health/*.test.tsx",
         "lib/site-health/*.test.ts",
         "lib/site-health/*.test.tsx",

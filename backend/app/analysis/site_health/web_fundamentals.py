@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from itertools import pairwise
 
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_MISSING,
@@ -30,15 +31,24 @@ def _form_names(facts: dict) -> tuple[str, dict]:
     return _pass_fail(missing == 0), {
         "control_count": int(accessibility.get("control_count", 0) or 0),
         "missing_accessible_name": missing,
+        "missing_control_descriptors": list(
+            accessibility.get("controls_missing_accessible_name_descriptors") or ()
+        )[:20],
     }
 
 
 def check_heading_order(facts: dict) -> tuple[str, dict]:
     accessibility = facts.get("accessibility") or {}
+    levels = [int(level) for level in accessibility.get("heading_levels") or ()]
     skipped = int(accessibility.get("heading_level_skips", 0) or 0)
     return _pass_fail(skipped == 0), {
-        "heading_levels": list(accessibility.get("heading_levels") or ())[:64],
+        "heading_levels": levels[:64],
         "level_skips": skipped,
+        "skips": [
+            {"from": previous, "to": current, "scope": "full_document"}
+            for previous, current in pairwise(levels)
+            if current > previous + 1
+        ][:64],
     }
 
 

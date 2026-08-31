@@ -23,7 +23,7 @@ from app.domain.site_health.service.presentation import (
 
 
 class IssueGroupView(Protocol):
-    canonical_id: uuid.UUID
+    group_id: uuid.UUID
     rule_id: str
     dimension: str
     category: str
@@ -99,7 +99,7 @@ def page_issue_groups(
             group_key = (
                 _SEVERITY_RANK.get(group.severity, 99),
                 group.rule_id,
-                str(group.canonical_id),
+                str(group.group_id),
             )
             if group_key > cursor_key:
                 start = idx
@@ -118,7 +118,7 @@ def page_issue_groups(
         sort_values=[
             _SEVERITY_RANK.get(last.severity, 99),
             last.rule_id,
-            str(last.canonical_id),
+            str(last.group_id),
         ],
     )
     return window, next_cursor
@@ -130,10 +130,10 @@ def issue_items(
     crawl_id: uuid.UUID,
     page_kinds_by_rule: dict[str, list[str]],
 ) -> list[dict]:
-    """Render grouped issue rows without changing the API wire shape."""
+    """Render grouped issue rows with an explicit stable group identity."""
     return [
         {
-            "id": group.canonical_id,
+            "group_id": group.group_id,
             "crawl_id": crawl_id,
             "rule_id": group.rule_id,
             "page_kinds": page_kinds_by_rule.get(group.rule_id, []),

@@ -204,11 +204,11 @@ export const siteHealthApi = {
   },
   getIssue: async (
     crawlId: string,
-    issueId: string,
+    groupId: string,
     params?: IssueDetailParams,
     options?: ApiRequestOptions,
   ) => {
-    const path = withQuery(`/site-crawls/${crawlId}/issues/${issueId}`, definedQuery(params));
+    const path = withQuery(`/site-crawls/${crawlId}/issues/${groupId}`, definedQuery(params));
     const res = await apiClient.get<SiteIssueDetail>(path, options);
     return strictValidate(siteIssueDetailSchema, res, 'siteHealth.getIssue');
   },
@@ -424,13 +424,13 @@ export const siteHealthQueries = {
       }),
       queryFn: ({ signal }) => siteHealthApi.getIssues(crawlId, params, { signal }),
     }),
-  issue: (crawlId: string, issueId: string, params?: IssueDetailParams) =>
+  issue: (crawlId: string, groupId: string, params?: IssueDetailParams) =>
     queryOptions({
-      queryKey: queryKeys.siteHealth.issue(crawlId, issueId, {
+      queryKey: queryKeys.siteHealth.issue(crawlId, groupId, {
         cursor: params?.cursor ?? null,
         limit: params?.limit ?? null,
       }),
-      queryFn: ({ signal }) => siteHealthApi.getIssue(crawlId, issueId, params, { signal }),
+      queryFn: ({ signal }) => siteHealthApi.getIssue(crawlId, groupId, params, { signal }),
     }),
   issueHistory: (crawlId: string, siteUrlId: string, params?: IssueHistoryParams) =>
     queryOptions({

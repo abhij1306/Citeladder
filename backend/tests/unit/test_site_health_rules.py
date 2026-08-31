@@ -319,6 +319,103 @@ def test_canonical_absent_fails():
     assert ev.outcome == RULE_OUTCOME_MISSING
 
 
+def test_form_name_evidence_includes_bounded_control_descriptors() -> None:
+    ev = _outcome(
+        _html_facts(
+            accessibility={
+                "control_count": 3,
+                "controls_missing_accessible_name": 1,
+                "controls_missing_accessible_name_descriptors": [
+                    {
+                        "tag": "input",
+                        "type": "email",
+                        "id": "contact",
+                        "name": "email",
+                        "ordinal": 2,
+                    }
+                ],
+                "heading_levels": [1, 2],
+                "heading_level_skips": 0,
+                "document_language": "en",
+            }
+        ),
+        "web.accessibility_form_names",
+    )
+
+    assert ev.outcome == RULE_OUTCOME_MISSING
+    assert ev.evidence == {
+        "control_count": 3,
+        "missing_accessible_name": 1,
+        "missing_control_descriptors": [
+            {
+                "tag": "input",
+                "type": "email",
+                "id": "contact",
+                "name": "email",
+                "ordinal": 2,
+            }
+        ],
+    }
+
+
+def test_heading_evidence_distinguishes_full_document_and_primary_content() -> None:
+    web = _outcome(
+        _html_facts(
+            accessibility={
+                "control_count": 0,
+                "controls_missing_accessible_name": 0,
+                "heading_levels": [1, 3],
+                "heading_level_skips": 1,
+                "document_language": "en",
+            }
+        ),
+        "web.accessibility_heading_order",
+    )
+    aeo = _outcome(
+        _html_facts(
+            primary_heading_outline=[
+                {"level": 1, "text": "Title"},
+                {"level": 3, "text": "Details"},
+            ]
+        ),
+        "aeo.heading_hierarchy",
+    )
+
+    assert web.outcome == RULE_OUTCOME_MISSING
+    assert web.evidence["skips"] == [{"from": 1, "to": 3, "scope": "full_document"}]
+    assert aeo.outcome == RULE_OUTCOME_MISSING
+    assert aeo.evidence["skips"] == [{"from": 1, "to": 3, "scope": "primary_content"}]
+
+
+def test_full_document_heading_skip_evidence_scans_beyond_displayed_levels() -> None:
+    levels = [1] * 64 + [3]
+    web = _outcome(
+        _html_facts(
+            accessibility={
+                "control_count": 0,
+                "controls_missing_accessible_name": 0,
+                "heading_levels": levels,
+                "heading_level_skips": 1,
+                "document_language": "en",
+            }
+        ),
+        "web.accessibility_heading_order",
+    )
+
+    assert web.evidence["heading_levels"] == levels[:64]
+    assert web.evidence["skips"] == [{"from": 1, "to": 3, "scope": "full_document"}]
+
+
+def test_empty_primary_outline_does_not_invent_a_skipped_transition() -> None:
+    evaluation = _outcome(
+        _html_facts(primary_heading_outline=[]),
+        "aeo.heading_hierarchy",
+    )
+
+    assert evaluation.outcome == RULE_OUTCOME_SATISFIED
+    assert evaluation.evidence == {"levels": [], "skips": []}
+
+
 def test_noindex_fails_indexable():
     facts = _html_facts(robots={"noindex": True, "nofollow": False})
     ev = _outcome(facts, "technical.indexable")
@@ -1775,8 +1872,8 @@ def test_visible_named_attribution_and_declared_metadata_are_distinct_atoms() ->
     assert complete.outcome == RULE_OUTCOME_SATISFIED
     assert metadata_only.outcome == RULE_OUTCOME_PARTIAL
     assert metadata_only.reason_code == "declared_attribution_only"
-    assert visible_unlinked.outcome == RULE_OUTCOME_PARTIAL
-    assert visible_unlinked.reason_code == "visible_attribution_unlinked"
+    assert visible_unlinked.outcome == RULE_OUTCOME_SATISFIED
+    assert visible_unlinked.reason_code == ""
     assert absent.outcome == RULE_OUTCOME_MISSING
     assert absent.reason_code == "visible_attribution_absent"
 

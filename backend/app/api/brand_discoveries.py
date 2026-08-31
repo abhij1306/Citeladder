@@ -119,15 +119,10 @@ async def complete_brand_discovery(
 
 
 def _completion_response(row, crawl) -> BrandDiscoveryCompleteResponse:
-    """Accepted, not finished: the project id appears once the worker lands it.
+    """Return the durable shell immediately while its portfolio is generated.
 
-    A replayed request on an already-completed discovery still returns the
-    project immediately, so the client's poll ends on its first read.
-
-    A replay of a completion whose generation FAILED reports that, rather than
-    every project-less row reading as ``completing``: the work is over and no
-    project is coming, so telling the client to keep polling would hang the
-    setup screen on a job that already ended.
+    A replay whose generation failed reports that terminal state rather than
+    telling a client to keep polling work that already exhausted its budget.
     """
     return BrandDiscoveryCompleteResponse(
         discovery_id=row.id,
@@ -142,7 +137,7 @@ def _completion_response(row, crawl) -> BrandDiscoveryCompleteResponse:
 
 
 def _completion_status(row) -> str:
-    if row.project_id is not None:
+    if row.status == DISCOVERY_STATUS_PROJECT_CREATED:
         return DISCOVERY_STATUS_PROJECT_CREATED
     if row.status == DISCOVERY_STATUS_FAILED:
         return DISCOVERY_STATUS_FAILED

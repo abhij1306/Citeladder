@@ -21,6 +21,7 @@ from app.analysis.site_health.structured_data import (
     validate_microdata_types,
 )
 from app.core.config.site_health_acquisition import (
+    SITE_HEALTH_MAX_ACCESSIBILITY_CONTROL_DESCRIPTORS,
     SITE_HEALTH_MAX_CTA_TEXT_CHARS,
     SITE_HEALTH_MAX_CTA_TEXTS,
     SITE_HEALTH_MAX_HEADINGS_KEPT,
@@ -28,6 +29,7 @@ from app.core.config.site_health_acquisition import (
 from app.core.config.site_health_contracts import (
     EXTRACTOR_VERSION,
 )
+from app.core.config.site_health_page_profiles import PRODUCT_FACT_MAX_VALUES
 from app.core.config.site_health_runtime import (
     site_health_settings,
 )
@@ -176,6 +178,73 @@ def test_accessible_names_resolve_labelledby_and_native_buttons() -> None:
 
     assert facts["accessibility"]["control_count"] == 5
     assert facts["accessibility"]["controls_missing_accessible_name"] == 3
+
+
+def test_accessible_names_cover_native_fallbacks_and_exclude_hidden_controls() -> None:
+    facts = _facts(
+        b"""
+        <html><body>
+          <span id="search-label">Search the catalog</span>
+          <label for="explicit">Explicit label</label><input id="explicit">
+          <label>Nested label<span><input></span></label>
+          <input aria-label="ARIA label"><input aria-labelledby="search-label">
+          <textarea title="Notes"></textarea>
+          <input type="submit"><input type="reset">
+          <input type="button" value="Continue"><input type="image" alt="Find">
+          <input id="lookup" name="search-query"><select id="picker"></select>
+          <button name="unnamed"></button>
+          <input type=" hidden "><div hidden><input></div>
+          <div aria-hidden="true"><input></div><div inert><input></div>
+          <template><input></template>
+        </body></html>
+        """
+    )
+
+    accessibility = facts["accessibility"]
+    assert accessibility["control_count"] == 12
+    assert accessibility["controls_missing_accessible_name"] == 3
+    assert accessibility["controls_missing_accessible_name_descriptors"] == [
+        {
+            "tag": "input",
+            "type": "text",
+            "id": "lookup",
+            "name": "search-query",
+            "ordinal": 10,
+        },
+        {"tag": "select", "type": "select", "id": "picker", "name": "", "ordinal": 11},
+        {"tag": "button", "type": "button", "id": "", "name": "unnamed", "ordinal": 12},
+    ]
+
+
+def test_accessible_names_include_descendant_image_alternatives() -> None:
+    facts = _facts(
+        b"""
+        <html><body>
+          <label><input type="radio"><img alt="Wild Green"></label>
+          <label for="coffee"><img alt="Coffee"></label><input id="coffee">
+          <button><img alt="Open search"></button>
+          <span id="account"><img alt="Account"></span>
+          <input aria-labelledby="account">
+        </body></html>
+        """
+    )
+
+    assert facts["accessibility"]["control_count"] == 4
+    assert facts["accessibility"]["controls_missing_accessible_name"] == 0
+
+
+def test_accessible_name_descriptors_are_bounded() -> None:
+    controls = "".join(f'<input id="missing-{index}">' for index in range(25))
+    facts = _facts(f"<html><body>{controls}</body></html>".encode())
+
+    accessibility = facts["accessibility"]
+    descriptors = accessibility["controls_missing_accessible_name_descriptors"]
+    assert accessibility["controls_missing_accessible_name"] == 25
+    assert len(descriptors) == SITE_HEALTH_MAX_ACCESSIBILITY_CONTROL_DESCRIPTORS
+    assert descriptors[0]["ordinal"] == 1
+    assert (
+        descriptors[-1]["ordinal"] == SITE_HEALTH_MAX_ACCESSIBILITY_CONTROL_DESCRIPTORS
+    )
 
 
 def test_structured_data_extraction_and_validation():
@@ -690,6 +759,24 @@ def test_visible_byline_and_date_are_read_when_no_markup_declares_them():
     }
 
 
+def test_visible_attribution_accepts_heading_byline_and_explicit_author_name():
+    heading = _facts(
+        b"<html><body><main><h1>Risotto By Mob Kitchen</h1></main></body></html>"
+    )
+    named_node = _facts(
+        b"<html><body><main>"
+        b'<span class="author">Saneesh Basi</span>'
+        b"</main></body></html>"
+    )
+    named_heading = _facts(
+        b"<html><body><main><h2>Saneesh Basi</h2></main></body></html>"
+    )
+
+    assert heading["authorship"]["visible_byline"] == "By Mob Kitchen"
+    assert named_node["authorship"]["visible_byline"] == "Saneesh Basi"
+    assert named_heading["authorship"]["visible_byline"] == "Saneesh Basi"
+
+
 def test_day_first_dates_are_recognised():
     # "14 March 2026" is the ordinary written form across Britain and Europe.
     # Only ISO and month-first were matched, so those articles read as undated.
@@ -919,6 +1006,68 @@ def test_microdata_blocks_carry_empty_enrichment_fields():
     assert block["props_present"] == []
 
 
+def test_product_microdata_preserves_bounded_brand_and_offer_values():
+    facts = _facts(
+        b"""
+        <html><body><main itemscope itemtype="https://schema.org/Product">
+          <h1 itemprop="name">Field Jacket</h1>
+          <div itemprop="brand" itemscope itemtype="https://schema.org/Brand">
+            <span itemprop="name">North Star</span>
+          </div>
+          <meta itemprop="sku" content="FJ-1">
+          <div itemprop="offers" itemscope itemtype="https://schema.org/Offer">
+            <meta itemprop="price" content="89.00">
+            <meta itemprop="priceCurrency" content="USD">
+            <link itemprop="availability" href="https://schema.org/InStock">
+          </div>
+        </main></body></html>
+        """
+    )
+
+    assert facts["structured_data"]["product"]["brand"] == ["North Star"]
+    assert facts["structured_data"]["product"]["sku"] == ["FJ-1"]
+    assert facts["structured_data"]["product"]["price"] == ["89.00"]
+    assert facts["structured_data"]["product"]["price_currency"] == ["USD"]
+    assert facts["structured_data"]["product"]["availability"] == [
+        "https://schema.org/InStock"
+    ]
+
+
+def test_product_microdata_bounds_unique_values_before_merge():
+    values = b"".join(
+        f'<meta itemprop="sku" content="SKU-{index}">'.encode()
+        for index in range(PRODUCT_FACT_MAX_VALUES + 3)
+    )
+    facts = _facts(
+        b'<html><body><main itemscope itemtype="https://schema.org/Product">'
+        + values
+        + b"</main></body></html>"
+    )
+
+    assert facts["structured_data"]["product"]["sku"] == [
+        f"SKU-{index}" for index in range(PRODUCT_FACT_MAX_VALUES)
+    ]
+
+
+def test_control_with_id_can_still_use_its_implicit_parent_label():
+    facts = _facts(
+        b"""
+        <html><body><main>
+          <label>Collar size
+            <select id="collar-size"><option>Small</option></select>
+          </label>
+          <label>
+            <input id="featured" type="checkbox" name="featured">
+            Featured products
+          </label>
+        </main></body></html>
+        """
+    )
+
+    assert facts["accessibility"]["control_count"] == 2
+    assert facts["accessibility"]["controls_missing_accessible_name"] == 0
+
+
 # --- PR4 page-owned content and collection evidence -------------------------
 
 
@@ -979,6 +1128,43 @@ def test_page_owned_content_facts_are_distinct_and_exclude_chrome_modules() -> N
         "Related two",
         "Related three",
     ]
+
+
+def test_rich_text_paragraphs_with_links_are_not_mistaken_for_cards() -> None:
+    facts = _facts(
+        b"""
+        <html><body><main>
+          <h1>A field story</h1>
+          <div class="rte article-content">
+            <p>This opening paragraph contains enough substantive words to be
+               the article lead while linking to <a href="/place">the place</a>.</p>
+            <p>The second paragraph also links to <a href="/maker">a maker</a>
+               and remains ordinary authored prose.</p>
+            <p>The third paragraph links to <a href="/tool">a tool</a> without
+               converting the rich-text owner into a card list.</p>
+          </div>
+        </main></body></html>
+        """
+    )
+
+    assert facts["editorial_lead"].startswith(
+        "This opening paragraph contains enough substantive words"
+    )
+
+
+def test_entity_proposition_can_use_named_primary_prose_without_an_h1() -> None:
+    facts = _facts(
+        b"""
+        <html><body><main>
+          <h2>New arrivals</h2><h2>Our impact</h2>
+          <p>GOODEE brings together thoughtfully designed home and lifestyle
+             goods from a global community of responsible makers.</p>
+        </main></body></html>
+        """
+    )
+
+    assert facts["entity_proposition"]["identity"] == "GOODEE"
+    assert len(facts["entity_proposition"]["proposition"].split()) >= 10
 
 
 def test_collection_evidence_binds_affordances_to_one_bounded_container() -> None:
@@ -1053,6 +1239,27 @@ def test_collection_evidence_binds_affordances_to_one_bounded_container() -> Non
     }
 
 
+def test_product_paths_supply_listing_cards_without_theme_class_names() -> None:
+    facts = _facts(
+        b"""
+        <html><body>
+          <nav><a href="/products/navigation-only">Navigation</a></nav>
+          <main>
+            <h1>Collection</h1>
+            <div><a href="/products/one">First product</a></div>
+            <div><a href="https://example.com/product/two">Second product</a></div>
+          </main>
+        </body></html>
+        """,
+        final_url="https://example.com/collections/all",
+    )
+
+    assert facts["commerce"]["product_cards"] == [
+        {"url": "https://example.com/products/one", "title": "First product"},
+        {"url": "https://example.com/product/two", "title": "Second product"},
+    ]
+
+
 def test_semantic_pagination_navigation_binds_to_collection() -> None:
     facts = _facts(
         b"""
@@ -1115,6 +1322,25 @@ def test_recommendation_cards_and_unrelated_controls_have_empty_evidence() -> No
         },
         "affordances": [],
     }
+
+
+def test_primary_outline_excludes_non_rich_text_card_lists() -> None:
+    facts = _facts(
+        b"""
+        <html><body><main>
+          <h1>Research library</h1>
+          <section>
+            <article><h3>Result one</h3><a href="/one">One</a></article>
+            <article><h3>Result two</h3><a href="/two">Two</a></article>
+            <article><h3>Result three</h3><a href="/three">Three</a></article>
+          </section>
+        </main></body></html>
+        """
+    )
+
+    assert facts["primary_heading_outline"] == [
+        {"level": 1, "text": "Research library"}
+    ]
 
 
 @pytest.mark.parametrize(

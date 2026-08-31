@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
-from app.analysis.site_health.fact_regions import primary_region_text
+from app.analysis.site_health.fact_regions import primary_region, primary_region_text
 from app.core.config.site_health_archetypes import ARCHITECTURE_MAX_BREADCRUMB_ITEMS
 
 _PRICE = re.compile(
@@ -22,6 +22,7 @@ _AVAILABILITY = re.compile(
 _PRICE_CONTEXT_CHARS = 48
 _PRODUCT_TOKENS = ("product-card", "product_card", "productgrid", "product-tile")
 _CATEGORY_TOKENS = ("subcategory", "category-card", "department", "collection-card")
+_PRODUCT_PATH_SEGMENTS = frozenset({"product", "products"})
 
 
 def _ancestor_tokens(node: Any) -> str:
@@ -79,18 +80,29 @@ def _cards(
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     products: list[dict[str, str]] = []
     categories: list[dict[str, str]] = []
-    for anchor in root.iter("a"):
+    region, _source = primary_region(root)
+    for anchor in region.iter("a"):
         href = (anchor.get("href") or "").strip()
         label = text_of(anchor).strip()
         if not href or not label:
             continue
         row = {"url": urljoin(final_url, href)[:2048], "title": label[:512]}
         tokens = _ancestor_tokens(anchor)
-        if any(token in tokens for token in _PRODUCT_TOKENS):
+        if any(token in tokens for token in _PRODUCT_TOKENS) or _is_product_path(href):
             _append_unique(products, row, limit=200)
         elif any(token in tokens for token in _CATEGORY_TOKENS):
             _append_unique(categories, row, limit=100)
     return products, categories
+
+
+def _is_product_path(href: str) -> bool:
+    """Recognize crawlable product-detail links without styling dependencies."""
+    path_segments = {
+        segment.casefold()
+        for segment in urlparse(href).path.split("/")
+        if segment.strip()
+    }
+    return bool(path_segments & _PRODUCT_PATH_SEGMENTS)
 
 
 def _append_unique(

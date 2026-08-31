@@ -546,7 +546,7 @@ describe('rerunPageResponseSchema (rerun identity/status)', () => {
 describe('siteIssueSchema + siteHealthErrorSchema', () => {
   it('accepts a valid issue row', () => {
     const issue = {
-      id: UUID,
+      group_id: UUID,
       crawl_id: UUID2,
       rule_id: 'meta.title.missing',
       page_kinds: ['article', 'guide'],

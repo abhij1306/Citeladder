@@ -67,15 +67,17 @@ reviewer, and only then creates the bounded initial prompt portfolio exactly
 once. Topics in that portfolio are reusable semantic demand clusters, not query
 phrases; related prompts share a topic.
 
-Completion is an accepted asynchronous job. The request validates and freezes
-the confirmed review, claims its idempotency key, and adds a `brand_completion`
-task to the existing brand-discovery PostgreSQL queue. The worker performs
-provider I/O without holding the discovery row lock, then creates the project
-and portfolio atomically. Retries replay the in-flight or completed discovery;
-an exhausted task terminalizes it with a completion-specific failure instead
-of leaving the client polling indefinitely. If project capacity changes while
-generation is in flight, completion persists the occupancy code as a retryable
-review state and reuses the same completion task after capacity is restored.
+Completion creates an immediately usable shell and accepts asynchronous prompt
+generation. One short transaction freezes the confirmed review, claims its
+idempotency key, persists the project/profile/topics and empty onboarding prompt
+set, links the discovery, and inserts the deterministic `brand_completion` row
+in the existing PostgreSQL queue. A rollback leaves neither shell nor task.
+The worker performs provider I/O without holding the discovery row lock, then
+inserts prompts and advances the discovery to `project_created` in one commit.
+Lease recovery provides at-least-once execution while the discovery lock,
+terminal-state guard, and prompt uniqueness provide one persisted completion
+effect. Same-key replays return the shell and ensure a missing in-flight task;
+an exhausted task terminalizes with a completion-specific failure.
 
 Onboarding discovery v8 keeps the existing bounded first-party acquisition and
 adds bounded Keenable corroboration. One structured application-model call
@@ -230,6 +232,18 @@ description and remediation alongside rule/analyzer versions at creation;
 group, detail, page, and history reads project those columns and never consult
 current catalog copy for historical prose. Display labels remain the separate
 current UI-label owner.
+
+Issue reads expose three unambiguous identities. `group_id` is the deterministic
+crawl/rule/finding-class catalog identity, `occurrence_id` is the persisted
+`SiteIssue.id`, and `evaluation_id` is the occurrence's persisted evaluation
+relationship. Evidence has one owner: the occurrence DTO projects the frozen
+issue copy plus its directly joined evaluation reason and evidence. Group and
+page reads never infer that relationship from `rule_id`, and group detail has
+no duplicate canonical evidence.
+
+Finalize-scoped broken-link results are persisted per source-page analysis.
+Each occurrence carries bounded target URL/status evidence; the crawl root is
+not used as a surrogate affected URL for a graph-wide aggregate.
 
 Rule evaluations and issues also freeze `finding_class` (`defect` or
 `advisory`). Issue reads default to defects and expose explicit distinct-type,

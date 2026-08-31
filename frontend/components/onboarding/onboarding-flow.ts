@@ -24,8 +24,6 @@ import { hasConfirmedIcp } from './icp-confirmation';
 
 export type OnboardingStep = 0 | 1 | 2;
 
-const RETRYABLE_COMPLETION_ERRORS = new Set(['occupancy_limit_exceeded', 'occupancy_unresolved']);
-
 function withBrandKnowledgeDefaults(profile: DiscoveryProfile): DiscoveryProfile {
   const category = profile.category.trim();
   const products = profile.products_services.filter((item) => item.trim());
@@ -105,10 +103,6 @@ export function useOnboardingFlow() {
   });
   const maximumCompetitors = catalog.data?.maximum_competitors;
   const discoveryState = discovery.discovery;
-  const completionRetryable =
-    discoveryState?.status === 'failed' &&
-    RETRYABLE_COMPLETION_ERRORS.has(discoveryState.error_code);
-
   useEffect(() => {
     if (!brand && discoveryState) {
       // oxlint-disable-next-line react-hooks/set-state-in-effect -- hydrate the persisted draft once.
@@ -131,7 +125,7 @@ export function useOnboardingFlow() {
   }, [discoveryState?.id, resumeDiscoveryId, router, searchParams, step]);
 
   useEffect(() => {
-    if (discoveryState?.status !== 'ready' && !completionRetryable) return;
+    if (discoveryState?.status !== 'ready') return;
     // oxlint-disable-next-line react-hooks/set-state-in-effect -- seed an editable persisted draft.
     setDomains((current) =>
       current.length
@@ -143,14 +137,10 @@ export function useOnboardingFlow() {
           })),
     );
     setProfile((current) => current ?? discoveryState.profile);
-  }, [completionRetryable, discoveryState]);
+  }, [discoveryState]);
 
   useEffect(() => {
-    if (
-      maximumCompetitors === undefined ||
-      (discoveryState?.status !== 'ready' && !completionRetryable)
-    )
-      return;
+    if (maximumCompetitors === undefined || discoveryState?.status !== 'ready') return;
     // oxlint-disable-next-line react-hooks/set-state-in-effect -- seed an editable persisted draft.
     setCompetitors((current) =>
       current.length
@@ -161,7 +151,7 @@ export function useOnboardingFlow() {
             selected: index < maximumCompetitors,
           })),
     );
-  }, [completionRetryable, discoveryState, maximumCompetitors]);
+  }, [discoveryState, maximumCompetitors]);
 
   const openProject = useCallback(
     async (projectId: string) => {
@@ -202,13 +192,12 @@ export function useOnboardingFlow() {
     },
   });
 
-  const completedProjectId =
-    discoveryState?.status === 'project_created' ? discoveryState.project_id : null;
-  const completionFailed = discoveryState?.status === 'failed' && !completionRetryable;
+  const completedProjectId = discoveryState?.project_id ?? null;
+  const completionFailed = discoveryState?.status === 'failed';
   useEffect(() => {
-    if (!completedProjectId) return;
+    if (!completedProjectId || completionFailed) return;
     void openProject(completedProjectId);
-  }, [completedProjectId, openProject]);
+  }, [completedProjectId, completionFailed, openProject]);
 
   const submitBrand = form.handleSubmit((values) => {
     const rediscovers =
@@ -241,16 +230,10 @@ export function useOnboardingFlow() {
     competitors,
     complete,
     completionFailed,
-    completionRetryable,
-    // True from the click until the worker lands the project. The request
-    // itself resolves in milliseconds now, so `complete.isPending` alone would
-    // re-enable the button the moment the job was ACCEPTED -- inviting the
-    // very second click this whole change exists to remove. `isSuccess`
-    // without a project id is "accepted, still generating", and it bridges the
-    // gap before the discovery poll first reports `completing`; the polled
-    // status is what holds it across a RELOAD, where the mutation is fresh and
-    // knows nothing about the job already running.
-    //
+    // Hold the action through navigation to the committed shell. Persisted
+    // `completing` still protects a resumed legacy/shell-less response from a
+    // duplicate click; normal completions redirect as soon as `project_id`
+    // arrives and do not wait for prompt generation.
     isCompleting:
       !completionFailed &&
       (complete.isPending ||

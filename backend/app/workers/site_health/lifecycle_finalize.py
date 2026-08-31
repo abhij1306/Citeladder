@@ -361,7 +361,30 @@ def _resolution_set_evaluation(
         evaluation,
         evidence={
             **evaluation.evidence,
+            "failing_targets": [
+                {"url": target, "status_code": int(resolutions[target][0] or 0)}
+                for target in broken[:SITE_HEALTH_MAX_EVIDENCE_URLS]
+            ],
             "resolution_source_ids": sorted(source_ids)[:SITE_HEALTH_MAX_EVIDENCE_URLS],
+        },
+    )
+
+
+def _source_link_evaluation(evaluation: RuleEvaluation) -> RuleEvaluation:
+    """Make a source-page link observation participate as one graph entity.
+
+    ``evaluate_broken_internal_links`` calculates normalized target-set results
+    when it is used for the single, crawl-wide set.  Broken-link occurrences
+    are now persisted per source page, so those per-source target ratios must
+    not override the score rollup (which aggregates source observations).
+    The bounded target evidence remains unchanged for the issue presenter.
+    """
+    return replace(
+        evaluation,
+        evidence={
+            key: value
+            for key, value in evaluation.evidence.items()
+            if key not in {"normalized_score", "normalized_coverage"}
         },
     )
 
@@ -577,6 +600,23 @@ class CrawlFinalizeMixin:
             resolutions=resolutions,
         )
 
+        for artifact_id, final_url, normalized_facts in artifacts:
+            page_targets = _internal_link_targets(
+                [(str(final_url or ""), normalized_facts)]
+            )
+            page_evaluation = _source_link_evaluation(
+                _resolution_set_evaluation(
+                    page_targets,
+                    resolutions=resolutions,
+                    evaluator=evaluate_broken_internal_links,
+                    failure_key="broken_urls",
+                )
+            )
+            evaluations.extend(
+                (analysis_id, page_evaluation)
+                for analysis_id in analysis_ids_by_artifact[artifact_id]
+            )
+
         _root_canonical, root_hash = crawl_root_identity(crawl)
         root_analysis_id = _root_analysis_id(
             rows,
@@ -589,20 +629,6 @@ class CrawlFinalizeMixin:
         )
         if root_analysis_id is None:
             return evaluations
-
-        artifact_pairs = [(row.final_url, row.normalized_facts) for row in artifacts]
-        targets = _internal_link_targets(artifact_pairs)
-        evaluations.append(
-            (
-                root_analysis_id,
-                _resolution_set_evaluation(
-                    targets,
-                    resolutions=resolutions,
-                    evaluator=evaluate_broken_internal_links,
-                    failure_key="broken_urls",
-                ),
-            )
-        )
 
         sitemap_rows = (
             await session.scalars(

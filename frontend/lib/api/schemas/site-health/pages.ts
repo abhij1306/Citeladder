@@ -7,7 +7,7 @@ import {
   findingClassSchema,
   issueDimensionSchema,
   issueSeveritySchema,
-  siteIssueSchema,
+  issueOccurrenceSchema,
 } from './issues';
 import { cursorPageSchema } from './pagination';
 
@@ -167,7 +167,7 @@ export const pageDetailSchema = responseObject({
   delivery: deliveryFactsSchema,
   // Null when this crawl persisted no link metric for the URL.
   internal_links: internalLinksSchema.nullable(),
-  issues: z.array(siteIssueSchema),
+  issues: z.array(issueOccurrenceSchema),
   evaluations: z.array(ruleEvaluationSchema),
   artifact_id: uuid().nullable(),
   extractor_version: z.string(),

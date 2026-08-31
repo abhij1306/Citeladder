@@ -340,7 +340,12 @@ def parse_jsonld_blocks(raw_blocks: list[str], *, max_blocks: int) -> list[dict]
     return facts
 
 
-def validate_microdata_types(itemtypes: list[str], *, max_blocks: int) -> list[dict]:
+def validate_microdata_types(
+    itemtypes: list[str],
+    *,
+    max_blocks: int,
+    product_values: list[dict[str, list[str]]] | None = None,
+) -> list[dict]:
     """Turn bounded microdata ``itemtype`` URLs into recognized-type facts.
 
     Microdata property extraction is intentionally shallow (the AEO rules only
@@ -350,6 +355,7 @@ def validate_microdata_types(itemtypes: list[str], *, max_blocks: int) -> list[d
     rule set). Bounded by ``max_blocks``.
     """
     facts: list[dict] = []
+    product_value_index = 0
     for raw in itemtypes:
         if len(facts) >= max_blocks:
             break
@@ -368,6 +374,11 @@ def validate_microdata_types(itemtypes: list[str], *, max_blocks: int) -> list[d
             # v1-map types record their full required list as missing/invalid;
             # newly recognized types carry an empty contract (valid=True).
             required = STRUCTURED_DATA_REQUIRED_PROPERTIES.get(schema_type, ())
+            product = {}
+            if schema_type == "Product" and product_values:
+                index = min(product_value_index, len(product_values) - 1)
+                product = product_values[index]
+                product_value_index += 1
             facts.append(
                 {
                     "type": schema_type,
@@ -386,10 +397,67 @@ def validate_microdata_types(itemtypes: list[str], *, max_blocks: int) -> list[d
                     "url": "",
                     "main_entity_id": "",
                     "main_entity_of_page_id": "",
-                    "product": {},
+                    "product": product,
                 }
             )
     return facts
+
+
+def microdata_product_values(nodes: list[Any]) -> list[dict[str, list[str]]]:
+    """Extract bounded Product properties from already-parsed microdata nodes."""
+    values: list[dict[str, list[str]]] = []
+    for node in nodes:
+        product = _empty_product_values()
+        try:
+            property_nodes = node.xpath(".//*[@itemprop]")
+        except (AttributeError, TypeError, ValueError):
+            property_nodes = []
+        for property_node in property_nodes:
+            property_name = str(property_node.get("itemprop") or "").strip()
+            target = _microdata_product_target(property_name)
+            if not target:
+                continue
+            value = _microdata_value(property_node)
+            if (
+                value
+                and value not in product[target]
+                and len(product[target]) < PRODUCT_FACT_MAX_VALUES
+            ):
+                product[target].append(value[:PRODUCT_FACT_MAX_VALUE_CHARS])
+        values.append(product)
+    return values
+
+
+def _microdata_product_target(property_name: str) -> str:
+    return {
+        "name": "name",
+        "sku": "sku",
+        "gtin": "gtin",
+        "gtin8": "gtin",
+        "gtin12": "gtin",
+        "gtin13": "gtin",
+        "gtin14": "gtin",
+        "brand": "brand",
+        "manufacturer": "brand",
+        "mpn": "mpn",
+        "price": "price",
+        "priceCurrency": "price_currency",
+        "availability": "availability",
+        "description": "description",
+        "url": "url",
+        "category": "category",
+    }.get(property_name, "")
+
+
+def _microdata_value(node: Any) -> str:
+    for attribute in ("content", "href", "datetime", "value", "src"):
+        if value := str(node.get(attribute) or "").strip():
+            return value
+    try:
+        text = node.text_content()
+    except (AttributeError, TypeError, ValueError):
+        return ""
+    return " ".join(str(text or "").split())
 
 
 def product_facts(blocks: list[dict]) -> dict[str, Any]:

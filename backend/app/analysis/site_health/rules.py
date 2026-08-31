@@ -303,11 +303,8 @@ def _check_visible_attribution(facts: dict) -> tuple[str, dict]:
         "declared_name": declared[:256],
         "declared_source": declared_source,
     }
-    if visible and profile_url:
-        return RULE_OUTCOME_SATISFIED, evidence
     if visible:
-        evidence["reason"] = "visible_attribution_unlinked"
-        return RULE_OUTCOME_PARTIAL, evidence
+        return RULE_OUTCOME_SATISFIED, evidence
     if declared:
         evidence["reason"] = "declared_attribution_only"
         return RULE_OUTCOME_PARTIAL, evidence
@@ -466,9 +463,10 @@ def _check_primary_heading_hierarchy(facts: dict) -> tuple[str, dict]:
         for previous, current in pairwise(levels)
         if current > previous + 1
     ]
-    if not levels:
-        return RULE_OUTCOME_MISSING, {"reason": "no_primary_headings", "levels": []}
-    return _pass_fail(not skips), {"levels": levels, "skips": skips}
+    return _pass_fail(not skips), {
+        "levels": levels,
+        "skips": [{**skip, "scope": "primary_content"} for skip in skips],
+    }
 
 
 # Unmapped rules become ERROR; finalize-scoped rules belong to ``finalize.py``.

@@ -68,9 +68,6 @@ _PAGINATION_TOKENS: Final[frozenset[str]] = frozenset(
 _EMPTY_STATE_TOKENS: Final[frozenset[str]] = frozenset(
     {"empty-state", "no-results", "nothing-found"}
 )
-_RECOMMENDATION_TOKENS: Final[frozenset[str]] = frozenset(
-    {"more-like", "recommend", "related", "suggested", "you-may-also"}
-)
 _MAX_COLLECTION_AFFORDANCES: Final = _config.CARD_SHAPE_MAX_CHILDREN
 
 
@@ -642,7 +639,7 @@ def _is_recommendation_container(container: Any, name: dict[str, str]) -> bool:
     label = str(name.get("label") or "").casefold()
     blob = _attr_blob(container)
     normalized = f"{label} {blob}".replace(" ", "-")
-    return any(token in normalized for token in _RECOMMENDATION_TOKENS)
+    return any(token in normalized for token in _config.CONTENT_RECOMMENDATION_TOKENS)
 
 
 def _card_list_observation(container: Any) -> tuple[int, int]:
