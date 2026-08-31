@@ -18,6 +18,7 @@ export function QueriesTable({
       emptyMessage="No queries measured for this window."
       errorMessage="Could not load query stats. Check your connection and try again."
       leadSkeletonClassName="h-4 w-48 max-w-full"
+      scopeId={projectId}
       queryKey={(sort, cursor) => queryKeys.traffic.queries(projectId, { from, to, sort, cursor })}
       fetchPage={(sort, cursor, signal) =>
         trafficApi.getQueries(projectId, { from, to, sort, cursor }, { signal })

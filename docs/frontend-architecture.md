@@ -55,6 +55,15 @@ that is still running.
   `BACKEND_ORIGIN`. In Compose, that destination is `http://web:8000`; the browser-facing
   frontend service listens on port 3000.
 - Server data uses TanStack Query and shared Zod response schemas.
+- Next.js Cache Components and Partial Prefetching produce one reusable App
+  Shell per route. The authenticated layout is instant-navigation validated;
+  its sidebar, top bar, query client, and project context remain mounted while
+  route-owned content streams or enters the `(app)` loading shell. A focused
+  Playwright `instant()` assertion protects primary navigation.
+- Retained TanStack Query placeholder data is owner-scoped: filter, sort, and
+  cursor changes may keep prior results mounted only while the project or
+  crawl identity is unchanged. A project/crawl switch returns to an explicit
+  loading state instead of temporarily relabelling prior persisted evidence.
 - IDs and active workspace/project context are explicit.
 - No production screen falls back to mock data or computes a backend metric.
 - Only live destinations render; future work is not shown as disabled UI.

@@ -65,6 +65,7 @@ ACTIVE_EXACT = {
     "frontend/CLAUDE.md",
 }
 ACTIVE_PREFIXES = (
+    "docs/design-system/",
     "docs/evaluations/",
     "backend/docs/",
     ".github/",

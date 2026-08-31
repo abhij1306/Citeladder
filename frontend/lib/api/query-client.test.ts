@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ApiError } from './errors';
-import { createAppQueryClient, shouldRetryQuery } from './query-client';
+import { createAppQueryClient, retainPreviousDataForScope, shouldRetryQuery } from './query-client';
 
 describe('shouldRetryQuery', () => {
   it('retries network / unknown errors up to the cap', () => {
@@ -62,5 +62,25 @@ describe('createAppQueryClient', () => {
     expect(queries?.staleTime).toBe(15_000);
     expect(queries?.refetchOnWindowFocus).toBe(false);
     expect(client.getDefaultOptions().mutations?.retry).toBe(false);
+  });
+});
+
+describe('retainPreviousDataForScope', () => {
+  const previousData = { project_id: 'project-a', total: 7 };
+
+  it('retains data for filter changes within the same owner scope', () => {
+    expect(
+      retainPreviousDataForScope('project-a', previousData, {
+        queryKey: ['traffic', 'dashboard', 'project-a', { granularity: 'day' }],
+      }),
+    ).toBe(previousData);
+  });
+
+  it('drops data when the active owner scope changes', () => {
+    expect(
+      retainPreviousDataForScope('project-b', previousData, {
+        queryKey: ['traffic', 'dashboard', 'project-a', { granularity: 'day' }],
+      }),
+    ).toBeUndefined();
   });
 });

@@ -1,12 +1,13 @@
 'use client';
 
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
 import { AiReferralsContent } from '@/components/ai-referrals/ai-referrals-content';
 import { AnalyticsToolbar } from '@/components/ui/analytics-toolbar';
 import { aiReferralsApi } from '@/lib/api/ai-referrals';
 import { queryKeys } from '@/lib/api/query-keys';
+import { retainPreviousDataForScope } from '@/lib/api/query-client';
 import {
   GRANULARITY_OPTIONS,
   RANGE_OPTIONS,
@@ -28,7 +29,8 @@ export function AiReferralsScreen() {
     queryFn: ({ signal }) =>
       aiReferralsApi.getDashboard(projectId!, { ...windowBounds, granularity }, { signal }),
     enabled: Boolean(projectId),
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) =>
+      retainPreviousDataForScope(projectId!, previousData, previousQuery),
   });
 
   return (

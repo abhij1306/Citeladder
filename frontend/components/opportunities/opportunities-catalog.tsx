@@ -115,20 +115,25 @@ function FilterMenu<T extends string>({
       </PopoverTrigger>
       <PopoverContent align="start" className="grid min-w-40 gap-1 p-1" aria-label={label}>
         <p className="text-muted px-2 py-1 text-xs font-medium">{label}</p>
-        {options.map((option) => (
-          <Pressable
-            key={option.key}
-            role="menuitemradio"
-            aria-checked={option.key === value}
-            className="hover:bg-background-alt min-h-8 px-2 py-1.5 text-sm"
-            onClick={() => {
-              onChange(option.key);
-              setOpen(false);
-            }}
-          >
-            <span className={option.key === value ? 'font-medium' : undefined}>{option.label}</span>
-          </Pressable>
-        ))}
+        <div role="radiogroup" aria-label={label} className="grid gap-1">
+          {options.map((option) => (
+            <Pressable
+              key={option.key}
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Button-based radio preserves the popover option interaction contract.
+              role="radio"
+              aria-checked={option.key === value}
+              className="hover:bg-background-alt min-h-8 px-2 py-1.5 text-sm"
+              onClick={() => {
+                onChange(option.key);
+                setOpen(false);
+              }}
+            >
+              <span className={option.key === value ? 'font-medium' : undefined}>
+                {option.label}
+              </span>
+            </Pressable>
+          ))}
+        </div>
       </PopoverContent>
     </Popover>
   );

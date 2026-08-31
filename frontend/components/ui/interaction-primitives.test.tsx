@@ -42,6 +42,24 @@ describe('authenticated interaction primitives', () => {
     expect(screen.getByRole('searchbox', { name: 'Find issues' })).toHaveValue('');
   });
 
+  it('prevents the clear control from changing a disabled SearchField', async () => {
+    const user = userEvent.setup();
+    const onValueChange = vi.fn();
+    render(
+      <SearchField
+        disabled
+        value="orphan"
+        onValueChange={onValueChange}
+        aria-label="Find issues"
+      />,
+    );
+
+    const clear = screen.getByRole('button', { name: 'Clear search' });
+    expect(clear).toBeDisabled();
+    await user.click(clear);
+    expect(onValueChange).not.toHaveBeenCalled();
+  });
+
   it('opens Select options and commits a controlled value', async () => {
     const user = userEvent.setup();
     function Harness() {

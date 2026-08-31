@@ -9,7 +9,9 @@ import { AuthBrandPanel, AuthWordmark } from '@/components/auth/brand-panel';
  * 50/50 split at ≥900px: left dark panel with centered brand mark,
  * right clean white canvas containing the auth form and footer.
  */
-export default function AuthLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function AuthLayout({ children }: Readonly<{ children: ReactNode }>) {
+  'use cache';
+
   return (
     <div className="website-type bg-panel text-foreground relative min-h-dvh w-full overflow-hidden antialiased min-[900px]:grid min-[900px]:grid-cols-2">
       <AuthBrandPanel />

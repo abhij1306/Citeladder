@@ -513,6 +513,7 @@
         "frontend/lib/navigate.ts",
         "frontend/app/layout.tsx",
         "frontend/app/(app)/layout.tsx",
+        "frontend/app/(app)/loading.tsx",
         "frontend/app/(app)/route-states.tsx",
         "frontend/app/(app)/error.tsx",
         "frontend/app/(app)/not-found.tsx"

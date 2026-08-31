@@ -381,19 +381,24 @@ describe('OpportunitiesScreen', () => {
 
     // Open the Area dropdown and select "Site".
     await user.click(screen.getByRole('button', { name: /Area:/ }));
-    await user.click(await screen.findByRole('menuitemradio', { name: 'Site' }));
+    const areaGroup = await screen.findByRole('radiogroup', { name: 'Area' });
+    expect(within(areaGroup).getByRole('radio', { name: 'All types' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await user.click(within(areaGroup).getByRole('radio', { name: 'Site' }));
     await waitFor(() => expect(seen.some((params) => params.get('type') === 'site')).toBe(true));
 
     // Open the Status dropdown and select "Dismissed".
     await user.click(screen.getByRole('button', { name: /Status:/ }));
-    await user.click(await screen.findByRole('menuitemradio', { name: 'Dismissed' }));
+    await user.click(await screen.findByRole('radio', { name: 'Dismissed' }));
     await waitFor(() =>
       expect(seen.some((params) => params.get('status') === 'dismissed')).toBe(true),
     );
 
     // Open the Impact dropdown and select "Low".
     await user.click(screen.getByRole('button', { name: /Impact:/ }));
-    await user.click(await screen.findByRole('menuitemradio', { name: 'Low' }));
+    await user.click(await screen.findByRole('radio', { name: 'Low' }));
     await waitFor(() => expect(seen.some((params) => params.get('severity') === 'low')).toBe(true));
   });
 

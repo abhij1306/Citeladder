@@ -7,14 +7,14 @@ import { DEMO_HREF } from '@/lib/marketing-content/nav';
 import { MarketingFooter } from './footer';
 
 /**
- * The footer is a sync server component with no islands, so a plain render is
- * enough. What is worth pinning is the commercial contract: five columns, a
+ * The footer is a cached async server component with no islands, so resolve it
+ * before rendering. What is worth pinning is the commercial contract: five columns, a
  * Compare column derived from the content module, and — because the repo is
  * private — no GitHub or documentation links anywhere on a commercial page.
  */
 describe('MarketingFooter', () => {
-  it('renders five labelled columns inside the Footer landmark', () => {
-    const { container } = render(<MarketingFooter />);
+  it('renders five labelled columns inside the Footer landmark', async () => {
+    const { container } = render(await MarketingFooter());
 
     expect(container.querySelector('footer')).toHaveClass('bg-active/60');
     const footerNav = screen.getByRole('navigation', { name: 'Footer' });
@@ -26,8 +26,8 @@ describe('MarketingFooter', () => {
     }
   });
 
-  it('derives the Compare column from the content module', () => {
-    render(<MarketingFooter />);
+  it('derives the Compare column from the content module', async () => {
+    render(await MarketingFooter());
 
     expect(screen.getByRole('link', { name: 'All comparisons' })).toHaveAttribute(
       'href',
@@ -41,22 +41,22 @@ describe('MarketingFooter', () => {
     }
   });
 
-  it('points the company column at the demo funnel and login', () => {
-    render(<MarketingFooter />);
+  it('points the company column at the demo funnel and login', async () => {
+    render(await MarketingFooter());
 
     expect(screen.getByRole('link', { name: /book a demo/i })).toHaveAttribute('href', DEMO_HREF);
     expect(screen.getByRole('link', { name: /log in/i })).toHaveAttribute('href', '/login');
   });
 
-  it('carries no GitHub or documentation links (the repo is private)', () => {
-    render(<MarketingFooter />);
+  it('carries no GitHub or documentation links (the repo is private)', async () => {
+    render(await MarketingFooter());
 
     expect(screen.queryByRole('link', { name: /github/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /documentation/i })).toBeNull();
   });
 
-  it('exposes the legal strip with policy links', () => {
-    render(<MarketingFooter />);
+  it('exposes the legal strip with policy links', async () => {
+    render(await MarketingFooter());
 
     const legal = screen.getByRole('navigation', { name: 'Legal' });
     expect(within(legal).getByRole('link', { name: 'Terms of Service' })).toHaveAttribute(

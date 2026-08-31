@@ -1,6 +1,6 @@
 'use client';
 
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 
@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { retainPreviousDataForScope } from '@/lib/api/query-client';
 import { useCursorStack } from '@/lib/site-health/use-cursor-stack';
 import {
   describeSort,
@@ -57,6 +58,7 @@ type MetricTableProps<Row extends MetricRow> = Readonly<{
   emptyMessage: string;
   errorMessage: string;
   leadSkeletonClassName: string;
+  scopeId: string;
   queryKey: (sort: string, cursor: string | undefined) => readonly unknown[];
   fetchPage: (
     sort: string,
@@ -134,6 +136,7 @@ export function MetricTable<Row extends MetricRow>({
   emptyMessage,
   errorMessage,
   leadSkeletonClassName,
+  scopeId,
   queryKey,
   fetchPage,
   rowKey,
@@ -144,7 +147,8 @@ export function MetricTable<Row extends MetricRow>({
   const query = useQuery({
     queryKey: queryKey(sort, pager.cursor),
     queryFn: ({ signal }) => fetchPage(sort, pager.cursor, signal),
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) =>
+      retainPreviousDataForScope(scopeId, previousData, previousQuery),
   });
   const rows = query.data?.items ?? [];
   const nextCursor = query.data?.next_cursor ?? null;

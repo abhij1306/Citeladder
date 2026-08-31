@@ -19,6 +19,7 @@ export function PagesTable({
       emptyMessage="No pages measured for this window."
       errorMessage="Could not load page stats. Check your connection and try again."
       leadSkeletonClassName="h-4 w-64 max-w-full"
+      scopeId={projectId}
       queryKey={(sort, cursor) => queryKeys.traffic.pages(projectId, { from, to, sort, cursor })}
       fetchPage={(sort, cursor, signal) =>
         trafficApi.getPages(projectId, { from, to, sort, cursor }, { signal })

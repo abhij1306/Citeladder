@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { Dialog } from './dialog';
 import { Drawer } from './drawer';
@@ -14,6 +14,7 @@ import {
   DropdownTrigger,
 } from './dropdown';
 import { Tooltip, TooltipProvider } from './tooltip';
+import { ToastProvider, useToast } from './toast';
 
 // jsdom has no ResizeObserver, which Radix's tooltip arrow measurement
 // requires once the content actually mounts. A no-op stub is enough — the
@@ -187,5 +188,43 @@ describe('Tooltip', () => {
     expect(tip.className).toContain('text-on-inverse');
     expect(tip.className).toContain('shadow-elevated');
     expect(tip.className).toContain('rounded-[var(--radius-overlay)]');
+  });
+});
+
+describe('ToastProvider', () => {
+  it('dismisses one of two notifications created in the same clock tick', async () => {
+    const user = userEvent.setup();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1);
+
+    function Harness() {
+      const { notify } = useToast();
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            notify('First notification');
+            notify('Second notification');
+          }}
+        >
+          Notify twice
+        </button>
+      );
+    }
+
+    render(
+      <ToastProvider>
+        <Harness />
+      </ToastProvider>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Notify twice' }));
+    expect(screen.getByText('First notification')).toBeInTheDocument();
+    expect(screen.getByText('Second notification')).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: 'Dismiss notification' })[0]);
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: 'Dismiss notification' })).toHaveLength(1),
+    );
+    expect(screen.getByText('Second notification')).toBeInTheDocument();
+    clock.mockRestore();
   });
 });

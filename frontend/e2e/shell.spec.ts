@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { instant } from '@next/playwright';
 
 import { stubAuthedShell } from './helpers/app-fixture';
 
@@ -39,4 +40,21 @@ test('authenticated shell renders sidebar groups and top bar', async ({ page }) 
   // by heading level keeps this independent of the surrounding landmark.
   await expect(page.getByRole('heading', { level: 1, name: 'AI Visibility' })).toBeVisible();
   await expect(page.getByRole('button', { name: /search or jump to/i })).toBeVisible();
+});
+
+test('primary navigation commits the destination shell instantly', async ({ page }) => {
+  await stubAuthedShell(page);
+  await page.goto('/projects');
+  await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
+
+  await instant(page, async () => {
+    await page
+      .getByRole('navigation', { name: 'Primary' })
+      .getByRole('link', { name: 'Traffic', exact: true })
+      .click();
+    await page.waitForURL((url) => url.pathname === '/traffic');
+    await expect(page.getByRole('heading', { level: 1, name: 'Traffic' })).toBeVisible();
+  });
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Traffic' })).toBeVisible();
 });

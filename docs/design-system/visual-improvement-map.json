@@ -1,0 +1,950 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CiteLadder Visual Improvement Map",
+  "version": "1.0.0",
+  "description": "Machine-readable visual and interaction design improvement mapping from HeroUI v3 to CiteLadder design system primitives.",
+  "invariants": {
+    "radii": {
+      "control": "var(--radius-control)",
+      "card": "var(--radius-card)",
+      "overlay": "var(--radius-overlay)",
+      "micro": "var(--radius-xs)",
+      "sm": "var(--radius-sm)",
+      "full": "9999px"
+    },
+    "typography": {
+      "sans": "Geist Sans",
+      "display": "Geist Sans (-0.015em / -0.025em)",
+      "mono": "Geist Mono (tabular-nums)"
+    },
+    "colors": {
+      "accent": "#315cff",
+      "accentHover": "#2347d9",
+      "accentActive": "#1a38b5",
+      "accentSubtle": "#eff4ff",
+      "panel": "#ffffff",
+      "background": "#fcfcfc"
+    }
+  },
+  "components": [
+    {
+      "component": "Button",
+      "category": "action",
+      "priority": 1,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/button.tsx",
+        "frontend/components/ui/button-variants.ts",
+        "frontend/components/ui/pressable.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/button",
+        "slots": ["base", "content", "startContent", "endContent", "spinner"],
+        "patternsAdapted": [
+          "Micro-inset border lighting with shadow-xs and subtle border-border",
+          "Explicit SVG icon alignment without manual sizing hacks",
+          "Spinner overlay state preserving natural button width",
+          "Active pressed scale suppression on popup triggers"
+        ]
+      },
+      "currentWeaknesses": [
+        "Uniform active:scale-[0.98] creates jitter on popup/dropdown triggers",
+        "Secondary variant uses heavy border-border-strong fighting with card borders",
+        "Destructive variant has no visual difference between hover and active",
+        "Spinner layout shifts button content horizontally on pending transition"
+      ],
+      "targetDesign": {
+        "classes": {
+          "base": "focus-ring relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-control)] border text-sm font-medium transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-out select-none not-[[aria-haspopup]]:not-[[data-popup-trigger=true]]:active:scale-[0.985] data-[popup-trigger=true]:active:scale-100 aria-haspopup:active:scale-100 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+          "primary": "border-transparent bg-accent text-accent-fg shadow-xs hover:bg-accent-hover active:bg-accent-active",
+          "secondary": "border-border/80 bg-panel text-foreground shadow-2xs hover:border-border-strong hover:bg-background-alt active:bg-well",
+          "tonal": "border-accent-border/60 bg-accent-subtle text-accent-text hover:border-accent hover:bg-accent-border/60 active:bg-accent-border",
+          "neutral": "border-transparent bg-background-alt text-foreground hover:bg-well active:bg-active",
+          "ghost": "border-transparent bg-transparent text-secondary hover:bg-background-alt hover:text-foreground active:bg-well",
+          "destructive": "border-transparent bg-danger-solid text-danger-fg shadow-xs hover:bg-danger-solid-hover active:bg-red-700",
+          "destructiveGhost": "border-transparent bg-transparent text-danger-text hover:bg-danger-bg active:bg-danger-border/40"
+        },
+        "states": {
+          "hover": "150ms ease-out background ramp transition without layout shift",
+          "active": "active:scale-[0.985] (ordinary buttons)",
+          "popupTrigger": "active:scale-100 data-[popup-trigger=true]:active:scale-100 aria-haspopup:active:scale-100 (scale suppressed on dropdown/dialog triggers to prevent overlay displacement)",
+          "pending": "aria-busy:pointer-events-none opacity-80 with loading spinner slot",
+          "focusVisible": "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        },
+        "sizes": {
+          "sm": "h-[var(--control-height-sm)] px-2.5 text-xs gap-1.5 [&_svg]:size-3.5",
+          "md": "h-[var(--control-height)] px-3 text-sm gap-2 [&_svg]:size-4",
+          "lg": "h-[var(--control-height-lg)] px-4 text-sm gap-2.5 [&_svg]:size-4.5",
+          "icon": "size-[var(--control-height)] p-0 [&_svg]:size-4",
+          "iconSm": "size-[var(--control-height-sm)] p-0 [&_svg]:size-3.5"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 85
+    },
+    {
+      "component": "Input",
+      "category": "form",
+      "priority": 2,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/input.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/input",
+        "slots": ["base", "label", "inputWrapper", "input", "clearButton", "description", "errorMessage"],
+        "patternsAdapted": [
+          "Inset input well with active border transition",
+          "Hover hairline deepening without pre-empting focus ring",
+          "Invalid state glowing hairline and red focus shadow"
+        ]
+      },
+      "currentWeaknesses": [
+        "Muddy contrast inside elevated cards due to border-border-strong/80",
+        "Textarea lacks styled scrollbars and has unstyled resize handle",
+        "Placeholder contrast too light on low-contrast screens"
+      ],
+      "targetDesign": {
+        "classes": {
+          "input": "focus-ring flex h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-border/90 bg-input px-3 text-sm text-foreground shadow-2xs transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-muted/80 hover:border-border-strong focus:border-accent aria-invalid:border-danger aria-invalid:focus:border-danger disabled:cursor-not-allowed disabled:bg-background-alt/50 disabled:opacity-50",
+          "textarea": "focus-ring flex min-h-24 w-full resize-y rounded-[var(--radius-control)] border border-border/90 bg-input p-3 text-sm text-foreground shadow-2xs leading-relaxed transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-muted/80 hover:border-border-strong focus:border-accent aria-invalid:border-danger aria-invalid:focus:border-danger disabled:cursor-not-allowed disabled:bg-background-alt/50 disabled:opacity-50"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 35
+    },
+    {
+      "component": "Field",
+      "category": "form",
+      "priority": 3,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/field.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/form",
+        "patternsAdapted": [
+          "Compact vertical rhythm with 6px label-to-control spacing",
+          "Fade-in animation on error message disclosure"
+        ]
+      },
+      "currentWeaknesses": [
+        "Hardcoded gap-2 is too loose for dense data edit modals",
+        "Error message appears abruptly without entrance transition"
+      ],
+      "targetDesign": {
+        "classes": {
+          "container": "grid gap-1.5",
+          "label": "text-foreground text-xs font-medium flex items-center justify-between",
+          "error": "text-danger-text text-xs font-medium flex items-center gap-1 animate-in fade-in-50 duration-150",
+          "hint": "text-muted text-xs leading-normal"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 28
+    },
+    {
+      "component": "SearchField",
+      "category": "form",
+      "priority": 4,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/search-field.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/input",
+        "patternsAdapted": [
+          "Seamless search icon anchor at 14px size",
+          "Micro-fade clear button with accessible hover state"
+        ]
+      },
+      "currentWeaknesses": [
+        "Clear button appears abruptly without smooth transition",
+        "Icon vertical alignment fluctuates on compact control heights"
+      ],
+      "targetDesign": {
+        "classes": {
+          "wrapper": "focus-within:border-accent focus-within:shadow-[var(--focus-ring)] flex h-[var(--control-height)] items-center gap-2 rounded-[var(--radius-control)] border border-border/90 bg-input px-2.5 shadow-2xs transition-[border-color,box-shadow,background-color] duration-150 hover:border-border-strong",
+          "input": "placeholder:text-muted/80 min-w-0 flex-1 [appearance:textfield] bg-transparent text-sm text-foreground outline-none [&::-webkit-search-cancel-button]:hidden",
+          "clearButton": "text-muted hover:bg-well hover:text-foreground -mr-1 grid size-5.5 place-items-center rounded-xs transition-colors"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 12
+    },
+    {
+      "component": "Select",
+      "category": "form",
+      "priority": 5,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/select.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/select",
+        "slots": ["trigger", "value", "popoverContent", "listbox", "item", "itemIndicator"],
+        "patternsAdapted": [
+          "Smooth 180deg chevron rotation on open",
+          "Compact select item sizing with right-aligned check indicator",
+          "Elevated popover panel with backdrop blur"
+        ]
+      },
+      "currentWeaknesses": [
+        "Chevron down icon is static when menu opens",
+        "Menu items have large vertical padding for dense tables"
+      ],
+      "targetDesign": {
+        "classes": {
+          "trigger": "focus-ring flex h-[var(--control-height)] w-full items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border/90 bg-input px-3 text-sm text-foreground shadow-2xs transition-[border-color,background-color,box-shadow] duration-150 hover:border-border-strong data-[placeholder]:text-muted disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger",
+          "chevron": "text-muted size-3.5 shrink-0 transition-transform duration-150 ease-out [[data-state=open]>&]:rotate-180",
+          "content": "menu-panel border-border bg-elevated/98 shadow-elevated z-[var(--z-index-overlay)] max-h-[min(22rem,var(--radix-select-content-available-height))] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-[var(--radius-overlay)] border p-1",
+          "item": "focus:bg-background-alt focus:text-foreground data-[state=checked]:bg-accent-subtle data-[state=checked]:text-accent-text relative flex min-h-7.5 cursor-pointer items-center rounded-xs py-1.5 pr-8 pl-2.5 text-xs font-medium outline-none select-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-40"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 22
+    },
+    {
+      "component": "Checkbox",
+      "category": "selection",
+      "priority": 6,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/checkbox.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/checkbox",
+        "patternsAdapted": [
+          "Crisp 3px micro-corner radius for 16px box",
+          "Zoom-in indicator animation on check toggle",
+          "High-contrast border in unchecked state"
+        ]
+      },
+      "currentWeaknesses": [
+        "Uses 6px radius causing 16px square to look overly rounded",
+        "Checkmark appears instantly without micro-zoom easing"
+      ],
+      "targetDesign": {
+        "classes": {
+          "root": "focus-ring border-border-strong bg-input-bg data-[state=checked]:border-accent data-[state=checked]:bg-accent data-[state=indeterminate]:border-accent data-[state=indeterminate]:bg-accent text-accent-fg grid size-4 shrink-0 place-items-center rounded-xs border shadow-2xs transition-[background-color,border-color,box-shadow] duration-150 disabled:cursor-not-allowed disabled:opacity-50",
+          "indicator": "flex items-center justify-center text-current animate-in zoom-in-75 duration-100"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 16
+    },
+    {
+      "component": "RadioGroup",
+      "category": "selection",
+      "priority": 7,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/radio-group.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/radio",
+        "patternsAdapted": [
+          "Scale-in dot indicator animation",
+          "Crisp 16px disc with centered 6px dot"
+        ]
+      },
+      "currentWeaknesses": [
+        "Dot indicator appears instantly without scaling animation",
+        "Label baseline alignment is loose on long options"
+      ],
+      "targetDesign": {
+        "classes": {
+          "item": "focus-ring border-border-strong bg-input-bg data-[state=checked]:border-accent grid size-4 shrink-0 place-items-center rounded-full border shadow-2xs transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50",
+          "indicator": "bg-accent size-2 rounded-full animate-in zoom-in-50 duration-150"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 8
+    },
+    {
+      "component": "Switch",
+      "category": "selection",
+      "priority": 8,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/switch.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/switch",
+        "patternsAdapted": [
+          "Compact enterprise dimensions: 36px wide by 20px tall",
+          "Clean white thumb with subtle shadow-xs",
+          "Smooth 200ms ease-out translate transition"
+        ]
+      },
+      "currentWeaknesses": [
+        "48px wide is slightly too large for compact table cells",
+        "Hairline thumb border appears fuzzy on low-DPI screens"
+      ],
+      "targetDesign": {
+        "classes": {
+          "track": "focus-ring inline-flex h-5 w-9 shrink-0 items-center rounded-full border border-transparent transition-colors duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-50",
+          "thumb": "bg-panel size-3.5 rounded-full shadow-xs transition-transform duration-200 ease-out"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 10
+    },
+    {
+      "component": "Tabs",
+      "category": "navigation",
+      "priority": 9,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/tabs.tsx",
+        "frontend/components/ui/nested-tabs.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/tabs",
+        "slots": ["tabList", "tab", "tabContent", "cursor", "panel"],
+        "patternsAdapted": [
+          "Zero-box clean text tab triggers with underline indicator",
+          "Smooth text color transition on hover/active",
+          "Nested tabs enclosed in pill segment format"
+        ]
+      },
+      "currentWeaknesses": [
+        "Triggers have rounded top backgrounds that clash with clean design",
+        "Active underline indicator doesn't align with border-b hairline"
+      ],
+      "targetDesign": {
+        "classes": {
+          "list": "border-border-subtle relative flex w-full max-w-full flex-nowrap gap-6 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "trigger": "focus-ring text-secondary hover:text-foreground data-[state=active]:text-foreground relative inline-flex h-9 shrink-0 items-center pb-2.5 pt-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150 disabled:opacity-40",
+          "indicator": "bg-accent absolute inset-x-0 bottom-0 h-0.5 rounded-full"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 24
+    },
+    {
+      "component": "SegmentedControl",
+      "category": "selection",
+      "priority": 10,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/segmented-control.tsx",
+        "frontend/components/ui/segmented-variants.ts"
+      ],
+      "herouiReference": {
+        "package": "@heroui/tabs",
+        "patternsAdapted": [
+          "Enterprise 6px track radius matching standard control height",
+          "Raised 4px active segment with subtle border and shadow-2xs"
+        ]
+      },
+      "currentWeaknesses": [
+        "Fully rounded pill geometry breaks 6px control / 8px card consistency",
+        "Active segment shadow is too faint on background-alt"
+      ],
+      "targetDesign": {
+        "classes": {
+          "track": "border-border/80 bg-background-alt/80 inline-flex min-h-[var(--control-height-sm)] items-center gap-0.5 rounded-[var(--radius-control)] border p-0.5 shadow-inner",
+          "item": "focus-ring inline-flex h-[calc(var(--control-height-sm)-6px)] items-center justify-center rounded-xs px-2.5 text-xs font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-150 disabled:cursor-not-allowed disabled:opacity-50",
+          "itemActive": "bg-panel text-foreground font-semibold shadow-2xs border border-border/40"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 14
+    },
+    {
+      "component": "Dialog",
+      "category": "overlay",
+      "priority": 11,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/dialog.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/modal",
+        "slots": ["backdrop", "base", "header", "body", "footer", "closeButton"],
+        "patternsAdapted": [
+          "Soft blurred backdrop with fade-in transition",
+          "Zoom-in modal panel entrance animation",
+          "Standardized header/footer padding rhythm and top-right close icon anchor"
+        ]
+      },
+      "currentWeaknesses": [
+        "Lacks entrance scale/opacity transition",
+        "Close button is positioned loosely without coordinate lock"
+      ],
+      "targetDesign": {
+        "classes": {
+          "overlay": "bg-overlay-scrim/60 z-overlay fixed inset-0 backdrop-blur-xs animate-in fade-in-0 duration-200",
+          "content": "border-border bg-elevated shadow-modal-value z-modal fixed top-1/2 left-1/2 flex max-h-[85vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-overlay)] border focus:outline-none animate-in fade-in-0 zoom-in-95 duration-200",
+          "header": "border-border-subtle flex items-start justify-between gap-4 border-b px-5 py-4",
+          "body": "min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm leading-relaxed",
+          "footer": "border-border-subtle bg-background-alt/30 flex items-center justify-end gap-2.5 border-t px-5 py-3 rounded-b-[var(--radius-overlay)]"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 18
+    },
+    {
+      "component": "Drawer",
+      "category": "overlay",
+      "priority": 12,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/drawer.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/drawer",
+        "patternsAdapted": [
+          "Smooth slide-in-from-right animation using Tailwind v4 keyframes",
+          "Responsive sheet width clamping across mobile and desktop",
+          "Clean hairline borders with sticky header/footer structure"
+        ]
+      },
+      "currentWeaknesses": [
+        "Hardcoded max-w-180 causes layout issues on small tablets",
+        "Slide animation relies on external legacy CSS classes"
+      ],
+      "targetDesign": {
+        "classes": {
+          "overlay": "bg-overlay-scrim/60 z-overlay fixed inset-0 backdrop-blur-xs animate-in fade-in-0 duration-200",
+          "content": "border-border bg-elevated shadow-modal-value z-modal fixed inset-y-0 right-0 flex w-full max-w-full sm:max-w-md md:max-w-xl flex-col border-l focus:outline-none animate-in slide-in-from-right duration-250 ease-out",
+          "header": "border-border-subtle flex items-start justify-between gap-3 border-b px-5 py-4",
+          "body": "min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-4",
+          "footer": "border-border-subtle bg-background-alt/30 border-t px-5 py-3"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 15
+    },
+    {
+      "component": "Dropdown",
+      "category": "overlay",
+      "priority": 13,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/dropdown.tsx",
+        "frontend/components/ui/menu-variants.ts"
+      ],
+      "herouiReference": {
+        "package": "@heroui/dropdown",
+        "slots": ["base", "content", "item", "itemContent", "section", "header"],
+        "patternsAdapted": [
+          "Frosted glass menu panel with shadow-elevated",
+          "Compact 28px items with smooth hover highlight",
+          "Crisp inset checkmark icons for checkbox/radio dropdown items"
+        ]
+      },
+      "currentWeaknesses": [
+        "Items are too tall for dense dashboard actions",
+        "Highlight animation flickers during fast pointer movement"
+      ],
+      "targetDesign": {
+        "classes": {
+          "content": "menu-panel border-border bg-elevated/98 shadow-elevated z-modal min-w-44 overflow-hidden rounded-[var(--radius-overlay)] border p-1 focus:outline-none animate-in fade-in-0 zoom-in-95 duration-100",
+          "item": "text-foreground hover:bg-background-alt focus:bg-background-alt data-[active=true]:bg-accent-subtle data-[active=true]:text-accent-text data-[state=checked]:bg-accent-subtle data-[state=checked]:text-accent-text relative flex min-h-7 cursor-pointer items-center gap-2 rounded-xs px-2 py-1.5 text-xs font-medium outline-none select-none transition-colors duration-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-40"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 20
+    },
+    {
+      "component": "Tooltip",
+      "category": "overlay",
+      "priority": 14,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/tooltip.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/tooltip",
+        "patternsAdapted": [
+          "Micro 4px radius for crisp compact bubble",
+          "High-contrast inverse surface with white text",
+          "100ms fade-in zoom entrance"
+        ]
+      },
+      "currentWeaknesses": [
+        "Uses 10px overlay radius which makes short tooltips look like pills",
+        "Horizontal padding of 6px is overly tight"
+      ],
+      "targetDesign": {
+        "classes": {
+          "content": "bg-surface-inverse text-on-inverse shadow-elevated z-modal max-w-tooltip rounded-xs px-2.5 py-1 text-xs font-medium select-none animate-in fade-in-0 zoom-in-95 duration-100"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 40
+    },
+    {
+      "component": "Toast",
+      "category": "feedback",
+      "priority": 15,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/toast.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/toast",
+        "patternsAdapted": [
+          "Elevated notification card with 10px radius",
+          "Semantic leading status icon",
+          "Subtle slide-in-from-bottom entrance"
+        ]
+      },
+      "currentWeaknesses": [
+        "Layout lacks visual hierarchy between title and description",
+        "Fixed duration has no visual indicator"
+      ],
+      "targetDesign": {
+        "classes": {
+          "root": "border-border bg-elevated shadow-modal-value grid w-[min(24rem,calc(100vw-2rem))] grid-cols-[auto_1fr_auto] items-start gap-3 rounded-[var(--radius-overlay)] border p-3.5 animate-in slide-in-from-bottom-2 fade-in-0 duration-200",
+          "title": "text-foreground text-xs font-semibold",
+          "description": "text-secondary mt-0.5 text-xs leading-normal"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 12
+    },
+    {
+      "component": "Card",
+      "category": "surface",
+      "priority": 16,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/card.tsx",
+        "frontend/components/ui/card-variants.ts"
+      ],
+      "herouiReference": {
+        "package": "@heroui/card",
+        "slots": ["base", "header", "body", "footer"],
+        "patternsAdapted": [
+          "Strict 8px card radius with shadow-card elevation",
+          "Standardized slot padding rhythm: 16px horizontal, 16px top, 16px bottom",
+          "Optional interactive card hover lift state"
+        ]
+      },
+      "currentWeaknesses": [
+        "CardHeader pb-2 + CardContent p-4 creates inconsistent vertical gaps",
+        "Header borders are omitted everywhere even above full-bleed tables"
+      ],
+      "targetDesign": {
+        "classes": {
+          "base": "border-border/80 bg-panel shadow-card rounded-[var(--radius-card)] border transition-[border-color,box-shadow] duration-150",
+          "header": "flex flex-col gap-1 px-4 pt-4 pb-2",
+          "content": "px-4 pb-4 pt-1",
+          "footer": "border-border-subtle bg-background-alt/30 border-t px-4 py-3 rounded-b-[var(--radius-card)]"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 65
+    },
+    {
+      "component": "Badge",
+      "category": "display",
+      "priority": 17,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/badge.tsx",
+        "frontend/components/ui/badge-variants.ts",
+        "frontend/components/ui/icon-chip.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/chip",
+        "patternsAdapted": [
+          "Tokenized semantic status colors with soft backgrounds",
+          "Leading 6px status dot alignment",
+          "Compact 4px rectangular corner radius"
+        ]
+      },
+      "currentWeaknesses": [
+        "Raw Tailwind class border-purple-200 used in analyzing status",
+        "Some badge variants lack border contrast on light panels"
+      ],
+      "targetDesign": {
+        "classes": {
+          "base": "inline-flex items-center gap-1.5 whitespace-nowrap rounded-xs px-2 py-0.5 text-xs font-medium select-none",
+          "dot": "size-1.5 rounded-full bg-current shrink-0"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 45
+    },
+    {
+      "component": "FilterChip",
+      "category": "selection",
+      "priority": 18,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/filter-chip.tsx",
+        "frontend/components/ui/filter-chip-variants.ts"
+      ],
+      "herouiReference": {
+        "package": "@heroui/chip",
+        "patternsAdapted": [
+          "Compact 24px height with 4px radius",
+          "Active accent subtle fill with bold counter badge"
+        ]
+      },
+      "currentWeaknesses": [
+        "Count numbers lack tabular mono numerals",
+        "Inactive border contrast is inconsistent with standard inputs"
+      ],
+      "targetDesign": {
+        "classes": {
+          "base": "focus-ring inline-flex h-6 items-center gap-1.5 rounded-xs border px-2 text-xs font-medium transition-all select-none",
+          "active": "border-accent-border bg-accent-subtle text-accent-text font-semibold shadow-2xs",
+          "idle": "border-border/80 bg-panel text-secondary hover:border-border-strong hover:bg-background-alt hover:text-foreground"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 12
+    },
+    {
+      "component": "Table",
+      "category": "data",
+      "priority": 19,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/table.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/table",
+        "slots": ["base", "table", "thead", "tbody", "tr", "th", "td"],
+        "patternsAdapted": [
+          "Clean 32px sticky header on subtle panel background",
+          "Fast row hover background transition",
+          "Standardized 14px horizontal cell padding with tabular numeric alignment"
+        ]
+      },
+      "currentWeaknesses": [
+        "th uses heavy border-b-2 under-rule",
+        "Row hover effect is faint on low-contrast displays"
+      ],
+      "targetDesign": {
+        "classes": {
+          "head": "border-border-subtle bg-panel sticky top-0 z-10 h-8 border-b px-3.5 text-left align-middle text-xs font-medium text-secondary whitespace-nowrap select-none",
+          "cell": "border-border-subtle border-b px-3.5 py-2.5 text-left align-middle text-xs text-foreground",
+          "row": "hover:bg-background-alt/60 h-[var(--table-row-height)] transition-colors duration-100"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 16
+    },
+    {
+      "component": "TablePagination",
+      "category": "data",
+      "priority": 20,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/table-pagination.tsx",
+        "frontend/components/ui/cursor-pager.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/pagination",
+        "patternsAdapted": [
+          "Compact footer bar pinned to table container",
+          "28px icon button controls with tabular record range display"
+        ]
+      },
+      "currentWeaknesses": [
+        "Buttons use standard text instead of standardized icon triggers",
+        "Record text lacks mono number alignment"
+      ],
+      "targetDesign": {
+        "classes": {
+          "pager": "border-border-subtle flex items-center justify-between border-t px-4 py-2.5 text-xs text-secondary",
+          "count": "font-mono tabular-nums"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 8
+    },
+    {
+      "component": "Alert",
+      "category": "feedback",
+      "priority": 21,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/alert.tsx",
+        "frontend/components/ui/alert-variants.ts",
+        "frontend/components/ui/mutation-notice.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/alert",
+        "patternsAdapted": [
+          "Enclosed tonal alert card with 6px control radius",
+          "Semantic border and background color pairs for all 4 states",
+          "Left tone icon anchor with text wrapping"
+        ]
+      },
+      "currentWeaknesses": [
+        "Currently renders unbordered plain text that gets lost in cards",
+        "MutationNotice has divergent markup from standard Alert"
+      ],
+      "targetDesign": {
+        "classes": {
+          "base": "flex items-start gap-2.5 rounded-[var(--radius-control)] border p-3 text-xs leading-normal",
+          "danger": "bg-danger-bg text-danger-text border-danger-border/60 [&_svg]:text-danger",
+          "warning": "bg-warning-bg text-warning-text border-warning-border/60 [&_svg]:text-warning",
+          "success": "bg-success-bg text-success-text border-success-border/60 [&_svg]:text-success",
+          "info": "bg-info-bg text-info-text border-info-border/60 [&_svg]:text-info"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 20
+    },
+    {
+      "component": "EmptyState",
+      "category": "feedback",
+      "priority": 22,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/empty-state.tsx"
+      ],
+      "herouiReference": {
+        "package": "HeroUI Empty State pattern",
+        "patternsAdapted": [
+          "44px icon container with 6px radius and soft shadow",
+          "42ch single-sentence description limit",
+          "Primary CTA button centered below heading"
+        ]
+      },
+      "currentWeaknesses": [
+        "Forced card container prevents full-bleed empty state usage",
+        "Large circular icon badge looks detached from text"
+      ],
+      "targetDesign": {
+        "classes": {
+          "wrapper": "grid justify-items-center gap-3.5 py-12 px-4 text-center",
+          "icon": "border-border/80 bg-background-alt flex size-11 items-center justify-center rounded-[var(--radius-control)] border shadow-2xs text-secondary",
+          "title": "font-display text-foreground text-sm font-semibold tracking-tight",
+          "description": "text-secondary mx-auto max-w-[42ch] text-xs leading-relaxed"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 14
+    },
+    {
+      "component": "Skeleton",
+      "category": "feedback",
+      "priority": 23,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/skeleton.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/skeleton",
+        "patternsAdapted": [
+          "Smooth linear gradient shimmer keyframe",
+          "Consistent corner radii matching target UI tokens"
+        ]
+      },
+      "currentWeaknesses": [
+        "Shimmer gradient has color banding on retina displays"
+      ],
+      "targetDesign": {
+        "classes": {
+          "base": "bg-neutral-bg relative overflow-hidden rounded-xs before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_1.6s_infinite] before:bg-gradient-to-r before:from-transparent before:via-panel/60 before:to-transparent"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 15
+    },
+    {
+      "component": "ScoreRing",
+      "category": "display",
+      "priority": 24,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/score-ring.tsx",
+        "frontend/components/ui/score-bar.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/progress",
+        "patternsAdapted": [
+          "Crisp hairline background track stroke",
+          "800ms ease-out dashoffset circular sweep",
+          "Precision centered mono numeral"
+        ]
+      },
+      "currentWeaknesses": [
+        "Track stroke can blend into background cards",
+        "Hardcoded text sizes don't scale with custom SVG dimensions"
+      ],
+      "targetDesign": {
+        "classes": {
+          "track": "stroke-border/40",
+          "indicator": "transition-[stroke-dashoffset] duration-700 ease-out motion-reduce:transition-none"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 10
+    },
+    {
+      "component": "ActivityProgress",
+      "category": "display",
+      "priority": 25,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/activity-progress.tsx"
+      ],
+      "herouiReference": {
+        "package": "HeroUI Stepper pattern",
+        "patternsAdapted": [
+          "Continuous vertical rail connecting timeline nodes",
+          "Glowing accent ring for active running step"
+        ]
+      },
+      "currentWeaknesses": [
+        "Fixed minimum rail height breaks when step details wrap"
+      ],
+      "targetDesign": {
+        "classes": {
+          "node": "relative z-1 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+          "activeNode": "bg-accent text-accent-fg ring-4 ring-accent/20",
+          "completedNode": "bg-success text-accent-fg shadow-2xs"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 4
+    },
+    {
+      "component": "Typography",
+      "category": "display",
+      "priority": 26,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/typography.tsx",
+        "frontend/components/ui/eyebrow.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/typography",
+        "patternsAdapted": [
+          "Harmonized font scale across display and mono numerals",
+          "Uppercase micro-label tracking"
+        ]
+      },
+      "currentWeaknesses": [
+        "displayHeadingXlClasses is too large for dashboard panels"
+      ],
+      "targetDesign": {
+        "classes": {
+          "pageTitle": "font-display text-lg sm:text-xl font-semibold tracking-tight text-foreground",
+          "sectionTitle": "font-display text-foreground text-sm font-semibold tracking-[-0.015em]",
+          "metric": "mono font-display text-foreground text-2xl font-semibold tracking-[-0.02em] tabular-nums",
+          "eyebrow": "text-2xs font-semibold uppercase tracking-wider text-muted"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 50
+    },
+    {
+      "component": "BrandLogo",
+      "category": "display",
+      "priority": 27,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/brand-logo.tsx",
+        "frontend/components/ui/logo-mark.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/avatar",
+        "patternsAdapted": [
+          "Consistent 4px square avatar with border hairline"
+        ]
+      },
+      "currentWeaknesses": [
+        "Fallback letter avatar has inconsistent background hue"
+      ],
+      "targetDesign": {
+        "classes": {
+          "avatar": "border border-border/80 bg-panel shadow-2xs rounded-xs flex items-center justify-center font-semibold"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 12
+    },
+    {
+      "component": "CommandPalette",
+      "category": "navigation",
+      "priority": 28,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/command-palette.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/autocomplete",
+        "patternsAdapted": [
+          "Frosted dialog panel with topbar search trigger",
+          "Smooth active item selection transition"
+        ]
+      },
+      "currentWeaknesses": [
+        "Search trigger button size is disproportionate to topbar height"
+      ],
+      "targetDesign": {
+        "classes": {
+          "panel": "border-border/80 bg-elevated/95 shadow-modal-value z-modal fixed top-20 left-1/2 flex max-h-[60vh] w-full max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-[var(--radius-overlay)] border backdrop-blur-xl focus:outline-none"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 2
+    },
+    {
+      "component": "CopyButton",
+      "category": "action",
+      "priority": 29,
+      "confidence": "high",
+      "sourceFiles": [
+        "frontend/components/ui/copy-button.tsx"
+      ],
+      "herouiReference": {
+        "package": "@heroui/snippet",
+        "patternsAdapted": [
+          "Scale-in checkmark crossfade animation",
+          "Visual toast feedback trigger"
+        ]
+      },
+      "currentWeaknesses": [
+        "Icon swaps abruptly without animation"
+      ],
+      "targetDesign": {
+        "classes": {
+          "icon": "animate-in zoom-in-75 duration-150"
+        }
+      },
+      "breakingChanges": false,
+      "consumerChangesRequired": false,
+      "affectedCallSitesCount": 10
+    }
+  ]
+}

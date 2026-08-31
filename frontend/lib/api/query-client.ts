@@ -23,6 +23,22 @@ export function shouldRetryQuery(failureCount: number, error: unknown) {
   return status === 408 || status === 429 || status >= 500;
 }
 
+/**
+ * Retain the prior result only while the query stays inside the same
+ * project/crawl scope. Filter and cursor changes keep their mounted content,
+ * while changing the active project cannot temporarily relabel another
+ * project's persisted evidence as the newly selected project.
+ *
+ * Domain query keys place their owning project or crawl id at index 2.
+ */
+export function retainPreviousDataForScope<TData>(
+  scopeId: string,
+  previousData: TData | undefined,
+  previousQuery: { queryKey: readonly unknown[] } | undefined,
+): TData | undefined {
+  return previousQuery?.queryKey[2] === scopeId ? previousData : undefined;
+}
+
 export function createAppQueryClient() {
   return new QueryClient({
     defaultOptions: {

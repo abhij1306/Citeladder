@@ -1,6 +1,6 @@
 'use client';
 
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -14,6 +14,7 @@ import { NestedTabs } from '@/components/ui/nested-tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { integrationsApi } from '@/lib/api/integrations';
 import { queryKeys } from '@/lib/api/query-keys';
+import { retainPreviousDataForScope } from '@/lib/api/query-client';
 import { trafficApi, type TrafficDashboard } from '@/lib/api/traffic';
 import { useProjectContext } from '@/lib/project/project-context';
 import {
@@ -77,7 +78,8 @@ export function TrafficScreen() {
     queryFn: ({ signal }) =>
       trafficApi.getTraffic(projectId ?? '', { ...bounds, granularity }, { signal }),
     enabled: Boolean(projectId),
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) =>
+      retainPreviousDataForScope(projectId!, previousData, previousQuery),
   });
   const connections = useQuery({
     queryKey: queryKeys.integrations.connections(workspaceId),

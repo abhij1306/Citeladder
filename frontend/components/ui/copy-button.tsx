@@ -9,7 +9,7 @@ import { useToast } from './toast';
 
 export type CopyButtonProps = Omit<
   ComponentPropsWithoutRef<typeof Button>,
-  'onClick' | 'pending'
+  'asChild' | 'onClick' | 'pending'
 > & {
   value: string;
   copiedLabel?: string;

@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import type { EngineFilter } from '@/components/visibility/visibility-toolbar';
 import { queryKeys } from '@/lib/api/query-keys';
+import { retainPreviousDataForScope } from '@/lib/api/query-client';
 import { runsApi } from '@/lib/api/runs';
 import { visibilityApi } from '@/lib/api/visibility';
 import {
@@ -189,7 +190,8 @@ function useEvidenceQueries(
     queryFn: ({ signal }) =>
       visibilityApi.getVisibilityEvidence(projectId!, evidenceParams, { signal }),
     enabled,
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) =>
+      retainPreviousDataForScope(projectId!, previousData, previousQuery),
   });
 
   const promptOptionsQuery = useQuery({
@@ -204,7 +206,8 @@ function useEvidenceQueries(
         { signal },
       ),
     enabled,
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) =>
+      retainPreviousDataForScope(projectId!, previousData, previousQuery),
   });
   const promptOptions = useMemo(
     () => toPromptOptions(promptOptionsQuery.data?.items ?? []),
@@ -290,6 +293,7 @@ function useTrendQuery(
         { signal },
       ),
     enabled,
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) =>
+      retainPreviousDataForScope(projectId!, previousData, previousQuery),
   });
 }

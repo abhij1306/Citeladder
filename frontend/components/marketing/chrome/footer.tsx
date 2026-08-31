@@ -109,7 +109,9 @@ function SocialButton({ social }: Readonly<{ social: SocialLink }>) {
  * Marketing footer — link columns plus a compact legal strip. Owner-supplied
  * registration details stay off the public page until they are complete.
  */
-export function MarketingFooter() {
+export async function MarketingFooter() {
+  'use cache';
+
   const year = new Date().getFullYear();
   const name = legalDisplayName();
 

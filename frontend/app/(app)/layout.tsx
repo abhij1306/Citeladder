@@ -1,5 +1,3 @@
-'use client';
-
 import { Suspense, type ReactNode } from 'react';
 
 import { AppShell } from '@/components/layout/app-shell';
@@ -11,6 +9,9 @@ import { ProjectProvider } from '@/lib/project/project-context';
 import { ProductTourProvider } from '@/components/tour/product-tour-provider';
 import { ProductMotionProvider } from '@/components/providers/product-motion-provider';
 import { ToastProvider } from '@/components/ui/toast';
+
+/** Validate that the authenticated shell can render immediately on navigation. */
+export const instant = true;
 
 /**
  * Authed-area layout (F5).

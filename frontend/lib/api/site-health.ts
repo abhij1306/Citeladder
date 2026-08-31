@@ -11,10 +11,11 @@
  * The frontend never invents a discovered total: count-bearing fields the
  * backend redacts for Free arrive `null`/absent and are validated as such.
  */
-import { keepPreviousData, mutationOptions, queryOptions } from '@tanstack/react-query';
+import { mutationOptions, queryOptions } from '@tanstack/react-query';
 
 import { API_BASE_URL, apiClient, getActiveWorkspaceId, type ApiRequestOptions } from './client';
 import { queryKeys } from './query-keys';
+import { retainPreviousDataForScope } from './query-client';
 import {
   aeoReadinessSchema,
   architectureSchema,
@@ -357,7 +358,8 @@ export const siteHealthQueries = {
         if (!crawlAId || !crawlBId) throw new Error('A persisted crawl pair is required');
         return siteHealthApi.getChanges(projectId, crawlAId, crawlBId, cursor, { signal });
       },
-      placeholderData: keepPreviousData,
+      placeholderData: (previousData, previousQuery) =>
+        retainPreviousDataForScope(projectId, previousData, previousQuery),
     }),
   crawls: (params: CrawlListParams) =>
     queryOptions({
@@ -366,7 +368,8 @@ export const siteHealthQueries = {
         cursor: params.cursor ?? null,
       }),
       queryFn: ({ signal }) => siteHealthApi.listCrawls(params, { signal }),
-      placeholderData: keepPreviousData,
+      placeholderData: (previousData, previousQuery) =>
+        retainPreviousDataForScope(params.project_id, previousData, previousQuery),
     }),
   crawl: (crawlId: string) =>
     queryOptions({
@@ -384,7 +387,8 @@ export const siteHealthQueries = {
         page_kind: params?.page_kind ?? null,
       }),
       queryFn: ({ signal }) => siteHealthApi.getInventory(crawlId, params, { signal }),
-      placeholderData: keepPreviousData,
+      placeholderData: (previousData, previousQuery) =>
+        retainPreviousDataForScope(crawlId, previousData, previousQuery),
     }),
   monitored: (projectId: string) =>
     queryOptions({
@@ -405,7 +409,8 @@ export const siteHealthQueries = {
         sort: params?.sort ?? null,
       }),
       queryFn: ({ signal }) => siteHealthApi.getPages(crawlId, params, { signal }),
-      placeholderData: keepPreviousData,
+      placeholderData: (previousData, previousQuery) =>
+        retainPreviousDataForScope(crawlId, previousData, previousQuery),
     }),
   page: (crawlId: string, siteUrlId: string) =>
     queryOptions({
@@ -427,7 +432,8 @@ export const siteHealthQueries = {
         page_kind: params?.page_kind ?? null,
       }),
       queryFn: ({ signal }) => siteHealthApi.getIssues(crawlId, params, { signal }),
-      placeholderData: keepPreviousData,
+      placeholderData: (previousData, previousQuery) =>
+        retainPreviousDataForScope(crawlId, previousData, previousQuery),
     }),
   issue: (crawlId: string, groupId: string, params?: IssueDetailParams) =>
     queryOptions({
@@ -436,7 +442,8 @@ export const siteHealthQueries = {
         limit: params?.limit ?? null,
       }),
       queryFn: ({ signal }) => siteHealthApi.getIssue(crawlId, groupId, params, { signal }),
-      placeholderData: keepPreviousData,
+      placeholderData: (previousData, previousQuery) =>
+        retainPreviousDataForScope(crawlId, previousData, previousQuery),
     }),
   issueHistory: (crawlId: string, siteUrlId: string, params?: IssueHistoryParams) =>
     queryOptions({
@@ -446,7 +453,8 @@ export const siteHealthQueries = {
       }),
       queryFn: ({ signal }) =>
         siteHealthApi.getIssueHistory(crawlId, siteUrlId, params, { signal }),
-      placeholderData: keepPreviousData,
+      placeholderData: (previousData, previousQuery) =>
+        retainPreviousDataForScope(crawlId, previousData, previousQuery),
     }),
 };
 

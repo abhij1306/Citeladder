@@ -95,6 +95,12 @@ const BACKEND_ORIGIN = resolveBackendOrigin();
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  // Next 16.3 navigation contract: prerender a reusable shell for each route,
+  // prefetch that shell once, and stream URL-specific/dynamic content after
+  // the destination renders. Development validation reports any route work
+  // that would block the immediate shell.
+  cacheComponents: true,
+  partialPrefetching: true,
   // Pinned explicitly because the repository root now carries a delegating
   // `package.json`. Next infers the tracing root by walking up for a lockfile
   // or workspace manifest, so an ancestor manifest can silently move the root

@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import * as ToastPrimitive from '@radix-ui/react-toast';
 import { CheckCircle2, X } from 'lucide-react';
 
@@ -14,8 +14,10 @@ const ToastContext = createContext<ToastApi>({ notify: () => undefined });
 
 export function ToastProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [messages, setMessages] = useState<ToastMessage[]>([]);
+  const nextMessageId = useRef(0);
   const notify = useCallback((title: string, description?: string) => {
-    setMessages((current) => [...current, { id: Date.now(), title, description }]);
+    nextMessageId.current += 1;
+    setMessages((current) => [...current, { id: nextMessageId.current, title, description }]);
   }, []);
   const value = useMemo(() => ({ notify }), [notify]);
 
