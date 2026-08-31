@@ -420,6 +420,10 @@ test('keyboard navigation moves selection with focus transfer (WAI-ARIA)', async
   await expect(page.getByRole('tab', { name: 'Trends' })).toHaveAttribute('aria-selected', 'true');
 
   await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'Search queries' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
   await page.keyboard.press('ArrowLeft');
   await expect(page.getByRole('tab', { name: 'Mentions' })).toHaveAttribute(
     'aria-selected',
@@ -499,12 +503,13 @@ test('mobile viewport: tablist is a single horizontally-scrollable row, one pane
   const tablist = page.getByRole('tablist', { name: 'Visibility views' });
   await expect(tablist).toBeVisible();
   // ADS underline tablist: a single horizontally-scrollable row (not wrapped
-  // / stacked) with the full-width rule under the tabs.
+  // / stacked) with the full-width border under the tabs.
   await expect(tablist).toHaveClass(/overflow-x-auto/);
   await expect(tablist).toHaveClass(/flex-nowrap/);
-  await expect(tablist).toHaveClass(/before:bg-border/);
-  // The selected tab carries the 2px accent underline, not a pill fill.
-  await expect(tablist.getByRole('tab', { selected: true })).toHaveClass(/after:bg-accent/);
+  await expect(tablist).toHaveClass(/border-b/);
+  // The selected tab carries the 2px accent indicator, not a pill fill.
+  const selectedTab = tablist.getByRole('tab', { selected: true });
+  await expect(selectedTab.locator('span.bg-accent')).toBeVisible();
 
   // All three retained tabs are still present in the one row.
   await expect(tablist.getByRole('tab')).toHaveCount(3);
