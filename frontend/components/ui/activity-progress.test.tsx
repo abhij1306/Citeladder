@@ -68,4 +68,21 @@ describe('ActivityProgress', () => {
     expect(screen.getByText('Website review needs attention')).toBeInTheDocument();
     expect(container.querySelector('.lucide-circle-alert')).toBeInTheDocument();
   });
+
+  it('omits the optional detail cell in the compact flow appearance', () => {
+    render(
+      <ActivityProgress
+        appearance="flow"
+        label="Preparing your project"
+        steps={[
+          { id: 'site', label: 'Opening your website', state: 'complete' },
+          { id: 'market', label: 'Reading useful pages', detail: '3 pages', state: 'active' },
+        ]}
+      />,
+    );
+
+    const rows = screen.getAllByRole('listitem');
+    expect(rows[0]?.children).toHaveLength(2);
+    expect(rows[1]?.children).toHaveLength(3);
+  });
 });

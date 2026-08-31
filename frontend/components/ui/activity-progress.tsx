@@ -122,7 +122,7 @@ export function ActivityProgress({
                 <StepIndicator state={step.state} />
               </span>
               <p className="flow-help">{step.label}</p>
-              {step.detail ? <p className="flow-meta">{step.detail}</p> : <span />}
+              {step.detail ? <p className="flow-meta">{step.detail}</p> : null}
             </li>
           ))}
         </ol>

@@ -40,9 +40,10 @@ flow; neither surface reserves viewport width for a decorative brand rail.
 ## Source of truth and implementation rules
 
 `frontend/app/globals.css` is the sole owner of global tokens, the font binding,
-shared geometry, and global interaction rules. Its imported
-`frontend/app/website-type.css` owns the named website/auth/onboarding flow roles, the
-legacy scoped size-rung compatibility layer, and the website button treatment;
+cross-surface geometry, and global interaction rules. Its imported
+`frontend/app/website-type.css` owns the named website/auth/onboarding flow roles,
+flow-specific geometry, the legacy scoped size-rung compatibility layer, and the
+website button treatment;
 it does not own a second palette. Editorial and auth hierarchy uses the named
 roles, while product UI consumes semantic Tailwind utilities and CSS custom
 properties.

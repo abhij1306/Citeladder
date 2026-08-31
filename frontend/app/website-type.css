@@ -311,7 +311,7 @@
     0 10px 20px -9px rgb(38 103 255 / 0.58);
 }
 
-[data-flow-surface] [data-button-size='lg'] {
+.website-type [data-flow-surface] [data-button-size='lg'] {
   border-radius: var(--radius-auth-control);
 }
 

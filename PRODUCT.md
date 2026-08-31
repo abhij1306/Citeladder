@@ -20,7 +20,7 @@ The product keeps measurable facts deterministic and provenance-linked while usi
 
 ## Operating Context
 
-Users connect an owned site and integrations, review automatically discovered facts, confirm the scope of tracked competitors and questions, inspect site health and demand evidence, act on ranked opportunities, and remeasure the result. The Growth Agent orchestrates the same typed domain tools and persisted evidence; it does not own a second knowledge store.
+Users connect an owned site and integrations, review automatically discovered facts, confirm the scope of tracked competitors and questions, inspect site health and demand evidence, act on ranked opportunities, and remeasure the result. The Growth Agent orchestrates the same typed-domain tools and persisted evidence; it does not own a second knowledge store.
 
 ## Capabilities and Constraints
 

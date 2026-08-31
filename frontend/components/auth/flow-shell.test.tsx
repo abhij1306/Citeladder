@@ -33,7 +33,9 @@ describe('FlowShell', () => {
       </FlowShell>,
     );
 
-    expect(container.querySelector('.flow-step-mobile-prefix')).toHaveTextContent('Step 1 of 3');
+    expect(
+      container.querySelector('[aria-current="step"] .flow-step-mobile-prefix'),
+    ).toHaveTextContent('Step 3 of 3');
     expect(container.querySelector('.flow-progress-rule')).not.toBeNull();
     expect(container.querySelectorAll('.flow-progress ol')).toHaveLength(1);
   });
