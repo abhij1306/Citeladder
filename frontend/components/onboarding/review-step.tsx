@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 
 import { ChipRow, ReviewSection, ToggleChip } from '@/components/onboarding/choice-controls';
+import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { ReviewCompetitor, ReviewDomain } from '@/lib/onboarding/forms';
@@ -71,12 +72,15 @@ function CompetitorChip({
 
   const url = competitorUrl(competitor);
   return (
-    <span className="inline-flex max-w-full items-center">
+    <span className="inline-flex w-full min-w-0 items-center">
       <ToggleChip
         label={displayName}
         selected={competitor.selected}
         disabled={disabled}
         onToggle={onToggle}
+        leading={
+          <BrandLogo name={displayName} websiteUrl={primaryDomain} size="sm" className="-my-1" />
+        }
         onEdit={() => {
           setDraft(primaryDomain);
           setIsEditing(true);
@@ -117,7 +121,7 @@ export function ReviewStep({
     maximumCompetitors === undefined || selectedCompetitors >= maximumCompetitors;
 
   return (
-    <div className="grid md:grid-cols-2">
+    <div className="grid md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
       <ReviewSection
         title="Your websites"
         meta={domains.length > 0 ? `${selectedDomains} of ${domains.length}` : undefined}
@@ -160,7 +164,7 @@ export function ReviewStep({
             No competitors were confirmed. Add the companies you lose deals to.
           </p>
         ) : (
-          <ChipRow>
+          <ChipRow className="grid grid-cols-2 items-start sm:grid-cols-3">
             {competitors.map((competitor, index) => (
               <CompetitorChip
                 key={competitor.id}

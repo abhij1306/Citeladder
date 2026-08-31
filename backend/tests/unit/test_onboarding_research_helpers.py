@@ -80,15 +80,12 @@ def test_declared_domains_are_always_candidates() -> None:
     assert _competitor_domain_candidates(candidate) == ["globex.com", "globex.co.uk"]
 
 
-def test_a_usable_evidence_url_supplements_the_declared_domains() -> None:
+def test_evidence_publishers_never_supplement_declared_domains() -> None:
     candidate = _candidate(
         domains=["globex.com"], evidence_urls=["https://globex.io/about"]
     )
 
-    assert _competitor_domain_candidates(candidate) == [
-        "globex.com",
-        "https://globex.io/about",
-    ]
+    assert _competitor_domain_candidates(candidate) == ["globex.com"]
 
 
 def test_a_reference_host_never_becomes_a_competitor_domain() -> None:
@@ -100,7 +97,7 @@ def test_a_reference_host_never_becomes_a_competitor_domain() -> None:
 
     candidates = _competitor_domain_candidates(candidate)
 
-    assert candidates == ["https://myntra.com/"]
+    assert candidates == []
     assert not any("wikipedia" in value for value in candidates)
 
 
@@ -129,10 +126,7 @@ def test_duplicate_candidates_are_collapsed_in_order() -> None:
         evidence_urls=["https://globex.io", "https://globex.io"],
     )
 
-    assert _competitor_domain_candidates(candidate) == [
-        "globex.com",
-        "https://globex.io",
-    ]
+    assert _competitor_domain_candidates(candidate) == ["globex.com"]
 
 
 # --- peer-class filter ----------------------------------------------------
@@ -175,11 +169,10 @@ def test_a_service_firm_and_a_product_company_are_not_peers(
 
 
 def test_the_filter_abstains_when_the_model_declined_to_classify() -> None:
-    # An unstated business model is not evidence of a mismatch, so the
-    # competitor survives to be judged on its evidence instead.
+    # Missing classification cannot prove the company is a substitutable peer.
     candidate = _candidate(business_model=None)
 
-    assert _is_peer_company(candidate, brand_model="b2b_saas") is True
+    assert _is_peer_company(candidate, brand_model="b2b_saas") is False
 
 
 # --- customer-facing warnings ---------------------------------------------

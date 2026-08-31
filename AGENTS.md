@@ -34,7 +34,6 @@ Read only the documents required by the task.
 |---|---|
 | Product loop, hierarchy, and architecture | `docs/architecture.md` |
 | AEO rebuild delivery sequence | `docs/plans/citeladder-aeo-product-rebuild.md` |
-| Complete active-document map | `docs/documentation-index.md` |
 | Program sequence | `docs/plans/citeladder-aeo-product-rebuild.md` |
 | Site crawl, classification, rules, and runtime | `docs/site-health.md` |
 | Site Health measurement cutover PR1–PR3 | `docs/plans/site-health-measurement-cutover.md` |
@@ -159,12 +158,12 @@ these once, in this order, from the repository root:
 Ruff and Oxfmt fixes; check mode never writes. Both run mypy, backend
 complexity/dead-code/dependency policies, Oxlint, `tsc --noEmit`, frontend
 complexity/duplication/design/architecture/dead-code policies, the strict
-API-contract guard, and the documentation-index check. `test.ps1` separately selects and runs the affected
+API-contract guard. `test.ps1` separately selects and runs the affected
 backend, frontend, and mapped E2E tests from the working diff against
 `origin/main`. Fix every failure. Review and include any formatter changes.
 
-Narrow scopes exist for iteration only: `.\scripts\check.ps1 -Scope Backend`,
-`-Scope Frontend`, `-Scope Docs`. The full run is what completion means.
+Narrow scopes exist for iteration only: `.\scripts\check.ps1 -Scope Backend`
+and `-Scope Frontend`. The full run is what completion means.
 
 If `test.ps1` fails, note every file edited while fixing that failure. Rerun the
 selector with only that retry delta:

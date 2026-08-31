@@ -49,8 +49,6 @@ jobs:
           persist-credentials: false
       - name: CI classifier tests
         run: node --test scripts/ci-changes.test.mjs
-      - name: Documentation index
-        run: python docs/validate_documentation.py
 
   backend:
     name: Backend (quality, pytest)

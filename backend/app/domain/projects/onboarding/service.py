@@ -37,6 +37,7 @@ from app.core.config.prompts import (
 )
 from app.core.config.visibility_prompts import (
     BUYER_QUERY_ARCHETYPE_VERSION,
+    TOPIC_SELECTION_PROMPT_VERSION,
     VISIBILITY_TOPIC_MAX,
 )
 from app.domain.projects.discovery_schemas import (
@@ -63,7 +64,6 @@ from app.domain.projects.onboarding.site_resolution import (
     SiteNotFoundError,
     resolve_site,
 )
-from app.domain.projects.onboarding.topic_admission import confirmed_offering_topics
 from app.domain.projects.schemas import BrandInput, CompetitorInput, ProjectCreate
 from app.domain.projects.service import create_project
 from app.domain.prompts.portfolio_validation import brand_terms
@@ -310,6 +310,7 @@ async def process_discovery(session: AsyncSession, row: BrandDiscovery) -> None:
                 "offerings": result.offerings,
                 "evidence_manifest": result.evidence_manifest,
                 "model_calls": result.model_calls,
+                "metrics": result.metrics,
             },
             field_confidence=result.profile.get("field_confidence", {}),
             evidence=result.evidence,
@@ -418,6 +419,9 @@ def _generated_prompts(
     topics: list[Topic],
     provider: str,
     model: str,
+    topic_provider: str,
+    topic_model: str,
+    topic_duration_ms: int,
     research_snapshot_id: uuid.UUID | None,
 ) -> list[Prompt]:
     topics_by_id = {str(topic.id): topic for topic in topics}
@@ -444,6 +448,10 @@ def _generated_prompts(
                     "discovery_id": str(discovery_id),
                     "provider": provider,
                     "model": model,
+                    "topic_selection_provider": topic_provider,
+                    "topic_selection_model": topic_model,
+                    "topic_selection_prompt_version": TOPIC_SELECTION_PROMPT_VERSION,
+                    "topic_selection_duration_ms": topic_duration_ms,
                     "research_snapshot_id": (
                         str(research_snapshot_id) if research_snapshot_id else None
                     ),
@@ -511,8 +519,12 @@ async def _persist_generated_prompts(
     workspace_id: uuid.UUID,
     row: BrandDiscovery,
     prompts: list[dict],
+    discovery_topics: list[DiscoveryTopic],
     prompt_provider: str,
     prompt_model: str,
+    topic_provider: str,
+    topic_model: str,
+    topic_duration_ms: int,
 ) -> None:
     """Fill the shell's existing prompt set exactly once under the row lock."""
     if row.project_id is None:
@@ -544,6 +556,10 @@ async def _persist_generated_prompts(
             await session.scalars(select(Topic).where(Topic.project_id == project.id))
         ).all()
     )
+    if not topics:
+        topics = _generated_topics(project.id, discovery_topics)
+        session.add_all(topics)
+        await session.flush()
     research_snapshot_id = await session.scalar(
         select(BrandResearchSnapshot.id)
         .where(
@@ -559,6 +575,9 @@ async def _persist_generated_prompts(
         topics=topics,
         provider=prompt_provider,
         model=prompt_model,
+        topic_provider=topic_provider,
+        topic_model=topic_model,
+        topic_duration_ms=topic_duration_ms,
         research_snapshot_id=research_snapshot_id,
     )
     retained = [
@@ -621,8 +640,6 @@ def _confirmed_portfolio_inputs(
         topics = [DiscoveryTopic.model_validate(item) for item in row.topics]
     except (TypeError, ValueError):
         topics = []
-    if not topics:
-        topics = confirmed_offering_topics(payload.profile.products_services)
     topics = topics[:VISIBILITY_TOPIC_MAX]
     brand_name = str(row.input_data["brand_name"])
     primary_market = str(row.input_data["primary_market"])

@@ -75,4 +75,15 @@ describe('discoveryActivity', () => {
     expect(steps[0]?.detail).toBe('3 useful pages read');
     expect(steps[2]?.detail).toBe('2 comparable brands found');
   });
+
+  it('gives every research step a simple customer-facing subtitle', () => {
+    const steps = discoveryActivity(undefined);
+
+    expect(steps.map((step) => step.detail)).toEqual([
+      'Checking that your website can be read.',
+      'Learning what you offer and who it is most useful for.',
+      'Looking for genuinely comparable brands.',
+      'Organizing the strongest findings for your review.',
+    ]);
+  });
 });

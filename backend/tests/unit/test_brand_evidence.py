@@ -279,6 +279,33 @@ class TestCollectBrandEvidenceFailureReasons:
     """
 
     @pytest.mark.asyncio
+    async def test_resolved_homepage_is_reused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seed = BrandEvidencePage(
+            url="https://cube27.example/",
+            title="Cube27",
+            meta_description="",
+            text="Evidence",
+        )
+
+        async def _gather(
+            homepage: str, *, homepage_page: BrandEvidencePage | None = None
+        ) -> list[BrandEvidencePage]:
+            assert homepage == "https://cube27.example/"
+            assert homepage_page is seed
+            return [seed]
+
+        monkeypatch.setattr(brand_evidence_domain, "_gather", _gather)
+        brand_evidence_domain.reset_brand_evidence_cache()
+
+        evidence = await collect_brand_evidence(
+            "https://cube27.example", homepage_page=seed
+        )
+
+        assert evidence.pages == (seed,)
+
+    @pytest.mark.asyncio
     async def test_unusable_url_reports_no_usable_website_url(self) -> None:
         evidence = await collect_brand_evidence("")
 
@@ -290,7 +317,7 @@ class TestCollectBrandEvidenceFailureReasons:
     async def test_thin_content_has_no_failure_reason_but_insufficient(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        async def _gather(homepage: str) -> list[BrandEvidencePage]:
+        async def _gather(homepage: str, **_kwargs: object) -> list[BrandEvidencePage]:
             return [
                 BrandEvidencePage(
                     url=homepage, title="Loading", meta_description="", text="Loading"
@@ -311,7 +338,7 @@ class TestCollectBrandEvidenceFailureReasons:
     ) -> None:
         calls = 0
 
-        async def _gather(homepage: str) -> list[BrandEvidencePage]:
+        async def _gather(homepage: str, **_kwargs: object) -> list[BrandEvidencePage]:
             nonlocal calls
             calls += 1
             return []
@@ -343,7 +370,7 @@ class TestCollectBrandEvidenceFailureReasons:
         """Onboarding fires three suggestion calls in parallel for one brand."""
         calls = {"n": 0}
 
-        async def _gather(homepage: str) -> list[BrandEvidencePage]:
+        async def _gather(homepage: str, **_kwargs: object) -> list[BrandEvidencePage]:
             calls["n"] += 1
             await asyncio.sleep(0.01)
             return [

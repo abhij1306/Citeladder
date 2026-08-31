@@ -20,11 +20,12 @@ from app.core.config.entitlements import KEY_PROJECT_SLOTS, KEY_PROMPT_SLOTS
 from app.core.config.task_queue import TASK_STATUS_QUEUED, TASK_STATUS_RETRY_WAIT
 from app.core.config.visibility_prompts import CONFIRMED_OFFERING_SOURCE_REF
 from app.domain.entitlements.types import GrantSpec
-from app.domain.projects.discovery_schemas import BrandDiscoveryComplete
+from app.domain.projects.discovery_schemas import BrandDiscoveryComplete, DiscoveryTopic
 from app.domain.projects.onboarding import completion as onboarding_completion
 from app.domain.projects.onboarding import service as onboarding_service
 from app.domain.projects.onboarding.portfolio_generation import PortfolioResult
 from app.domain.projects.onboarding.site_resolution import SiteNotFoundError
+from app.domain.projects.onboarding.topic_selection import TopicSelectionResult
 from app.models.brand import BrandProfile
 from app.models.discovery import (
     BrandDiscovery,
@@ -216,6 +217,22 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     generation_calls = 0
+    selected_topics = [
+        DiscoveryTopic(
+            topic_id=uuid.uuid4(),
+            name=name,
+            description="Confirmed fixture topic",
+            source_refs=[CONFIRMED_OFFERING_SOURCE_REF],
+        )
+        for name in ("Process mining", "Journey analytics", "Workflow analytics")
+    ]
+
+    async def fixture_topic_selection(**_kwargs) -> TopicSelectionResult:
+        return TopicSelectionResult(
+            topics=selected_topics,
+            provider="topic-agent.test",
+            model="topic-model",
+        )
 
     async def fixture_portfolio(**kwargs) -> PortfolioResult:
         nonlocal generation_calls
@@ -263,6 +280,7 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
     # This component test owns atomic completion, not a live application-model
     # call. Supply an already validated Pass 2 portfolio fixture.
     monkeypatch.setattr(onboarding_service, "generate_portfolio", fixture_portfolio)
+    monkeypatch.setattr(onboarding_completion, "select_topics", fixture_topic_selection)
     await _register(client, "complete-owner@example.com")
     async with session_factory() as session:
         workspace_id = await session.scalar(select(Workspace.id).limit(1))
@@ -327,7 +345,7 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
         assert task is not None
         assert await session.scalar(select(func.count()).select_from(Project)) == 1
         assert await session.scalar(select(func.count()).select_from(PromptSet)) == 1
-        assert await session.scalar(select(func.count()).select_from(Topic)) == 3
+        assert await session.scalar(select(func.count()).select_from(Topic)) == 0
         assert await session.scalar(select(func.count()).select_from(Prompt)) == 0
         # A replay repairs the only non-atomic operational failure still
         # possible: an operator deleting the durable task after the shell
@@ -460,6 +478,11 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
         assert all(prompt.topic_id is not None for prompt in prompt_rows)
         assert all(
             prompt.generation_evidence.get("research_snapshot_id")
+            for prompt in prompt_rows
+        )
+        assert all(
+            prompt.generation_evidence.get("topic_selection_provider")
+            == "topic-agent.test"
             for prompt in prompt_rows
         )
         profile = await session.scalar(select(BrandProfile))

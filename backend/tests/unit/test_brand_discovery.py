@@ -22,7 +22,6 @@ from app.core.config.visibility_prompts import (
 )
 from app.domain.projects.discovery_schemas import (
     BrandDiscoveryCreate,
-    CompetitorQualification,
     ConfirmedDiscoveryProfile,
     DiscoveryCompetitorSuggestion,
     DiscoveryPromptSuggestion,
@@ -122,12 +121,6 @@ def _competitor(model: str | None) -> DiscoveryCompetitorSuggestion:
         name="Peer",
         domains=["peer.example"],
         business_model=model,
-        qualification=CompetitorQualification(
-            product_substitutability=1,
-            customer_use_case_overlap=1,
-            geographic_relevance=1,
-            question_visibility=1,
-        ),
     )
 
 
@@ -138,7 +131,7 @@ def test_services_firm_does_not_accept_product_vendor_as_peer() -> None:
     assert _is_peer_company(
         _competitor("professional_service"), brand_model="professional_service"
     )
-    assert _is_peer_company(_competitor(None), brand_model="professional_service")
+    assert not _is_peer_company(_competitor(None), brand_model="professional_service")
 
 
 def test_research_prompt_no_longer_owns_topics() -> None:

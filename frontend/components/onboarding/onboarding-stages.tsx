@@ -223,18 +223,6 @@ export function ReviewStage({
         <section className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-[var(--radius-card)] border p-4">
           <div className="border-border-subtle flex items-center justify-between border-b pb-2">
             <span className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">
-              Brand Positioning &amp; Market
-            </span>
-            <span className="bg-accent-soft text-accent-text border-accent-border/50 text-2xs inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-semibold">
-              <span className="bg-accent size-1.5 rounded-full" aria-hidden />
-              AI Discovered
-            </span>
-          </div>
-          {profile ? <IcpConfirmation profile={profile} onChange={setProfile} /> : null}
-        </section>
-        <section className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-[var(--radius-card)] border p-4">
-          <div className="border-border-subtle flex items-center justify-between border-b pb-2">
-            <span className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">
               Online Footprint &amp; Peers
             </span>
             <span className="text-2xs text-muted font-medium">Auto-verified domains</span>
@@ -252,6 +240,18 @@ export function ReviewStage({
             onAddCompetitor={() => addCompetitor(setCompetitors, maximumCompetitors)}
             maximumCompetitors={maximumCompetitors}
           />
+        </section>
+        <section className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-[var(--radius-card)] border p-4">
+          <div className="border-border-subtle flex items-center justify-between border-b pb-2">
+            <span className="text-muted text-2xs font-semibold tracking-[0.06em] uppercase">
+              Brand Positioning &amp; Market
+            </span>
+            <span className="bg-accent-soft text-accent-text border-accent-border/50 text-2xs inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-semibold">
+              <span className="bg-accent size-1.5 rounded-full" aria-hidden />
+              AI Discovered
+            </span>
+          </div>
+          {profile ? <IcpConfirmation profile={profile} onChange={setProfile} /> : null}
         </section>
       </div>
       {catalog.isError ? (

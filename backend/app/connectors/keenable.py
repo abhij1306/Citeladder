@@ -56,6 +56,7 @@ class KeenableClient:
         base_url: str,
         timeout_seconds: float,
         transport: httpx.AsyncBaseTransport | None = None,
+        reuse_connections: bool = False,
     ) -> None:
         if not api_key:
             raise ValueError("Keenable API key is not configured")
@@ -63,6 +64,19 @@ class KeenableClient:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout_seconds
         self._transport = transport
+        self._client = (
+            httpx.AsyncClient(
+                timeout=self._timeout,
+                transport=self._transport,
+                trust_env=False,
+            )
+            if reuse_connections
+            else None
+        )
+
+    async def aclose(self) -> None:
+        if self._client is not None:
+            await self._client.aclose()
 
     async def search(
         self,
@@ -115,14 +129,19 @@ class KeenableClient:
     async def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         headers = {"X-API-Key": self._api_key, "Accept": "application/json"}
         try:
-            async with httpx.AsyncClient(
-                timeout=self._timeout,
-                transport=self._transport,
-                trust_env=False,
-            ) as client:
-                response = await client.request(
+            if self._client is not None:
+                response = await self._client.request(
                     method, self._base_url + path, headers=headers, **kwargs
                 )
+            else:
+                async with httpx.AsyncClient(
+                    timeout=self._timeout,
+                    transport=self._transport,
+                    trust_env=False,
+                ) as client:
+                    response = await client.request(
+                        method, self._base_url + path, headers=headers, **kwargs
+                    )
         except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.PoolTimeout) as exc:
             raise ProviderError(
                 "Keenable request timed out",

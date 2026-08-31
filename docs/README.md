@@ -1,8 +1,7 @@
 # CiteLadder documentation
 
-Start with [`../AGENTS.md`](../AGENTS.md), then use the
-[`documentation-index.md`](documentation-index.md) to find the one current
-owner for the task.
+Start with [`../AGENTS.md`](../AGENTS.md), whose task map points to the current
+owner for each subsystem.
 
 ## Product authorities
 
@@ -34,4 +33,3 @@ implementation authority. The current authoritative replacement is
 - Active docs describe shipped behavior or an explicitly approved plan.
 - Code and current tests decide what is shipped.
 - Superseded material moves to `archive/`; it is not silently reused.
-- Run `python docs/validate_documentation.py` after documentation changes.

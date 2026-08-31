@@ -4,8 +4,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ReviewStep } from './review-step';
 
+vi.mock('@/lib/brand/logo-dev', () => ({
+  logoDevUrl: (websiteUrl?: string | null) =>
+    websiteUrl ? `https://logos.example/${websiteUrl}` : null,
+}));
+
 describe('ReviewStep competitor limit', () => {
-  it('places websites and competitors in equal columns with matching headings', () => {
+  it('gives competitors twice the website space with matching headings', () => {
     render(
       <ReviewStep
         domains={[]}
@@ -25,12 +30,14 @@ describe('ReviewStep competitor limit', () => {
     expect(websites.closest('section')?.parentElement).toBe(
       competitors.closest('section')?.parentElement,
     );
-    expect(websites.closest('section')?.parentElement).toHaveClass('md:grid-cols-2');
+    expect(websites.closest('section')?.parentElement).toHaveClass(
+      'md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]',
+    );
     expect(competitors.closest('section')).toHaveClass('border-border-subtle', 'md:border-l');
   });
 
   it('shows only the competitor URL beneath its name', () => {
-    render(
+    const { container } = render(
       <ReviewStep
         domains={[]}
         competitors={[
@@ -55,6 +62,9 @@ describe('ReviewStep competitor limit', () => {
     expect(screen.queryByText('A long generated competitor explanation.')).not.toBeInTheDocument();
     expect(screen.queryByText(/Supporting links available/)).not.toBeInTheDocument();
     expect(screen.queryByText('https://example.com/evidence')).not.toBeInTheDocument();
+    expect(container.querySelector('img')?.getAttribute('src')).toContain(
+      'https://logos.example/kmart.com.au',
+    );
     expect(screen.getByRole('link', { name: 'https://kmart.com.au' })).toHaveAttribute(
       'href',
       'https://kmart.com.au',
@@ -108,6 +118,11 @@ describe('ReviewStep competitor limit', () => {
     );
 
     expect(screen.getByText('5 of 5 tracked')).toBeInTheDocument();
+    const competitorGrid = screen
+      .getByRole('heading', { name: 'Competitors' })
+      .closest('section')
+      ?.querySelector('.sm\\:grid-cols-3');
+    expect(competitorGrid).toHaveClass('grid', 'grid-cols-2', 'sm:grid-cols-3');
     const button = screen.getByRole('button', { name: 'Add' });
     expect(button).toBeDisabled();
     await userEvent.click(button);

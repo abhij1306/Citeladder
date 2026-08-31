@@ -79,16 +79,16 @@ async def test_ready_path_records_two_structured_phases(monkeypatch) -> None:
     async def verify(*_args, **_kwargs):
         return []
 
-    async def topics(**_kwargs):
-        return SimpleNamespace(
-            topics=[],
-            warnings=[],
-            provider="topic-provider.invalid",
-            model="topic-model",
-        )
+    async def searches(*_args, **_kwargs):
+        return []
+
+    class _Keenable:
+        async def aclose(self) -> None:
+            return None
 
     monkeypatch.setattr(module, "_site_evidence", site_evidence)
-    monkeypatch.setattr(module, "_keenable_client", lambda: object())
+    monkeypatch.setattr(module, "_keenable_client", _Keenable)
+    monkeypatch.setattr(module, "search_identity_evidence", searches)
     monkeypatch.setattr(module, "research_identity_evidence", identity_evidence)
     monkeypatch.setattr(module, "create_model_gateway", lambda: gateway)
     monkeypatch.setattr(module, "synthesize_identity", synthesize)
@@ -98,7 +98,6 @@ async def test_ready_path_records_two_structured_phases(monkeypatch) -> None:
     monkeypatch.setattr(
         module, "harvest_offerings", lambda *_args, **_kwargs: _Harvest()
     )
-    monkeypatch.setattr(module, "select_topics", topics)
 
     result = await module.research_brand(
         brand_name="Acme",
@@ -114,7 +113,6 @@ async def test_ready_path_records_two_structured_phases(monkeypatch) -> None:
     assert [call["phase"] for call in result.model_calls] == [
         "identity",
         "competitor_qualification",
-        "topic_selection",
     ]
     assert all(call["outcome"] == "succeeded" for call in result.model_calls)
     assert result.provider == "provider.invalid"
@@ -128,8 +126,10 @@ async def test_ready_path_records_two_structured_phases(monkeypatch) -> None:
     assert model_supports == {
         "model://application-research/identity": ["profile"],
         "model://application-research/competitor_qualification": ["competitors"],
-        "model://application-research/topic_selection": ["topics"],
     }
+    assert result.topics == []
+    assert result.metrics["phase_duration_ms"]["total"] >= 0
+    assert result.metrics["evidence_chars"]["identity_external"] == len(evidence.text)
 
 
 @pytest.mark.asyncio
@@ -147,9 +147,6 @@ async def test_missing_keenable_degrades_without_failing_identity(monkeypatch) -
     async def verify(*_args, **_kwargs):
         return []
 
-    async def topics(**_kwargs):
-        return SimpleNamespace(topics=[], warnings=[], provider="", model="")
-
     monkeypatch.setattr(module, "_site_evidence", site_evidence)
     monkeypatch.setattr(module, "_keenable_client", lambda: None)
     monkeypatch.setattr(module, "create_model_gateway", lambda: gateway)
@@ -158,7 +155,6 @@ async def test_missing_keenable_degrades_without_failing_identity(monkeypatch) -
     monkeypatch.setattr(
         module, "harvest_offerings", lambda *_args, **_kwargs: _Harvest()
     )
-    monkeypatch.setattr(module, "select_topics", topics)
 
     result = await module.research_brand(
         brand_name="Acme",

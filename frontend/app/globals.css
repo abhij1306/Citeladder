@@ -300,10 +300,16 @@
   box-sizing: border-box;
 }
 
+* {
+  scrollbar-color: transparent transparent;
+  &:hover {
+    scrollbar-color: rgb(148 163 184 / 35%) transparent;
+  }
+}
+
 html {
   min-height: 100%;
   background: var(--color-background);
-  scrollbar-gutter: stable;
 }
 
 body {
@@ -473,12 +479,6 @@ samp {
   );
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.2s ease-in-out infinite;
-}
-
-.sidebar-scroll,
-.content-scroll {
-  scrollbar-color: #d0d1d2 transparent;
-  scrollbar-width: thin;
 }
 
 @media (max-width: 767px) {

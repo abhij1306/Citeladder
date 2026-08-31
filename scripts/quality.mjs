@@ -23,12 +23,12 @@ if (!['fix', 'check'].includes(mode)) throw new Error(`Unknown quality mode: ${m
 const requestedScopes = option('--scope', 'all')
   .split(',')
   .map((scope) => scope.trim().toLowerCase());
-const validScopes = new Set(['all', 'backend', 'frontend', 'docs', 'contract']);
+const validScopes = new Set(['all', 'backend', 'frontend', 'contract']);
 for (const scope of requestedScopes) {
   if (!validScopes.has(scope)) throw new Error(`Unknown quality scope: ${scope}`);
 }
 const scopes = requestedScopes.includes('all')
-  ? new Set(['backend', 'frontend', 'docs', 'contract'])
+  ? new Set(['backend', 'frontend', 'contract'])
   : new Set(requestedScopes);
 
 function executable(candidates, missingMessage) {
@@ -75,12 +75,7 @@ function policyDiffArgs() {
 }
 
 function backendChecks() {
-  const rootScripts = [
-    '--config',
-    'pyproject.toml',
-    '../reset-db.py',
-    '../docs/validate_documentation.py',
-  ];
+  const rootScripts = ['--config', 'pyproject.toml', '../reset-db.py'];
   if (mode === 'check') {
     step('Ruff lint', backendTool('ruff'), ['check', '.', ...rootScripts], backendRoot);
     step('Ruff format', backendTool('ruff'), ['format', '--check', '.', ...rootScripts], backendRoot);
@@ -119,9 +114,6 @@ function frontendChecks() {
 
 if (scopes.has('backend')) backendChecks();
 if (scopes.has('frontend')) frontendChecks();
-if (scopes.has('docs')) {
-  step('Documentation index', backendPython(), ['docs/validate_documentation.py'], repositoryRoot);
-}
 if (scopes.has('contract')) pnpm('API contract policy', ['check:contract']);
 
 process.stdout.write(`\n${[...scopes].join(', ')} quality ${mode} passed.\n`);

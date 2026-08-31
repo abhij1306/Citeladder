@@ -361,7 +361,8 @@ class BrandDiscoverySettings(BaseSettings):
     target_competitors: int = Field(
         default=MAX_PROJECT_COMPETITORS, ge=1, le=MAX_PROJECT_COMPETITORS
     )
-    synthesis_evidence_max_chars: int = Field(default=24_000, ge=1)
+    identity_first_party_evidence_max_chars: int = Field(default=12_000, ge=1)
+    identity_external_evidence_max_chars: int = Field(default=12_000, ge=1)
     # Per-page text handed to topic selection alongside the offering list. The
     # list carries the taxonomy; page text only corroborates it, and is the
     # sole source when a site publishes no readable list at all.
@@ -381,7 +382,7 @@ class BrandDiscoverySettings(BaseSettings):
         default=50.0, gt=0, le=PORTFOLIO_GENERATION_TIMEOUT_MAX_SECONDS
     )
     competitor_verification_concurrency: int = Field(default=3, ge=1)
-    competitor_min_dimension_score: float = Field(default=0.5, ge=0, le=1)
+    competitor_min_confidence: float = Field(default=0.5, ge=0, le=1)
     keenable_api_key: SecretStr = Field(
         default=SecretStr(""),
         validation_alias=AliasChoices("KEENABLE_API_KEY", "KEEBNABLE_API_KEY"),
@@ -475,13 +476,13 @@ def _competitor_qualification_system_prompt() -> str:
         "primary domain as a bare hostname, with no scheme or path. Never "
         "return the brand under review, a subsidiary or store page of it, or "
         "a company you cannot support from the evidence or from "
-        "well-established knowledge of the market. Prefer the best-known "
-        "direct rivals a buyer in that market would name. Aim for "
+        "the supplied evidence. Prefer the best-known direct rivals a buyer "
+        "in that market would name. Always classify the competitor's business "
+        "model; omit the competitor when the evidence does not support one. Aim for "
         "target_competitors and never exceed maximum_competitors; return "
         "fewer only when the market genuinely has fewer real rivals.\n\n"
-        "Use only the supplied business models. Cite the evidence_refs "
-        "supporting each competitor, and use an empty list when it rests on "
-        "established knowledge rather than the supplied text."
+        "Use only the supplied business models. Cite one or more evidence_refs "
+        "supporting every competitor. Never return an uncited competitor."
     )
 
 

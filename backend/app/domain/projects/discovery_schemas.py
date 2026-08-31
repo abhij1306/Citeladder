@@ -178,20 +178,10 @@ class ConfirmedDiscoveryProfile(PersistableDiscoveryProfile):
         return cleaned
 
 
-class CompetitorQualification(BaseModel):
-    product_substitutability: float = Field(ge=0, le=1)
-    customer_use_case_overlap: float = Field(ge=0, le=1)
-    geographic_relevance: float = Field(ge=0, le=1)
-    question_visibility: float = Field(ge=0, le=1)
-
-
 class DiscoveryCompetitorSuggestion(CompetitorInput):
-    qualification: CompetitorQualification | None = None
-    # What kind of company THIS competitor is. The four qualification dimensions
-    # all measure overlap and none of them measures *kind*, so a services firm
-    # scored the platforms it implements as near-perfect substitutes -- every
-    # dimension agreed, and the set was still wrong. Left unset when the model
-    # declines to commit, in which case the peer-class filter abstains.
+    # What kind of company THIS competitor is. Confidence measures the model's
+    # bounded judgement; this facet prevents a service firm from admitting the
+    # platforms it implements as substitutes. Missing classification abstains.
     business_model: BusinessModel | None = None
     reasoning: str = Field(default="", max_length=2000)
     evidence_urls: list[str] = Field(

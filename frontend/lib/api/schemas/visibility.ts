@@ -182,12 +182,6 @@ export const brandDiscoverySchema = responseObject({
       name: z.string(),
       aliases: z.array(z.string()),
       domains: z.array(z.string()),
-      qualification: responseObject({
-        product_substitutability: z.number(),
-        customer_use_case_overlap: z.number(),
-        geographic_relevance: z.number(),
-        question_visibility: z.number(),
-      }).nullable(),
       reasoning: z.string(),
       evidence_urls: z.array(z.string()),
       confidence: z.number(),

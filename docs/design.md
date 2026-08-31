@@ -57,7 +57,7 @@ properties.
 - Prefer existing primitives in `frontend/components/ui/` and
   `frontend/components/marketing/` before making a new one.
 - `pnpm check:policy` guards raw colours outside the owner, stray `@theme` blocks,
-  legacy identifiers, and the file line budgets.
+  legacy identifiers, and architecture ownership boundaries.
 
 ## Colour
 

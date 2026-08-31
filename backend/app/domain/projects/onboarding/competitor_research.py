@@ -26,7 +26,6 @@ from app.core.config.brand_discovery import (
 from app.core.config.observed_competitors import EXCLUDED_RESEARCH_DOMAINS
 from app.domain.projects.discovery_schemas import (
     BusinessModel,
-    CompetitorQualification,
     DiscoveryCompetitorSuggestion,
     DiscoveryProfile,
 )
@@ -38,6 +37,7 @@ from app.domain.projects.onboarding.research_evidence import (
     CompetitiveSignature,
     ResearchCallBudget,
     ResearchEvidenceItem,
+    bounded_evidence,
 )
 from app.domain.projects.onboarding.structured_repair import (
     complete_validated_envelope,
@@ -53,7 +53,7 @@ class NamedCompetitor(BaseModel):
     same_buyer: bool = True
     same_market: bool = True
     confidence: float = Field(default=0.5, ge=0, le=1)
-    evidence_refs: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(min_length=1)
     # Bounded in the schema so a long batch of rationales cannot overrun the
     # agent's output cap, and truncated rather than rejected so a slightly long
     # one never costs a whole regeneration.
@@ -148,7 +148,7 @@ async def discover_competitor_candidates(
         min(len(evidence), brand_discovery_settings.competitor_fetch_max_pages)
     )
     fetched = await _fetch_pages(client, evidence[:fetch_count])
-    # Fetched pages first: ``_bounded_evidence`` spends a fixed character
+    # Fetched pages first: ``bounded_evidence`` spends a fixed character
     # budget in order, and the search rows are snippets of the same pages.
     # Putting the snippets first let them consume the budget and truncate the
     # full-text listicle the competitor names are actually written in.
@@ -200,6 +200,7 @@ async def qualify_competitors(
     profile: DiscoveryProfile,
     signature: CompetitiveSignature,
     evidence: tuple[ResearchEvidenceItem, ...],
+    owned_domain: str,
 ) -> tuple[list[DiscoveryCompetitorSuggestion], list[dict]]:
     """Read competitor names out of the gathered research evidence.
 
@@ -209,7 +210,10 @@ async def qualify_competitors(
     model is asked for here. Every returned domain is resolved downstream, so a
     name the model invents cannot reach the customer.
     """
-    bounded = _bounded_evidence(evidence)
+    bounded = bounded_evidence(
+        evidence,
+        max_chars=brand_discovery_settings.competitor_qualification_evidence_max_chars,
+    )
     known_refs = {item.evidence_ref for item in bounded}
     request = json.dumps(
         {
@@ -243,24 +247,37 @@ async def qualify_competitors(
         envelope_type=CompetitorQualificationEnvelope,
         validate=validate,
     )
-    admitted = _admitted_competitors(envelope.competitors)
+    evidence_by_ref = {item.evidence_ref: item.source_url for item in bounded}
+    admitted = _admitted_competitors(envelope.competitors, owned_domain=owned_domain)
     return (
-        [_suggestion(item) for item in admitted],
+        [_suggestion(item, evidence_by_ref=evidence_by_ref) for item in admitted],
         [item.model_dump(mode="json") for item in envelope.competitors],
     )
 
 
 def _admitted_competitors(
     competitors: list[NamedCompetitor],
+    *,
+    owned_domain: str,
 ) -> list[NamedCompetitor]:
     """Keep same-buyer, same-market names on a usable domain, best first."""
     seen: set[str] = set()
     admitted: list[NamedCompetitor] = []
     for item in competitors:
-        if not (item.same_buyer and item.same_market):
+        if (
+            not item.same_buyer
+            or not item.same_market
+            or item.business_model is None
+            or item.confidence < brand_discovery_settings.competitor_min_confidence
+        ):
             continue
         domain = _bare_domain(item.domain)
-        if not domain or _excluded_domain(domain) or domain in seen:
+        if (
+            not domain
+            or domain == owned_domain
+            or _excluded_domain(domain)
+            or domain in seen
+        ):
             continue
         seen.add(domain)
         admitted.append(item.model_copy(update={"domain": domain}))
@@ -274,35 +291,6 @@ def _bare_domain(value: str) -> str:
     except InvalidWebsiteUrl:
         return ""
     return domain
-
-
-def _bounded_evidence(
-    evidence: tuple[ResearchEvidenceItem, ...],
-) -> tuple[ResearchEvidenceItem, ...]:
-    """Share the qualification budget across every distinct gathered source.
-
-    Sequential truncation let the first few fetched pages consume the entire
-    budget, hiding most search results from qualification. A broad retailer
-    search could gather dozens of useful sources and still expose only four.
-    """
-    distinct: list[ResearchEvidenceItem] = []
-    seen_urls: set[str] = set()
-    for item in evidence:
-        if item.source_url in seen_urls:
-            continue
-        seen_urls.add(item.source_url)
-        distinct.append(item)
-
-    remaining = brand_discovery_settings.competitor_qualification_evidence_max_chars
-    bounded: list[ResearchEvidenceItem] = []
-    for index, item in enumerate(distinct):
-        if remaining <= 0:
-            break
-        sources_left = len(distinct) - index
-        text = item.text[: max(remaining // sources_left, 1)]
-        remaining -= len(text)
-        bounded.append(item.model_copy(update={"text": text}))
-    return tuple(bounded)
 
 
 async def _search_queries(
@@ -364,19 +352,17 @@ def _search_evidence(
     return evidence
 
 
-def _suggestion(item: NamedCompetitor) -> DiscoveryCompetitorSuggestion:
+def _suggestion(
+    item: NamedCompetitor, *, evidence_by_ref: dict[str, str]
+) -> DiscoveryCompetitorSuggestion:
     return DiscoveryCompetitorSuggestion(
         name=item.name,
         domains=[item.domain],
-        qualification=CompetitorQualification(
-            product_substitutability=item.confidence,
-            customer_use_case_overlap=item.confidence,
-            geographic_relevance=1.0 if item.same_market else 0.0,
-            question_visibility=item.confidence,
-        ),
         business_model=item.business_model,
         reasoning=item.reasoning,
-        evidence_urls=[],
+        evidence_urls=list(
+            dict.fromkeys(evidence_by_ref[ref] for ref in item.evidence_refs)
+        ),
         confidence=item.confidence,
     )
 

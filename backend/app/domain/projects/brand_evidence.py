@@ -143,7 +143,9 @@ def _selected_internal_links(
     return selected[: max(0, BRAND_EVIDENCE_MAX_PAGES - 1)]
 
 
-async def _gather(homepage: str) -> list[BrandEvidencePage]:
+async def _gather(
+    homepage: str, *, homepage_page: BrandEvidencePage | None = None
+) -> list[BrandEvidencePage]:
     """Fetch one homepage plus at most four high-signal internal pages."""
     pages: list[BrandEvidencePage] = []
     # Keyed on the FINAL url (post-redirect): a site that redirects ``/about``
@@ -159,7 +161,9 @@ async def _gather(homepage: str) -> list[BrandEvidencePage]:
         pages.append(page)
 
     async with SecureFetcher(resolver=SystemDnsResolver()) as fetcher:
-        home_page = await fetch_brand_page(homepage, fetcher=fetcher)
+        home_page = homepage_page
+        if home_page is None:
+            home_page = await fetch_brand_page(homepage, fetcher=fetcher)
         if home_page is not None:
             home_page = replace(home_page, role="homepage")
         _add(home_page)
@@ -220,7 +224,9 @@ def reset_brand_evidence_cache() -> None:
     _cache_locks.clear()
 
 
-async def collect_brand_evidence(website_url: str) -> BrandEvidence:
+async def collect_brand_evidence(
+    website_url: str, *, homepage_page: BrandEvidencePage | None = None
+) -> BrandEvidence:
     """Read the brand's own site, under a total wall-clock budget.
 
     Never raises: a missing/invalid URL, an unreachable site, or a timeout all
@@ -255,7 +261,7 @@ async def collect_brand_evidence(website_url: str) -> BrandEvidence:
             if cached is not None:
                 return cached
             async with asyncio.timeout(BRAND_EVIDENCE_TOTAL_TIMEOUT_SECONDS):
-                pages = await _gather(homepage)
+                pages = await _gather(homepage, homepage_page=homepage_page)
             evidence = BrandEvidence(pages=tuple(pages))
             # Cache empty crawls only for the short single-flight window. They
             # must not make an explicit Retry replay a miss for the full

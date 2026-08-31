@@ -51,7 +51,7 @@ async def complete_validated_envelope[EnvelopeT: BaseModel](
             if attempt + 1 >= maximum_attempts:
                 raise
             attempt_user = _repair_request(user, exc)
-            delay = brand_discovery_settings.synthesis_retry_delay(attempt)
+            continue
         await asyncio.sleep(delay)
     raise RuntimeError("structured onboarding attempts exhausted")
 

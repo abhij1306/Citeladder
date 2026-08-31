@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from time import perf_counter
 
 from pydantic import ValidationError
 
@@ -13,7 +14,7 @@ from app.connectors.agent.client import AgentNotConfiguredError
 from app.connectors.agent.factory import create_model_gateway
 from app.connectors.agent.gateway import ModelGateway
 from app.connectors.answer_engines.errors import ProviderError
-from app.connectors.keenable import KeenableClient
+from app.connectors.keenable import KeenableClient, KeenableSearchResponse
 from app.core.config.brand_discovery import (
     BRAND_COMPETITOR_QUALIFICATION_VERSION,
     BRAND_IDENTITY_PROMPT_VERSION,
@@ -28,7 +29,6 @@ from app.core.config.brand_discovery import (
     same_business_class,
 )
 from app.core.config.observed_competitors import EXCLUDED_RESEARCH_DOMAINS
-from app.core.config.visibility_prompts import TOPIC_SELECTION_PROMPT_VERSION
 from app.domain.projects.brand_evidence import BrandEvidence, collect_brand_evidence
 from app.domain.projects.discovery_schemas import (
     DiscoveryCompetitorSuggestion,
@@ -44,6 +44,7 @@ from app.domain.projects.onboarding.identity_research import (
     IdentityResearchEnvelope,
     first_party_evidence,
     research_identity_evidence,
+    search_identity_evidence,
     synthesize_identity,
 )
 from app.domain.projects.onboarding.normalization import (
@@ -59,7 +60,6 @@ from app.domain.projects.onboarding.site_resolution import (
     SiteNotFoundError,
     resolve_site,
 )
-from app.domain.projects.onboarding.topic_selection import select_topics
 
 COMPETITOR_POOL_MULTIPLIER = 3
 
@@ -85,6 +85,7 @@ class ResearchResult:
     provider: str
     model: str
     pages_read: int
+    metrics: dict
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,7 +107,7 @@ class _CompetitorPhase:
 
 async def _site_evidence(site) -> BrandEvidence:
     try:
-        return await collect_brand_evidence(site.canonical_url)
+        return await collect_brand_evidence(site.canonical_url, homepage_page=site.page)
     except Exception:  # noqa: BLE001 - evidence is best-effort by contract
         return BrandEvidence()
 
@@ -140,16 +141,60 @@ async def research_brand(
     site,
     on_competitor_phase: Callable[[], Awaitable[None]] | None = None,
 ) -> ResearchResult:
+    keenable = _keenable_client()
+    try:
+        return await _research_brand(
+            brand_name=brand_name,
+            primary_market=primary_market,
+            industry=industry,
+            subindustry=subindustry,
+            language_code=language_code,
+            site=site,
+            keenable=keenable,
+            on_competitor_phase=on_competitor_phase,
+        )
+    finally:
+        if keenable is not None:
+            await keenable.aclose()
+
+
+async def _research_brand(
+    *,
+    brand_name: str,
+    primary_market: str,
+    industry: str,
+    subindustry: str,
+    language_code: str,
+    site,
+    keenable: KeenableClient | None,
+    on_competitor_phase: Callable[[], Awaitable[None]] | None = None,
+) -> ResearchResult:
     """Research one brand. `on_competitor_phase` reports the longest phase.
 
     The frontend timeline has always had a "Finding comparable brands" step,
     but nothing emitted it, so the bar sat on step one for the whole run and
     the pipeline read as hung.
     """
-    website_evidence = await _site_evidence(site)
-    first_party = first_party_evidence(website_evidence)
+    started = perf_counter()
     budget = ResearchCallBudget(brand_discovery_settings.keenable_total_call_cap)
-    keenable = _keenable_client()
+    acquisition_started = perf_counter()
+    search_task = (
+        asyncio.create_task(
+            search_identity_evidence(
+                keenable,
+                brand_name=brand_name,
+                owned_domain=site.registrable_domain,
+                budget=budget,
+            )
+        )
+        if keenable is not None
+        else None
+    )
+    website_evidence = await _site_evidence(site)
+    identity_searches = await search_task if search_task is not None else None
+    acquisition_ms = _elapsed_ms(acquisition_started)
+    first_party = first_party_evidence(website_evidence)
+    identity_started = perf_counter()
     identity_phase = await _run_identity_phase(
         keenable=keenable,
         brand_name=brand_name,
@@ -160,7 +205,9 @@ async def research_brand(
         language_code=language_code,
         first_party=first_party,
         budget=budget,
+        identity_searches=identity_searches,
     )
+    identity_ms = _elapsed_ms(identity_started)
     profile, signature = _profile_and_signature(
         identity_phase.identity,
         brand_name=brand_name,
@@ -170,6 +217,7 @@ async def research_brand(
     )
     if on_competitor_phase is not None:
         await on_competitor_phase()
+    competitor_started = perf_counter()
     competitor_phase = await _run_competitor_phase(
         keenable=keenable,
         gateway=identity_phase.gateway,
@@ -181,25 +229,15 @@ async def research_brand(
         budget=budget,
         model_calls=identity_phase.model_calls,
     )
+    competitor_ms = _elapsed_ms(competitor_started)
+    verification_started = perf_counter()
     verified = await _verify_competitors(
         competitor_phase.suggestions,
         owned_domain=site.registrable_domain,
         brand_model=profile.business_model,
     )
+    verification_ms = _elapsed_ms(verification_started)
     harvest = harvest_offerings(website_evidence.pages, brand_terms=[brand_name])
-    selection = await select_topics(
-        brand_name=brand_name,
-        brand_aliases=[],
-        competitors=[item.name for item in verified],
-        business_category=profile.category,
-        business_aliases=[*profile.category_aliases, *profile.category_options],
-        sector=profile.sector,
-        business_model=profile.business_model,
-        market=primary_market,
-        harvest=harvest,
-        page_evidence=_page_evidence(website_evidence),
-        allow_model_prior=profile.has_reliable_prior(),
-    )
     all_evidence = [
         *first_party,
         *identity_phase.external,
@@ -212,28 +250,13 @@ async def research_brand(
         conflicting=_identity_conflicts(identity_phase.identity),
         qualification_available=competitor_phase.qualification_available,
     )
-    warnings.extend(selection.warnings)
-    if selection.provider and selection.model:
-        identity_phase.model_calls.append(
-            _model_call_values(
-                phase="topic_selection",
-                provider=selection.provider,
-                model=selection.model,
-                prompt_version=TOPIC_SELECTION_PROMPT_VERSION,
-                outcome=(
-                    "failed"
-                    if "topic_selection_unavailable" in selection.warnings
-                    else "succeeded"
-                ),
-            )
-        )
     provider, model = _successful_model_provenance(identity_phase.model_calls)
     return ResearchResult(
         profile=profile.model_dump(),
         competitive_signature=signature.model_dump(),
         competitors=[item.model_dump() for item in verified],
         competitor_verdicts=competitor_phase.verdicts,
-        topics=[topic.model_dump(mode="json") for topic in selection.topics],
+        topics=[],
         offerings=harvest.serialize(),
         evidence=_research_evidence(site, all_evidence, identity_phase.model_calls),
         evidence_manifest=[item.model_dump(mode="json") for item in all_evidence],
@@ -242,7 +265,28 @@ async def research_brand(
         provider=provider,
         model=model,
         pages_read=len(website_evidence.pages),
+        metrics={
+            "phase_duration_ms": {
+                "parallel_site_and_identity_search": acquisition_ms,
+                "identity_fetch_and_synthesis": identity_ms,
+                "competitor_research_and_qualification": competitor_ms,
+                "competitor_domain_verification": verification_ms,
+                "total": _elapsed_ms(started),
+            },
+            "evidence_chars": {
+                "first_party": sum(len(item.text) for item in first_party),
+                "identity_external": sum(
+                    len(item.text) for item in identity_phase.external
+                ),
+                "competitor": sum(len(item.text) for item in competitor_phase.evidence),
+            },
+            "keenable_calls_used": budget.used,
+        },
     )
+
+
+def _elapsed_ms(started: float) -> int:
+    return int((perf_counter() - started) * 1000)
 
 
 async def _run_identity_phase(
@@ -256,6 +300,7 @@ async def _run_identity_phase(
     language_code: str,
     first_party: list[ResearchEvidenceItem],
     budget: ResearchCallBudget,
+    identity_searches: list[KeenableSearchResponse | BaseException] | None = None,
 ) -> _IdentityPhase:
     external_state, external = await _external_identity_evidence(
         keenable,
@@ -263,6 +308,7 @@ async def _run_identity_phase(
         owned_domain=owned_domain,
         first_party=first_party,
         budget=budget,
+        identity_searches=identity_searches,
     )
     gateway: ModelGateway | None = None
     identity: IdentityResearchEnvelope | None = None
@@ -314,6 +360,7 @@ async def _external_identity_evidence(
     owned_domain: str,
     first_party: list[ResearchEvidenceItem],
     budget: ResearchCallBudget,
+    identity_searches: list[KeenableSearchResponse | BaseException] | None = None,
 ) -> tuple[str, list[ResearchEvidenceItem]]:
     if keenable is None:
         return "unavailable", []
@@ -324,6 +371,7 @@ async def _external_identity_evidence(
             owned_domain=owned_domain,
             first_party=first_party,
             budget=budget,
+            search_responses=identity_searches,
         )
     except ProviderError:
         return "failed", []
@@ -417,6 +465,7 @@ async def _run_competitor_phase(
             profile=profile,
             signature=signature,
             evidence=result.evidence,
+            owned_domain=owned_domain,
         )
         model_calls.append(
             _model_call(
@@ -484,20 +533,8 @@ def _keenable_client() -> KeenableClient | None:
         api_key=key,
         base_url=brand_discovery_settings.keenable_base_url,
         timeout_seconds=brand_discovery_settings.keenable_request_timeout_seconds,
+        reuse_connections=True,
     )
-
-
-def _page_evidence(evidence: BrandEvidence) -> list[dict[str, str]]:
-    budget = brand_discovery_settings.topic_evidence_max_chars_per_page
-    return [
-        {
-            "evidence_ref": f"page-{index}",
-            "url": page.url,
-            "title": page.title,
-            "text": page.text[:budget],
-        }
-        for index, page in enumerate(evidence.pages, start=1)
-    ]
 
 
 def _model_call(*, phase: str, gateway, prompt_version: str, outcome: str) -> dict:
@@ -556,7 +593,6 @@ def _research_evidence(site, items, model_calls):
     model_supports = {
         "identity": ["profile"],
         "competitor_qualification": ["competitors"],
-        "topic_selection": ["topics"],
     }
     for call in model_calls:
         evidence.append(
@@ -603,16 +639,10 @@ def _customer_warnings(
 def _competitor_domain_candidates(
     candidate: DiscoveryCompetitorSuggestion,
 ) -> list[str]:
-    """Usable domains for this candidate, declared ones filtered like evidence.
-
-    The exclusion list was applied to `evidence_urls` only, so a declared
-    domain naming a directory or analytics site was still tried -- and, being
-    first, it consumed one of the two attempts and could be persisted as the
-    competitor's domain.
-    """
+    """Usable declared domains, without adopting reference publishers."""
     return [
         value
-        for value in dict.fromkeys([*candidate.domains, *candidate.evidence_urls])
+        for value in dict.fromkeys(candidate.domains)
         if not _is_excluded_research_url(value)
     ]
 
@@ -632,7 +662,7 @@ def _is_peer_company(
     candidate: DiscoveryCompetitorSuggestion, *, brand_model: str
 ) -> bool:
     if candidate.business_model is None:
-        return True
+        return False
     return same_business_class(candidate.business_model, brand_model)
 
 
@@ -643,9 +673,7 @@ async def _verified_competitor(
     brand_model: str,
     semaphore: asyncio.Semaphore,
 ) -> DiscoveryCompetitorSuggestion | None:
-    if candidate.qualification is None or not _is_peer_company(
-        candidate, brand_model=brand_model
-    ):
+    if not _is_peer_company(candidate, brand_model=brand_model):
         return None
     for domain_value in _competitor_domain_candidates(candidate)[:2]:
         try:

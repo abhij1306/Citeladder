@@ -50,12 +50,11 @@ curl -fsS http://localhost:8000/health
 ## 3. Run repository gates
 
 ```bash
-python docs/validate_documentation.py
 (cd backend && uv sync --frozen --extra dev && uv run ruff check . && uv run mypy app)
 (cd frontend && pnpm install --frozen-lockfile && pnpm lint && pnpm exec tsc --noEmit && BACKEND_ORIGIN=https://backend.ci.invalid pnpm build)
 ```
 
-- [ ] Required backend, frontend, documentation, security, migration, and end-to-end checks pass.
+- [ ] Required backend, frontend, security, migration, and end-to-end checks pass.
 - [ ] CI passes for the exact candidate commit.
 - [ ] Deployment settings use real deployment secrets and origins; no `.env` file or local secret
       has entered the candidate.

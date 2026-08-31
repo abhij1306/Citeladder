@@ -17,7 +17,8 @@ export type ActivityStep = {
 function StepIndicator({ state }: Readonly<{ state: ActivityStepState }>) {
   if (state === 'complete') return <Check className="size-4" strokeWidth={3} />;
   if (state === 'attention') return <CircleAlert className="size-4" />;
-  if (state === 'active') return <span className="activity-dot bg-accent size-2" />;
+  if (state === 'active')
+    return <span className="activity-dot bg-accent size-2 animate-pulse rounded-full" />;
   return <span className="bg-border-subtle size-1.5 rounded-full" />;
 }
 

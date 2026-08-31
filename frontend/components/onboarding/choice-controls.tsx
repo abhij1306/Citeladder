@@ -58,8 +58,13 @@ export function ReviewSection({
 }
 
 /** The row a set of chips lives in, so every group wraps identically. */
-export function ChipRow({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <div className="flex flex-wrap items-center gap-1.5">{children}</div>;
+export function ChipRow({
+  children,
+  className,
+}: Readonly<{ children: React.ReactNode; className?: string }>) {
+  return (
+    <div className={cn('items-center gap-1.5', className ?? 'flex flex-wrap')}>{children}</div>
+  );
 }
 
 /**
@@ -96,6 +101,7 @@ export function ToggleChip({
   selected,
   onToggle,
   disabled = false,
+  leading,
   onEdit,
   editLabel,
 }: Readonly<{
@@ -104,6 +110,8 @@ export function ToggleChip({
   onToggle: () => void;
   /** True when selecting this would exceed the cap. Excluding stays available. */
   disabled?: boolean;
+  /** Optional decorative identity, such as a discovered competitor logo. */
+  leading?: React.ReactNode;
   onEdit?: () => void;
   editLabel?: string;
 }>) {
@@ -119,6 +127,7 @@ export function ToggleChip({
           selected={selected}
           idle={<Plus className="size-3.5 opacity-40 group-hover:opacity-90" />}
         />
+        {leading}
         {/* The visible label IS the accessible name, and `aria-pressed` carries
             the state. An `aria-label` of "Include Peer 6" moved the state into
             the name, so the same control announced a different name depending

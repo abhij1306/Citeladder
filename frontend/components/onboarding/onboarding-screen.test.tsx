@@ -99,7 +99,6 @@ function discovery(status: BrandDiscovery['status'], phase: BrandDiscovery['prog
         name: 'Globex',
         aliases: [],
         domains: ['globex.example'],
-        qualification: null,
         reasoning: 'Serves the same analytics buyers in US.',
         evidence_urls: ['https://globex.example/'],
         confidence: 0.8,
@@ -178,6 +177,10 @@ describe('OnboardingScreen', () => {
     expect(screen.getByText('Opening your website')).toBeInTheDocument();
     expect(screen.getByText('Finding comparable brands')).toBeInTheDocument();
     expect(screen.getByText('3 useful pages read')).toBeInTheDocument();
+    expect(
+      screen.getByText(/learning what you offer and who it is most useful for/i),
+    ).toBeInTheDocument();
+    expect(document.querySelector('.activity-dot.animate-pulse')).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(
       /finding_competitors|lease|attempt_count|error_detail|provider/i,
     );
@@ -233,6 +236,10 @@ describe('OnboardingScreen', () => {
     await user.click(screen.getByRole('button', { name: 'Review' }));
     expect(screen.getByRole('main')).toHaveClass('max-w-6xl');
     expect(screen.getByRole('main')).not.toHaveClass('max-w-xl');
+    const footprint = screen.getByText('Online Footprint & Peers');
+    const positioning = screen.getByText('Brand Positioning & Market');
+    expect(footprint.compareDocumentPosition(positioning)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(document.querySelectorAll('section.shadow-card')).toHaveLength(2);
     const createProject = await screen.findByRole('button', { name: 'Create project' });
     await waitFor(() => expect(createProject).toBeEnabled());
     await user.click(createProject);
@@ -353,7 +360,6 @@ describe('OnboardingScreen', () => {
         name: `Peer ${index + 1}`,
         aliases: [],
         domains: [`peer-${index + 1}.example`],
-        qualification: null,
         reasoning: '',
         evidence_urls: [],
         confidence: 0,

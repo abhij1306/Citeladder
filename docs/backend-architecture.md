@@ -67,20 +67,27 @@ reviewer, and only then creates the bounded initial prompt portfolio exactly
 once. Topics in that portfolio are reusable semantic demand clusters, not query
 phrases; related prompts share a topic.
 
-Completion creates an immediately usable shell and accepts asynchronous prompt
-generation. One short transaction freezes the confirmed review, claims its
-idempotency key, persists the project/profile/topics and empty onboarding prompt
-set, links the discovery, and inserts the deterministic `brand_completion` row
-in the existing PostgreSQL queue. A rollback leaves neither shell nor task.
-The worker performs provider I/O without holding the discovery row lock, then
-inserts prompts and advances the discovery to `project_created` in one commit.
+Completion creates an immediately usable shell and accepts asynchronous topic
+and prompt generation. One short transaction freezes the confirmed review,
+claims its idempotency key, persists the project/profile and empty onboarding
+prompt set, links the discovery, and inserts the deterministic
+`brand_completion` row in the existing PostgreSQL queue. A rollback leaves
+neither shell nor task. The worker selects topics from the frozen research
+snapshot and confirmed profile, falls back to the confirmed offerings when the
+model is unavailable, and then inserts topics and prompts while advancing the
+discovery to `project_created` in one commit. Provider I/O never holds the
+discovery row lock.
 Lease recovery provides at-least-once execution while the discovery lock,
 terminal-state guard, and prompt uniqueness provide one persisted completion
 effect. Same-key replays return the shell and ensure a missing in-flight task;
 an exhausted task terminalizes with a completion-specific failure.
 
 Onboarding discovery v8 keeps the existing bounded first-party acquisition and
-adds bounded Keenable corroboration. One structured application-model call
+adds bounded Keenable corroboration. The resolved homepage is reused rather
+than fetched twice; selected first-party pages and independent Keenable identity
+searches overlap. Identity synthesis receives separate 12,000-character
+first-party and external budgets, shared across distinct sources, and one
+connection-reusing Keenable client serves the discovery. One structured application-model call
 classifies identity and emits an evidence-referenced competitive signature;
 deterministic brand-neutral searches then gather the competitor research
 evidence, and a second structured call reads the competitor names out of that
@@ -94,16 +101,28 @@ Pydantic and deterministic reference
 checks enforce the contracts and always run: no host is assumed to guarantee
 native strict-schema output, so those checks stay in force even when the
 gateway selects Mistral's verified native mode. The existing domain resolver remains the
-final candidate check, so a name the model invents cannot reach the customer. Provider failures yield explicit
+final candidate check. Every candidate must cite retrieved evidence, classify
+its business model, clear the configured confidence floor, match buyer and
+market, and resolve on its declared non-owned domain. Reference publishers are
+retained as evidence and can never become fallback competitor domains. Provider failures yield explicit
 degraded warnings, and the immutable `BrandResearchSnapshot` records the
 evidence manifest, verdicts, and per-phase model provenance without a new table
 or queue. Discovery also adds one shared bounded repair seam for the two Keenable
 research schemas: requests expose explicit allowed evidence IDs and validation
-failures receive bounded contract feedback without response bodies or evidence
-text. Retryable provider failures honor bounded backoff without weakening any
+failures receive immediate bounded contract feedback without response bodies or
+evidence text. Retryable provider failures alone honor bounded backoff without weakening any
 evidence-reference or hard-admission gate. The application gateway selects
 Mistral's verified native strict JSON Schema mode automatically, falling back to
 prompt-carried JSON-object mode for hosts without a verified guarantee.
+
+The discovery review path ends after the verified company profile and
+competitors. Topic selection no longer adds a third sequential model tier to
+that wait or operates on unconfirmed suggestions; the completion worker runs it
+from the confirmed profile, accepted competitors, persisted offering harvest,
+and bounded first-party page evidence. Generated prompt provenance records the
+topic-selection provider, model, prompt version, and duration. The immutable
+research snapshot records bounded evidence sizes, Keenable operation count, and
+per-phase discovery timings for latency and quality evaluation.
 
 Demand's `page_equivalence` module is the sole cross-source owned-page resolver.
 It uses exact `SiteUrl` matches plus persisted redirect/canonical evidence and

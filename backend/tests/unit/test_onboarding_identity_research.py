@@ -7,9 +7,14 @@ import json
 
 import pytest
 
-from app.connectors.keenable import KeenableFetchResponse, KeenableSearchResult
+from app.connectors.keenable import (
+    KeenableFetchResponse,
+    KeenableSearchResponse,
+    KeenableSearchResult,
+)
 from app.domain.projects.onboarding.identity_research import (
     _identity_fetch_evidence,
+    research_identity_evidence,
     synthesize_identity,
 )
 from app.domain.projects.onboarding.research_evidence import (
@@ -70,6 +75,40 @@ async def test_identity_fetches_obey_configured_concurrency(monkeypatch) -> None
 
     assert len(evidence) == 3
     assert client.max_active == 2
+
+
+@pytest.mark.asyncio
+async def test_external_identity_evidence_has_one_shared_budget(monkeypatch) -> None:
+    from app.domain.projects.onboarding import identity_research as module
+
+    monkeypatch.setattr(
+        module.brand_discovery_settings,
+        "identity_external_evidence_max_chars",
+        7,
+    )
+    response = KeenableSearchResponse(
+        results=tuple(
+            KeenableSearchResult(
+                title=f"Source {index}",
+                url=f"https://source{index}.example/about",
+                snippet="abcdefghij",
+            )
+            for index in range(2)
+        )
+    )
+
+    result = await research_identity_evidence(
+        object(),
+        brand_name="Acme",
+        owned_domain="acme.example",
+        first_party=[],
+        budget=ResearchCallBudget(0),
+        search_responses=[response],
+    )
+
+    assert result.state == "ready"
+    assert len(result.items) == 2
+    assert sum(len(item.text) for item in result.items) == 7
 
 
 @pytest.mark.asyncio

@@ -15,7 +15,6 @@ from app.domain.projects.discovery_schemas import DiscoveryProfile
 from app.domain.projects.onboarding.competitor_research import (
     NamedCompetitor,
     _admitted_competitors,
-    _bounded_evidence,
     _search_evidence,
     competitor_queries,
     discover_competitor_candidates,
@@ -25,6 +24,7 @@ from app.domain.projects.onboarding.research_evidence import (
     CompetitiveSignature,
     ResearchCallBudget,
     ResearchEvidenceItem,
+    bounded_evidence,
 )
 
 
@@ -112,22 +112,30 @@ def test_admission_drops_wrong_buyer_market_aggregators_and_duplicates() -> None
         ),
         NamedCompetitor.model_validate(_competitor(name="Off", same_buyer=False)),
         NamedCompetitor.model_validate(_competitor(name="Far", same_market=False)),
+        NamedCompetitor.model_validate(
+            _competitor(name="Own brand", domain="https://www.owned.com/products")
+        ),
         NamedCompetitor.model_validate(_competitor(name="Directory", domain="g2.com")),
         NamedCompetitor.model_validate(_competitor(name="Bad", domain="not a domain")),
         # A hallucinated, unregistrable domain must never reach the customer.
         NamedCompetitor.model_validate(_competitor(name="Fake", domain="peer.example")),
     ]
 
-    admitted = _admitted_competitors(competitors)
+    admitted = _admitted_competitors(competitors, owned_domain="owned.com")
 
     # Highest confidence first, one row per domain, no aggregators.
-    assert [(item.name, item.domain) for item in admitted] == [("Peer", "peer.com")]
+    assert [(item.name, item.domain) for item in admitted] == [("Best", "peer.com")]
 
 
 def test_reasoning_is_truncated_rather_than_rejected() -> None:
     item = NamedCompetitor.model_validate(_competitor(reasoning="x" * 5000))
 
     assert len(item.reasoning) == 240
+
+
+def test_competitor_without_evidence_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        NamedCompetitor.model_validate(_competitor(evidence_refs=[]))
 
 
 def test_evidence_uses_one_shared_character_budget(monkeypatch) -> None:
@@ -149,7 +157,7 @@ def test_evidence_uses_one_shared_character_budget(monkeypatch) -> None:
         for index in range(2)
     )
 
-    bounded = _bounded_evidence(evidence)
+    bounded = bounded_evidence(evidence, max_chars=7)
 
     assert sum(len(item.text) for item in bounded) == 7
 
@@ -184,7 +192,7 @@ def test_broad_retailer_pool_exposes_every_distinct_source(monkeypatch) -> None:
         for index in range(1, 25)
     ]
 
-    bounded = _bounded_evidence(tuple([*fetched, *searches]))
+    bounded = bounded_evidence(tuple([*fetched, *searches]), max_chars=12_000)
 
     assert len(bounded) == 24
     assert bounded[-1].evidence_ref == "kc-search-24"
@@ -197,6 +205,9 @@ def test_qualification_contract_accepts_matching_official_company_pages() -> Non
     assert (
         "official company homepage or product page"
         in COMPETITOR_QUALIFICATION_SYSTEM_PROMPT
+    )
+    assert (
+        "Never return an uncited competitor" in COMPETITOR_QUALIFICATION_SYSTEM_PROMPT
     )
 
 
@@ -260,6 +271,7 @@ async def test_qualification_retries_unknown_evidence_and_keeps_domain() -> None
         profile=DiscoveryProfile(),
         signature=CompetitiveSignature(),
         evidence=evidence,
+        owned_domain="owned.com",
     )
 
     assert gateway.calls == 2
@@ -268,4 +280,5 @@ async def test_qualification_retries_unknown_evidence_and_keeps_domain() -> None
     assert "invented-ref" in gateway.users[1]
     assert suggestions[0].domains == ["peer.com"]
     assert suggestions[0].name == "Peer"
+    assert suggestions[0].evidence_urls == ["https://listicle.com/top-10"]
     assert verdicts[0]["domain"] == "peer.com"

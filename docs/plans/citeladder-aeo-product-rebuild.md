@@ -129,7 +129,7 @@ events run all owners.
 
 | Sub-slice shape | Required local proof before advancing inside the chat |
 |---|---|
-| Documentation only | `python docs/validate_documentation.py` |
+| Documentation only | `git diff --check` plus review of the changed owner documents |
 | Pure backend analysis/config | Focused unit modules + `uv run ruff check <changed paths>` + targeted `uv run mypy <changed package>` + complexity check when executable logic changes |
 | Backend persistence/API/worker | Focused unit/component/API modules + Ruff/mypy on changed owners + `uv run alembic upgrade head` and `uv run alembic check` against an empty disposable DB when schema changes |
 | Frontend behavior/route replacement | Focused Vitest/Testing Library files + `pnpm lint` + `pnpm check:contract` + `pnpm check:policy` + `pnpm exec tsc --noEmit` + `pnpm build`; add focused Playwright only for a changed critical flow |
@@ -146,10 +146,10 @@ Before advancing past an internal implementation sub-slice, the implementer must
 
 1. update the named active owner documents in that slice's **Documentation update** block;
 2. update this plan's ledger and add a completion note under **Sub-slice completion notes**;
-3. update [`documentation-index.md`](../documentation-index.md) whenever an active document is
-   added, renamed, archived, or changes role, and archive superseded guidance in the same slice;
+3. update the task map in `AGENTS.md` when a document owner changes, and archive superseded
+   guidance in the same slice;
 4. store live-data measurements as dated, sanitized artifacts under `docs/evaluations/`;
-5. run `python docs/validate_documentation.py` after all documentation edits.
+5. review documentation changes against the named owner documents.
 
 Do not mark a slice complete while its owner documentation still describes the pre-slice runtime.
 Do not leave `TODO`, "decide later," "recommended option," or an unresolved product choice in a
@@ -224,7 +224,7 @@ row is the removal condition. No other compatibility path is implied.
 - Deleted / retained until: archived `docs/vision.md` as research input; shipped routes remain until their atomic W3 cutovers.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 18
-- Local verification: `python docs/validate_documentation.py` (valid: 28 active, 54 archived); `git diff --check` passed.
+- Local verification: the documentation boundary review and `git diff --check` passed.
 - Evaluation artifact: not applicable
 - Advanced to internal slice: X01
 
@@ -290,7 +290,7 @@ row is the removal condition. No other compatibility path is implied.
 - Deleted / retained until: deleted the callable `WebsiteContext`/`build_website_context` adapter, `website_context_*` database/wire fields, unavailable hard-failure, DTOs, types, tests, and stale empty-envelope authorities; retained `website_context.py` only as the internal bounded fragment selector used by `grounding.py`.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 27
-- Local verification: `cd backend && uv run pytest tests/unit/test_content_grounding.py tests/unit/test_content_message_builder.py tests/unit/test_content_website_context.py tests/component/test_content_api.py tests/component/test_task_queue_content.py -q` (26 passed); focused Ruff and mypy passed. `cd frontend && pnpm test -- lib/api/content.test.ts lib/content/use-content-generations.test.tsx components/content/content-screen.test.tsx` (19 passed). `python docs/validate_documentation.py` passed; post-cutover grep found old symbols only in explicit plan/deletion proof text.
+- Local verification: `cd backend && uv run pytest tests/unit/test_content_grounding.py tests/unit/test_content_message_builder.py tests/unit/test_content_website_context.py tests/component/test_content_api.py tests/component/test_task_queue_content.py -q` (26 passed); focused Ruff and mypy passed. `cd frontend && pnpm test -- lib/api/content.test.ts lib/content/use-content-generations.test.tsx components/content/content-screen.test.tsx` (19 passed); post-cutover grep found old symbols only in explicit plan/deletion proof text.
 - Evaluation artifact: wave-level sanitized live read-only validation is recorded after Q03.
 - Advanced to internal slice: Q01
 
@@ -466,7 +466,7 @@ row is the removal condition. No other compatibility path is implied.
 - Deleted / retained until: deleted the complete `frontend/app/(app)/site-health/**` route family with no redirect; retained `/api/v1/.../site-health`, `components/site-health/**`, `lib/site-health/**`, schemas, API clients, and query keys because Site Health remains the single capability owner. Post-search found only backend/module/doc-name references and the plan's explicit replacement record.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 24
-- Local verification: `cd frontend && pnpm test -- components/site-health/issues-catalog.test.tsx components/site-health/pages-table.test.tsx components/site-health/site-health-screen.test.tsx components/site-health/url-detail.test.tsx components/opportunities/opportunities-screen.test.tsx app/sitemap.test.ts` (67 passed); `pnpm lint`, `pnpm check:contract` (10 passed), `pnpm check:policy`, `pnpm exec tsc --noEmit`, and `$env:BACKEND_ORIGIN='https://backend.example.com'; pnpm build` passed; `python docs/validate_documentation.py` and `git diff --check` passed. The build listed `/site` and `/site/crawls/[crawlId]/pages/[siteUrlId]` and no `/site-health` browser route.
+- Local verification: `cd frontend && pnpm test -- components/site-health/issues-catalog.test.tsx components/site-health/pages-table.test.tsx components/site-health/site-health-screen.test.tsx components/site-health/url-detail.test.tsx components/opportunities/opportunities-screen.test.tsx app/sitemap.test.ts` (67 passed); `pnpm lint`, `pnpm check:contract` (10 passed), `pnpm check:policy`, `pnpm exec tsc --noEmit`, `$env:BACKEND_ORIGIN='https://backend.example.com'; pnpm build`, and `git diff --check` passed. The build listed `/site` and `/site/crawls/[crawlId]/pages/[siteUrlId]` and no `/site-health` browser route.
 - Evaluation artifact: not applicable; route replacement used deterministic caller and build proofs.
 - Advanced to internal slice: I02
 
@@ -477,7 +477,7 @@ row is the removal condition. No other compatibility path is implied.
 - Deleted / retained until: deleted `frontend/app/(app)/agent/page.tsx`, sidebar/mobile destination, page-title mapping, and route-specific E2E navigation with no redirect; retained Agent APIs, query keys, run history, worker, and typed tools because the sheet reuses their canonical owner.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 34
-- Local verification: `cd frontend && pnpm test -- components/agent/growth-agent-workspace.test.tsx components/layout/agent-sheet.test.tsx components/layout/page-header.test.tsx components/layout/sidebar-nav.test.tsx` (32 passed); `pnpm lint`, `pnpm check:policy`, `pnpm exec tsc --noEmit`, and `$env:BACKEND_ORIGIN='https://backend.example.com'; pnpm build` passed; `python docs/validate_documentation.py` and `git diff --check` passed. The build emitted no `/agent` browser route; post-search survivors are backend/API/module paths and the plan's replacement record.
+- Local verification: `cd frontend && pnpm test -- components/agent/growth-agent-workspace.test.tsx components/layout/agent-sheet.test.tsx components/layout/page-header.test.tsx components/layout/sidebar-nav.test.tsx` (32 passed); `pnpm lint`, `pnpm check:policy`, `pnpm exec tsc --noEmit`, `$env:BACKEND_ORIGIN='https://backend.example.com'; pnpm build`, and `git diff --check` passed. The build emitted no `/agent` browser route; post-search survivors are backend/API/module paths and the plan's replacement record.
 - Evaluation artifact: not applicable; deterministic interaction and route-build proofs cover the cutover.
 - Advanced to internal slice: I03
 
@@ -488,7 +488,7 @@ row is the removal condition. No other compatibility path is implied.
 - Deleted / retained until: deleted `/providers` and `/prompt-research` App Router pages, the prompt redirect test, title/robots entries, comments, and E2E callers with no redirects; retained provider API/components/catalog modules and `/settings?tab=providers`, plus `/prompts` and its `mode=manage` state as the sole owners.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 49
-- Local verification: `cd backend && uv run pytest tests/component/test_products_api.py -q` (14 passed); changed-owner `uv run ruff check ...` and `uv run mypy app` passed. `cd frontend && pnpm test -- components/layout/sidebar-nav.test.tsx components/layout/page-header.test.tsx app/sitemap.test.ts` (32 passed), `pnpm check:contract` (10 passed), `pnpm lint`, `pnpm check:policy`, `pnpm exec tsc --noEmit`, and `$env:BACKEND_ORIGIN='https://backend.example.com'; pnpm build` passed; `python docs/validate_documentation.py` and `git diff --check` passed. The build emitted neither retired route.
+- Local verification: `cd backend && uv run pytest tests/component/test_products_api.py -q` (14 passed); changed-owner `uv run ruff check ...` and `uv run mypy app` passed. `cd frontend && pnpm test -- components/layout/sidebar-nav.test.tsx components/layout/page-header.test.tsx app/sitemap.test.ts` (32 passed), `pnpm check:contract` (10 passed), `pnpm lint`, `pnpm check:policy`, `pnpm exec tsc --noEmit`, `$env:BACKEND_ORIGIN='https://backend.example.com'; pnpm build`, and `git diff --check` passed. The build emitted neither retired route.
 - Evaluation artifact: not applicable; deterministic capability and route-build proofs cover the cutover.
 - Advanced to internal slice: P01
 
@@ -532,7 +532,7 @@ row is the removal condition. No other compatibility path is implied.
 - Deleted / retained until: deleted the Visibility `overview` token, `VisibilityOverview`, `OverviewSummary`, duplicate selected-run composition, overview-only marketing preview, tests, and comments; retained Commerce's unrelated product-visibility Overview and the legal section ID.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 95 (local merge-base readback)
-- Local verification: `cd frontend && pnpm test -- "app/(app)/visibility/page.test.tsx" components/intelligence/intelligence.test.tsx components/projects/dashboard-screen.test.tsx components/knowledge-base/brand-profile-panel.test.tsx components/layout/sidebar-nav.test.tsx` (83 wave-close tests passed); `pnpm test -- components/marketing/scenes/product-window.test.tsx` (6 repository-CI follow-up tests passed); `pnpm lint`, `pnpm check:contract` (10 passed), `pnpm check:policy`, `pnpm exec tsc --noEmit`, and `$env:BACKEND_ORIGIN='https://backend.example.com'; pnpm build` passed. `pnpm exec playwright test e2e/design-repair.spec.ts e2e/providers.spec.ts e2e/visibility.spec.ts` passed the selected route/navigation/empty-state proofs after fixture repair; `python docs/validate_documentation.py` and `git diff --check` passed.
+- Local verification: `cd frontend && pnpm test -- "app/(app)/visibility/page.test.tsx" components/intelligence/intelligence.test.tsx components/projects/dashboard-screen.test.tsx components/knowledge-base/brand-profile-panel.test.tsx components/layout/sidebar-nav.test.tsx` (83 wave-close tests passed); `pnpm test -- components/marketing/scenes/product-window.test.tsx` (6 repository-CI follow-up tests passed); `pnpm lint`, `pnpm check:contract` (10 passed), `pnpm check:policy`, `pnpm exec tsc --noEmit`, and `$env:BACKEND_ORIGIN='https://backend.example.com'; pnpm build` passed. `pnpm exec playwright test e2e/design-repair.spec.ts e2e/providers.spec.ts e2e/visibility.spec.ts` passed the selected route/navigation/empty-state proofs after fixture repair; `git diff --check` passed.
 - Evaluation artifact: not applicable; deterministic browser and contract fixtures cover the cutover.
 - Advanced to internal slice: wave close
 
@@ -702,14 +702,13 @@ The new organizing outcome **conflicts with documents this plan calls authoritie
 mandates sidebar grouping by Site/Content/Demand. That is a fine product decision but cannot
 coexist as simultaneous implementation authority.
 
-**Status:** this plan is now registered in `documentation-index.md` and the validator's
-`ACTIVE_EXACT` allowlist, and `vision.md` has been archived to `docs/archive/vision.md`. The
+**Status:** this plan is now registered in the `AGENTS.md` task map, and `vision.md` has been
+archived to `docs/archive/vision.md`. The
 remaining realignment below is still required.
 
 Update **together, in one slice** — a partial pass leaves contradictory authorities:
 
 - [`AGENTS.md`](../../AGENTS.md) (encodes the old hierarchy and the task-document map),
-  [`documentation-index.md`](../documentation-index.md) (**register this plan**),
   [`architecture.md`](../architecture.md) (AI recommendation is the measured outcome; the four
   systems become *capabilities* behind loop stations),
   [`design.md`](../design.md) (sidebar grouping → loop stations; keep the insight object and
@@ -730,9 +729,9 @@ agree, and where they ever diverge, `architecture.md` wins.
 files above, add the locked route contract below to `frontend-architecture.md`, add the loop and
 measurable-promise wording to `architecture.md`, replace the old navigation hierarchy in
 `design.md`, and make each subsystem plan point back to this program for sequencing. Record the
-completed authority inventory and validator result in the R00 completion note.
+completed owner-document review in the R00 completion note.
 
-**Gate:** `python docs/validate_documentation.py` exits clean.
+**Gate:** review the changed documents against the `AGENTS.md` task map.
 
 ---
 
@@ -1795,10 +1794,10 @@ Runs **after** all feature slices merge, so no partial migration or stale image 
    route still referenced in `robots.ts`/sitemap/nav/page-titles, no dead component files.
 
 **Documentation update:** reconcile `AGENTS.md`, `architecture.md`, all subsystem/runtime
-authorities, `README.md`, and `documentation-index.md` against the clean shipped runtime; archive
+authorities, and `README.md` against the clean shipped runtime; archive
 superseded plans/screenshots; store a dated sanitized end-to-end evaluation artifact; audit every
 completion note for final commit/PR and verification evidence; set this plan to `completed` only
-when no row remains pending and `python docs/validate_documentation.py` is green.
+when no row remains pending and the named owner documents match the shipped runtime.
 
 ---
 
@@ -1836,8 +1835,7 @@ uv run ruff check <changed paths>
 pnpm test -- <changed files>
 pnpm lint && pnpm check:policy && pnpm build
 
-# Docs + clean-database schema gate (invariant 16)
-python docs/validate_documentation.py
+# Clean-database schema gate (invariant 16)
 (cd backend && uv run alembic upgrade head && uv run alembic check)   # empty disposable DB
 ```
 

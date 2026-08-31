@@ -31,7 +31,9 @@ class _Gateway:
 
 
 @pytest.mark.asyncio
-async def test_schema_failure_receives_safe_repair_feedback(monkeypatch) -> None:
+async def test_schema_failure_receives_immediate_safe_repair_feedback(
+    monkeypatch,
+) -> None:
     delays: list[float] = []
 
     async def record_sleep(delay: float) -> None:
@@ -55,7 +57,7 @@ async def test_schema_failure_receives_safe_repair_feedback(monkeypatch) -> None
     )
 
     assert result.value == 3
-    assert delays == [module.brand_discovery_settings.synthesis_retry_delay(0)]
+    assert delays == []
     assert "CORRECTION_REQUIRED" not in gateway.users[0]
     assert "int_parsing" in gateway.users[1]
     assert "not-an-integer" not in gateway.users[1]

@@ -168,7 +168,6 @@ Commands, environment, entitlement, migration, and the clean-clone runbook:
 | Document | What it covers |
 |---|---|
 | [`AGENTS.md`](AGENTS.md) | Mandatory implementation rules and the task-specific document map |
-| [`docs/documentation-index.md`](docs/documentation-index.md) | Complete active documentation authority map |
 | [`docs/architecture.md`](docs/architecture.md) | Canonical target product architecture |
 | [`docs/invariants.md`](docs/invariants.md) | The review-blocking rules |
 | [`docs/plans/citeladder-aeo-product-rebuild.md`](docs/plans/citeladder-aeo-product-rebuild.md) | Product architecture and delivery order |
@@ -214,9 +213,6 @@ express portably, so use the [Quick start](#quick-start) command verbatim.
 ## Focused validation
 
 ```bash
-# Repository root
-python docs/validate_documentation.py
-
 # Backend, from backend/
 uv run pytest tests/unit/test_<area>.py tests/component/test_<area>.py -q
 uv run ruff check <changed paths>

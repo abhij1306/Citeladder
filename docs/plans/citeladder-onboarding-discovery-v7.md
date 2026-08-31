@@ -3,7 +3,12 @@
 > **Superseded in part.** The evidence-first onboarding research in this plan
 > shipped and remains current. The GMI Cloud / MiniMax M3 application-model
 > cutover was later reverted: the default agent and content generation both
-> run on Mistral, and no GMI code path remains. Kept as a historical record.
+> run on Mistral, and no GMI code path remains. A later runtime simplification
+> also moved topic selection from discovery into asynchronous completion,
+> required evidence references and explicit business-model classification for
+> every competitor, reused the resolved homepage, and bounded identity evidence
+> across first-party and external sources. Kept as a historical record; current
+> behavior is documented in `docs/backend-architecture.md`.
 
 **Status:** Implemented
 **Branch:** `feat/onboarding-discovery-v7-gmi`

@@ -159,7 +159,7 @@ Useful variants:
 
 ```powershell
 .\scripts\check.ps1 -CheckOnly              # never mutates files
-.\scripts\check.ps1 -Scope Backend          # or Frontend, Docs
+.\scripts\check.ps1 -Scope Backend          # or Frontend
 .\scripts\test.ps1 -ChangedFiles a.py,b.py  # retry delta after a failed run
 ```
 

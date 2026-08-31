@@ -33,6 +33,7 @@ from app.domain.projects.onboarding.research_evidence import (
     CompetitiveSignature,
     ResearchCallBudget,
     ResearchEvidenceItem,
+    bounded_evidence,
     evidence_payload,
 )
 from app.domain.projects.onboarding.structured_repair import (
@@ -56,7 +57,7 @@ class IdentityEvidenceResult:
 
 
 def first_party_evidence(evidence: BrandEvidence) -> list[ResearchEvidenceItem]:
-    remaining = brand_discovery_settings.synthesis_evidence_max_chars
+    remaining = brand_discovery_settings.identity_first_party_evidence_max_chars
     items: list[ResearchEvidenceItem] = []
     for index, page in enumerate(evidence.pages, start=1):
         if remaining <= 0:
@@ -107,21 +108,16 @@ async def research_identity_evidence(
     owned_domain: str,
     first_party: list[ResearchEvidenceItem],
     budget: ResearchCallBudget,
+    search_responses: list[KeenableSearchResponse | BaseException] | None = None,
 ) -> IdentityEvidenceResult:
-    queries = identity_queries(brand_name=brand_name, domain=owned_domain)
-    admitted = budget.take(
-        min(len(queries), brand_discovery_settings.identity_search_count)
-    )
-    search_tasks = [
-        client.search(
-            query,
-            site=site,
-            max_results=brand_discovery_settings.identity_search_max_results,
-            snippet_max_length=brand_discovery_settings.keenable_snippet_max_chars,
+    responses = search_responses
+    if responses is None:
+        responses = await search_identity_evidence(
+            client,
+            brand_name=brand_name,
+            owned_domain=owned_domain,
+            budget=budget,
         )
-        for query, site in queries[:admitted]
-    ]
-    responses = await asyncio.gather(*search_tasks, return_exceptions=True)
     if not any(not isinstance(item, BaseException) for item in responses):
         return IdentityEvidenceResult(items=(), state="failed")
     search_items, selected = _identity_search_evidence(
@@ -135,9 +131,35 @@ async def research_identity_evidence(
         owned_domain=owned_domain,
         budget=budget,
     )
-    return IdentityEvidenceResult(
-        items=tuple([*search_items, *fetch_items]), state="ready"
+    bounded = bounded_evidence(
+        [*fetch_items, *search_items],
+        max_chars=brand_discovery_settings.identity_external_evidence_max_chars,
     )
+    return IdentityEvidenceResult(items=bounded, state="ready")
+
+
+async def search_identity_evidence(
+    client: KeenableClient,
+    *,
+    brand_name: str,
+    owned_domain: str,
+    budget: ResearchCallBudget,
+) -> list[KeenableSearchResponse | BaseException]:
+    """Start the independent search tier while first-party pages are read."""
+    queries = identity_queries(brand_name=brand_name, domain=owned_domain)
+    admitted = budget.take(
+        min(len(queries), brand_discovery_settings.identity_search_count)
+    )
+    search_tasks = [
+        client.search(
+            query,
+            site=site,
+            max_results=brand_discovery_settings.identity_search_max_results,
+            snippet_max_length=brand_discovery_settings.keenable_snippet_max_chars,
+        )
+        for query, site in queries[:admitted]
+    ]
+    return list(await asyncio.gather(*search_tasks, return_exceptions=True))
 
 
 def _identity_search_evidence(

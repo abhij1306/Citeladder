@@ -51,10 +51,12 @@ export function discoveryActivity(discovery: BrandDiscovery | undefined): Activi
     'Preparing your review',
   ] as const;
   const details = [
-    countDetail(progress?.pages_read, 'useful', 'page', 'pages', 'read'),
-    undefined,
-    countDetail(progress?.competitors_found, 'comparable', 'brand', 'brands', 'found'),
-    undefined,
+    countDetail(progress?.pages_read, 'useful', 'page', 'pages', 'read') ??
+      'Checking that your website can be read.',
+    'Learning what you offer and who it is most useful for.',
+    countDetail(progress?.competitors_found, 'comparable', 'brand', 'brands', 'found') ??
+      'Looking for genuinely comparable brands.',
+    'Organizing the strongest findings for your review.',
   ] as const;
   return labels.map((label, index) => ({
     id: label,
