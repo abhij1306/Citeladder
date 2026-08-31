@@ -66,7 +66,6 @@ function dimension(key: string, label: string, failing: boolean) {
         error_count: 0,
         failing_entity_count: failing ? 2 : 0,
         checkpoint_family: key,
-        readiness_weight: 1,
         content_addressable: true,
       },
     ],

@@ -433,7 +433,7 @@ def test_content_heuristics_have_fixed_sub_order() -> None:
     assert classify("https://example.com/x", facts).page_kind == "faq"
 
 
-def test_conflicting_semantic_evidence_uses_fixed_priority_and_records_conflict() -> None:
+def test_conflicting_semantic_evidence_uses_priority_and_records_conflict() -> None:
     facts = _facts(
         h2_texts=_question_h2s(3),
         title="Shipping policy questions and answers",

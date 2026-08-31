@@ -659,6 +659,13 @@ has null quality and zero coverage. A quality result is null when determinate
 weight is zero, and coverage is null when expected weight is zero; rollup never
 coerces null to `0`, `100`, or N/A.
 
+Expected weight includes every applicable `measured` family budget and every
+applicable `measurement_gap` family budget. A gap therefore lowers coverage
+without inventing a checkpoint outcome or quality penalty. A `not_applicable`
+family is removed before expected weight is calculated. If a profile has no
+expected families, expected weight is zero: score and coverage are both null
+and state is `not_measured`.
+
 Page-scoped family means are first computed within each expected page kind.
 Every expected kind then receives one equal macro vote, regardless of its page
 count. Adding more pages of a kind can refine that kind's mean but cannot
@@ -670,6 +677,7 @@ Aggregate AEO measurement state is:
 
 ```text
 not_measured      expected weight > 0 and determinate weight == 0
+not_measured      expected weight == 0 (no expected families)
 limited_evidence  0 < determinate weight < expected weight
 measured          determinate weight == expected weight > 0
 ```

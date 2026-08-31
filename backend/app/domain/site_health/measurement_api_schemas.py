@@ -43,7 +43,6 @@ class ReadinessCheckResponse(_Model):
     error_count: int
     failing_entity_count: int
     checkpoint_family: str
-    readiness_weight: float
     content_addressable: bool
 
 

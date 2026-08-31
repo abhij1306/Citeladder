@@ -525,5 +525,6 @@ def _validate(
 def test_invalid_profile_assembly_fails(
     mutate: Callable[[tuple[FamilyProfileRow, ...]], tuple[FamilyProfileRow, ...]],
 ) -> None:
+    mutated = mutate(CLASSIFIED_KIND_FAMILY_PROFILE)
     with pytest.raises(ValueError):
-        _validate(mutate(CLASSIFIED_KIND_FAMILY_PROFILE))
+        _validate(mutated)

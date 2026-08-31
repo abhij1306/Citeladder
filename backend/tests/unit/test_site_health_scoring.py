@@ -116,8 +116,38 @@ def test_technical_boundary_requires_coverage_and_critical_completeness() -> Non
     assert boundary.web_fundamentals_state == MEASUREMENT_STATE_MEASURED
 
 
+def test_page_web_fundamentals_partial_outcome_receives_half_credit() -> None:
+    scores = score_analysis(
+        [
+            _technical("technical.indexable", "satisfied"),
+            _technical("technical.title_present", "partial"),
+        ]
+    )
+
+    assert scores.web_fundamentals_score == 75.0
+    assert scores.web_fundamentals_coverage == 1.0
+    assert scores.web_fundamentals_state == MEASUREMENT_STATE_MEASURED
+
+
 def _page_dimension(scores, key: str):
     return next(row for row in scores.readiness_dimensions if row.key == key)
+
+
+def test_zero_expected_and_measurement_gap_profiles_keep_distinct_denominators() -> (
+    None
+):
+    no_profile = score_analysis([], page_kind="other")
+    gap_profile = score_analysis([], page_kind="homepage")
+    gap_dimension = _page_dimension(gap_profile, "evidence")
+
+    assert no_profile.aeo_readiness_score is None
+    assert no_profile.aeo_measurement_coverage is None
+    assert no_profile.aeo_measurement_state == MEASUREMENT_STATE_NOT_MEASURED
+    assert gap_dimension.score is None
+    assert gap_dimension.coverage == 0.0
+    assert gap_dimension.expected_points == 0.5
+    assert gap_dimension.determinate_points == 0.0
+    assert gap_dimension.measurement_state == MEASUREMENT_STATE_NOT_MEASURED
 
 
 def test_duplicate_checkpoint_observation_does_not_change_family_or_dimension() -> None:

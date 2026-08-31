@@ -1482,7 +1482,7 @@ def test_unrelated_nested_schema_nodes_do_not_activate_primary_entity_contracts(
     required = _outcome(facts, "aeo.schema_required_valid")
 
     assert expected.outcome == RULE_OUTCOME_MISSING
-    assert expected.reason_code == "expected_schema_absent"
+    assert expected.reason_code == "expected_schema_other_document"
     assert required.outcome != RULE_OUTCOME_SATISFIED
 
 

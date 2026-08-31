@@ -339,9 +339,7 @@ def _check_source_support_present(facts: dict) -> tuple[str, dict]:
         "attached_source_count": len(sources),
         "ambiguous_source_count": ambiguous,
         "invalid_source_count": invalid,
-        "context_reasons": list(
-            islice(support.get("context_reasons") or (), 8)
-        ),
+        "context_reasons": list(islice(support.get("context_reasons") or (), 8)),
     }
     if not available:
         evidence["reason"] = "primary_content_unavailable"
@@ -739,9 +737,7 @@ def evaluate_rules(
 ) -> list[RuleEvaluation]:
     """Evaluate the supplied rules against one immutable measurement profile."""
     frozen = _freeze_measurement_profile(facts)
-    return [
-        evaluate_rule(rule, facts, frozen_profile=frozen) for rule in rules
-    ]
+    return [evaluate_rule(rule, facts, frozen_profile=frozen) for rule in rules]
 
 
 def rule_for(rule_id: str) -> SiteHealthRule | None:

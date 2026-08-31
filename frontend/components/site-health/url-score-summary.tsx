@@ -42,7 +42,9 @@ function ScoreTile({
   return (
     <Card>
       <CardContent className="flex flex-col items-center gap-2 py-[var(--card-padding)]">
-        {value === null ? scoreUnavailableState(state) : (
+        {value === null ? (
+          scoreUnavailableState(state)
+        ) : (
           <ScoreRing value={value} size={64} label={`${label}: ${Math.round(value)}`} />
         )}
         <Label>{label}</Label>

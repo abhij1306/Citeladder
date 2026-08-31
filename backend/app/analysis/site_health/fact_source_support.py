@@ -120,13 +120,18 @@ def _record_anchor(
     facts: dict[str, Any],
 ) -> None:
     href = str(node.get("href") or "").strip()
-    absolute = urljoin(final_url, href)
-    host = _external_host(absolute, base_host=base_host)
+    resolved = _resolved_anchor_url(href, final_url=final_url, base_host=base_host)
+    if resolved is None:
+        if section:
+            facts["invalid_source_count"] += 1
+        return
+    absolute, host = resolved
     if not host:
-        if (
-            section
-            and href.startswith(("http://", "https://"))
-            and not _is_self_domain(absolute, base_host=base_host)
+        if _is_invalid_absolute_source(
+            section=section,
+            href=href,
+            absolute=absolute,
+            base_host=base_host,
         ):
             facts["invalid_source_count"] += 1
         return
@@ -146,6 +151,26 @@ def _record_anchor(
     }
     if item not in sources:
         sources.append(item)
+
+
+def _resolved_anchor_url(
+    href: str, *, final_url: str, base_host: str
+) -> tuple[str, str] | None:
+    try:
+        absolute = urljoin(final_url, href)
+        return absolute, _external_host(absolute, base_host=base_host)
+    except ValueError:
+        return None
+
+
+def _is_invalid_absolute_source(
+    *, section: str, href: str, absolute: str, base_host: str
+) -> bool:
+    return bool(
+        section
+        and href.startswith(("http://", "https://"))
+        and not _is_self_domain(absolute, base_host=base_host)
+    )
 
 
 def _external_host(url: str, *, base_host: str) -> str:

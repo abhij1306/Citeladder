@@ -283,9 +283,7 @@ async def test_bodyless_success_is_not_in_classification_cohort(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     root = "https://example.com/bodyless"
-    _seed, _site_url_id, task_id = await _seed_analyze_ready(
-        session_factory, root=root
-    )
+    _seed, _site_url_id, task_id = await _seed_analyze_ready(session_factory, root=root)
 
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(

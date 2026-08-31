@@ -184,7 +184,6 @@ async function stubWebsite(page: Page) {
                 error_count: 0,
                 failing_entity_count: missingCount,
                 checkpoint_family: key,
-                readiness_weight: 1,
                 content_addressable: true,
               },
             ],

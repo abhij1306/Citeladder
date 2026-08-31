@@ -242,7 +242,6 @@ _NOT_APPLICABLE_REASONS: Final = frozenset(
     }
 )
 
-_M = "measured:"
 _G = "gap:"
 _N = "not_applicable:"
 
@@ -426,13 +425,12 @@ def _row(page_kind: str, condition: str, family_id: str, spec: str) -> FamilyPro
             (),
             spec.removeprefix(_N),
         )
-    expression_key = spec.removeprefix(_M)
     return FamilyProfileRow(
         page_kind,
         condition,
         family_id,
         PROFILE_STATUS_MEASURED,
-        _EXPRESSIONS[expression_key],
+        _EXPRESSIONS[spec],
         "",
     )
 
@@ -472,10 +470,6 @@ def _condition_matches(
     return condition == TRAIT_CONDITION_ALWAYS
 
 
-def _is_classified_page_kind(page_kind: str) -> bool:
-    return page_kind != PAGE_KIND_OTHER and page_kind in PAGE_KINDS
-
-
 def _is_base_row_for_kind(row: FamilyProfileRow, page_kind: str) -> bool:
     return row.page_kind == page_kind and row.trait_condition == TRAIT_CONDITION_ALWAYS
 
@@ -499,7 +493,7 @@ def profile_rows(
     page_traits: Iterable[str] = (),
     context: Mapping[str, object] | None = None,
 ) -> tuple[FamilyProfileRow, ...]:
-    if not _is_classified_page_kind(page_kind):
+    if page_kind == PAGE_KIND_OTHER or page_kind not in PAGE_KINDS:
         return ()
     traits = frozenset(str(value) for value in page_traits)
     effective_context = context or {}

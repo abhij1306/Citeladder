@@ -197,7 +197,7 @@ def _resolve_primary_schema_selection(
             [],
             {
                 **evidence,
-                "reason": "expected_schema_absent",
+                "reason": "expected_schema_other_document",
             },
         )
     return RULE_OUTCOME_SATISFIED, candidates, evidence

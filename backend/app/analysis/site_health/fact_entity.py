@@ -564,22 +564,32 @@ def _is_pagination(node: Any, blob: str) -> bool:
 def _is_empty_state(node: Any, blob: str) -> bool:
     text = " ".join(_text(node).casefold().split()).rstrip(".!")
     words = text.split()
-    counted_empty = len(words) == 2 and words[0] == "0" and words[1] in {
-        "result",
-        "results",
-        "item",
-        "items",
-        "product",
-        "products",
-    }
-    no_items = len(words) in {2, 3} and words[0] == "no" and words[1] in {
-        "result",
-        "results",
-        "item",
-        "items",
-        "product",
-        "products",
-    }
+    counted_empty = (
+        len(words) == 2
+        and words[0] == "0"
+        and words[1]
+        in {
+            "result",
+            "results",
+            "item",
+            "items",
+            "product",
+            "products",
+        }
+    )
+    no_items = (
+        len(words) in {2, 3}
+        and words[0] == "no"
+        and words[1]
+        in {
+            "result",
+            "results",
+            "item",
+            "items",
+            "product",
+            "products",
+        }
+    )
     if len(words) == 3 and words[2] not in {"available", "found"}:
         no_items = False
     return (
@@ -605,9 +615,7 @@ def _has_blob_token(blob: str, tokens: frozenset[str]) -> bool:
 def _normalized_tokens(value: str) -> set[str]:
     normalized = value.casefold()
     tokens = set(_WORD_RE.findall(normalized))
-    tokens.update(
-        chunk for chunk in _NON_TOKEN_RE.split(normalized) if "-" in chunk
-    )
+    tokens.update(chunk for chunk in _NON_TOKEN_RE.split(normalized) if "-" in chunk)
     return tokens
 
 

@@ -117,7 +117,6 @@ def _check_projection(rule_id: str, rows: Sequence[Row]) -> dict | None:
         "error_count": counts[RULE_OUTCOME_ERROR],
         "failing_entity_count": _failing_entity_count(first.scope, rows),
         "checkpoint_family": str(first.checkpoint_family or ""),
-        "readiness_weight": float(first.readiness_weight or 0.0),
         "content_addressable": rule.content_addressable,
     }
 

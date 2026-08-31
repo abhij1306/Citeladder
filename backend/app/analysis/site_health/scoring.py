@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from app.analysis.site_health.rules import RuleEvaluation
 from app.analysis.site_health.web_fundamentals_scoring import (
     aggregate_web_fundamentals,
+    checkpoint_credit,
     measurement_ratio,
     score_page_web_fundamentals,
 )
@@ -21,6 +22,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_SATISFIED,
     SCORING_VERSION,
 )
+from app.core.config.site_health_family_profile import PROFILE_STATUSES
 from app.core.config.site_health_measurement import (
     CAPABILITY_FAMILIES_BY_ID,
     DIMENSION_APPLICABLE,
@@ -31,7 +33,6 @@ from app.core.config.site_health_measurement import (
     PAGE_KIND_ROLLUP_WEIGHTS,
     PROFILE_STATUS_MEASURED,
     PROFILE_STATUS_NOT_APPLICABLE,
-    PROFILE_STATUSES,
     READINESS_DIMENSION_WEIGHTS,
     expected_checkpoint_expressions,
     profile_rows,
@@ -96,22 +97,6 @@ class AnalysisScores:
     readiness_dimensions: tuple[DimensionMeasurement, ...]
     main_content_indexable: bool | None
     scoring_version: str = SCORING_VERSION
-
-
-def _round_score(value: float) -> float:
-    return round(value, 1)
-
-
-def _round_coverage(value: float) -> float:
-    return round(value, 4)
-
-
-def _credit(outcome: str) -> float:
-    if outcome == RULE_OUTCOME_SATISFIED:
-        return 1.0
-    if outcome == RULE_OUTCOME_PARTIAL:
-        return 0.5
-    return 0.0
 
 
 def _empty_dimension(key: str, applicability: str, reason: str) -> DimensionMeasurement:
@@ -209,7 +194,7 @@ def _family_artifact_values(
     if family is None:
         raise ValueError(f"Unknown capability family: {family_id}")
     dimension_id = str(artifact.get("dimension_id") or "")
-    if dimension_id not in AEO_READINESS_DIMENSIONS or dimension_id != family.dimension_id:
+    if dimension_id != family.dimension_id:
         raise ValueError(f"Invalid family dimension: {family_id}")
     status = str(artifact.get("status") or "")
     if status not in PROFILE_STATUSES:
@@ -248,7 +233,7 @@ def _checkpoint_tally(
         if outcome not in _DETERMINATE:
             continue
         determinate += weight
-        earned += weight * _credit(outcome)
+        earned += weight * checkpoint_credit(outcome)
         determinate_ids.append(checkpoint_id)
     return determinate, earned, determinate_ids
 
@@ -402,11 +387,9 @@ def _overall_aeo(
     expected_weight = sum(READINESS_DIMENSION_WEIGHTS[row.key] for row in expected)
     measured = _dimension_contributions(expected)
     raw_score, measured_weight = _weighted_average(measured)
-    score = None if raw_score is None else _round_score(raw_score)
+    score = None if raw_score is None else round(raw_score, 1)
     coverage = (
-        None
-        if expected_weight <= 0
-        else _round_coverage(measured_weight / expected_weight)
+        None if expected_weight <= 0 else round(measured_weight / expected_weight, 4)
     )
     checkpoints, _families, _measured_dimensions = _breadth_sets(dimensions)
     state = _aeo_state(coverage=coverage, checkpoints=checkpoints)
@@ -523,7 +506,7 @@ def _mean_credit(rows: list[RuleMeasurementInput]) -> float | None:
     determinate = [row for row in rows if row.outcome in _DETERMINATE]
     if not determinate:
         return None
-    return sum(_credit(row.outcome) for row in determinate) / len(determinate)
+    return sum(checkpoint_credit(row.outcome) for row in determinate) / len(determinate)
 
 
 def _weighted_average(values: list[tuple[float, float]]) -> tuple[float | None, float]:
@@ -586,7 +569,7 @@ def _site_rule_result(
         return None, 0.0
     if len(determinate_outcomes) > 1:
         return None, 0.0
-    return _credit(next(iter(determinate_outcomes))), 1.0
+    return checkpoint_credit(next(iter(determinate_outcomes))), 1.0
 
 
 def _entity_set_rule_result(

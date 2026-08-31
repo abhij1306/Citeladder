@@ -141,7 +141,6 @@ export const readinessCheckSchema = responseObject({
   error_count: z.number().int(),
   failing_entity_count: z.number().int(),
   checkpoint_family: z.string(),
-  readiness_weight: z.number(),
   content_addressable: z.boolean(),
 });
 

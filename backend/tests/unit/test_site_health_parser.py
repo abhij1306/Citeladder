@@ -1386,3 +1386,22 @@ def test_malformed_source_authority_preserves_prior_sources(monkeypatch) -> None
             "relationship": "nearby_attribution",
         }
     ]
+
+
+def test_malformed_source_href_skips_only_that_anchor() -> None:
+    facts = _facts(
+        b"<html><body><main><h1>Research summary</h1>"
+        b"<h2>Sources</h2>"
+        b"<a href='https://data.example.org/one'>First source</a>"
+        b"<a href='https://[broken.example/report'>Broken source</a>"
+        b"<a href='https://data.example.net/two'>Second source</a>"
+        b"</main></body></html>"
+    )
+
+    support = facts["source_support"]
+    assert support["primary_content_available"] is True
+    assert support["invalid_source_count"] == 1
+    assert [item["domain"] for item in support["attached_sources"]] == [
+        "data.example.org",
+        "data.example.net",
+    ]

@@ -46,6 +46,14 @@ _DETERMINATE = frozenset(
 )
 
 
+def checkpoint_credit(outcome: str) -> float:
+    if outcome == RULE_OUTCOME_SATISFIED:
+        return 1.0
+    if outcome == RULE_OUTCOME_PARTIAL:
+        return 0.5
+    return 0.0
+
+
 def measurement_ratio(
     numerator: float, denominator: float, *, score: bool
 ) -> float | None:
@@ -86,8 +94,9 @@ def score_page_web_fundamentals(
     determinate = [row for row in expected if row.outcome in _DETERMINATE]
     expected_weight = _weight(expected)
     determinate_weight = _weight(determinate)
-    earned = _weight(
-        row for row in determinate if row.outcome == RULE_OUTCOME_SATISFIED
+    earned = sum(
+        max(0.0, float(row.weight)) * checkpoint_credit(row.outcome)
+        for row in determinate
     )
     score = measurement_ratio(earned, determinate_weight, score=True)
     coverage = measurement_ratio(determinate_weight, expected_weight, score=False)
