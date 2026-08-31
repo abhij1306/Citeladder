@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -41,6 +41,12 @@ import { formatAudited } from '@/lib/site-health/status';
 import { useCursorStack } from '@/lib/site-health/use-cursor-stack';
 
 const PAGE_LIMIT = 25;
+const RADIO_ARROW_DELTA: Readonly<Record<string, number>> = {
+  ArrowDown: 1,
+  ArrowRight: 1,
+  ArrowUp: -1,
+  ArrowLeft: -1,
+};
 
 /**
  * Recommendation catalog: next best action + ranked action table + drawer.
@@ -103,7 +109,17 @@ function FilterMenu<T extends string>({
   onChange: (value: T) => void;
 }>) {
   const [open, setOpen] = useState(false);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const selectedLabel = options.find((option) => option.key === value)?.label ?? value;
+  const selectedIndex = options.findIndex((option) => option.key === value);
+  const tabStop = selectedIndex === -1 ? 0 : selectedIndex;
+
+  const move = (from: number, delta: number) => {
+    if (options.length === 0) return;
+    const next = (from + delta + options.length) % options.length;
+    onChange(options[next].key);
+    optionRefs.current[next]?.focus();
+  };
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -116,16 +132,26 @@ function FilterMenu<T extends string>({
       <PopoverContent align="start" className="grid min-w-40 gap-1 p-1" aria-label={label}>
         <p className="text-muted px-2 py-1 text-xs font-medium">{label}</p>
         <div role="radiogroup" aria-label={label} className="grid gap-1">
-          {options.map((option) => (
+          {options.map((option, index) => (
             <Pressable
               key={option.key}
+              ref={(node) => {
+                optionRefs.current[index] = node;
+              }}
               // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Button-based radio preserves the popover option interaction contract.
               role="radio"
               aria-checked={option.key === value}
+              tabIndex={index === tabStop ? 0 : -1}
               className="hover:bg-background-alt min-h-8 px-2 py-1.5 text-sm"
               onClick={() => {
                 onChange(option.key);
                 setOpen(false);
+              }}
+              onKeyDown={(event) => {
+                const delta = RADIO_ARROW_DELTA[event.key];
+                if (delta === undefined) return;
+                event.preventDefault();
+                move(index, delta);
               }}
             >
               <span className={option.key === value ? 'font-medium' : undefined}>

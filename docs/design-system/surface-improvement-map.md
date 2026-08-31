@@ -180,13 +180,13 @@
 - **Execution Log Table**: Status column uses un-tokenized status colors.
 
 ### Visual Target & HeroUI-Inspired Polish
-- Full audit schedule configuration using `Field`, `Input`, `Select`, and `Switch`.
+- Full audit schedule configuration using `Field`, `Input`, `Select`, and `Checkbox`.
 - Audit launch modal using canonical `Dialog` with step progression (`ActivityProgress`).
 - Executions table with standardized `Badge` using `runStatusBadge` tokens.
 
 ### Exact Surface Changes
 - `frontend/components/runs/audit-schedules.tsx`:
-  - Replace native inputs with `Input` and `Switch`.
+  - Replace the number input with `Input` and the independently selectable engine inputs with `Checkbox`.
 - `frontend/components/runs/launch-dialog.tsx`:
   - Convert custom modal wrapper to `Dialog`.
 - `frontend/components/runs/runs-table.tsx` & `executions-table.tsx`:
@@ -228,5 +228,5 @@
 | **6. Content** | 6 | Ad-hoc skill picker cards, brief review drawers | `Card interactive`, `Drawer`, `Button` |
 | **7. Demand** | 7 | Signal card header alignment, raw JSON pre blocks | `Card`, `Badge`, `CopyButton`, `Tabs` |
 | **8. Commerce** | 8 | Raw checkbox & search inputs in catalog | `Checkbox`, `SearchField`, `Table`, `CursorPager` |
-| **9. Runs** | 9 | Raw inputs in schedules, custom launch modal | `Dialog`, `Switch`, `Badge`, `ActivityProgress` |
+| **9. Runs** | 9 | Raw inputs in schedules, custom launch modal | `Dialog`, `Input`, `Checkbox`, `Badge`, `ActivityProgress` |
 | **10. Settings & Billing** | 10 | Raw inputs in billing, custom integration cards | `Field`, `Input`, `Select`, `Switch`, `Card` |

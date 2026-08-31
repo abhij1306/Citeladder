@@ -62,7 +62,7 @@ Phase 0: Token & CSS Bridge Hardening
 - [ ] **`RadioGroup` (`components/ui/radio-group.tsx`)**:
   - Re-align with `@radix-ui/react-radio-group` and support chip variant.
 - [ ] **`Switch` (`components/ui/switch.tsx`)**:
-  - Refine sliding thumb geometry (5px track height, 4px thumb, smooth transform transition).
+  - Refine sliding thumb geometry (20px track height, 14px thumb, smooth transform transition).
 
 ---
 

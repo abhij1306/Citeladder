@@ -382,7 +382,17 @@ describe('OpportunitiesScreen', () => {
     // Open the Area dropdown and select "Site".
     await user.click(screen.getByRole('button', { name: /Area:/ }));
     const areaGroup = await screen.findByRole('radiogroup', { name: 'Area' });
-    expect(within(areaGroup).getByRole('radio', { name: 'All types' })).toHaveAttribute(
+    const allTypes = within(areaGroup).getByRole('radio', { name: 'All types' });
+    expect(allTypes).toHaveAttribute('aria-checked', 'true');
+    expect(allTypes).toHaveAttribute('tabindex', '0');
+    expect(within(areaGroup).getByRole('radio', { name: 'Site' })).toHaveAttribute(
+      'tabindex',
+      '-1',
+    );
+    allTypes.focus();
+    await user.keyboard('{ArrowDown}');
+    expect(within(areaGroup).getByRole('radio', { name: 'Visibility' })).toHaveFocus();
+    expect(within(areaGroup).getByRole('radio', { name: 'Visibility' })).toHaveAttribute(
       'aria-checked',
       'true',
     );

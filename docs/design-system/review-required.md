@@ -62,7 +62,7 @@ This document records the specific architectural decisions, trade-offs, and boun
 - **Options**:
   - **Option A (Recommended)**: Retain semantic HTML `Table` + `useTablePage` / `CursorPager`. 50-row pages render instantly without virtualization overhead, maintain native browser accessibility, and preserve standard text selection.
   - **Option B**: Introduce TanStack Table or virtualized DOM rendering (`react-window`).
-- **Trade-offs**: Option A is lightweight, highly accessible, and requires zero heavy table runtime. Option B introduces complexity unneeded for 50-item paginated lists.
+- **Trade-offs**: Option A is lightweight, highly accessible, and does not require a heavyweight table runtime. Option B introduces complexity unneeded for 50-item paginated lists.
 - **Recommendation**: **Option A (Retain Semantic Table + Paginated Limits)**.
 
 ---
@@ -74,9 +74,9 @@ This document records the specific architectural decisions, trade-offs, and boun
   1. **Marketing & Auth**: Framer Motion and GSAP for entrance effects and ambient glow ribbons (`frontend/components/auth/brand-panel.tsx`).
   2. **Product Interface**: Fast, deterministic CSS transitions (`frontend/app/ui-motion.css`) with duration `150ms` and `ease-out`, respecting `prefers-reduced-motion`.
 - **Options**:
-  - **Option A (Recommended)**: Maintain this strict separation. The product application interface must rely entirely on CSS variables and transitions (`transition-all duration-150`), never blocking user interaction or inflating bundle size.
+  - **Option A (Recommended)**: Maintain this strict separation. The product application interface should use CSS transitions limited to compositor-friendly properties such as `transform` and `opacity`, respect reduced-motion preferences, and avoid inflating bundle size.
   - **Option B**: Expand Framer Motion into `components/ui/` primitives (e.g. dialogs, dropdowns).
-- **Trade-offs**: Option A guarantees snappy, enterprise-grade response times (< 16ms frame budget) and avoids layout thrashing. Option B introduces runtime JavaScript overhead.
+- **Trade-offs**: Option A reduces runtime JavaScript and avoids transitioning layout-affecting properties; performance benefits must still be confirmed through profiling. Option B introduces additional runtime JavaScript overhead.
 - **Recommendation**: **Option A (Keep CSS-only transitions in product UI; restrict motion libraries to marketing/canvas)**.
 
 ---

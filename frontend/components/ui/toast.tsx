@@ -17,7 +17,8 @@ export function ToastProvider({ children }: Readonly<{ children: ReactNode }>) {
   const nextMessageId = useRef(0);
   const notify = useCallback((title: string, description?: string) => {
     nextMessageId.current += 1;
-    setMessages((current) => [...current, { id: nextMessageId.current, title, description }]);
+    const id = nextMessageId.current;
+    setMessages((current) => [...current, { id, title, description }]);
   }, []);
   const value = useMemo(() => ({ notify }), [notify]);
 

@@ -264,9 +264,10 @@ export function SearchField({ value, onValueChange, pending = false, onClear, cl
       {value ? (
         <button
           type="button"
+          disabled={props.disabled}
           onClick={() => (onClear ? onClear() : onValueChange(''))}
           aria-label="Clear search"
-          className="text-muted hover:bg-well hover:text-foreground -mr-1 grid size-5.5 place-items-center rounded-xs transition-colors"
+          className="text-muted hover:bg-well hover:text-foreground -mr-1 grid size-5.5 place-items-center rounded-xs transition-colors disabled:pointer-events-none disabled:opacity-60"
         >
           <X className="size-3" aria-hidden />
         </button>

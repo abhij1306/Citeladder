@@ -52,6 +52,7 @@ Both are subordinate to the canonical runtime and measurement logic in
 | [`design-system/audit.md`](design-system/audit.md) | Design system inventory, surface breakdown, and debt analysis |
 | [`design-system/heroui-reference-map.md`](design-system/heroui-reference-map.md) | HeroUI v3 reference mapping, slot anatomy, and token adaptations |
 | [`design-system/component-map.md`](design-system/component-map.md) | Authoritative component action matrix and consolidation targets |
+| [`design-system/component-map.json`](design-system/component-map.json) | Machine-readable component action matrix for validation and execution tooling |
 | [`design-system/visual-improvement-map.md`](design-system/visual-improvement-map.md) | Visual improvement map across all 30 CiteLadder UI primitives |
 | [`design-system/visual-improvement-map.json`](design-system/visual-improvement-map.json) | Machine-readable visual improvement mapping for Codex execution |
 | [`design-system/surface-improvement-map.md`](design-system/surface-improvement-map.md) | Surface-level visual and layout gap analysis across 10 application surfaces |
