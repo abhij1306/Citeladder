@@ -331,13 +331,15 @@ test('earned opportunity handoff links generation and comparable verification', 
   await expect(page).toHaveURL(/\/content/);
   expect(new URL(page.url()).searchParams.get('opportunity_id')).toBe(OPPORTUNITY);
   await expect(page.getByText('Path: Earned')).toBeVisible();
-  await expect(page.getByText(detail(false).remediation)).toHaveCount(0);
+  // Instant navigation may retain the previous route's hidden DOM in its reusable shell.
+  await expect(page.getByText(detail(false).remediation).filter({ visible: true })).toHaveCount(0);
   const prompt = page.getByRole('textbox', { name: /describe the website content/i });
   await expect(prompt).toHaveValue(handoff.task_seed);
   await page.getByRole('button', { name: 'Generate' }).click();
   await expect(page.getByRole('heading', { name: 'Editorial inclusion brief' })).toBeVisible();
   await page.getByRole('link', { name: 'Return to opportunity' }).click();
-  await page.getByRole('button', { name: 'Review recommendation' }).click();
+  // Returning through the cached shell restores the open opportunity drawer.
+  await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'I implemented this' }).click();
 
   await expect(page.getByText('visibility: available')).toBeVisible();
