@@ -9,6 +9,8 @@ Web Fundamentals, so a displayed issue can never coexist with an unaffected
 from __future__ import annotations
 
 import uuid
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -41,6 +43,7 @@ from app.workers.site_health.lifecycle_finalize import (
 )
 from app.workers.site_health.resolution_evidence import (
     canonical_resolution_evaluations,
+    fetch_resolutions,
     resolution_set_evaluation,
 )
 
@@ -170,6 +173,36 @@ def test_rate_limited_canonical_target_is_unknown_with_attempt_provenance():
     assert ev.reason_code == "rate_limited"
     assert ev.evidence["observed_status_code"] == 429
     assert ev.evidence["resolution_source_ids"] == [str(task_id), str(attempt_id)]
+
+
+@pytest.mark.asyncio
+async def test_fetch_resolutions_keeps_latest_result_for_final_url():
+    requested = "https://example.test/redirect"
+    final = "https://example.test/final"
+    task_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+    first_attempt_id = uuid.uuid4()
+    latest_attempt_id = uuid.uuid4()
+    rows = [
+        (requested, task_id, 200, first_attempt_id, final, [final], artifact_id),
+        (requested, task_id, 429, latest_attempt_id, final, [final], artifact_id),
+    ]
+    session = AsyncMock()
+    session.execute.return_value = SimpleNamespace(all=lambda: rows)
+
+    resolutions = await fetch_resolutions(
+        session,
+        crawl=SimpleNamespace(id=uuid.uuid4(), workspace_id=uuid.uuid4()),
+    )
+
+    assert resolutions[final] == (
+        429,
+        final,
+        False,
+        task_id,
+        latest_attempt_id,
+        artifact_id,
+    )
 
 
 def test_broken_internal_link_evidence_is_scoped_to_each_source_page():

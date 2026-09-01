@@ -481,7 +481,7 @@ export function productContractViolations(root) {
   if (/\.website-type\b/.test(css + websiteCss)) {
     violations.push('app/globals.css: retired .website-type palette boundary must not return');
   }
-  if (/\.product-app\s*\{[^}]*--color-/s.test(css)) {
+  if (/\.product-app\s*\{[^}]*--color-[\w-]+\s*:/s.test(css)) {
     violations.push('app/globals.css: product-app must not override the shared surface palette');
   }
 

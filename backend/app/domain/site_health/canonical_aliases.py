@@ -62,9 +62,12 @@ def _canonical_target_hash(
 
 
 async def _admitted_rows(
-    session: AsyncSession, *, crawl: SiteCrawl
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    url_hashes: set[str] | None = None,
 ) -> list[tuple[uuid.UUID, str, bool, str]]:
-    rows = await session.execute(
+    query = (
         select(
             SiteUrl.id,
             SiteUrl.url_hash,
@@ -88,7 +91,11 @@ async def _admitted_rows(
             SiteUrl.workspace_id == crawl.workspace_id,
             SiteUrl.project_id == crawl.project_id,
         )
+        .distinct()
     )
+    if url_hashes is not None:
+        query = query.where(SiteUrl.url_hash.in_(url_hashes))
+    rows = await session.execute(query)
     return [
         (site_url_id, str(url_hash), bool(active), str(selection_source))
         for site_url_id, url_hash, active, selection_source in rows
@@ -133,7 +140,6 @@ async def _load_alias_graph(session: AsyncSession, *, crawl: SiteCrawl) -> _Alia
             SiteCrawlTask.url_hash.in_(site_url_ids),
             SiteFetchArtifact.workspace_id == crawl.workspace_id,
             SiteFetchArtifact.crawl_id == crawl.id,
-            SiteFetchArtifact.normalized_facts.is_not(None),
         )
         .order_by(SiteFetchArtifact.fetched_at, SiteFetchArtifact.id)
     )
@@ -258,16 +264,25 @@ async def resolve_duplicate_of_admitted_page(
     declared_canonical: str,
     base_url: str,
 ) -> str:
-    """Return a retained representative for one fully resolved alias edge."""
-    graph = await _load_alias_graph(session, crawl=crawl)
-    _observe_alias_edge(
-        graph,
+    """Return the active admitted target of one system-managed alias edge."""
+    target_hash = _canonical_target_hash(
         crawl=crawl,
         url_hash_value=url_hash_value,
         declared_canonical=declared_canonical,
         base_url=base_url,
     )
-    return _resolved_duplicate_targets(graph).get(url_hash_value, "")
+    if not target_hash:
+        return ""
+    graph = _graph_for_admitted(
+        await _admitted_rows(
+            session,
+            crawl=crawl,
+            url_hashes={url_hash_value, target_hash},
+        )
+    )
+    if url_hash_value not in graph.candidate_hashes:
+        return ""
+    return target_hash if target_hash in graph.active_hashes else ""
 
 
 async def mark_duplicate_url(

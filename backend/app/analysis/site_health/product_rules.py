@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
+
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_MISSING,
     RULE_OUTCOME_SATISFIED,
@@ -199,8 +201,16 @@ def _offer_freshness_timestamp(facts: dict, schema: dict) -> tuple[str, str]:
         "",
     )
     if validity:
-        return validity[:128], "offer_price_valid_until"
+        return _current_offer_validity(validity), "offer_price_valid_until"
     return _freshness_timestamp(facts)
+
+
+def _current_offer_validity(value: str) -> str:
+    try:
+        valid_until = date.fromisoformat(value[:10])
+    except ValueError:
+        return ""
+    return value[:128] if valid_until >= datetime.now(UTC).date() else ""
 
 
 def check_listing_item_facts(facts: dict) -> tuple[str, dict]:

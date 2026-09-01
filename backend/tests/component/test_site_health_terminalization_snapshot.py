@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
@@ -36,8 +37,10 @@ from app.core.config.task_queue import (
 )
 from app.domain.site_health.canonical_aliases import (
     _AliasGraph,
+    _load_alias_graph,
     _resolved_duplicate_targets,
 )
+from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.score_summary import (
     _classified_evidence,
     load_crawl_measurement_projection,
@@ -159,6 +162,41 @@ def test_alias_chain_can_traverse_an_already_excluded_intermediate() -> None:
     )
 
     assert _resolved_duplicate_targets(graph) == {"alias": "canonical"}
+
+
+@pytest.mark.asyncio
+async def test_alias_graph_uses_latest_artifact_even_when_facts_are_missing() -> None:
+    source = "https://example.com/alias"
+    target = "https://example.com/canonical"
+    _, source_hash = canonical_identity(source)
+    _, target_hash = canonical_identity(target)
+    session = AsyncMock()
+    session.execute.side_effect = [
+        [
+            (uuid.uuid4(), source_hash, True, SELECTION_SOURCE_BOOTSTRAP),
+            (uuid.uuid4(), target_hash, True, SELECTION_SOURCE_BOOTSTRAP),
+        ],
+        [
+            (source_hash, source, {"canonical_url": target}),
+            (source_hash, source, None),
+        ],
+    ]
+    crawl = SimpleNamespace(
+        id=uuid.uuid4(),
+        workspace_id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        root_url=source,
+        configuration={"root_registrable_domain": "example.com"},
+    )
+
+    graph = await _load_alias_graph(session, crawl=crawl)
+
+    admitted_query = str(session.execute.await_args_list[0].args[0])
+    artifact_query = str(session.execute.await_args_list[1].args[0])
+    assert "SELECT DISTINCT" in admitted_query
+    assert "normalized_facts IS NOT NULL" not in artifact_query
+    assert source_hash in graph.known_hashes
+    assert source_hash not in graph.edges
 
 
 @pytest.mark.asyncio

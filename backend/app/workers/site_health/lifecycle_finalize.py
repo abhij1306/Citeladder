@@ -122,7 +122,7 @@ def _cross_check_hreflang_alternates(
     alternates: list[dict],
     source_canonical: str,
     alternates_by_page: dict[str, list[dict]],
-    rate_limited_targets: set[str],
+    rate_limited_urls: set[str],
 ) -> tuple[int, int, int, list[str]]:
     checked_count = 0
     unchecked_count = 0
@@ -136,7 +136,7 @@ def _cross_check_hreflang_alternates(
             continue
         if target_canonical == source_canonical:
             continue
-        if target_canonical in rate_limited_targets:
+        if target_canonical in rate_limited_urls:
             unchecked_count += 1
             rate_limited_count += 1
             continue
@@ -158,12 +158,12 @@ def _evaluate_hreflang_for_page(
     alternates: list[dict],
     source_canonical: str | None,
     alternates_by_page: dict[str, list[dict]],
-    rate_limited_targets: set[str],
+    rate_limited_urls: set[str],
 ) -> RuleEvaluation:
     if not alternates or not source_canonical:
         return _pass_through_hreflang_evaluation()
     checked, unchecked, rate_limited, missing = _cross_check_hreflang_alternates(
-        alternates, source_canonical, alternates_by_page, rate_limited_targets
+        alternates, source_canonical, alternates_by_page, rate_limited_urls
     )
     return evaluate_hreflang_conflict(
         alternate_count=len(alternates),
@@ -344,6 +344,7 @@ class CrawlFinalizeMixin:
             session, crawl=crawl, artifact_by_analysis=artifact_by_analysis
         )
         analysis_by_artifact = {row.artifact_id: row.id for row in rows}
+        rate_limited = rate_limited_targets(resolutions)
         return [
             (
                 analysis_by_artifact[artifact_id],
@@ -351,7 +352,7 @@ class CrawlFinalizeMixin:
                     alternates,
                     canonical_by_artifact.get(artifact_id),
                     alternates_by_page,
-                    rate_limited_targets(resolutions),
+                    rate_limited,
                 ),
             )
             for artifact_id, _canonical, alternates in per_artifact

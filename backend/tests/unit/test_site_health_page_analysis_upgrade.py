@@ -274,11 +274,17 @@ def test_freshness_requires_timestamp_and_offer_currency() -> None:
     }
 
     product["dates"] = {"published": "", "modified": ""}
-    product["structured_data"]["product"]["price_valid_until"] = ["2026-12-31"]
+    product["structured_data"]["product"]["price_valid_until"] = ["2999-12-31"]
     current = _outcome(product, "aeo.offer_freshness_signal")
     assert current.outcome == RULE_OUTCOME_SATISFIED
-    assert current.evidence["timestamp"] == "2026-12-31"
+    assert current.evidence["timestamp"] == "2999-12-31"
     assert current.evidence["timestamp_source"] == "offer_price_valid_until"
+
+    for invalid_validity in ("2000-01-01", "never"):
+        product["structured_data"]["product"]["price_valid_until"] = [invalid_validity]
+        missing = _outcome(product, "aeo.offer_freshness_signal")
+        assert missing.outcome == RULE_OUTCOME_MISSING
+        assert missing.evidence["reason"] == "freshness_signal_missing"
 
     product["structured_data"]["product"]["price"] = []
     product["entity"]["product"]["has_primary_price"] = False

@@ -865,7 +865,7 @@ There is no required score direction or preferred distribution.
 - The corpus now contains 39 labelled pages: 31 classified cases and the same
   8 deliberate abstentions.
 - One sanitized Lanhtropy contextual-product case raises product support from
-  2 to 3. It requires page-owned purchase, variant, and SKU evidence to outrank
+  2 to 3. It requires page-owned purchase plus variant or SKU evidence to outrank
   an ancestor collection route when no visible price is extracted.
 - Three exact compound-route cases cover `care-guide` as `guide` plus
   `returns-exchanges` and `terms-conditions` as `trust_policy`. The route

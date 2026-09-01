@@ -76,8 +76,13 @@ async def fetch_resolutions(
                 artifact_id,
             )
         if final and status_code is not None:
-            resolutions.setdefault(
-                final, (status_code, final, False, task_id, attempt_id, artifact_id)
+            resolutions[final] = (
+                status_code,
+                final,
+                False,
+                task_id,
+                attempt_id,
+                artifact_id,
             )
     return resolutions
 
