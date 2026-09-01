@@ -112,7 +112,12 @@ describe('BlogPostView (`/blog/[slug]` sync view)', () => {
     const h1s = screen.getAllByRole('heading', { level: 1 });
     expect(h1s).toHaveLength(1);
     expect(h1s[0]).toHaveTextContent(post.title);
-    expect(screen.getByRole('link', { name: /all guides/i })).toHaveAttribute('href', '/blog');
+    const postHeader = h1s[0].closest('header');
+    if (!postHeader) throw new Error('blog post heading must render inside the page header');
+    expect(within(postHeader).getByRole('link', { name: /all guides/i })).toHaveAttribute(
+      'href',
+      '/blog',
+    );
 
     // The excerpt renders as the lede, then one <h2> per heading block and
     // one <ul> per list block, all inside the article.
