@@ -40,6 +40,18 @@ function bulletList(...items: readonly string[]): BlogBlock {
   return { type: 'list', items };
 }
 
+type BlogSection = readonly [title: string, content: string | readonly string[]];
+
+function outlinedArticle(intro: string, ...sections: readonly BlogSection[]): readonly BlogBlock[] {
+  return [
+    paragraph(intro),
+    ...sections.flatMap(([title, content]) => [
+      heading(title),
+      typeof content === 'string' ? paragraph(content) : bulletList(...content),
+    ]),
+  ];
+}
+
 export const POSTS: readonly BlogPost[] = [
   {
     slug: 'how-we-measure-ai-visibility-deterministically',
@@ -182,33 +194,33 @@ export const POSTS: readonly BlogPost[] = [
       'What using your own provider keys changes — and what it does not — when you run answer-engine ' +
       'audits and content workflows.',
     tags: ['Operations', 'BYOK'],
-    body: [
-      paragraph(
-        'Bring-your-own-key (BYOK) means the provider account used for an audit belongs to your team. ' +
-          'It changes the credential and billing boundary; it does not change the measurement contract. ' +
-          'Prompts, responses, evidence, and derived results still belong to the configured workspace.',
-      ),
-      heading('What stays in your control'),
-      bulletList(
-        'Provider account and usage billing remain with your provider.',
-        'Credentials are encrypted at rest and resolved only when execution needs them.',
-        'Keys are not returned in API responses or logged in clear text.',
-        'You choose when an audit or schedule runs because provider calls have a cost.',
-      ),
-      heading('What the platform records'),
-      paragraph(
+    body: outlinedArticle(
+      'Bring-your-own-key (BYOK) means the provider account used for an audit belongs to your team. ' +
+        'It changes the credential and billing boundary; it does not change the measurement contract. ' +
+        'Prompts, responses, evidence, and derived results still belong to the configured workspace.',
+      [
+        'What stays in your control',
+        [
+          'Provider account and usage billing remain with your provider.',
+          'Credentials are encrypted at rest and resolved only when execution needs them.',
+          'Keys are not returned in API responses or logged in clear text.',
+          'You choose when an audit or schedule runs because provider calls have a cost.',
+        ],
+      ],
+      [
+        'What the platform records',
         'A run records the approved engine route, prompt context, provider attempt, and response ' +
           'evidence needed to explain the result. The supported direct answer-engine routes are ' +
           'ChatGPT, Gemini, and Claude; availability still depends on the provider configuration and ' +
           'the limits of the account you connect.',
-      ),
-      heading('Why the boundary matters'),
-      paragraph(
+      ],
+      [
+        'Why the boundary matters',
         'Keeping provider credentials separate from derived evidence makes both sides clearer. Your ' +
           'team controls the account and the run decision; the workspace retains the evidence trail ' +
           'needed to compare observations, inspect citations, and choose the next action.',
-      ),
-    ],
+      ],
+    ),
   },
 ];
 
