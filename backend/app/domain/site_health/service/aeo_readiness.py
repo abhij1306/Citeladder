@@ -176,6 +176,11 @@ async def get_content_handoff(
         "source_analysis_id": source_analysis_id,
         "dimension": dimension,
         "checkpoint_ids": sorted(allowed),
+        "suggested_skill_id": (
+            "about_us"
+            if "aeo.company_entity_completeness" in allowed
+            else "content_page"
+        ),
         "finding_class": evaluations[0].finding_class,
         "observed_evidence": [row.evidence or {} for row in evaluations],
         "expected_capability": [rule_guidance(row.rule_id)[0] for row in evaluations],

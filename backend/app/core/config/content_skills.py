@@ -112,6 +112,35 @@ _DEFINITIONS: Final[tuple[ContentSkillDefinition, ...]] = (
         ),
     ),
     ContentSkillDefinition(
+        id="about_us",
+        label="About Us page",
+        channel=CHANNEL_WEB,
+        description="A factual canonical company profile grounded in known facts.",
+        directive=(
+            "Write publish-ready copy for the canonical About page. Prioritize "
+            "a factual company and offering definition, then the audience or "
+            "use case, a concrete value proposition, and durable company proof."
+        ),
+        structure=(
+            "One H1 that identifies the company page.",
+            "An opening company and offering definition.",
+            "Audience or use cases and the outcomes the company enables.",
+            "A specific approach, specialization, or reason to choose the company.",
+            "Durable first-party facts that substantiate the profile.",
+            "Optional supporting company details only when the supplied "
+            "context supports them.",
+        ),
+        tone="Factual, specific, and confident without campaign language.",
+        length_hint=(
+            "Concise enough to serve as the canonical profile; usually 400–800 words."
+        ),
+        rules=(
+            "Never invent facts, statistics, ownership, people, competitors, or URLs.",
+            "Recommend a separate supporting page when a grounded detail "
+            "would overload the canonical profile.",
+        ),
+    ),
+    ContentSkillDefinition(
         id="article",
         label="Article",
         channel=CHANNEL_WEB,
@@ -386,7 +415,7 @@ CONTENT_DEFAULT_SKILL: Final = "content_page"
 
 # Bumped whenever any directive text changes, so a generation's provenance
 # records which catalog wrote it.
-CONTENT_SKILL_CATALOG_VERSION: Final = "content-skills-v3"
+CONTENT_SKILL_CATALOG_VERSION: Final = "content-skills-v4"
 
 # Back-compatible flat view: ``{skill_id: rendered directive}``.
 CONTENT_SKILL_DIRECTIVES: Final[dict[str, str]] = {

@@ -63,6 +63,15 @@ def test_content_page_directive_specifies_a_publishable_page() -> None:
     assert "## Sources" not in rendered
 
 
+def test_about_us_skill_is_grounded_and_prioritizes_entity_signals() -> None:
+    rendered = skill_directive("about_us")
+    assert "company and offering definition" in rendered
+    assert "audience or use case" in rendered
+    assert "durable company proof" in rendered
+    assert "Never invent facts" in rendered
+    assert "separate supporting page" in rendered
+
+
 def test_platform_skills_state_their_posting_constraints() -> None:
     # The point of a platform skill: the model is told where the content will
     # be posted and what that surface actually renders.

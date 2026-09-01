@@ -95,6 +95,7 @@ const PAGE_TRAIT_LABELS: Readonly<Record<string, string>> = {
   local_intent: 'Local business details',
   contact_intent: 'Contact details',
   about_intent: 'About the organization',
+  company_profile_intent: 'Canonical company profile',
   case_study_intent: 'Case study',
   comparison_content: 'Comparison',
   procedural: 'Step by step',

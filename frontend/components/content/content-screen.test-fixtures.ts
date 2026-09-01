@@ -1,0 +1,52 @@
+/** A bounded stand-in for the server-owned skill catalog. */
+export const contentSkillCatalogFixture = {
+  version: 'content-skills-v4',
+  default_skill_id: 'content_page',
+  skills: [
+    {
+      id: 'content_page',
+      label: 'Website content page',
+      channel: 'web',
+      description: 'A publish-ready page spec.',
+      structure: ['The final H1.'],
+      tone: 'Clear and specific.',
+      length_hint: '500–800 words.',
+    },
+    {
+      id: 'about_us',
+      label: 'About Us page',
+      channel: 'web',
+      description: 'A factual canonical company profile.',
+      structure: ['An opening company and offering definition.'],
+      tone: 'Factual and specific.',
+      length_hint: '400–800 words.',
+    },
+    {
+      id: 'article',
+      label: 'Article',
+      channel: 'web',
+      description: 'Authoritative long-form piece.',
+      structure: ['A specific H1.'],
+      tone: 'Expert.',
+      length_hint: '900–1400 words.',
+    },
+    {
+      id: 'blog',
+      label: 'Blog post',
+      channel: 'web',
+      description: 'Answer-first post with worked examples.',
+      structure: ['H1 phrased as a search.'],
+      tone: 'Conversational.',
+      length_hint: '600–900 words.',
+    },
+    {
+      id: 'linkedin',
+      label: 'LinkedIn post',
+      channel: 'social',
+      description: 'Professional post carrying one idea.',
+      structure: ['An opening line.'],
+      tone: 'Professional.',
+      length_hint: '150–300 words.',
+    },
+  ],
+};

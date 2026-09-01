@@ -383,6 +383,7 @@ export const siteHealthContentHandoffSchema = responseObject({
   source_analysis_id: uuid(),
   dimension: z.string(),
   checkpoint_ids: z.array(z.string()),
+  suggested_skill_id: z.string(),
   finding_class: z.string(),
   observed_evidence: z.array(z.record(z.string(), z.unknown())),
   expected_capability: z.array(z.string()),

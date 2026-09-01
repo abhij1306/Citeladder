@@ -29,6 +29,7 @@ import re
 from typing import Any
 from urllib.parse import urlsplit
 
+from app.core.config import site_health_company_entity as _company_config
 from app.core.config import site_health_taxonomy as _taxonomy
 from app.core.config import site_health_traits as _config
 
@@ -90,6 +91,25 @@ def _intent(trait: str, final_url: str, facts: dict[str, Any]) -> bool:
         f" {phrase} " in haystack
         for phrase in _config.PAGE_TRAIT_TITLE_PHRASES.get(trait, ())
     )
+
+
+def _company_profile_intent(final_url: str, facts: dict[str, Any]) -> bool:
+    """Canonical company-profile intent from route/title evidence only."""
+    segments = _path_segments(final_url)
+    haystack = _haystack(facts)
+    normalized = " ".join((*segments, haystack)).replace("-", " ")
+    excluded_terms = _company_config.COMPANY_PROFILE_EXCLUDED_TERMS
+    if any(
+        re.search(rf"(?<!\w){re.escape(term)}(?!\w)", normalized)
+        for term in excluded_terms
+    ):
+        return False
+    route_match = bool(segments & set(_company_config.COMPANY_PROFILE_ROUTE_SEGMENTS))
+    title_match = any(
+        f" {phrase} " in haystack
+        for phrase in _company_config.COMPANY_PROFILE_TITLE_PHRASES
+    )
+    return route_match or title_match
 
 
 def _has_faq(facts: dict[str, Any]) -> bool:
@@ -202,6 +222,9 @@ def derive_traits(final_url: str, facts: dict[str, Any]) -> tuple[str, ...]:
         _config.PAGE_TRAIT_CONTACT_INTENT: _contact_intent(final_url, facts),
         _config.PAGE_TRAIT_ABOUT_INTENT: _intent(
             _config.PAGE_TRAIT_ABOUT_INTENT, final_url, facts
+        ),
+        _config.PAGE_TRAIT_COMPANY_PROFILE_INTENT: _company_profile_intent(
+            final_url, facts
         ),
         _config.PAGE_TRAIT_CASE_STUDY_INTENT: _intent(
             _config.PAGE_TRAIT_CASE_STUDY_INTENT, final_url, facts

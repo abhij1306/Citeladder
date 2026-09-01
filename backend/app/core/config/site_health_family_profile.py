@@ -7,6 +7,22 @@ from dataclasses import dataclass
 from typing import Final
 
 from app.core.config.site_health_contracts import AEO_READINESS_DIMENSIONS
+from app.core.config.site_health_family_policy import (
+    FAMILY_GAP_REASONS as _GAP_REASONS,
+)
+from app.core.config.site_health_family_policy import (
+    FAMILY_NOT_APPLICABLE_REASONS as _NOT_APPLICABLE_REASONS,
+)
+from app.core.config.site_health_family_policy import (
+    TRAIT_CONDITION_ALWAYS,
+    TRAIT_CONDITION_CASE_STUDY,
+    TRAIT_CONDITION_COMPANY_PROFILE,
+    TRAIT_CONDITION_FRESHNESS_SENSITIVE,
+    TRAIT_CONDITION_PROCEDURAL,
+    TRAIT_CONDITION_RESEARCH_SENSITIVE,
+    TRAIT_CONDITION_REVIEW,
+    TRAIT_CONDITIONS,
+)
 from app.core.config.site_health_rule_types import RULE_SCOPE_PAGE, RULE_SCOPE_SITE
 from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER, PAGE_KINDS
 
@@ -18,23 +34,6 @@ PROFILE_STATUSES: Final = frozenset(
         PROFILE_STATUS_MEASURED,
         PROFILE_STATUS_MEASUREMENT_GAP,
         PROFILE_STATUS_NOT_APPLICABLE,
-    }
-)
-
-TRAIT_CONDITION_ALWAYS: Final = "always"
-TRAIT_CONDITION_RESEARCH_SENSITIVE: Final = "research_sensitive"
-TRAIT_CONDITION_FRESHNESS_SENSITIVE: Final = "freshness_sensitive"
-TRAIT_CONDITION_PROCEDURAL: Final = "procedural"
-TRAIT_CONDITION_CASE_STUDY: Final = "case_study"
-TRAIT_CONDITION_REVIEW: Final = "review"
-TRAIT_CONDITIONS: Final = frozenset(
-    {
-        TRAIT_CONDITION_ALWAYS,
-        TRAIT_CONDITION_RESEARCH_SENSITIVE,
-        TRAIT_CONDITION_FRESHNESS_SENSITIVE,
-        TRAIT_CONDITION_PROCEDURAL,
-        TRAIT_CONDITION_CASE_STUDY,
-        TRAIT_CONDITION_REVIEW,
     }
 )
 
@@ -130,7 +129,11 @@ CAPABILITY_FAMILY_MANIFEST: Final[tuple[CapabilityFamily, ...]] = (
         "authority",
         0.5,
         RULE_SCOPE_PAGE,
-        ("aeo.visible_attribution", "aeo.product_brand_identity"),
+        (
+            "aeo.visible_attribution",
+            "aeo.product_brand_identity",
+            "aeo.company_entity_completeness",
+        ),
     ),
     CapabilityFamily(
         FAMILY_SITE_IDENTITY,
@@ -212,6 +215,9 @@ _EXPRESSIONS: Final[dict[str, tuple[CheckpointExpression, ...]]] = {
     ),
     "attribution_visible": _expressions(("aeo.visible_attribution", 1.0)),
     "attribution_brand": _expressions(("aeo.product_brand_identity", 1.0)),
+    "attribution_company_entity": _expressions(
+        ("aeo.company_entity_completeness", 1.0)
+    ),
     "site_identity": _expressions(
         ("aeo.organization_identity", 0.5), ("aeo.trust_path_present", 0.5)
     ),
@@ -222,25 +228,6 @@ _EXPRESSIONS: Final[dict[str, tuple[CheckpointExpression, ...]]] = {
     "snippet_access": _expressions(("search.snippet_access", 1.0)),
     "crawler_access": _expressions(("search.crawler_access", 1.0)),
 }
-
-_GAP_REASONS: Final = frozenset(
-    {
-        "claim_support_attachment_unavailable",
-        "pricing_commerce_evaluator_unavailable",
-        "policy_schema_contract_unavailable",
-        "purpose_answer_evaluator_unavailable",
-        "responsible_publisher_evaluator_unavailable",
-    }
-)
-_NOT_APPLICABLE_REASONS: Final = frozenset(
-    {
-        "commerce_facts_not_required_for_page_purpose",
-        "freshness_context_irrelevant",
-        "source_support_not_required_by_context",
-        "structured_representation_not_required_for_page_purpose",
-        "visible_attribution_not_required_for_page_purpose",
-    }
-)
 
 _G = "gap:"
 _N = "not_applicable:"
@@ -340,6 +327,12 @@ _KIND_PROFILE_SPECS: Final[dict[str, dict[str, str]]] = {
 }
 
 _OVERRIDE_SPECS: Final[tuple[tuple[str, str, str, str], ...]] = (
+    (
+        "about_contact",
+        TRAIT_CONDITION_COMPANY_PROFILE,
+        FAMILY_VISIBLE_ATTRIBUTION,
+        "attribution_company_entity",
+    ),
     ("article", TRAIT_CONDITION_RESEARCH_SENSITIVE, FAMILY_SOURCE_SUPPORT, "source"),
     ("docs", TRAIT_CONDITION_RESEARCH_SENSITIVE, FAMILY_SOURCE_SUPPORT, "source"),
     ("guide", TRAIT_CONDITION_RESEARCH_SENSITIVE, FAMILY_SOURCE_SUPPORT, "source"),
@@ -467,6 +460,8 @@ def _condition_matches(
         return "case_study_intent" in traits
     if condition == TRAIT_CONDITION_REVIEW:
         return "case_study_intent" not in traits
+    if condition == TRAIT_CONDITION_COMPANY_PROFILE:
+        return "company_profile_intent" in traits
     return condition == TRAIT_CONDITION_ALWAYS
 
 

@@ -463,6 +463,20 @@ optional meta description
 
 Avoid forcing a large "Sources" section into normal publishable copy.
 
+### About Us Page
+
+The `about_us` skill uses the same catalog, context builder, grounding,
+generation, provider, and provenance path as every other skill. It writes a
+publish-ready canonical company profile and prioritizes company/offering,
+audience/use case, concrete value, and durable first-party proof in that order.
+Optional history, ownership, geography, brands, scale, leadership, and
+responsibility details are used only when the existing project and crawl context
+supports them. The skill never invents facts, statistics, ownership, people,
+competitors, or URLs, and may recommend a separate supporting page instead of
+forcing every company fact into the canonical profile. A Site Health company
+entity completeness handoff preselects this normal UI skill chip without
+overwriting later user edits.
+
 ---
 
 ### Article / Blog

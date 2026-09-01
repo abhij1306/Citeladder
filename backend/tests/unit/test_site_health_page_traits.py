@@ -90,7 +90,10 @@ def test_about_page_ignores_footer_contact_chrome() -> None:
     facts = _facts("tentree_about.html", url)
 
     assert classify(url, facts).page_kind == "about_contact"
-    assert set(derive_traits(url, facts)) == {"about_intent"}
+    assert set(derive_traits(url, facts)) == {
+        "about_intent",
+        "company_profile_intent",
+    }
 
 
 # --- traits are independent of the page kind ---------------------------------

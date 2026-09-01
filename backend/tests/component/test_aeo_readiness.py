@@ -622,6 +622,7 @@ async def test_content_handoff_returns_exact_authorized_gap(
     body = response.json()
     assert body["source_analysis_id"] == str(analysis.id)
     assert body["checkpoint_ids"] == ["aeo.answer_first"]
+    assert body["suggested_skill_id"] == "content_page"
     assert body["observed_evidence"] == [{"opening": "context"}]
     assert body["normalized_url"].endswith("/a")
     assert body["scoring_policy_version"] == "1"

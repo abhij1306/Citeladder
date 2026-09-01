@@ -305,6 +305,7 @@ class SiteHealthContentHandoffResponse(_Model):
     source_analysis_id: uuid.UUID
     dimension: str
     checkpoint_ids: list[str]
+    suggested_skill_id: str
     finding_class: str
     observed_evidence: list[dict]
     expected_capability: list[str]

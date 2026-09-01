@@ -1970,6 +1970,84 @@ def test_date_presence_alone_cannot_activate_freshness() -> None:
     assert evaluation.reason_code == "freshness_context_irrelevant"
 
 
+def _company_profile_facts(**overrides):
+    facts = _html_facts(
+        page_kind="about_contact",
+        page_traits=["about_intent", "company_profile_intent"],
+        body={
+            "word_count": 40,
+            "text": (
+                "Acme provides workflow software for operations teams. "
+                "Our platform combines planning and reporting in one operating system. "
+                "Acme was founded in 2012."
+            ),
+        },
+        entity_proposition={
+            "identity": "Acme",
+            "provider": "Acme",
+            "named_capability": "workflow software",
+            "audience_or_outcome": "operations teams",
+            "proposition": "Acme provides workflow software for operations teams.",
+            "next_action": "",
+        },
+    )
+    facts.update(overrides)
+    return facts
+
+
+def test_company_entity_completeness_is_one_weighted_issue_checkpoint() -> None:
+    rule = rule_for("aeo.company_entity_completeness")
+    assert rule is not None
+    strong = evaluate_rule(rule, _company_profile_facts())
+    assert strong.outcome == RULE_OUTCOME_SATISFIED
+    assert not creates_issue(strong)
+    assert strong.checkpoint_family == "visible_attribution"
+    assert strong.evidence["normalized_score"] == 1.0
+
+    partial_facts = _company_profile_facts()
+    partial_facts["body"] = {
+        "word_count": 30,
+        "text": "Acme provides workflow software for operations teams.",
+    }
+    partial = evaluate_rule(rule, partial_facts)
+    assert partial.outcome == RULE_OUTCOME_PARTIAL
+    assert creates_issue(partial)
+    assert partial.evidence["normalized_score"] == 0.65
+    assert partial.description
+    assert rule.display_label == "Company entity information incomplete"
+
+
+def test_company_entity_completeness_excludes_specialized_company_pages() -> None:
+    rule = rule_for("aeo.company_entity_completeness")
+    assert rule is not None
+    facts = _company_profile_facts(page_traits=["about_intent"])
+    evaluation = evaluate_rule(rule, facts)
+    assert evaluation.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert not creates_issue(evaluation)
+
+
+def test_company_entity_internal_credit_controls_authority_score() -> None:
+    rule = rule_for("aeo.company_entity_completeness")
+    assert rule is not None
+    facts = _company_profile_facts()
+    facts["body"] = {
+        "word_count": 30,
+        "text": "Acme provides workflow software for operations teams.",
+    }
+    evaluation = evaluate_rule(rule, facts)
+    scores = score_analysis(
+        [evaluation],
+        page_kind="about_contact",
+        page_traits=("company_profile_intent",),
+    )
+    authority = next(
+        row for row in scores.readiness_dimensions if row.key == "authority"
+    )
+    assert authority.score == 65.0
+    assert authority.earned_points == 0.325
+    assert authority.determinate_points == 0.5
+
+
 def test_organization_identity():
     # Applicable on the homepage (page_kind:homepage scope).
     ev = _outcome(_html_facts(), "aeo.organization_identity")

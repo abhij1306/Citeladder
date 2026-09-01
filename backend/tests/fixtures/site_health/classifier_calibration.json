@@ -81,7 +81,7 @@
     {
       "id": "healthy_about", "source_label": "Synthetic healthy control", "observation_date": "2026-08-30", "condition": "healthy",
       "url": "https://healthy.example.test/about", "content_type": "text/html", "fixture": {"kind": "facts", "facts": {}},
-      "expected": {"page_kind": "about_contact", "traits": ["about_intent"], "deciding_signal": "path_pattern", "allowed_deciding_tiers": ["route"], "allowed_confidence": ["medium"], "rejected_kinds": ["homepage", "service"], "other_reason": null},
+      "expected": {"page_kind": "about_contact", "traits": ["about_intent", "company_profile_intent"], "deciding_signal": "path_pattern", "allowed_deciding_tiers": ["route"], "allowed_confidence": ["medium"], "rejected_kinds": ["homepage", "service"], "other_reason": null},
       "deliberate_abstention": false, "structural_reason": "An exact about route identifies organization-information purpose and independently yields about intent."
     },
     {

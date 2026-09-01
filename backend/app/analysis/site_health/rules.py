@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from itertools import islice, pairwise
 from typing import Any
 
+from app.analysis.site_health.company_entity_rules import (
+    check_company_entity_completeness,
+)
 from app.analysis.site_health.delivery_rules import DELIVERY_CHECKS
 from app.analysis.site_health.identity_rules import (
     check_organization_identity,
@@ -552,6 +555,7 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "aeo.answer_first": _check_answer_first,
     "aeo.editorial_lead_present": _check_editorial_lead_present,
     "aeo.entity_value_proposition": _check_entity_value_proposition,
+    "aeo.company_entity_completeness": check_company_entity_completeness,
     "aeo.question_headings": _check_question_headings,
     "aeo.heading_hierarchy": _check_primary_heading_hierarchy,
     "aeo.product_answer_facts": _check_product_answer_facts,

@@ -4,7 +4,7 @@ type Evidence = Record<string, unknown>;
 
 const FALLBACK_LIMIT = 6;
 const FALLBACK_VALUE_CHARS = 160;
-const GROUP_LEVEL_FIELDS = new Set(['reason', 'reason_code']);
+const NON_PRESENTATION_FIELDS = new Set(['reason', 'reason_code', 'threshold']);
 
 function strings(value: unknown): string[] {
   return Array.isArray(value)
@@ -119,7 +119,7 @@ export function evidenceStatements(evidence: Evidence): string[] {
 
   return Object.entries(evidence)
     .flatMap(([key, value]) => {
-      if (GROUP_LEVEL_FIELDS.has(key)) return [];
+      if (NON_PRESENTATION_FIELDS.has(key)) return [];
       const formatted = fallbackValue(value);
       return formatted === null ? [] : [`${humanize(key)}: ${formatted}.`];
     })

@@ -9,6 +9,7 @@ import { mswServer } from '@/test/msw-server';
 import { renderWithProviders } from '@/test/render';
 
 import { ContentScreen } from './content-screen';
+import { contentSkillCatalogFixture as skillCatalog } from './content-screen.test-fixtures';
 
 const WORKSPACE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const PROJECT = '11111111-1111-4111-8111-111111111111';
@@ -96,50 +97,6 @@ const succeededGen = generation({
   latency_ms: 420,
   completed_at: '2026-07-15T00:01:00Z',
 });
-
-/** A bounded stand-in for the server-owned skill catalog. */
-const skillCatalog = {
-  version: 'content-skills-v2',
-  default_skill_id: 'content_page',
-  skills: [
-    {
-      id: 'content_page',
-      label: 'Website content page',
-      channel: 'web',
-      description: 'A publish-ready page spec.',
-      structure: ['The final H1.'],
-      tone: 'Clear and specific.',
-      length_hint: '500–800 words.',
-    },
-    {
-      id: 'article',
-      label: 'Article',
-      channel: 'web',
-      description: 'Authoritative long-form piece.',
-      structure: ['A specific H1.'],
-      tone: 'Expert.',
-      length_hint: '900–1400 words.',
-    },
-    {
-      id: 'blog',
-      label: 'Blog post',
-      channel: 'web',
-      description: 'Answer-first post with worked examples.',
-      structure: ['H1 phrased as a search.'],
-      tone: 'Conversational.',
-      length_hint: '600–900 words.',
-    },
-    {
-      id: 'linkedin',
-      label: 'LinkedIn post',
-      channel: 'social',
-      description: 'Professional post carrying one idea.',
-      structure: ['An opening line.'],
-      tone: 'Professional.',
-      length_hint: '150–300 words.',
-    },
-  ],
-};
 
 const opportunityTask =
   'Align the visible title, headings, and page claims with the corresponding schema values.';
@@ -288,6 +245,7 @@ describe('ContentScreen — Site Health handoff', () => {
       http.get(`/api/v1/projects/${PROJECT}/site-health/content-handoff`, () =>
         HttpResponse.json({
           ...reference,
+          suggested_skill_id: 'about_us',
           finding_class: 'advisory',
           observed_evidence: [{ opening: 'Background only' }],
           expected_capability: ['Answer the primary question directly.'],
@@ -318,6 +276,12 @@ describe('ContentScreen — Site Health handoff', () => {
     await screen.findByText(/Brief written from the search demand signal/i);
     expect(box.value).toContain('Answer the primary question directly.');
     expect(screen.getByText(/persisted answerability readiness gap/i)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('radio', { name: /About Us page/i })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      ),
+    );
 
     await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
 
@@ -341,6 +305,40 @@ describe('ContentScreen — Site Health handoff', () => {
 
     await screen.findByRole('textbox', { name: /describe the website content/i });
     expect(handoffRequest).not.toHaveBeenCalled();
+  });
+
+  it('does not replace a user-selected skill when a delayed handoff arrives', async () => {
+    const reference = SITE_HEALTH_REFERENCE;
+    mockBase();
+    mswServer.use(
+      http.get(`/api/v1/projects/${PROJECT}/site-health/content-handoff`, async () => {
+        await delay(100);
+        return HttpResponse.json({
+          ...reference,
+          suggested_skill_id: 'about_us',
+          finding_class: 'advisory',
+          observed_evidence: [{ missing_signals: ['durable_first_party_proof'] }],
+          expected_capability: ['Complete the canonical company profile.'],
+          remediation: ['Add durable first-party proof.'],
+          page_kind: 'about_contact',
+          page_traits: ['about_intent', 'company_profile_intent'],
+          normalized_url: 'https://acme.com/about',
+          scoring_policy_version: '1',
+          limitations: [],
+        });
+      }),
+    );
+
+    renderScreen({ siteHealthReference: reference });
+    const linkedIn = await screen.findByRole('radio', { name: /LinkedIn post/i });
+    await userEvent.click(linkedIn);
+    await waitFor(() => {
+      const prompt = screen.getByRole('textbox', {
+        name: /describe the website content/i,
+      }) as HTMLTextAreaElement;
+      expect(prompt.value).toContain('Complete the canonical company profile.');
+    });
+    expect(linkedIn).toHaveAttribute('aria-checked', 'true');
   });
 });
 

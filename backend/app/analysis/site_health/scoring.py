@@ -5,6 +5,10 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
+from app.analysis.site_health.normalized_scoring import (
+    normalized_evaluation_result,
+    normalized_measurement_result,
+)
 from app.analysis.site_health.rules import RuleEvaluation
 from app.analysis.site_health.web_fundamentals_scoring import (
     aggregate_web_fundamentals,
@@ -229,6 +233,14 @@ def _checkpoint_tally(
             continue
         checkpoint_id = str(checkpoint.get("checkpoint_id") or "")
         weight = float(checkpoint.get("internal_weight") or 0.0)
+        normalized = _checkpoint_normalized_result(checkpoint_id, evaluations)
+        if normalized is not None:
+            score, coverage = normalized
+            determinate += weight * coverage
+            earned += weight * coverage * score
+            if coverage > 0:
+                determinate_ids.append(checkpoint_id)
+            continue
         outcome = _checkpoint_outcome(checkpoint_id, evaluations)
         if outcome not in _DETERMINATE:
             continue
@@ -236,6 +248,22 @@ def _checkpoint_tally(
         earned += weight * checkpoint_credit(outcome)
         determinate_ids.append(checkpoint_id)
     return determinate, earned, determinate_ids
+
+
+def _checkpoint_normalized_result(
+    checkpoint_id: str,
+    evaluations: Iterable[RuleEvaluation | RuleMeasurementInput],
+) -> tuple[float, float] | None:
+    measurement_rows = [
+        row
+        for row in evaluations
+        if isinstance(row, RuleMeasurementInput)
+        and row.rule_id == checkpoint_id
+        and row.expected
+    ]
+    if measurement_rows:
+        return normalized_measurement_result(checkpoint_id, measurement_rows)
+    return normalized_evaluation_result(checkpoint_id, evaluations)
 
 
 def _family_result(
@@ -580,37 +608,13 @@ def _entity_set_rule_result(
     return _mean_credit(rows), coverage
 
 
-def _normalized_override(
-    rule_id: str, observations: list[RuleMeasurementInput]
-) -> tuple[float, float] | None:
-    values = {
-        (row.normalized_score, row.normalized_coverage)
-        for row in observations
-        if row.normalized_score is not None and row.normalized_coverage is not None
-    }
-    if not values:
-        return None
-    if len(values) != 1:
-        raise ValueError(f"Rule {rule_id} has conflicting normalized results")
-    score, coverage = next(iter(values))
-    if (
-        not isinstance(score, (int, float))
-        or isinstance(score, bool)
-        or not isinstance(coverage, (int, float))
-        or isinstance(coverage, bool)
-        or not (0.0 <= score <= 1.0 and 0.0 <= coverage <= 1.0)
-    ):
-        raise ValueError(f"Rule {rule_id} has an invalid normalized result")
-    return float(score), float(coverage)
-
-
 def _rule_result(
     rule_id: str, observations: list[RuleMeasurementInput]
 ) -> tuple[float | None, float]:
     scopes = {row.scope for row in observations}
     if len(scopes) != 1:
         raise ValueError(f"Rule {rule_id} has inconsistent persisted scopes")
-    override = _normalized_override(rule_id, observations)
+    override = normalized_measurement_result(rule_id, observations)
     if override is not None:
         return override
     scope = next(iter(scopes))

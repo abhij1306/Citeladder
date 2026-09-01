@@ -40,6 +40,18 @@ function replaceAutomaticPrompt(
   return next;
 }
 
+function replaceAutomaticSkill(
+  current: string | null,
+  next: string,
+  priority: number,
+  automatic: { current: { priority: number } | null },
+  userSelected: { current: boolean },
+): string | null {
+  if (userSelected.current || (automatic.current?.priority ?? -1) > priority) return current;
+  automatic.current = { priority };
+  return next;
+}
+
 /** Project-aware content entry point that resets transient state on project switch. */
 export function ContentScreen({
   opportunityId,
@@ -112,6 +124,8 @@ function ProjectContentScreen({
   );
   const detail: ContentGenerationDetail | null = generation.detailQuery.data ?? null;
   const automaticPrompt = useRef<{ value: string; priority: number } | null>(null);
+  const automaticSkill = useRef<{ priority: number } | null>(null);
+  const userSelectedSkill = useRef(false);
   const seededBrief = useRef<string | null>(null);
 
   // Seed only a newly arrived brief; subsequent snapshot refreshes must not overwrite edits.
@@ -120,7 +134,9 @@ function ProjectContentScreen({
     if (!brief || seededBrief.current === brief.prompt) return;
     seededBrief.current = brief.prompt;
     setPrompt((current) => replaceAutomaticPrompt(current, brief.prompt, 1, automaticPrompt));
-    setChosenSkillId(brief.suggestedSkillId);
+    setChosenSkillId((current) =>
+      replaceAutomaticSkill(current, brief.suggestedSkillId, 1, automaticSkill, userSelectedSkill),
+    );
   }, [demand.brief]);
 
   // Seed once from the opportunity, on the same guarded pattern as the demand
@@ -132,7 +148,15 @@ function ProjectContentScreen({
     setPrompt((current) =>
       replaceAutomaticPrompt(current, opportunity.taskSeed, 2, automaticPrompt),
     );
-    setChosenSkillId((current) => current ?? opportunity.suggestedSkillId);
+    setChosenSkillId((current) =>
+      replaceAutomaticSkill(
+        current,
+        opportunity.suggestedSkillId,
+        2,
+        automaticSkill,
+        userSelectedSkill,
+      ),
+    );
   }, [opportunity]);
 
   const seededSiteHealth = useRef<string | null>(null);
@@ -142,6 +166,15 @@ function ProjectContentScreen({
     seededSiteHealth.current = handoff.source_analysis_id;
     const task = [...handoff.expected_capability, ...handoff.remediation].join('\n');
     setPrompt((current) => replaceAutomaticPrompt(current, task, 3, automaticPrompt));
+    setChosenSkillId((current) =>
+      replaceAutomaticSkill(
+        current,
+        handoff.suggested_skill_id,
+        3,
+        automaticSkill,
+        userSelectedSkill,
+      ),
+    );
   }, [siteHealth.data]);
 
   const generating = Boolean(
@@ -180,7 +213,10 @@ function ProjectContentScreen({
       skillsLoading={skillCatalog.isLoading}
       canGenerate={canGenerate}
       setPrompt={setPrompt}
-      setChosenSkillId={setChosenSkillId}
+      setChosenSkillId={(value) => {
+        userSelectedSkill.current = true;
+        setChosenSkillId(value);
+      }}
       onGenerate={() => enqueue(generation, trimmedPrompt, skillId, canGenerate)}
       generation={generation}
       mutationError={mutationError}

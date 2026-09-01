@@ -44,6 +44,10 @@ from app.core.config.site_health_taxonomy import (
     PAGE_KINDS,
     _page_kinds,
 )
+from app.core.config.site_health_traits import (
+    PAGE_TRAIT_COMPANY_PROFILE_INTENT,
+    _traits,
+)
 
 _EDITORIAL_KINDS: Final = (
     PAGE_KIND_ARTICLE,
@@ -189,6 +193,30 @@ READINESS_EXPANSION_RULES: Final[tuple[SiteHealthRule, ...]] = (
         score_roles=(SCORE_ROLE_AEO,),
         content_addressable=True,
         composite_contract=ENTITY_VALUE_PROPOSITION_CONTRACT,
+    ),
+    SiteHealthRule(
+        rule_id="aeo.company_entity_completeness",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_CITABILITY,
+        severity=SEVERITY_MEDIUM,
+        weight=1.0,
+        applicability_key=_traits(
+            PAGE_TRAIT_COMPANY_PROFILE_INTENT,
+            reads_content=True,
+        ),
+        description=(
+            "Canonical About pages define the company, offering, audience, "
+            "specific value, and durable first-party proof."
+        ),
+        remediation=(
+            "Add the missing company entity signals, prioritizing the company "
+            "and offering definition before audience, value, and durable proof."
+        ),
+        display_label="Company entity information incomplete",
+        finding_class=FINDING_CLASS_ADVISORY,
+        score_roles=(SCORE_ROLE_AEO,),
+        content_addressable=True,
     ),
     SiteHealthRule(
         rule_id="aeo.product_answer_facts",

@@ -343,6 +343,15 @@ pages. The bound always travels with the true failing-page total. Request-time
 reads use the snapshot projection only; they never calculate or repair
 measurement.
 
+Canonical `company_profile_intent` pages add one content-addressable authority checkpoint,
+`aeo.company_entity_completeness`. It is the page-scoped contribution to the
+existing **Provenance & trust signals** dimension, not a separate score or card.
+The checkpoint gives unequal internal credit to company-and-offering definition
+(40%), audience or use case (25%), concrete value proposition (20%), and durable
+first-party proof (15%). Its four atom outcomes and bounded evidence are
+persisted; a partial or missing result creates **Company entity information
+incomplete**, while unreadable primary content remains unknown.
+
 ## Overview presentation
 
 Overview has one live-data subscription: the screen's polling dashboard. Its
@@ -567,7 +576,7 @@ only from page-owned structural evidence or an independently observed trait.
 | `pricing` | Named plans/offers; each commercial option exposes price, currency, and billing basis or an explicit free/custom/contact-sales state; features/limits associate with the correct plan; usable next action | `Service`/`Product`/`Offer` only when semantically true. There is no universal Google PricingPage feature contract. |
 | `docs` | Explicit reference/task topic; accessible technical content and docs hierarchy; procedural trait adds prerequisites/context and executable ordered steps; version scope when the document is version-specific | `TechArticle`, `APIReference`, author/date/version navigation. HowTo rich-result absence is not a defect. |
 | `faq` | At least one visible question with its associated visible answer; relationships are programmatically recoverable; answers do not require client fetching | `FAQPage` may describe real content, but its absence is not an opportunity. |
-| `about_contact` | Trait-split: `about_intent` requires entity identity and what it does; `contact_intent` requires a usable contact path and programmatically labelled form controls; apply both when both are independently observed | `AboutPage`, `ContactPage`, `Organization`, `ProfilePage`. Footer mail/phone links are contact affordances, not page intent. |
+| `about_contact` | Trait-split: `about_intent` requires entity identity and what it does; `company_profile_intent` activates only on a canonical About/Our Company/Who We Are/Our Story profile and requires company plus offering, audience/use case, concrete value, and durable first-party proof with unequal internal credit; `contact_intent` requires a usable contact path and programmatically labelled form controls | Specialized contact, history, team, careers, ownership, sustainability, sourcing, and responsibility pages do not activate `company_profile_intent` completeness. Structured data may supply evidence but cannot establish applicability. `AboutPage`, `ContactPage`, `Organization`, and `ProfilePage` remain advisory representations. |
 | `service` | Service identity, provider, what is delivered and for whom, and a usable enquiry/booking/purchase next step where acquisition is offered; location/area only when geographically bounded | `Service`/`Offer`, price, audience, area served, evidence. Price is not universally required. |
 | `local` | Location/business identity; address or explicit service area; usable contact/direction method; hours only when the business model makes them applicable; visible and marked-up facts agree | Most-specific `LocalBusiness`, geo, Business Profile. Legal existence and off-page consistency require external evidence. |
 | `guide` | Goal/topic; `procedural` trait requires ordered actionable steps, required inputs/prerequisites, and identifiable outcome; non-procedural guides require organized explanatory sections instead | `HowTo`/`Article`, author/date, tools/media, summary. Do not manufacture a step requirement for a non-procedural guide. |
@@ -576,7 +585,7 @@ only from page-owned structural evidence or an independently observed trait.
 | `trust_policy` | Document/policy identity, responsible organization, scope/audience, operative content, and effective/revised date when state matters; relevant request/appeal/contact path | `WebPage`/`DigitalDocument`, publishing principles. Legal adequacy and jurisdictional compliance are not crawl checks. |
 | `other` | Universal eligibility, technical, and diagnostic checks only | Page-purpose AEO is `not_measured` with null score/coverage and reason `page_purpose_unresolved`; no family profile or generic `WebPage` verdict is inferred. |
 
-FAQ, review, procedural, listing, local, contact, about, variant, and comparison
+FAQ, review, procedural, listing, local, contact, about, `company_profile_intent`, variant, and comparison
 overlays follow observed traits rather than multiplying the exclusive taxonomy.
 Before expanding those overlays, extraction must distinguish page-owned facts
 from navigation, footer, recommendation, and script noise.

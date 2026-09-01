@@ -92,7 +92,11 @@ _EXPECTED_MANIFEST = (
         "authority",
         0.5,
         "page",
-        ("aeo.visible_attribution", "aeo.product_brand_identity"),
+        (
+            "aeo.visible_attribution",
+            "aeo.product_brand_identity",
+            "aeo.company_entity_completeness",
+        ),
     ),
     (
         "site_identity",
@@ -188,7 +192,7 @@ def test_manifest_and_profile_serialize_canonically_from_the_public_artifact() -
     assert serialized_family_profile() == canonical
     assert (
         hashlib.sha256(canonical.encode()).hexdigest()
-        == "8b35e75382270887332d912c5340107022790c5ba961f5f1167ef8eea33ef182"
+        == "89de971e85d2ce08ad424c20d1339a12a3e603b00055cd29608b6bd9f9e5a625"
     )
 
 

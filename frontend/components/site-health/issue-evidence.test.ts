@@ -73,11 +73,12 @@ describe('evidenceStatements', () => {
     expect(lines).not.toContain('G: 7.');
   });
 
-  it('keeps persisted reasons out of occurrence evidence', () => {
+  it('keeps internal evaluator metadata out of occurrence evidence', () => {
     expect(
       evidenceStatements({
         reason: 'freshness_signal_missing',
         reason_code: 'freshness_signal_missing',
+        threshold: 'all_required',
         offer: true,
       }),
     ).toEqual(['Offer: true.']);
