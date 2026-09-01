@@ -20,7 +20,7 @@ export function Packs() {
         lead={packs.lead}
         headingId="packs-title"
       />
-      <StaggerGroup className="border-border-subtle divide-border-subtle grid overflow-hidden rounded-[var(--radius-card)] border md:grid-cols-2 xl:grid-cols-3">
+      <StaggerGroup className="border-border-subtle bg-border-subtle grid gap-px overflow-hidden rounded-[var(--radius-card)] border md:grid-cols-2 xl:grid-cols-3">
         {packs.items.map((pack) => {
           const Icon = LANDING_ICONS[pack.icon];
           return (

@@ -439,6 +439,7 @@ function tokenDeclaration(source, token, value) {
 export function productContractViolations(root) {
   const violations = [];
   const css = readFileSync(join(root, 'app', 'globals.css'), 'utf8');
+  const websiteCss = readFileSync(join(root, ...WEBSITE_CSS.split('/')), 'utf8');
   const tokenContract = new Map([
     ['--text-xs', '0.75rem'],
     ['--text-sm', '0.875rem'],
@@ -472,7 +473,7 @@ export function productContractViolations(root) {
       violations.push(`app/globals.css: ${token} must equal ${value}`);
     }
   }
-  if (/\.website-type\b/.test(css)) {
+  if (/\.website-type\b/.test(css + websiteCss)) {
     violations.push('app/globals.css: retired .website-type palette boundary must not return');
   }
 

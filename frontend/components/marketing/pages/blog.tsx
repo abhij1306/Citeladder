@@ -120,7 +120,7 @@ export function BlogIndex() {
           </Section>
 
           {rest.length > 0 && (
-            <Section tone="paper" rhythm="tight" aria-label="All posts">
+            <Section tone="paper" rhythm="tight" aria-label="All guides">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <Meta as="p">All guides</Meta>
                 <Meta>
@@ -287,7 +287,7 @@ export function BlogPostView({ post }: Readonly<{ post: BlogPost }>) {
 
       <BlogCta
         title="Make AI visibility measurable."
-        secondary={{ href: '/blog', label: 'All posts' }}
+        secondary={{ href: '/blog', label: 'All guides' }}
       />
     </>
   );

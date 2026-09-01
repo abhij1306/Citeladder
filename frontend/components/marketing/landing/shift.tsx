@@ -12,7 +12,7 @@ export function Shift() {
   return (
     <Section id="why" tone="paper" rhythm="base" aria-labelledby="shift-title">
       <SectionHeader eyebrow={shift.kicker} title={shift.title} headingId="shift-title" />
-      <StaggerGroup className="border-border-subtle divide-border-subtle grid border-y lg:grid-cols-3 lg:divide-x">
+      <StaggerGroup className="border-border-subtle divide-border-subtle grid divide-y border-y lg:grid-cols-3 lg:divide-x lg:divide-y-0">
         {shift.facts.map((fact) => {
           const Icon = LANDING_ICONS[fact.icon];
           return (

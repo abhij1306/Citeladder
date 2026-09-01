@@ -77,7 +77,7 @@ describe('Blog index (public marketing `/blog`)', () => {
     blogState.posts = [...POSTS, second];
     render(<BlogPage />);
 
-    const grid = screen.getByRole('region', { name: 'All posts' });
+    const grid = screen.getByRole('region', { name: 'All guides' });
     // Grid carries the second post only — the featured post is not duplicated.
     expect(within(grid).getByRole('link', { name: second.title })).toHaveAttribute(
       'href',
@@ -96,7 +96,7 @@ describe('Blog index (public marketing `/blog`)', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(BLOG_EMPTY_STATE.body)).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Featured post' })).toBeNull();
-    expect(screen.queryByRole('region', { name: 'All posts' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'All guides' })).toBeNull();
 
     // The page hero (and its single h1) still renders above the empty state.
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
