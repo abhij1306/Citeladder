@@ -45,21 +45,21 @@
   --color-amber-500: #f59e0b;
   --color-amber-700: #b45309;
 
-  --color-background: #faf9f6;
-  --color-background-alt: #f7f6f2;
+  --color-background: #f6f8fc;
+  --color-background-alt: #eaf1fb;
   --color-panel: #ffffff;
-  --color-panel-tonal: #f7f6f2;
+  --color-panel-tonal: #edf2fa;
   --color-elevated: #ffffff;
-  --color-well: #f1f0eb;
-  --color-active: #e7e5de;
+  --color-well: #eaf1fb;
+  --color-active: #d3e3fd;
   --color-input: #ffffff;
-  --color-sidebar: #f7f6f2;
+  --color-sidebar: #eaf1fb;
   --color-surface-inverse: #14213d;
 
-  --color-border: #e7e5de;
-  --color-border-subtle: #f1f0eb;
-  --color-border-strong: #c9c7c0;
-  --color-border-bold: #7b8494;
+  --color-border: #d7deea;
+  --color-border-subtle: #e2e8f2;
+  --color-border-strong: #8a96a8;
+  --color-border-bold: #6d788b;
 
   --color-foreground: #14213d;
   --color-secondary: #475569;
@@ -123,13 +123,13 @@
   --color-info-bg: #edf7f7;
   --color-info-border: #ddf1f2;
   --color-info-text: #155e75;
-  --color-neutral-bg: #f7f6f2;
+  --color-neutral-bg: #edf2fa;
 
   --color-sentiment-positive: #9acd32;
   --color-sentiment-positive-bg: #f4f8ec;
   --color-sentiment-positive-text: #3f6212;
   --color-sentiment-neutral: #7b8494;
-  --color-sentiment-neutral-bg: #f7f6f2;
+  --color-sentiment-neutral-bg: #edf2fa;
   --color-sentiment-neutral-text: #475569;
   --color-sentiment-negative: #ff6e56;
   --color-sentiment-negative-bg: #fff3f0;
@@ -145,14 +145,14 @@
   --color-citation-competitor-border: #ddf1f2;
   --color-citation-competitor-text: #155e75;
   --color-citation-third-party: #7b8494;
-  --color-citation-third-party-bg: #f7f6f2;
+  --color-citation-third-party-bg: #edf2fa;
   --color-citation-third-party-border: #e7e5de;
   --color-citation-third-party-text: #475569;
 
   --color-run-draft: #7b8494;
-  --color-run-draft-bg: #f7f6f2;
+  --color-run-draft-bg: #edf2fa;
   --color-run-queued: #7b8494;
-  --color-run-queued-bg: #f7f6f2;
+  --color-run-queued-bg: #edf2fa;
   --color-run-running: #00a9c5;
   --color-run-running-bg: #edf7f7;
   --color-run-analyzing: #5542f6;
@@ -164,7 +164,7 @@
   --color-run-failed: #ff6e56;
   --color-run-failed-bg: #fff3f0;
   --color-run-cancelled: #7b8494;
-  --color-run-cancelled-bg: #f7f6f2;
+  --color-run-cancelled-bg: #edf2fa;
 
   /* Score bands — low/mid escalate coral→amber; good/high use cyan→lime. */
   --color-score-low: #ff6e56;
@@ -233,6 +233,8 @@
   --text-lg--line-height: 1.5rem;
   --text-xl: 1.25rem;
   --text-xl--line-height: 1.75rem;
+  --text-page-title: 1.375rem;
+  --text-page-title--line-height: 2rem;
   --text-2xl: 1.5rem;
   --text-2xl--line-height: 2rem;
   --text-3xl: 1.75rem;
@@ -294,7 +296,7 @@
   --section-y-phone: 48px;
   /* A 2px panel gap then a solid, opaque accent ring. */
   --focus-ring: 0 0 0 2px var(--color-panel), 0 0 0 4px var(--color-focus-ring);
-  --skeleton-base: #f1f0eb;
+  --skeleton-base: #eaf1fb;
   --skeleton-highlight: #ffffff;
   --value-placeholder: var(--color-subtle);
 }

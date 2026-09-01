@@ -29,7 +29,11 @@ function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div className="flex flex-col gap-0.5">
       <Label>{label}</Label>
-      {value === PLACEHOLDER ? <UnavailableValue state="not_measured" /> : <Metric>{value}</Metric>}
+      {value === PLACEHOLDER ? (
+        <UnavailableValue state="not_measured" />
+      ) : (
+        <Metric className="text-2xl">{value}</Metric>
+      )}
     </div>
   );
 }

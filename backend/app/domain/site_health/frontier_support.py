@@ -11,10 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.web_evidence.url_policy import (
-    UrlPolicyError,
     classify_url_admission,
-    is_in_scope,
-    registrable_domain,
     split_host_port,
 )
 from app.core.config.site_health_contracts import (
@@ -25,21 +22,18 @@ from app.core.config.site_health_contracts import (
 )
 from app.core.config.site_health_crawl_policy import (
     AUTOMATIC_MONITOR_LIMIT_KEY,
-    CORPUS_DISPOSITION_EXCLUDE,
     CORPUS_DISPOSITION_INVENTORY_ONLY,
     CORPUS_DISPOSITION_VERSION,
     DISPOSITION_REASON_DOCUMENT,
     ITEM_KIND_DOCUMENT,
     SELECTION_SOURCE_FREE_SAMPLE,
     SELECTION_SOURCE_USER,
-    URL_EXCLUSION_DUPLICATE,
 )
 from app.core.config.site_health_runtime import (
     ANALYZE_PRIORITY_BOOST,
     site_health_settings,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
-from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.schemas import FrontierCandidate
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
@@ -305,112 +299,6 @@ async def _add_free_sample(
             priority=value_priority + ANALYZE_PRIORITY_BOOST,
         )
     return activated_id is not None, observation_id is not None
-
-
-async def resolve_duplicate_of_admitted_page(
-    session: AsyncSession,
-    *,
-    crawl: SiteCrawl,
-    url_hash_value: str,
-    declared_canonical: str,
-    base_url: str,
-) -> str:
-    """The url_hash this page says it really is, when that page is already ours.
-
-    A storefront serves one product at every collection path that lists it, and
-    each alias declares the same ``rel=canonical``. Crawled as distinct pages
-    they cost a fetch, an analysis and a catalog row each: one 427-page crawl
-    covered only 306 distinct canonicals, so 27% of the budget bought nothing.
-
-    Returns the canonical's hash only when that URL was observed by this crawl
-    and is already active, while the alias is system-managed. Collapsing onto
-    an unobserved target or overriding a user's explicit selection could
-    silently drop content. Returns "" when there is nothing safe to collapse.
-    """
-    declared = str(declared_canonical or "").strip()
-    if not declared:
-        return ""
-    root = str((crawl.configuration or {}).get("root_registrable_domain") or "")
-    if not root:
-        root = registrable_domain(crawl.root_url)
-    # Resolved against the page that declared it. `rel=canonical` is stored
-    # exactly as written and is very commonly relative ("/products/x"), which
-    # canonicalizes to nothing on its own -- so without the base every such
-    # declaration raised, was swallowed here, and the alias was analyzed as a
-    # page of its own. The collapse simply never fired on those sites.
-    try:
-        canonical, canonical_hash = canonical_identity(declared, base_url=base_url)
-    except UrlPolicyError:
-        return ""
-    if canonical_hash == url_hash_value:
-        return ""
-    # `rel=canonical` is markup the crawled page controls; honoring an
-    # off-domain value would let one site redirect our identity onto another's.
-    if not root or not is_in_scope(canonical, root):
-        return ""
-    admitted = await session.scalar(
-        select(MonitoredSiteUrl.id)
-        .join(SiteUrl, SiteUrl.id == MonitoredSiteUrl.site_url_id)
-        .join(
-            SiteUrlObservation,
-            SiteUrlObservation.site_url_id == SiteUrl.id,
-        )
-        .where(
-            MonitoredSiteUrl.workspace_id == crawl.workspace_id,
-            MonitoredSiteUrl.project_id == crawl.project_id,
-            MonitoredSiteUrl.active.is_(True),
-            SiteUrl.url_hash == canonical_hash,
-            SiteUrlObservation.crawl_id == crawl.id,
-        )
-    )
-    alias_is_system_managed = await session.scalar(
-        select(MonitoredSiteUrl.id)
-        .join(SiteUrl, SiteUrl.id == MonitoredSiteUrl.site_url_id)
-        .where(
-            MonitoredSiteUrl.workspace_id == crawl.workspace_id,
-            MonitoredSiteUrl.project_id == crawl.project_id,
-            MonitoredSiteUrl.active.is_(True),
-            MonitoredSiteUrl.selection_source != SELECTION_SOURCE_USER,
-            SiteUrl.url_hash == url_hash_value,
-        )
-    )
-    return canonical_hash if admitted is not None and alias_is_system_managed else ""
-
-
-async def mark_duplicate_url(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    url_hash_value: str,
-) -> None:
-    """Record a crawled alias as an exclusion, not as a page of the corpus.
-
-    Uses the existing disposition vocabulary rather than a new one, so the
-    dashboard can already say WHY the page left the set.
-    """
-    site_url = await session.scalar(
-        select(SiteUrl).where(
-            SiteUrl.workspace_id == workspace_id,
-            SiteUrl.project_id == project_id,
-            SiteUrl.url_hash == url_hash_value,
-        )
-    )
-    if site_url is None:
-        return
-    site_url.corpus_disposition = CORPUS_DISPOSITION_EXCLUDE
-    site_url.disposition_reason = URL_EXCLUSION_DUPLICATE
-    site_url.disposition_version = CORPUS_DISPOSITION_VERSION
-    await session.execute(
-        update(MonitoredSiteUrl)
-        .where(
-            MonitoredSiteUrl.workspace_id == workspace_id,
-            MonitoredSiteUrl.project_id == project_id,
-            MonitoredSiteUrl.site_url_id == site_url.id,
-            MonitoredSiteUrl.selection_source != SELECTION_SOURCE_USER,
-        )
-        .values(active=False)
-    )
 
 
 async def mark_inventory_document(

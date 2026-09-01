@@ -122,7 +122,10 @@ PAGE_KIND_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
     ),
     (PAGE_KIND_SERVICE, r"^/(?:[^/]+/)*?(services?|solutions?)(/|$)"),
     (PAGE_KIND_LOCAL, r"^/(?:[^/]+/)*?(locations?|stores?|offices?)(/|$)"),
-    (PAGE_KIND_GUIDE, r"^/(?:[^/]+/)*?(guides?|how-to|tutorials?)(/|$)"),
+    (
+        PAGE_KIND_GUIDE,
+        r"^/(?:[^/]+/)*?(guides?|care-guide|how-to|tutorials?)(/|$)",
+    ),
     (
         PAGE_KIND_COMPARISON,
         r"^/(?:[^/]+/)*?(compare|comparisons?|vs)(/|$)",
@@ -144,7 +147,7 @@ PAGE_KIND_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
     ),
     (
         PAGE_KIND_TRUST_POLICY,
-        r"^/(?:[^/]+/)*?(privacy|privacy-policy|terms|terms-of-service|cookies?|refund|returns?|shipping-policy|security|trust|policies?|legal)(/|$)",
+        r"^/(?:[^/]+/)*?(privacy|privacy-policy|terms|terms-conditions|terms-of-service|cookies?|refund|returns?|returns-exchanges|shipping-policy|security|trust|policies?|legal)(/|$)",
     ),
 )
 

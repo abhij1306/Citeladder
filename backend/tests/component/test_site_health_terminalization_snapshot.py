@@ -16,10 +16,17 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.site_health_contracts import (
     APPLICABILITY_CRAWL_FINALIZE,
+    CRAWL_STATUS_COMPLETED,
     RULE_OUTCOME_MISSING,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_SATISFIED,
     TASK_KIND_ANALYZE,
+)
+from app.core.config.site_health_crawl_policy import (
+    CORPUS_DISPOSITION_EXCLUDE,
+    SELECTION_SOURCE_BOOTSTRAP,
+    SELECTION_SOURCE_USER,
+    URL_EXCLUSION_DUPLICATE,
 )
 from app.core.config.site_health_rules import SITE_HEALTH_RULES_BY_ID
 from app.core.config.task_queue import (
@@ -27,11 +34,16 @@ from app.core.config.task_queue import (
     TASK_STATUS_FAILED,
     TASK_STATUS_SUCCEEDED,
 )
+from app.domain.site_health.canonical_aliases import (
+    _AliasGraph,
+    _resolved_duplicate_targets,
+)
 from app.domain.site_health.score_summary import (
     _classified_evidence,
     load_crawl_measurement_projection,
     refresh_live_score_summary,
 )
+from app.domain.site_health.service.issues import get_issues
 from app.domain.site_health.snapshot import persist_crawl_snapshot
 from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.analysis import (
@@ -42,10 +54,11 @@ from app.models.site_health.analysis import (
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.snapshot import SiteHealthSnapshot
-from app.workers.site_health.lifecycle_finalize import (
-    _canonical_resolution_evaluations,
-)
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
 from app.workers.site_health.phases import analyze as analyze_phase
+from app.workers.site_health.resolution_evidence import (
+    canonical_resolution_evaluations,
+)
 from tests.component.site_health_worker_helpers import (
     _analyses_by_page_url,
     _rich_html,
@@ -82,13 +95,213 @@ def test_canonical_resolution_is_persisted_for_each_shared_artifact_analysis() -
     target = "https://example.com/shared"
     source_ids = (uuid.uuid4(), uuid.uuid4(), None)
 
-    evaluations = _canonical_resolution_evaluations(
+    evaluations = canonical_resolution_evaluations(
         [(artifact_id, target, {"canonical_url": target})],
         analysis_ids_by_artifact={artifact_id: analysis_ids},
         resolutions={target: (200, target, False, *source_ids)},
     )
 
     assert [analysis_id for analysis_id, _evaluation in evaluations] == analysis_ids
+
+
+def _alias_graph(
+    edges: dict[str, str],
+    *,
+    active: set[str] | None = None,
+    protected: set[str] | None = None,
+    known: set[str] | None = None,
+) -> _AliasGraph:
+    hashes = set(edges) | set(edges.values())
+    active_hashes = hashes if active is None else active
+    protected_hashes = protected or set()
+    return _AliasGraph(
+        site_url_ids={value: uuid.uuid4() for value in hashes},
+        active_hashes=active_hashes,
+        protected_hashes=protected_hashes,
+        candidate_hashes=active_hashes - protected_hashes,
+        known_hashes=hashes if known is None else known,
+        edges=edges,
+    )
+
+
+def test_alias_chain_resolves_every_duplicate_to_retained_sink() -> None:
+    graph = _alias_graph({"alias-a": "alias-b", "alias-b": "canonical"})
+
+    assert _resolved_duplicate_targets(graph) == {
+        "alias-a": "canonical",
+        "alias-b": "canonical",
+    }
+
+
+def test_alias_cycle_retains_one_deterministic_representative() -> None:
+    graph = _alias_graph(
+        {"alias-b": "alias-a", "alias-a": "alias-b", "incoming": "alias-b"}
+    )
+
+    assert _resolved_duplicate_targets(graph) == {
+        "alias-b": "alias-a",
+        "incoming": "alias-a",
+    }
+
+
+def test_alias_resolution_preserves_user_selection_and_unknown_target() -> None:
+    protected = _alias_graph({"system": "user", "user": "system"}, protected={"user"})
+    unresolved = _alias_graph({"system": "unfetched"}, known={"system"})
+
+    assert _resolved_duplicate_targets(protected) == {"system": "user"}
+    assert _resolved_duplicate_targets(unresolved) == {}
+
+
+def test_alias_chain_can_traverse_an_already_excluded_intermediate() -> None:
+    graph = _alias_graph(
+        {"alias": "old-alias", "old-alias": "canonical"},
+        active={"alias", "canonical"},
+    )
+
+    assert _resolved_duplicate_targets(graph) == {"alias": "canonical"}
+
+
+@pytest.mark.asyncio
+async def test_terminal_reconciliation_excludes_late_system_alias_only(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    canonical = "https://example.com/products/widget"
+    system_alias = "https://example.com/collections/sale/products/widget"
+    user_alias = "https://example.com/collections/selected/products/widget"
+    urls = (canonical, system_alias, user_alias)
+    async with session_factory() as session:
+        seed, ids = await _seed_analyze_phase_crawl(session, root=canonical, urls=urls)
+        site_url_ids = [site_url_id for site_url_id, _task_id in ids]
+        memberships = list(
+            await session.scalars(
+                select(MonitoredSiteUrl).where(
+                    MonitoredSiteUrl.workspace_id == seed.workspace_id,
+                    MonitoredSiteUrl.project_id == seed.project_id,
+                    MonitoredSiteUrl.site_url_id.in_(site_url_ids),
+                )
+            )
+        )
+        membership_by_url_id = {row.site_url_id: row for row in memberships}
+        membership_by_url_id[
+            site_url_ids[0]
+        ].selection_source = SELECTION_SOURCE_BOOTSTRAP
+        membership_by_url_id[
+            site_url_ids[1]
+        ].selection_source = SELECTION_SOURCE_BOOTSTRAP
+        assert membership_by_url_id[site_url_ids[2]].selection_source == (
+            SELECTION_SOURCE_USER
+        )
+        for site_url_id, url in zip(site_url_ids, urls, strict=True):
+            session.add(
+                SiteUrlObservation(
+                    workspace_id=seed.workspace_id,
+                    project_id=seed.project_id,
+                    crawl_id=seed.crawl_id,
+                    site_url_id=site_url_id,
+                    source_kind="link",
+                    observed_url=url,
+                    final_url=url,
+                    status_code=200,
+                    content_type="text/html",
+                )
+            )
+        await session.commit()
+
+    def _page(*, declared_canonical: str, hreflang: bool = False) -> bytes:
+        alternate = (
+            f'<link rel="alternate" hreflang="en" href="{canonical}">'
+            if hreflang
+            else ""
+        )
+        return (
+            "<html lang='en'><head><title>Widget</title>"
+            f'<link rel="canonical" href="{declared_canonical}">{alternate}'
+            "</head><body><main><h1>Widget</h1><p>Widget details.</p>"
+            "</main></body></html>"
+        ).encode()
+
+    worker = _worker(
+        session_factory,
+        {
+            "/products/widget": _page(declared_canonical=canonical),
+            "/collections/sale/products/widget": _page(
+                declared_canonical=canonical, hreflang=True
+            ),
+            "/collections/selected/products/widget": _page(
+                declared_canonical=canonical
+            ),
+        },
+        owner="late-canonical-alias",
+    )
+    await worker.run_until_idle()
+
+    async with session_factory() as session:
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        assert crawl.status == CRAWL_STATUS_COMPLETED
+        analyses = await _analyses_by_page_url(session, seed)
+        assert analyses[canonical].is_current is True
+        assert analyses[system_alias].is_current is False
+        assert analyses[user_alias].is_current is True
+
+        url_rows = list(
+            await session.scalars(
+                select(SiteUrl).where(
+                    SiteUrl.workspace_id == seed.workspace_id,
+                    SiteUrl.project_id == seed.project_id,
+                    SiteUrl.normalized_url.in_(urls),
+                )
+            )
+        )
+        by_url = {row.normalized_url: row for row in url_rows}
+        assert by_url[system_alias].corpus_disposition == CORPUS_DISPOSITION_EXCLUDE
+        assert by_url[system_alias].disposition_reason == URL_EXCLUSION_DUPLICATE
+        assert by_url[user_alias].corpus_disposition != CORPUS_DISPOSITION_EXCLUDE
+
+        refreshed_memberships = list(
+            await session.scalars(
+                select(MonitoredSiteUrl).where(
+                    MonitoredSiteUrl.workspace_id == seed.workspace_id,
+                    MonitoredSiteUrl.project_id == seed.project_id,
+                    MonitoredSiteUrl.site_url_id.in_(site_url_ids),
+                )
+            )
+        )
+        active_by_id = {row.site_url_id: row.active for row in refreshed_memberships}
+        assert active_by_id[site_url_ids[1]] is False
+        assert active_by_id[site_url_ids[2]] is True
+        assert crawl.score_summary is not None
+        assert crawl.score_summary["analyzed_count"] == 2
+
+        alias_finalize_rules = list(
+            await session.scalars(
+                select(SiteRuleEvaluation.rule_id).where(
+                    SiteRuleEvaluation.analysis_id == analyses[system_alias].id,
+                    SiteRuleEvaluation.rule_id == "technical.hreflang_conflict",
+                )
+            )
+        )
+        assert alias_finalize_rules == []
+
+        persisted_alias_issues = list(
+            await session.scalars(
+                select(SiteIssue.id).where(
+                    SiteIssue.crawl_id == seed.crawl_id,
+                    SiteIssue.site_url_id == site_url_ids[1],
+                )
+            )
+        )
+        assert persisted_alias_issues
+        alias_issue_projection = await get_issues(
+            session,
+            workspace_id=seed.workspace_id,
+            crawl_id=seed.crawl_id,
+            limit=50,
+            cursor=None,
+            site_url_id=site_url_ids[1],
+        )
+        assert alias_issue_projection["items"] == []
+        assert alias_issue_projection["summary"]["occurrence_count"] == 0
 
 
 @pytest.mark.asyncio

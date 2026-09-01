@@ -860,6 +860,20 @@ There is no required score direction or preferred distribution.
   distribution, or reason-code distribution was observed. None is inferred or
   recorded here.
 
+#### Offline classifier calibration update — 2026-09-01
+
+- The corpus now contains 39 labelled pages: 31 classified cases and the same
+  8 deliberate abstentions.
+- One sanitized Lanhtropy contextual-product case raises product support from
+  2 to 3. It requires page-owned purchase, variant, and SKU evidence to outrank
+  an ancestor collection route when no visible price is extracted.
+- Three exact compound-route cases cover `care-guide` as `guide` plus
+  `returns-exchanges` and `terms-conditions` as `trust_policy`. The route
+  patterns still require complete semantic segments, preserving substring
+  abstention.
+- Every represented kind retains exact precision and recall of `1.0` in the
+  bounded offline manifest. This fixture result is not a whole-site claim.
+
 The deterministic scorer suite includes these mutation invariants:
 
 ```text

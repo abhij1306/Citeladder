@@ -49,7 +49,7 @@ export function RadioGroup<T extends string>({
             <RadioGroupPrimitive.Item
               value={option.value}
               disabled={option.disabled}
-              className="focus-ring border-input bg-input-bg data-[state=checked]:border-accent grid size-4 shrink-0 place-items-center rounded-full border disabled:opacity-50"
+              className="focus-ring border-border-bold bg-input data-[state=checked]:border-accent grid size-4 shrink-0 place-items-center rounded-full border disabled:opacity-50"
             >
               <RadioGroupPrimitive.Indicator>
                 <span className="bg-accent block size-2 rounded-full" />

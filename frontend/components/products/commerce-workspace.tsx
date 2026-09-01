@@ -20,30 +20,48 @@ import { CatalogHeader } from './catalog-header';
 import { CatalogList, catalogEntries } from './catalog-list';
 import { TargetDetail } from './target-detail';
 
-/** The bulk bar exists only while rows are checked; that is its whole rule. */
-function BulkActions({
+/** Stable bulk-selection status and actions; selecting the first row never shifts the workspace. */
+export function BulkActions({
   count,
+  hasCheckedKeys,
   pending,
   onDiscover,
   onClear,
 }: Readonly<{
   count: number;
+  hasCheckedKeys: boolean;
   pending: boolean;
   onDiscover: () => void;
   onClear: () => void;
 }>) {
-  if (!count) return null;
   return (
-    <div className="border-border bg-elevated flex flex-wrap items-center gap-2 rounded-lg border p-2">
-      <span className="text-secondary text-sm">
-        {count} {count === 1 ? 'target' : 'targets'} selected
-      </span>
-      <Button size="sm" disabled={pending} onClick={onDiscover}>
-        Find competitors
-      </Button>
-      <Button size="sm" variant="ghost" onClick={onClear}>
-        Clear
-      </Button>
+    <div className="bg-panel flex min-h-16 flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] px-3 py-2">
+      <div className="grid gap-0.5">
+        <span aria-live="polite" className="text-foreground text-sm font-medium">
+          {count
+            ? `${count} ${count === 1 ? 'target' : 'targets'} selected`
+            : 'No targets selected'}
+        </span>
+        <span className="text-muted text-xs">
+          {count
+            ? 'Find competitors for every checked target.'
+            : 'Check categories or products to use bulk actions.'}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-1">
+        <Button
+          size="sm"
+          disabled={!count}
+          pending={pending}
+          pendingLabel="Finding…"
+          onClick={onDiscover}
+        >
+          Find competitors
+        </Button>
+        <Button size="sm" variant="ghost" disabled={!hasCheckedKeys || pending} onClick={onClear}>
+          Clear selection
+        </Button>
+      </div>
     </div>
   );
 }
@@ -126,6 +144,7 @@ export function CommerceWorkspace({ projectId }: Readonly<{ projectId: string }>
       <CatalogHeader projectId={projectId} query={queries.catalog} />
       <BulkActions
         count={checkedTargets.length}
+        hasCheckedKeys={checked.length > 0}
         pending={discovery.discover.isPending}
         onDiscover={() => discovery.discover.mutate(checkedTargets)}
         onClear={() => setChecked([])}

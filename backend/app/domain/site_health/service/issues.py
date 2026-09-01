@@ -12,6 +12,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import and_, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -100,7 +101,7 @@ def _issue_filter_clause(
     page_kind: str | None = None,
     finding_class: str | None = FINDING_CLASS_DEFECT,
 ):
-    clauses = [SiteIssue.crawl_id == crawl_id]
+    clauses = [*_current_issue_clauses(crawl_id)]
     if severity:
         if severity == SEVERITY_HIGH:
             # The catalog UI exposes a three-tier vocabulary (high/medium/low);
@@ -132,6 +133,19 @@ def _issue_filter_clause(
     if query:
         clauses.append(SiteIssue.rule_id.ilike(f"%{query.strip()}%"))
     return clauses
+
+
+def _current_issue_clauses(crawl_id: uuid.UUID) -> tuple[Any, ...]:
+    """Restrict a crawl projection to issues from its current analyses."""
+    return (
+        SiteIssue.crawl_id == crawl_id,
+        SiteIssue.analysis_id.in_(
+            select(SitePageAnalysis.id).where(
+                SitePageAnalysis.crawl_id == crawl_id,
+                SitePageAnalysis.is_current.is_(True),
+            )
+        ),
+    )
 
 
 async def _load_issue_groups(
@@ -170,7 +184,7 @@ async def _load_issue_groups(
         canonical = await session.scalar(
             select(SiteIssue)
             .where(
-                SiteIssue.crawl_id == crawl_id,
+                *_current_issue_clauses(crawl_id),
                 SiteIssue.rule_id == rule_id,
                 SiteIssue.finding_class == finding_class,
             )
@@ -393,7 +407,7 @@ async def _page_kinds_for_rules(
         )
         .join(SitePageAnalysis, SitePageAnalysis.id == SiteIssue.analysis_id)
         .where(
-            SiteIssue.crawl_id == crawl_id,
+            *_current_issue_clauses(crawl_id),
             SiteIssue.rule_id.in_(rule_ids),
             SiteIssue.finding_class == finding_class,
         )
@@ -426,7 +440,7 @@ async def issue_group_page_kinds(
             func.array_agg(func.distinct(SitePageAnalysis.page_kind)),
         )
         .join(SitePageAnalysis, SitePageAnalysis.id == SiteIssue.analysis_id)
-        .where(SiteIssue.crawl_id == crawl_id)
+        .where(*_current_issue_clauses(crawl_id))
         .group_by(SiteIssue.rule_id)
     )
     return {
@@ -462,7 +476,7 @@ async def get_issue_detail(
     canonical = await session.scalar(
         select(SiteIssue)
         .where(
-            SiteIssue.crawl_id == crawl_id,
+            *_current_issue_clauses(crawl_id),
             SiteIssue.rule_id == rule_id,
             SiteIssue.finding_class == finding_class,
         )
@@ -482,7 +496,7 @@ async def get_issue_detail(
     total = (
         await session.scalar(
             select(func.count(func.distinct(SiteIssue.site_url_id))).where(
-                SiteIssue.crawl_id == crawl_id,
+                *_current_issue_clauses(crawl_id),
                 SiteIssue.rule_id == canonical.rule_id,
                 SiteIssue.finding_class == finding_class,
             )
@@ -493,7 +507,7 @@ async def get_issue_detail(
     occurrence_count = (
         await session.scalar(
             select(func.count(SiteIssue.id)).where(
-                SiteIssue.crawl_id == crawl_id,
+                *_current_issue_clauses(crawl_id),
                 SiteIssue.rule_id == canonical.rule_id,
                 SiteIssue.finding_class == finding_class,
             )
@@ -574,7 +588,7 @@ async def _resolve_issue_group(
     candidates = await session.execute(
         select(SiteIssue.rule_id, SiteIssue.finding_class)
         .where(
-            SiteIssue.crawl_id == crawl_id,
+            *_current_issue_clauses(crawl_id),
             SiteIssue.workspace_id == workspace_id,
         )
         .distinct()
@@ -605,7 +619,7 @@ def _occurrence_statement(crawl_id: uuid.UUID, rule_id: str, finding_class: str)
         .join(SitePageAnalysis, SitePageAnalysis.id == SiteIssue.analysis_id)
         .join(SiteRuleEvaluation, SiteRuleEvaluation.id == SiteIssue.evaluation_id)
         .where(
-            SiteIssue.crawl_id == crawl_id,
+            *_current_issue_clauses(crawl_id),
             SiteIssue.rule_id == rule_id,
             SiteIssue.finding_class == finding_class,
         )

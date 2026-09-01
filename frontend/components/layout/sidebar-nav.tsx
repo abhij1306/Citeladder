@@ -24,8 +24,8 @@ function NavLink({ item, active }: Readonly<{ item: NavItem; active: boolean }>)
       className={cn(
         'relative flex h-[var(--nav-item-height)] items-center gap-2.5 rounded-[var(--radius-control)] px-2.5 text-sm font-medium transition-colors duration-150',
         active
-          ? 'bg-accent-subtle text-accent-text'
-          : 'text-secondary hover:text-foreground hover:bg-well',
+          ? 'bg-panel text-accent-text'
+          : 'text-secondary hover:bg-panel hover:text-foreground',
       )}
     >
       <Icon

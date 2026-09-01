@@ -217,6 +217,7 @@ def evaluate_hreflang_conflict(
     checked_count: int,
     unchecked_count: int,
     missing_return_tags: list[str],
+    rate_limited_count: int = 0,
 ) -> RuleEvaluation:
     """``technical.hreflang_conflict`` for ONE analysis's hreflang cluster.
 
@@ -231,6 +232,18 @@ def evaluate_hreflang_conflict(
     rule = _catalog_rule("technical.hreflang_conflict")
     if alternate_count <= 0:
         return _evaluation(rule, RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_hreflang"})
+    if rate_limited_count > 0 and not missing_return_tags:
+        return _evaluation(
+            rule,
+            RULE_OUTCOME_UNKNOWN,
+            {
+                "reason": "rate_limited_alternates",
+                "alternate_count": int(alternate_count),
+                "checked_count": int(checked_count),
+                "unchecked_count": int(unchecked_count),
+                "rate_limited_count": int(rate_limited_count),
+            },
+        )
     if checked_count <= 0:
         return _evaluation(
             rule,

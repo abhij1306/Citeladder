@@ -83,7 +83,7 @@ def check_offer_freshness_signal(facts: dict) -> tuple[str, dict]:
         or commerce.get("visible_price")
     )
     currency = [str(value) for value in schema.get("price_currency") or () if value]
-    timestamp, timestamp_source = _freshness_timestamp(facts)
+    timestamp, timestamp_source = _offer_freshness_timestamp(facts, schema)
     evidence = {
         "offer": offer,
         "currency": list(dict.fromkeys(currency))[:8],
@@ -187,6 +187,20 @@ def _freshness_timestamp(facts: dict) -> tuple[str, str]:
         if timestamp:
             return timestamp[:128], key
     return "", ""
+
+
+def _offer_freshness_timestamp(facts: dict, schema: dict) -> tuple[str, str]:
+    validity = next(
+        (
+            str(value).strip()
+            for value in schema.get("price_valid_until") or ()
+            if value
+        ),
+        "",
+    )
+    if validity:
+        return validity[:128], "offer_price_valid_until"
+    return _freshness_timestamp(facts)
 
 
 def check_listing_item_facts(facts: dict) -> tuple[str, dict]:

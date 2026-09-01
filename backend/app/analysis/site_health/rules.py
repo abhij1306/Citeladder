@@ -42,6 +42,9 @@ from app.analysis.site_health.schema_rules import (
     primary_schema_present,
 )
 from app.analysis.site_health.web_fundamentals import WEB_FUNDAMENTALS_CHECKS
+from app.core.config.site_health_acquisition import (
+    SITE_HEALTH_MAX_HREFLANG_ALTERNATES,
+)
 from app.core.config.site_health_contracts import (
     RULE_FAILING_OUTCOMES,
     RULE_OUTCOME_ERROR,
@@ -208,13 +211,60 @@ def _check_thin_content(facts: dict) -> tuple[str, dict]:
     return _pass_fail(satisfied), evidence
 
 
-def _hreflang_alternate_urls(facts: dict) -> list[str]:
+def _matching_hreflang_languages(facts: dict, *, canonical: str) -> list[str]:
     alternates = facts.get("hreflang_alternates") or []
-    return [
-        str(entry.get("url") or "")
-        for entry in alternates
-        if isinstance(entry, dict) and entry.get("url")
+    if not isinstance(alternates, list):
+        return []
+    canonical_identity = normalized_url_for_compare(canonical)
+    languages: list[str] = []
+    for entry in islice(alternates, SITE_HEALTH_MAX_HREFLANG_ALTERNATES):
+        if not isinstance(entry, dict) or not entry.get("url"):
+            continue
+        alternate = normalized_url_for_compare(str(entry["url"]))
+        language = str(entry.get("hreflang") or "").strip().casefold()
+        if alternate == canonical_identity and language and language not in languages:
+            languages.append(language)
+    return languages
+
+
+def _primary_language(value: object) -> str:
+    language = str(value or "").strip().replace("_", "-").casefold()
+    if not language or language == "x-default":
+        return ""
+    return language.split("-", 1)[0]
+
+
+def _canonical_hreflang_outcome(
+    facts: dict, *, canonical: str
+) -> tuple[str | None, dict[str, object]]:
+    matching_languages = _matching_hreflang_languages(facts, canonical=canonical)
+    concrete_languages = [
+        language for language in matching_languages if language != "x-default"
     ]
+    if not concrete_languages:
+        return None, {}
+    accessibility = facts.get("accessibility") or {}
+    document_language = (
+        str(accessibility.get("document_language") or "").strip()
+        if isinstance(accessibility, dict)
+        else ""
+    )
+    evidence: dict[str, object] = {
+        "canonical_hreflang_languages": matching_languages,
+        "document_language": document_language,
+    }
+    document_primary = _primary_language(document_language)
+    if not document_primary:
+        evidence["reason"] = "document_language_unavailable"
+        return RULE_OUTCOME_UNKNOWN, evidence
+    compatible = any(
+        _primary_language(language) == document_primary
+        for language in concrete_languages
+    )
+    if compatible:
+        return None, evidence
+    evidence["problem"] = "hreflang_canonical_conflict"
+    return RULE_OUTCOME_MISSING, evidence
 
 
 def _check_canonical_conflict(facts: dict) -> tuple[str, dict]:
@@ -247,12 +297,12 @@ def _check_canonical_conflict(facts: dict) -> tuple[str, dict]:
         evidence["problem"] = "cross_origin_canonical"
         return RULE_OUTCOME_MISSING, evidence
 
-    alternates = {
-        normalized_url_for_compare(url) for url in _hreflang_alternate_urls(facts)
-    }
-    if alternates and normalized_url_for_compare(canonical) in alternates:
-        evidence["problem"] = "hreflang_canonical_conflict"
-        return RULE_OUTCOME_MISSING, evidence
+    hreflang_outcome, hreflang_evidence = _canonical_hreflang_outcome(
+        facts, canonical=canonical
+    )
+    evidence.update(hreflang_evidence)
+    if hreflang_outcome is not None:
+        return hreflang_outcome, evidence
 
     evidence["reason"] = "intentional_consolidation"
     return RULE_OUTCOME_SATISFIED, evidence

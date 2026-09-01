@@ -73,6 +73,7 @@ from app.core.config.task_queue import (
     TASK_STATUS_SUCCEEDED,
     TASK_TERMINAL_STATUSES,
 )
+from app.domain.site_health.canonical_aliases import reconcile_crawl_duplicate_aliases
 from app.domain.site_health.change_queue import enqueue_change_refresh
 from app.domain.site_health.failure import load_root_failure_summary
 from app.domain.site_health.link_queue import enqueue_link_metric_refresh
@@ -385,6 +386,7 @@ class CrawlLifecycle(CrawlFinalizeMixin):
 
             # Crawl-finalize rules use persisted page facts and run before the
             # snapshot so their issues enter its rollups.
+            await reconcile_crawl_duplicate_aliases(session, crawl=crawl)
             await self._run_crawl_finalize_pass(session, crawl=crawl)
             await self._persist_snapshot(session, crawl=crawl)
 

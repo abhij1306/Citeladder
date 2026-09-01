@@ -477,17 +477,22 @@ def _product_evidence(facts: dict, product: dict) -> str:
     every repeated card list, which stops a recommendation carousel on a
     returns-policy page from speaking for that page.
     """
+    has_purchase_control = bool(product.get("has_purchase_control"))
+    has_variant_control = bool(product.get("has_variant_control"))
+    has_sku_marker = bool(product.get("has_sku_marker"))
+    if has_purchase_control and (has_variant_control or has_sku_marker):
+        return "primary_buy_box"
     if not product.get("has_primary_price"):
         return ""
-    if not product.get("has_purchase_control"):
+    if not has_purchase_control:
         return (
             "primary_price+product_heading"
             if product.get("has_product_detail_heading")
             else ""
         )
     corroborated = (
-        product.get("has_variant_control")
-        or product.get("has_sku_marker")
+        has_variant_control
+        or has_sku_marker
         or _og_type(facts) == "product"
         or _single_product_schema(facts)
     )

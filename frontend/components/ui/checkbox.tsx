@@ -48,7 +48,7 @@ export function Checkbox({
       aria-label={ariaLabel}
       className="focus-ring group grid min-h-[var(--control-height)] min-w-[var(--control-height)] shrink-0 place-items-center rounded-[var(--radius-control)] disabled:cursor-not-allowed disabled:opacity-60"
     >
-      <span className="border-input bg-input-bg group-hover:border-border-bold group-data-[state=checked]:border-accent group-data-[state=checked]:bg-accent group-data-[state=indeterminate]:border-accent group-data-[state=indeterminate]:bg-accent text-accent-fg grid size-4 place-items-center rounded-[var(--radius-control)] border transition-[background-color,border-color] duration-[var(--transition-fast)]">
+      <span className="border-border-bold bg-input group-data-[state=checked]:border-accent group-data-[state=checked]:bg-accent group-data-[state=indeterminate]:border-accent group-data-[state=indeterminate]:bg-accent text-accent-fg grid size-4 place-items-center rounded-[calc(var(--radius-control)/2)] border transition-[background-color,border-color] duration-[var(--transition-fast)]">
         <CheckboxPrimitive.Indicator>
           {checked === 'indeterminate' ? (
             <Minus className="size-3" aria-hidden />

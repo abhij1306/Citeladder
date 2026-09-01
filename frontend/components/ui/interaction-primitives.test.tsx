@@ -150,6 +150,7 @@ describe('authenticated interaction primitives', () => {
       'min-w-[var(--control-height)]',
       'disabled:opacity-60',
     );
+    expect(checkbox.firstElementChild).toHaveClass('border-border-bold', 'bg-input');
     await user.click(checkbox);
     expect(onCheck).toHaveBeenCalledWith(true);
   });

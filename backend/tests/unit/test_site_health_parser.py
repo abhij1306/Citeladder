@@ -1006,13 +1006,16 @@ def test_props_present_supports_dotted_offer_paths():
     blocks = parse_jsonld_blocks(
         [
             '{"@type":"Product","name":"Widget",'
-            '"offers":{"@type":"Offer","price":"9.99","priceCurrency":"USD"}}'
+            '"offers":{"@type":"Offer","price":"9.99","priceCurrency":"USD",'
+            '"priceValidUntil":"2026-12-31"}}'
         ],
         max_blocks=10,
     )
     props = blocks[0]["props_present"]
     assert "name" in props
     assert "offers" in props
+    assert "offers.priceValidUntil" in props
+    assert blocks[0]["product"]["price_valid_until"] == ["2026-12-31"]
     assert "offers.price" in props
     assert "offers.priceCurrency" in props
     # Sorted + bounded to the config path set.

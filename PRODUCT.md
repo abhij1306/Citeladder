@@ -32,7 +32,7 @@ Users connect an owned site and integrations, review automatically discovered fa
 
 ## Brand Commitments
 
-The product name is CiteLadder. Voice is direct, confident, specific, and evidence-led, with one idea per sentence and no inflated causal or AI claims. The canonical logo assets are `frontend/public/citeladder-logo.webp` and `frontend/public/citeladder-favicon.ico`.
+The product name is CiteLadder. Voice is direct, confident, specific, and evidence-led, with one idea per sentence and no inflated causal or AI claims. The canonical logo assets are `frontend/public/citeladder-logo.png` and `frontend/public/citeladder-favicon.ico`.
 
 ## Evidence on Hand
 

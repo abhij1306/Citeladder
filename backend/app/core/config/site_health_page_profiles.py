@@ -42,6 +42,7 @@ PRODUCT_SCHEMA_PROPERTY_PATHS: Final[frozenset[str]] = frozenset(
         "brand",
         "offers.price",
         "offers.priceCurrency",
+        "offers.priceValidUntil",
         "offers.availability",
         "offers.shippingDetails",
         "offers.hasMerchantReturnPolicy",

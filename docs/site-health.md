@@ -85,7 +85,9 @@ repair lifecycle state, or call a model.
   analysis reuses a compatible artifact or performs the normal secure fallback.
   A race with active discovery is durably deferred without spending a network
   attempt. Fetch attempts retain bounded delivery/error provenance, and `429`
-  cooldowns gate new host starts.
+  cooldowns gate new host starts. An exhausted `429` remains unavailable
+  resolution evidence for internal links, canonicals, sitemaps, and hreflang;
+  it lowers coverage to `unknown` and is never reinterpreted as a broken URL.
 - Anchor extraction may repair an encoded query delimiter only at a boundary
   whose first suffix key is a config-owned tracking parameter. The observation
   freezes the rewrite reason/version; legitimate reserved path escapes remain
@@ -97,7 +99,14 @@ repair lifecycle state, or call a model.
 - Declared canonicals remain observed evidence and never replace crawler URL
   identity. An in-scope canonical may key the Commerce projection; an
   automatically selected alias is skipped only when that canonical URL was
-  also admitted to the same crawl. Explicit user selections are not collapsed.
+  also admitted to the same crawl. The locked terminalization transaction
+  reconciles aliases once all progressive discovery work has drained, so two
+  concurrent admissions cannot make this disposition order-dependent. Any
+  canonical graph resolves each connected alias chain or cycle to a retained
+  representative before exclusion; an alias is never removed when its resolved
+  target is also being removed. Any completed late-alias analysis is superseded
+  before cross-page rules, scoring, link metrics, and Architecture. Explicit
+  user selections are not collapsed.
 - The screen phase is resolved once by the backend. Worker bookkeeping states
   are not independently reinterpreted by the frontend.
 
@@ -199,16 +208,20 @@ Classification is deterministic and uses this precedence:
    tracking parameters cannot create different classifications. Meaningful
    routing parameters remain available as evidence.
 2. Prefer page-owned structural evidence. A primary product entity requires
-   facts such as a buy box, offer, SKU, price, availability, or variants outside
-   repeated cards. A `category` requires a substantial repeated-card collection
-   supported by result counts, sorting, filtering, facets, or pagination. A
-   single location entity requires its own address/location evidence. Repeated
-   recommendation cards in an article or product page do not make it a listing.
+   a page-owned purchase path corroborated by a SKU or variant control, or a
+   price paired with product-detail structure, outside repeated cards. A visible
+   price is not mandatory when the page-owned buy box is otherwise decisive. A
+   `category` requires a substantial repeated-card collection supported by
+   result counts, sorting, filtering, facets, or pagination. A single location
+   entity requires its own address/location evidence. Repeated recommendation
+   cards in an article or product page do not make it a listing.
 3. Apply high-confidence route evidence: `/` is `homepage`; product, collection,
    service, location, guide, comparison, pricing, documentation, FAQ,
    about/contact, case-study/review, and legal/policy route vocabularies map to
-   their corresponding fixed kinds. Archive roots such as `/blog` or `/news`
-   require listing structure, while their detail descendants remain `article`.
+   their corresponding fixed kinds. Exact common compound segments include
+   `care-guide`, `returns-exchanges`, and `terms-conditions`; partial substring
+   matches remain excluded. Archive roots such as `/blog` or `/news` require
+   listing structure, while their detail descendants remain `article`.
 4. Use visible semantic evidence only when stronger evidence is absent. The
    title, H1, final slug, question-heading structure, author/date evidence, and
    bounded main-content heuristics may resolve an otherwise ambiguous page.
@@ -526,7 +539,7 @@ expected-but-unmeasured and lowers coverage, never passes or fails.
 | Page identity | A descriptive title and unambiguous visible main title identify the primary topic | Defect for missing or non-descriptive identity. No title character band and no exact-one-H1 rule is scored ([title links](https://developers.google.com/search/docs/appearance/title-link)). |
 | Semantic structure | Main content, headings, labels, relationships, and meaningful sequence are programmatically determinable | Web Fundamentals defect where deterministic. A logical heading hierarchy matters; mechanically requiring one H1 does not. |
 | Internal discovery | Important destinations use crawlable `<a href>` links and fetched internal targets resolve | Page defect for a broken present link; crawl/cluster defect for undiscoverable intended pages. Orphan absence claims require complete coverage ([crawlable links](https://developers.google.com/search/docs/crawling-indexing/links-crawlable)). |
-| Canonical integrity | A present canonical is parseable, resolvable, and consistent with redirects, sitemaps, hreflang, and its duplicate cluster | Contradiction is a defect; absence is advisory because Google can select a canonical without a declaration ([canonical guidance](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls)). |
+| Canonical integrity | A present canonical is parseable, resolvable, and consistent with redirects, sitemaps, hreflang, and its duplicate cluster | Same-origin consolidation is healthy when a matching hreflang target is compatible with the document language; a concrete cross-language contradiction is a defect, and unavailable document-language evidence remains unknown. Absence is advisory because Google can select a canonical without a declaration ([canonical guidance](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls)). |
 | Structured-data integrity | Present markup parses, describes visible main content, uses the opted-in feature contract, and does not contradict visible facts | Invalid, misleading, hidden, or contradictory markup is a defect. Absence is advisory. Required fields are keyed by publisher + feature + schema type, not generic Schema.org vocabulary ([structured-data policies](https://developers.google.com/search/docs/appearance/structured-data/sd-policies)). |
 | Site/cluster controls | Pagination, facets, sitemaps, hreflang, canonical targets, duplicates, and hierarchy are internally consistent | Defect only when the relevant structure exists and crawl coverage can establish it. N/A requires proven structural irrelevance; incomplete coverage or evidence is unknown or unavailable. |
 | Page experience | HTTPS, mobile usability, unobscured content, accessible names/labels/alternatives, and field CWV are healthy | Separate Web Fundamentals result. Missing field data is unknown, not a pass ([page experience](https://developers.google.com/search/docs/appearance/page-experience), [WCAG 2.2](https://www.w3.org/TR/WCAG22/)). |
@@ -756,7 +769,10 @@ may contain more than one occurrence or evaluation for a rule.
 One occurrence DTO is shared by grouped issue detail and per-URL detail. It
 contains the affected URL and page kind, frozen description/remediation and
 versions, `reason_code`, and bounded evidence. Group detail owns no canonical
-evidence copy. The two heading rules remain separate structural signals:
+evidence copy. Read projections include only issues belonging to the crawl's
+current analyses, so a superseded canonical alias cannot remain visible after
+it leaves scoring and Architecture. The two heading rules remain separate
+structural signals:
 **Web — Full-document heading hierarchy** reads the document-wide sequence;
 **AEO — Primary-content heading hierarchy** reads the parser's existing
 `primary_heading_outline` from its single `<main>`/content-region boundary.

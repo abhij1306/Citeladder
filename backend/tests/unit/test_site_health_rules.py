@@ -1037,6 +1037,52 @@ def test_canonical_to_a_different_hreflang_alternate_fails():
     assert ev.evidence["problem"] == "hreflang_canonical_conflict"
 
 
+def test_same_language_hreflang_canonical_is_intentional_consolidation():
+    facts = _html_facts(
+        canonical_url="https://x.example/products/linen-shirt",
+        delivery={
+            **_html_facts()["delivery"],
+            "final_url": ("https://x.example/collections/sale/products/linen-shirt"),
+        },
+        hreflang_alternates=[
+            {
+                "hreflang": "x-default",
+                "url": "https://x.example/products/linen-shirt",
+            },
+            {
+                "hreflang": "en-US",
+                "url": "https://x.example/products/linen-shirt",
+            },
+            {
+                "hreflang": "fr-FR",
+                "url": "https://x.example/fr/products/linen-shirt",
+            },
+        ],
+    )
+
+    ev = _outcome(facts, "technical.canonical_conflict")
+
+    assert ev.outcome == RULE_OUTCOME_SATISFIED
+    assert ev.evidence["reason"] == "intentional_consolidation"
+    assert ev.evidence["canonical_hreflang_languages"] == ["x-default", "en-us"]
+    assert ev.evidence["document_language"] == "en"
+
+
+def test_hreflang_canonical_abstains_without_document_language():
+    facts = _html_facts(
+        canonical_url="https://x.example/fr/",
+        hreflang_alternates=[
+            {"hreflang": "fr", "url": "https://x.example/fr/"},
+        ],
+        accessibility="malformed persisted evidence",
+    )
+
+    ev = _outcome(facts, "technical.canonical_conflict")
+
+    assert ev.outcome == RULE_OUTCOME_UNKNOWN
+    assert ev.evidence["reason"] == "document_language_unavailable"
+
+
 def test_canonical_conflict_not_applicable_without_canonical():
     # The v1 presence rule owns the missing-canonical finding.
     ev = _outcome(_html_facts(canonical_url=""), "technical.canonical_conflict")

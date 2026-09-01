@@ -11,7 +11,7 @@ describe('AuthWordmark', () => {
     expect(link).toHaveAttribute('href', '/');
     expect(container.querySelector('img')).toHaveAttribute(
       'src',
-      expect.stringContaining('citeladder-logo.webp'),
+      expect.stringContaining('citeladder-logo.png'),
     );
   });
 

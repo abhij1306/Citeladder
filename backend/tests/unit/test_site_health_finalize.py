@@ -35,9 +35,13 @@ from app.core.config.site_health_rule_types import (
     SCORE_ROLE_WEB_FUNDAMENTALS,
 )
 from app.workers.site_health.lifecycle_finalize import (
+    _evaluate_hreflang_for_page,
     _internal_link_targets,
-    _resolution_set_evaluation,
     _source_link_evaluation,
+)
+from app.workers.site_health.resolution_evidence import (
+    canonical_resolution_evaluations,
+    resolution_set_evaluation,
 )
 
 
@@ -127,6 +131,47 @@ def test_broken_internal_links_remain_unknown_without_checked_targets():
     _assert_technical_score_metadata(ev, scope=RULE_SCOPE_GRAPH)
 
 
+def test_rate_limited_internal_target_is_unknown_not_broken():
+    target = "https://example.test/rate-limited"
+    task_id = uuid.uuid4()
+    attempt_id = uuid.uuid4()
+
+    ev = resolution_set_evaluation(
+        [target],
+        resolutions={target: (429, "", False, task_id, attempt_id, None)},
+        evaluator=evaluate_broken_internal_links,
+        failure_key="broken_urls",
+    )
+
+    assert ev.outcome == RULE_OUTCOME_UNKNOWN
+    assert ev.reason_code == "rate_limited_targets"
+    assert ev.evidence["failing_targets"] == []
+    assert ev.evidence["rate_limited_targets"] == [{"url": target, "status_code": 429}]
+    assert ev.evidence["resolution_source_ids"] == sorted(
+        [str(task_id), str(attempt_id)]
+    )
+
+
+def test_rate_limited_canonical_target_is_unknown_with_attempt_provenance():
+    artifact_id = uuid.uuid4()
+    analysis_id = uuid.uuid4()
+    task_id = uuid.uuid4()
+    attempt_id = uuid.uuid4()
+    target = "https://example.test/canonical"
+
+    [(_analysis_id, ev)] = canonical_resolution_evaluations(
+        [(artifact_id, "https://example.test/alias", {"canonical_url": target})],
+        analysis_ids_by_artifact={artifact_id: [analysis_id]},
+        resolutions={target: (429, "", False, task_id, attempt_id, None)},
+    )
+
+    assert _analysis_id == analysis_id
+    assert ev.outcome == RULE_OUTCOME_UNKNOWN
+    assert ev.reason_code == "rate_limited"
+    assert ev.evidence["observed_status_code"] == 429
+    assert ev.evidence["resolution_source_ids"] == [str(task_id), str(attempt_id)]
+
+
 def test_broken_internal_link_evidence_is_scoped_to_each_source_page():
     broken = "https://example.test/missing"
     healthy = "https://example.test/healthy"
@@ -160,13 +205,13 @@ def test_broken_internal_link_evidence_is_scoped_to_each_source_page():
         healthy: (200, healthy, False, healthy_source, uuid.uuid4(), None),
     }
 
-    first = _resolution_set_evaluation(
+    first = resolution_set_evaluation(
         first_targets,
         resolutions=resolutions,
         evaluator=evaluate_broken_internal_links,
         failure_key="broken_urls",
     )
-    second = _resolution_set_evaluation(
+    second = resolution_set_evaluation(
         second_targets,
         resolutions=resolutions,
         evaluator=evaluate_broken_internal_links,
@@ -182,7 +227,7 @@ def test_broken_internal_link_evidence_is_scoped_to_each_source_page():
 
 def test_source_link_evaluation_keeps_target_evidence_without_a_global_override():
     broken = "https://example.test/missing"
-    evaluation = _resolution_set_evaluation(
+    evaluation = resolution_set_evaluation(
         [broken, "https://example.test/healthy"],
         resolutions={
             broken: (404, broken, False, uuid.uuid4(), uuid.uuid4(), None),
@@ -371,6 +416,36 @@ def test_hreflang_conflict_passes_when_return_tags_complete():
     )
     assert ev.outcome == RULE_OUTCOME_SATISFIED
     assert ev.evidence["checked_count"] == 2
+
+
+def test_hreflang_conflict_is_unknown_when_an_alternate_is_rate_limited():
+    ev = evaluate_hreflang_conflict(
+        alternate_count=2,
+        checked_count=1,
+        unchecked_count=1,
+        missing_return_tags=[],
+        rate_limited_count=1,
+    )
+
+    assert ev.outcome == RULE_OUTCOME_UNKNOWN
+    assert ev.reason_code == "rate_limited_alternates"
+    assert ev.evidence["rate_limited_count"] == 1
+
+
+def test_hreflang_cross_check_does_not_use_rate_limited_counterpart():
+    source = "https://example.test/en"
+    target = "https://example.test/fr"
+    ev = _evaluate_hreflang_for_page(
+        [{"hreflang": "fr", "url": target}],
+        source,
+        {target: [{"hreflang": "en", "url": source}]},
+        {target},
+    )
+
+    assert ev.outcome == RULE_OUTCOME_UNKNOWN
+    assert ev.reason_code == "rate_limited_alternates"
+    assert ev.evidence["checked_count"] == 0
+    assert ev.evidence["rate_limited_count"] == 1
 
 
 def test_hreflang_conflict_fails_with_bounded_evidence():

@@ -1,7 +1,7 @@
 import Image from 'next/image';
 
 const LOGOS = {
-  light: { src: '/citeladder-logo.webp', width: 1182, height: 205 },
+  light: { src: '/citeladder-logo.png', width: 1182, height: 205 },
   dark: { src: '/citeladder-dark-logo.webp', width: 1995, height: 327 },
 } as const;
 
@@ -23,6 +23,7 @@ export function LogoMark({
         alt=""
         width={logo.width}
         height={logo.height}
+        loading="eager"
         className="size-full object-contain"
       />
     </span>

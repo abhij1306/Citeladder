@@ -45,13 +45,15 @@ from app.core.config.site_health_crawl_policy import (
 )
 from app.core.config.site_health_rules import SITEMAP_CONTENT_TYPES
 from app.core.config.site_health_runtime import site_health_settings
+from app.domain.site_health.canonical_aliases import (
+    mark_duplicate_url,
+    resolve_duplicate_of_admitted_page,
+)
 from app.domain.site_health.discovery import admit_candidates, build_frontier_candidates
 from app.domain.site_health.entitlements import lock_runtime
 from app.domain.site_health.frontier_support import (
     enqueue_analysis_for_discovered_url,
-    mark_duplicate_url,
     mark_inventory_document,
-    resolve_duplicate_of_admitted_page,
 )
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.schemas import (
@@ -563,8 +565,7 @@ async def _dispose_fetched_page(
     if duplicate_of:
         await mark_duplicate_url(
             session,
-            workspace_id=crawl.workspace_id,
-            project_id=crawl.project_id,
+            crawl=crawl,
             url_hash_value=task.url_hash,
         )
     elif not is_document:

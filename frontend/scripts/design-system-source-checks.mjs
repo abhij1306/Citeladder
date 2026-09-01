@@ -460,7 +460,12 @@ export function productContractViolations(root) {
     ['--radius-control', '10px'],
     ['--radius-card', '16px'],
     ['--radius-overlay', '16px'],
-    ['--color-background', ['#fa', 'f9f6'].join('')],
+    ['--color-background', ['#f6', 'f8fc'].join('')],
+    ['--color-background-alt', ['#ea', 'f1fb'].join('')],
+    ['--color-panel-tonal', ['#ed', 'f2fa'].join('')],
+    ['--color-well', ['#ea', 'f1fb'].join('')],
+    ['--color-active', ['#d3', 'e3fd'].join('')],
+    ['--color-sidebar', ['#ea', 'f1fb'].join('')],
     ['--color-action', ['#14', '213d'].join('')],
     ['--color-accent', ['#55', '42f6'].join('')],
     ['--color-focus', ['#55', '42f6'].join('')],
@@ -475,6 +480,9 @@ export function productContractViolations(root) {
   }
   if (/\.website-type\b/.test(css + websiteCss)) {
     violations.push('app/globals.css: retired .website-type palette boundary must not return');
+  }
+  if (/\.product-app\s*\{[^}]*--color-/s.test(css)) {
+    violations.push('app/globals.css: product-app must not override the shared surface palette');
   }
 
   const layout = readFileSync(join(root, 'app', 'layout.tsx'), 'utf8');

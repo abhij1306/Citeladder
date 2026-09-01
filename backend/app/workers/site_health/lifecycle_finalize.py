@@ -8,7 +8,7 @@ for cross-page evaluation and projection persistence.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import replace
 from typing import Any
 from urllib.parse import urljoin
@@ -19,14 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.site_health.finalize import (
     evaluate_broken_internal_links,
-    evaluate_canonical_resolvable,
     evaluate_hreflang_conflict,
     evaluate_sitemap_orphan,
     evaluate_sitemap_url_unreachable,
 )
 from app.analysis.site_health.rules import RuleEvaluation, creates_issue
 from app.connectors.web_evidence.url_policy import UrlPolicyError
-from app.core.config.site_health_acquisition import SITE_HEALTH_MAX_EVIDENCE_URLS
 from app.core.config.site_health_contracts import (
     ANALYZER_VERSION,
     EXTRACTOR_VERSION,
@@ -36,17 +34,21 @@ from app.core.config.site_health_contracts import (
 from app.domain.site_health.coverage import crawl_coverage
 from app.domain.site_health.normalization import canonical_identity, canonical_or_empty
 from app.domain.site_health.snapshot import persist_crawl_snapshot
-from app.models.site_health.acquisition import SiteFetchArtifact, SiteFetchAttempt
+from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
     SiteRuleEvaluation,
 )
 from app.models.site_health.crawl import SiteCrawl
-from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.urls import SiteUrl, SiteUrlObservation
-
-Resolution = tuple[int | None, str, bool, uuid.UUID, uuid.UUID, uuid.UUID | None]
+from app.workers.site_health.resolution_evidence import (
+    Resolution,
+    canonical_resolution_evaluations,
+    fetch_resolutions,
+    rate_limited_targets,
+    resolution_set_evaluation,
+)
 
 
 def crawl_root_identity(crawl: SiteCrawl) -> tuple[str, str]:
@@ -106,74 +108,13 @@ def _canonical_internal_target(source_url: object, anchor: object) -> str:
     return canonical_or_empty(urljoin(str(source_url or ""), str(row.get("url") or "")))
 
 
-async def _fetch_resolutions(
-    session: AsyncSession, *, crawl: SiteCrawl
-) -> dict[str, tuple[int | None, str, bool, uuid.UUID, uuid.UUID, uuid.UUID | None]]:
-    """Map each directly requested URL to its latest bounded fetch result."""
-    rows = (
-        await session.execute(
-            select(
-                SiteCrawlTask.requested_url,
-                SiteCrawlTask.id,
-                SiteFetchAttempt.status_code,
-                SiteFetchAttempt.id,
-                SiteFetchArtifact.final_url,
-                SiteFetchArtifact.redirect_chain,
-                SiteFetchArtifact.id,
-            )
-            .join(SiteFetchAttempt, SiteFetchAttempt.task_id == SiteCrawlTask.id)
-            .outerjoin(
-                SiteFetchArtifact,
-                (SiteFetchArtifact.task_id == SiteCrawlTask.id)
-                & (SiteFetchArtifact.crawl_id == crawl.id)
-                & (SiteFetchArtifact.workspace_id == crawl.workspace_id),
-            )
-            .where(
-                SiteCrawlTask.crawl_id == crawl.id,
-                SiteCrawlTask.workspace_id == crawl.workspace_id,
-                SiteFetchAttempt.crawl_id == crawl.id,
-                SiteFetchAttempt.workspace_id == crawl.workspace_id,
-            )
-            .order_by(
-                SiteFetchAttempt.created_at,
-                SiteFetchAttempt.id,
-            )
-        )
-    ).all()
-    resolutions: dict[str, Resolution] = {}
-    for (
-        requested_url,
-        task_id,
-        status_code,
-        attempt_id,
-        final_url,
-        redirect_chain,
-        artifact_id,
-    ) in rows:
-        requested = canonical_or_empty(str(requested_url or ""))
-        final = canonical_or_empty(str(final_url or ""))
-        if requested:
-            resolutions[requested] = (
-                status_code,
-                final,
-                bool(redirect_chain) or bool(final and final != requested),
-                task_id,
-                attempt_id,
-                artifact_id,
-            )
-        if final and status_code is not None:
-            resolutions.setdefault(
-                final, (status_code, final, False, task_id, attempt_id, artifact_id)
-            )
-    return resolutions
-
-
 def _pass_through_hreflang_evaluation() -> RuleEvaluation:
     return evaluate_hreflang_conflict(
         alternate_count=0,
         checked_count=0,
         unchecked_count=0,
         missing_return_tags=[],
+        rate_limited_count=0,
     )
 
 
@@ -181,9 +122,11 @@ def _cross_check_hreflang_alternates(
     alternates: list[dict],
     source_canonical: str,
     alternates_by_page: dict[str, list[dict]],
-) -> tuple[int, int, list[str]]:
+    rate_limited_targets: set[str],
+) -> tuple[int, int, int, list[str]]:
     checked_count = 0
     unchecked_count = 0
+    rate_limited_count = 0
     missing: list[str] = []
     for alternate in alternates:
         target_url = str(alternate.get("url") or "")
@@ -192,6 +135,10 @@ def _cross_check_hreflang_alternates(
             unchecked_count += 1
             continue
         if target_canonical == source_canonical:
+            continue
+        if target_canonical in rate_limited_targets:
+            unchecked_count += 1
+            rate_limited_count += 1
             continue
         target_alternates = alternates_by_page.get(target_canonical)
         if target_alternates is None:
@@ -204,24 +151,26 @@ def _cross_check_hreflang_alternates(
         )
         if not return_tag_found and target_url not in missing:
             missing.append(target_url)
-    return checked_count, unchecked_count, missing
+    return checked_count, unchecked_count, rate_limited_count, missing
 
 
 def _evaluate_hreflang_for_page(
     alternates: list[dict],
     source_canonical: str | None,
     alternates_by_page: dict[str, list[dict]],
+    rate_limited_targets: set[str],
 ) -> RuleEvaluation:
     if not alternates or not source_canonical:
         return _pass_through_hreflang_evaluation()
-    checked, unchecked, missing = _cross_check_hreflang_alternates(
-        alternates, source_canonical, alternates_by_page
+    checked, unchecked, rate_limited, missing = _cross_check_hreflang_alternates(
+        alternates, source_canonical, alternates_by_page, rate_limited_targets
     )
     return evaluate_hreflang_conflict(
         alternate_count=len(alternates),
         checked_count=checked,
         unchecked_count=unchecked,
         missing_return_tags=missing,
+        rate_limited_count=rate_limited,
     )
 
 
@@ -263,62 +212,6 @@ async def _crawl_hreflang_indexes(
     return per_artifact, alternates_by_page, canonical_by_artifact
 
 
-def _canonical_resolution_evaluations(
-    artifacts: Sequence[Any],
-    *,
-    analysis_ids_by_artifact: dict[uuid.UUID, list[uuid.UUID]],
-    resolutions: dict[str, Resolution],
-) -> list[tuple[uuid.UUID, RuleEvaluation]]:
-    """Evaluate each analyzed page's canonical target against fetch results."""
-    evaluations: list[tuple[uuid.UUID, RuleEvaluation]] = []
-    for artifact_id, final_url, facts in artifacts:
-        declared = str((facts or {}).get("canonical_url") or "")
-        target = canonical_or_empty(urljoin(str(final_url or ""), declared))
-        target = target or canonical_or_empty(str(final_url or ""))
-        resolution = resolutions.get(target)
-        evaluation = evaluate_canonical_resolvable(
-            target_url=target,
-            checked=resolution is not None,
-            status_code=resolution[0] if resolution else None,
-            redirected=resolution[2] if resolution else False,
-        )
-        evaluations.extend(
-            (
-                analysis_id,
-                replace(
-                    evaluation,
-                    evidence=_canonical_resolution_evidence(
-                        evaluation, target=target, resolution=resolution
-                    ),
-                ),
-            )
-            for analysis_id in analysis_ids_by_artifact[artifact_id]
-        )
-    return evaluations
-
-
-def _canonical_resolution_evidence(
-    evaluation: RuleEvaluation, *, target: str, resolution: Resolution | None
-) -> dict:
-    if resolution is None:
-        return {
-            **evaluation.evidence,
-            "canonical_url": target,
-            "final_url": "",
-            "redirect_chain_present": False,
-            "resolution_source_ids": [],
-        }
-    return {
-        **evaluation.evidence,
-        "canonical_url": target,
-        "final_url": resolution[1],
-        "redirect_chain_present": resolution[2],
-        "resolution_source_ids": [
-            str(value) for value in resolution[3:] if value is not None
-        ],
-    }
-
-
 async def _site_url_hashes(
     session: AsyncSession, *, crawl: SiteCrawl, site_url_ids: Sequence[uuid.UUID]
 ) -> dict[uuid.UUID, str]:
@@ -330,44 +223,6 @@ async def _site_url_hashes(
         )
     )
     return {row[0]: row[1] for row in rows}
-
-
-def _resolution_set_evaluation(
-    targets: Sequence[str],
-    *,
-    resolutions: dict[str, Resolution],
-    evaluator: Callable[..., RuleEvaluation],
-    failure_key: str,
-) -> RuleEvaluation:
-    """Run a URL-set resolution rule over canonicalized checked targets."""
-    checked = [
-        target
-        for target in targets
-        if resolutions.get(target, (None, "", False, None, None, None))[0] is not None
-    ]
-    broken = [target for target in checked if int(resolutions[target][0] or 0) >= 400]
-    evaluation = evaluator(
-        total_count=len(targets),
-        checked_count=len(checked),
-        **{failure_key: broken},
-    )
-    source_ids = {
-        str(value)
-        for target in checked
-        for value in resolutions[target][3:]
-        if value is not None
-    }
-    return replace(
-        evaluation,
-        evidence={
-            **evaluation.evidence,
-            "failing_targets": [
-                {"url": target, "status_code": int(resolutions[target][0] or 0)}
-                for target in broken[:SITE_HEALTH_MAX_EVIDENCE_URLS]
-            ],
-            "resolution_source_ids": sorted(source_ids)[:SITE_HEALTH_MAX_EVIDENCE_URLS],
-        },
-    )
 
 
 def _source_link_evaluation(evaluation: RuleEvaluation) -> RuleEvaluation:
@@ -400,11 +255,13 @@ class CrawlFinalizeMixin:
             return
         artifact_by_analysis = {row.id: row.artifact_id for row in rows}
         site_url_by_analysis = {row.id: row.site_url_id for row in rows}
+        resolutions = await fetch_resolutions(session, crawl=crawl)
         evaluations = await self._evaluate_hreflang_conflicts(
             session,
             crawl=crawl,
             rows=rows,
             artifact_by_analysis=artifact_by_analysis,
+            resolutions=resolutions,
         )
         evaluations.extend(
             await self._evaluate_resolution_rules(
@@ -413,6 +270,7 @@ class CrawlFinalizeMixin:
                 rows=rows,
                 artifact_by_analysis=artifact_by_analysis,
                 site_url_by_analysis=site_url_by_analysis,
+                resolutions=resolutions,
             )
         )
         evaluations.extend(
@@ -451,8 +309,11 @@ class CrawlFinalizeMixin:
                 .label("latest_rank"),
             )
             .where(
+                SitePageAnalysis.workspace_id == crawl.workspace_id,
+                SitePageAnalysis.project_id == crawl.project_id,
                 SitePageAnalysis.crawl_id == crawl.id,
                 SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
+                SitePageAnalysis.is_current.is_(True),
             )
             .subquery()
         )
@@ -473,6 +334,7 @@ class CrawlFinalizeMixin:
         crawl: SiteCrawl,
         rows: list[Any],
         artifact_by_analysis: dict[uuid.UUID, uuid.UUID],
+        resolutions: dict[str, Resolution],
     ) -> list[tuple[uuid.UUID, RuleEvaluation]]:
         (
             per_artifact,
@@ -489,6 +351,7 @@ class CrawlFinalizeMixin:
                     alternates,
                     canonical_by_artifact.get(artifact_id),
                     alternates_by_page,
+                    rate_limited_targets(resolutions),
                 ),
             )
             for artifact_id, _canonical, alternates in per_artifact
@@ -575,6 +438,7 @@ class CrawlFinalizeMixin:
         rows: list[Any],
         artifact_by_analysis: dict[uuid.UUID, uuid.UUID],
         site_url_by_analysis: dict[uuid.UUID, uuid.UUID],
+        resolutions: dict[str, Resolution],
     ) -> list[tuple[uuid.UUID, RuleEvaluation]]:
         """Build canonical, internal-link, and sitemap resolution results."""
         artifacts = (
@@ -593,8 +457,7 @@ class CrawlFinalizeMixin:
         analysis_ids_by_artifact: dict[uuid.UUID, list[uuid.UUID]] = {}
         for row in rows:
             analysis_ids_by_artifact.setdefault(row.artifact_id, []).append(row.id)
-        resolutions = await _fetch_resolutions(session, crawl=crawl)
-        evaluations = _canonical_resolution_evaluations(
+        evaluations = canonical_resolution_evaluations(
             artifacts,
             analysis_ids_by_artifact=analysis_ids_by_artifact,
             resolutions=resolutions,
@@ -605,7 +468,7 @@ class CrawlFinalizeMixin:
                 [(str(final_url or ""), normalized_facts)]
             )
             page_evaluation = _source_link_evaluation(
-                _resolution_set_evaluation(
+                resolution_set_evaluation(
                     page_targets,
                     resolutions=resolutions,
                     evaluator=evaluate_broken_internal_links,
@@ -645,7 +508,7 @@ class CrawlFinalizeMixin:
             for url in sitemap_rows
             if (canonical := canonical_or_empty(str(url or "")))
         }
-        sitemap_evaluation = _resolution_set_evaluation(
+        sitemap_evaluation = resolution_set_evaluation(
             sorted(sitemap_targets),
             resolutions=resolutions,
             evaluator=evaluate_sitemap_url_unreachable,

@@ -17,6 +17,34 @@
       "deliberate_abstention": false, "structural_reason": "A page-owned price and purchase path form one product buy box outside every repeated-card module."
     },
     {
+      "id": "lanhtropy_contextual_product", "source_label": "Lanhtropy sanitized contextual-product pattern", "observation_date": "2026-09-01", "condition": "healthy",
+      "url": "https://lanhtropy.example.test/collections/sale/products/linen-shirt", "content_type": "text/html",
+      "fixture": {"kind": "html", "html": "<html lang='en'><head><title>Linen Shirt</title></head><body><main><article><h1>Linen Shirt</h1><p>A lightweight linen shirt with a relaxed fit.</p><span data-sku='LINEN-1'>SKU LINEN-1</span><label for='size'>Size</label><select id='size' name='size'><option>Small</option><option>Medium</option></select><form action='/cart/add'><button type='submit'>Add to cart</button></form></article></main></body></html>"},
+      "expected": {"page_kind": "product", "traits": ["has_variants"], "deciding_signal": "primary_product_entity", "allowed_deciding_tiers": ["structural"], "allowed_confidence": ["medium"], "rejected_kinds": ["category", "article"], "other_reason": null},
+      "deliberate_abstention": false, "structural_reason": "A page-owned purchase control, variant chooser, and SKU identify a product even when the static response exposes no visible price; the ancestor collection route cannot override that structure."
+    },
+    {
+      "id": "lanhtropy_care_guide_route", "source_label": "Lanhtropy sanitized care-guide route", "observation_date": "2026-09-01", "condition": "healthy",
+      "url": "https://lanhtropy.example.test/pages/care-guide", "content_type": "text/html",
+      "fixture": {"kind": "html", "html": "<html lang='en'><head><title>Clothing Care Guide</title></head><body><main><h1>Clothing Care Guide</h1><p>Instructions for washing and storing linen clothing.</p></main></body></html>"},
+      "expected": {"page_kind": "guide", "traits": [], "deciding_signal": "path_pattern", "allowed_deciding_tiers": ["route"], "allowed_confidence": ["medium"], "rejected_kinds": ["other", "article"], "other_reason": null},
+      "deliberate_abstention": false, "structural_reason": "The complete care-guide route segment is a common task-guide identity; partial slug matches remain excluded."
+    },
+    {
+      "id": "lanhtropy_returns_exchanges_route", "source_label": "Lanhtropy sanitized returns-and-exchanges route", "observation_date": "2026-09-01", "condition": "healthy",
+      "url": "https://lanhtropy.example.test/pages/returns-exchanges", "content_type": "text/html",
+      "fixture": {"kind": "html", "html": "<html lang='en'><head><title>Returns &amp; Exchanges</title></head><body><main><h1>Returns &amp; Exchanges</h1><p>Conditions and steps for returning or exchanging an order.</p></main></body></html>"},
+      "expected": {"page_kind": "trust_policy", "traits": [], "deciding_signal": "path_pattern", "allowed_deciding_tiers": ["route"], "allowed_confidence": ["medium"], "rejected_kinds": ["other", "service"], "other_reason": null},
+      "deliberate_abstention": false, "structural_reason": "The complete returns-exchanges route segment identifies a merchant policy rather than a service page."
+    },
+    {
+      "id": "lanhtropy_terms_conditions_route", "source_label": "Lanhtropy sanitized terms-and-conditions route", "observation_date": "2026-09-01", "condition": "healthy",
+      "url": "https://lanhtropy.example.test/pages/terms-conditions", "content_type": "text/html",
+      "fixture": {"kind": "html", "html": "<html lang='en'><head><title>Terms &amp; Conditions</title></head><body><main><h1>Terms &amp; Conditions</h1><p>Terms governing use of the store and purchases.</p></main></body></html>"},
+      "expected": {"page_kind": "trust_policy", "traits": [], "deciding_signal": "path_pattern", "allowed_deciding_tiers": ["route"], "allowed_confidence": ["medium"], "rejected_kinds": ["other", "service"], "other_reason": null},
+      "deliberate_abstention": false, "structural_reason": "The complete terms-conditions route segment is explicit legal-policy evidence; unrelated hyphenated terms remain excluded."
+    },
+    {
       "id": "flourist_bound_collection", "source_label": "Flourist sanitized collection pattern", "observation_date": "2026-08-30", "condition": "healthy",
       "url": "https://flourist.example.test/seasonal-arrangements", "content_type": "text/html",
       "fixture": {"kind": "html", "html": "<html><body><main><h1>Seasonal Arrangements</h1><section aria-label='Seasonal arrangements'><p>8 results</p><label for='season-sort'>Sort arrangements</label><select id='season-sort' name='sort'><option>Featured</option><option>Newest</option></select><div class='collection-grid'><article><a href='/products/a'>A</a></article><article><a href='/products/b'>B</a></article><article><a href='/products/c'>C</a></article><article><a href='/products/d'>D</a></article><article><a href='/products/e'>E</a></article><article><a href='/products/f'>F</a></article><article><a href='/products/g'>G</a></article><article><a href='/products/h'>H</a></article></div></section></main></body></html>"},

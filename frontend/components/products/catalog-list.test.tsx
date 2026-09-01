@@ -62,9 +62,40 @@ describe('CatalogList', () => {
     expect(
       screen.getByRole('checkbox', { name: /Select Instant-Read Thermometers/ }),
     ).toHaveAttribute('data-state', 'indeterminate');
+    expect(screen.getByRole('checkbox', { name: 'Select all shown' })).toHaveAttribute(
+      'data-state',
+      'indeterminate',
+    );
   });
 
-  it('keeps categories collapsed until their plus control is used', () => {
+  it('selects and clears every shown target from one group control', () => {
+    const onToggle = vi.fn();
+    const { rerender } = renderWithProviders(
+      <CatalogList
+        query={query()}
+        checkedKeys={new Set()}
+        onSelect={vi.fn()}
+        onToggle={onToggle}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all shown' }));
+    expect(onToggle).toHaveBeenCalledWith([`category:${CATEGORY_ID}`, `product:${PRODUCT_ID}`]);
+
+    rerender(
+      <CatalogList
+        query={query()}
+        checkedKeys={new Set([`category:${CATEGORY_ID}`, `product:${PRODUCT_ID}`])}
+        onSelect={vi.fn()}
+        onToggle={onToggle}
+      />,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Select all shown' })).toBeChecked();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all shown' }));
+    expect(onToggle).toHaveBeenLastCalledWith([`category:${CATEGORY_ID}`, `product:${PRODUCT_ID}`]);
+  });
+
+  it('keeps categories collapsed until their disclosure control is used', () => {
     const onToggle = vi.fn();
     renderWithProviders(
       <CatalogList

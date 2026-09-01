@@ -1,9 +1,8 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { Minus, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { SearchField } from '@/components/ui/search-field';
@@ -54,6 +53,23 @@ function matches(entry: CatalogEntry, needle: string): boolean {
   return !needle || entry.label.toLowerCase().includes(needle);
 }
 
+function checkboxState(selectedCount: number, totalCount: number): boolean | 'indeterminate' {
+  if (selectedCount === 0) return false;
+  return selectedCount === totalCount ? true : 'indeterminate';
+}
+
+function shownTargetKeys(categories: CatalogEntry[], uncategorized: CatalogEntry[]): string[] {
+  return [
+    ...new Set([
+      ...categories.flatMap((category) => [
+        category.key,
+        ...(category.children ?? []).map((child) => child.key),
+      ]),
+      ...uncategorized.map((product) => product.key),
+    ]),
+  ];
+}
+
 function CatalogRow({
   entry,
   selected,
@@ -85,7 +101,8 @@ function CatalogRow({
           reading. */}
       <div
         className={cn(
-          'group flex min-w-0 items-center gap-2 rounded-md px-2',
+          'group flex min-w-0 items-center gap-1 rounded-[var(--radius-control)] px-1 transition-colors',
+          'hover:bg-background-alt',
           selected && 'bg-active',
           nested && 'border-border-subtle ml-6 border-l pl-3',
         )}
@@ -99,9 +116,9 @@ function CatalogRow({
             onClick={onExpand}
           >
             {expanded ? (
-              <Minus className="size-4" aria-hidden />
+              <ChevronDown className="size-4" aria-hidden />
             ) : (
-              <Plus className="size-4" aria-hidden />
+              <ChevronRight className="size-4" aria-hidden />
             )}
           </Button>
         ) : nested ? null : (
@@ -119,9 +136,7 @@ function CatalogRow({
           aria-current={selected ? 'true' : undefined}
           className="flex min-w-0 flex-1 items-center justify-between gap-2 py-2 text-left text-sm"
         >
-          <span
-            className={cn('truncate', selected ? 'text-foreground font-medium' : 'text-secondary')}
-          >
+          <span className={cn('truncate', selected ? 'text-accent-text' : 'text-secondary')}>
             {entry.label}
           </span>
           {entry.count === undefined ? null : (
@@ -153,8 +168,19 @@ function CatalogTree({
 }>) {
   const [expandedByKey, setExpandedByKey] = useState<Record<string, boolean>>({});
   if (!categories.length && !uncategorized.length) return null;
+  const shownKeys = shownTargetKeys(categories, uncategorized);
+  const shownSelectionCount = shownKeys.filter((key) => checkedKeys.has(key)).length;
   return (
-    <div className="grid min-w-0 gap-3">
+    <fieldset className="grid min-w-0 gap-3">
+      <legend className="sr-only">Catalog targets</legend>
+      <div className="bg-panel-tonal flex items-center justify-between gap-3 rounded-[var(--radius-control)] px-1 py-1">
+        <Checkbox
+          label="Select all shown"
+          checked={checkboxState(shownSelectionCount, shownKeys.length)}
+          onCheckedChange={() => onToggle(shownKeys)}
+        />
+        <span className="text-muted text-xs tabular-nums">{shownKeys.length} shown</span>
+      </div>
       <div className="text-muted flex items-center justify-between px-2 text-xs font-medium">
         <span>Categories</span>
         <span className="tabular-nums">{categories.length}</span>
@@ -225,7 +251,7 @@ function CatalogTree({
           </ul>
         </div>
       ) : null}
-    </div>
+    </fieldset>
   );
 }
 
@@ -290,6 +316,9 @@ export function CatalogList({
           value={search}
           onValueChange={setSearch}
         />
+        <p className="text-muted mt-2 text-xs">
+          Check items for bulk actions. Select a name to view its details.
+        </p>
       </div>
       <div className="grid min-w-0 gap-3 p-[var(--card-padding)] pt-3">
         {empty ? (
@@ -309,11 +338,6 @@ export function CatalogList({
             searching={Boolean(needle)}
           />
         )}
-        {checkedKeys.size ? (
-          <Badge variant="status" value="info">
-            {checkedKeys.size} selected
-          </Badge>
-        ) : null}
       </div>
     </div>
   );

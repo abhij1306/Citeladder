@@ -5,14 +5,15 @@ import { cn } from '@/lib/utils';
 
 /**
  * Heading recipes: `displayHeadingLgClasses` for panel / empty-state headings
- * (20/28 @600), and `displayHeadingXlClasses`
- * for page titles (24/32 @600). There is no
+ * (20/28 @600), `pageHeadingClasses` for top-bar page titles (22/32 @500), and
+ * `displayHeadingXlClasses` for larger entity headings (24/32 @500). There is no
  * separate display face, so headings differ from body by size and weight only,
  * and both rungs bake their weight into the `--text-*` token. These are class
  * recipes, not components — the call site keeps whichever heading element is
  * semantic.
  */
 export const displayHeadingLgClasses = 'font-display text-lg font-medium text-foreground';
+export const pageHeadingClasses = 'font-display text-page-title font-medium text-foreground';
 export const displayHeadingXlClasses = 'font-display text-2xl font-medium text-foreground';
 
 /** Section heading (card / block level). */

@@ -266,6 +266,9 @@ def _product_enrichment(obj: dict) -> dict[str, Any]:
         "price_currency": _values(
             offer.get("priceCurrency") if offer else obj.get("priceCurrency")
         ),
+        "price_valid_until": _values(
+            offer.get("priceValidUntil") if offer else obj.get("priceValidUntil")
+        ),
         "availability": _values(
             offer.get("availability") if offer else obj.get("availability")
         ),
@@ -459,6 +462,7 @@ def _microdata_product_target(property_name: str) -> str:
         "mpn": "mpn",
         "price": "price",
         "priceCurrency": "price_currency",
+        "priceValidUntil": "price_valid_until",
         "availability": "availability",
         "description": "description",
         "url": "url",
@@ -527,6 +531,7 @@ def _empty_product_values() -> dict[str, list[str]]:
             "mpn",
             "price",
             "price_currency",
+            "price_valid_until",
             "availability",
             "variants",
             "ratings",

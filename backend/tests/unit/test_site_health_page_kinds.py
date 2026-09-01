@@ -203,6 +203,7 @@ def test_homepage_outranks_conflicting_schema_and_records_suggestion() -> None:
         # entry unreachable for it, so /guide and /guides classified differently.
         ("https://example.com/guide/how-to", "guide"),
         ("https://example.com/guides/how-to", "guide"),
+        ("https://example.com/pages/care-guide", "guide"),
         ("https://example.com/product/123", "product"),
         ("https://example.com/products/123", "product"),
         ("https://example.com/p/abc", "product"),
@@ -219,6 +220,8 @@ def test_homepage_outranks_conflicting_schema_and_records_suggestion() -> None:
         ("https://example.com/help/article", "docs"),
         ("https://example.com/about", "about_contact"),
         ("https://example.com/contact", "about_contact"),
+        ("https://example.com/pages/returns-exchanges", "trust_policy"),
+        ("https://example.com/pages/terms-conditions", "trust_policy"),
     ],
 )
 def test_path_patterns_classify_each_type(url: str, expected: str) -> None:
@@ -285,6 +288,28 @@ def test_primary_buy_box_overrides_ancestor_category_path() -> None:
     assert assessment.page_kind == "product"
     assert assessment.classified_by == PAGE_KIND_SIGNAL_PRIMARY_PRODUCT
     assert assessment.confidence == PAGE_KIND_CONFIDENCE_MEDIUM
+
+
+def test_page_owned_purchase_variant_and_sku_classify_without_visible_price() -> None:
+    assessment = classify(
+        "https://example.com/collections/sale/products/linen-shirt",
+        _facts(
+            entity={
+                "product": {
+                    "has_primary_price": False,
+                    "has_product_detail_heading": False,
+                    "has_purchase_control": True,
+                    "has_variant_control": True,
+                    "has_sku_marker": True,
+                }
+            }
+        ),
+    )
+
+    assert assessment.page_kind == "product"
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_PRIMARY_PRODUCT
+    assert assessment.confidence == PAGE_KIND_CONFIDENCE_MEDIUM
+    assert assessment.signals[0]["detail"] == "primary_buy_box"
 
 
 def test_primary_price_and_product_heading_classify_without_purchase_control() -> None:

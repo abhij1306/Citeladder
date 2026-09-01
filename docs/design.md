@@ -6,14 +6,14 @@
 ## Direction and identity
 
 CiteLadder is a light-only, evidence-led enterprise system. The authenticated
-application uses the **Prism Evidence Workspace**: a warm editorial canvas,
+application uses the **Prism Evidence Workspace**: a cool blue editorial canvas,
 navy ink and actions, indigo analytical selection, semantic pastel evidence
 washes, useful density, and deliberate negative space. It is an operating
 workspace, not a wall of equal-weight KPI cards.
 
 - **Name and domain:** CiteLadder, `citeladder.com`.
 - **Logo:** the canonical full-colour horizontal CiteLadder lockup in
-  `frontend/public/citeladder-logo.webp`; product, marketing, authentication, and
+  `frontend/public/citeladder-logo.png`; product, marketing, authentication, and
   onboarding surfaces reuse that asset rather than reconstructing the symbol and
   wordmark independently. `frontend/public/citeladder-favicon.ico` owns browser
   and installable-app iconography.
@@ -64,19 +64,20 @@ Tokens are semantic; components use the role, not a colour value.
 
 | Role | Token family | Use |
 | --- | --- | --- |
-| Canvas and structure | `background` (`#FAF9F6`), `background-alt` / `sidebar` (`#F7F6F2`), `well` (`#F1F0EB`) | Warm depth through tone and whitespace |
+| Canvas and structure | `background` (`#F6F8FC`), `sidebar` / `well` / `background-alt` (`#EAF1FB`), `panel-tonal` (`#EDF2FA`), `active` (`#D3E3FD`) | One cool blue surface hierarchy across product, marketing, authentication, and onboarding |
 | Raised surfaces | `panel`, `input`, `elevated` (`#FFFFFF`) | Inputs, overlays, and meaningful semantic objects |
 | Text | `foreground` (`#14213D`), `secondary` (`#475569`), `muted` / `subtle` (`#536176`), disabled (`#7B8494`) | Editorial ink roles |
-| Borders | gray 200–500 semantic aliases | Minimal ledger rules and input edges, never decorative shells |
+| Borders | `border-subtle` (`#E2E8F2`), `border` (`#D7DEEA`), `border-strong` (`#8A96A8`), `border-bold` (`#6D788B`) | Shared blue-gray ledger and control roles, never surface-separation shells |
 | Primary action | `action-*` | Navy authenticated primary actions |
 | Selection and focus | `accent-*` | Indigo selection, links, tabs, and focus |
 | Status and evidence | cyan, coral, lime, amber, `citation-*`, `run-*`, `score-*`, `chart-*` | Persisted evidence and status, always paired with a label or icon |
 
 The authenticated selection accent is indigo: `#5542F6` at rest and `#4033C7`
-for text, hover, and press. Navy owns primary actions. Product canvas is warm
-`#FAF9F6`; structural regions use `#F7F6F2`; wells use `#F1F0EB`; raised inputs
-and overlays are white. Marketing, authentication, and onboarding use these
-same semantic values.
+for text, hover, and press. Navy owns primary actions. Every surface uses the same
+cool blue ladder: `#F6F8FC` canvas, `#EAF1FB` navigation/hover/well,
+`#EDF2FA` tonal panels, and `#D3E3FD` selected state. Raised objects, inputs, and
+overlays remain white. Product, marketing, authentication, and onboarding consume
+these shared tokens without route-scoped palette overrides.
 
 Text hierarchy is semantic rather than route-specific: `foreground` owns headings,
 primary values, and actions; `secondary` owns body copy and row values; `muted`
@@ -85,9 +86,10 @@ metadata, placeholders, and unavailable-value marks. The design-system policy
 requires all four neutral text roles to meet WCAG 2.1 AA normal-text contrast
 (`4.5:1`) on every shared light surface, including `active`.
 
-Marketing uses the same warm neutrals, navy action, and indigo link/focus roles
-as the product. Functional evidence families remain inside product data and
-faithful preview scenes because those states must stay legible at a glance.
+Marketing uses the same cool blue surface ladder (`background`, `sidebar` / `well`,
+`panel-tonal`, and `active`), navy action, and indigo link/focus roles as the product,
+without route-scoped palette overrides. Functional evidence families remain inside
+product data and faithful preview scenes because those states must stay legible at a glance.
 Functional colour never carries meaning alone.
 
 ## Typography
@@ -142,7 +144,7 @@ classes.
 | Emphasized body | Geist | 14/20px | 500 | 0 | `text-sm font-medium` | semantic text role |
 | Section heading | Geist | 16/22px | 500 | 0 | `text-base font-medium` | `text-foreground` |
 | Panel heading | Geist | 18/24px | 500 | 0 | `text-lg font-medium` | `text-foreground` |
-| Page title | Geist | 24/32px | 500 | 0 | `text-2xl font-medium` | `text-foreground` |
+| Page title | Geist | 22/32px | 500 | 0 | `text-page-title font-medium` | `text-foreground` |
 | Primary metric | Geist | 28/36 or 32/40px | 500 | -0.02em | `text-3xl` / `text-4xl` + `tabular-nums` | `text-foreground` |
 
 Fourteen pixels is the product baseline. Twelve pixels is reserved for short
@@ -539,8 +541,9 @@ Before merging a visual change, verify:
 - Website and focused-flow type use documented content roles with a 16px body
   baseline; authenticated-app type uses Geist at weights 400 and 500 only.
 - Marketing stays monochrome-plus-blue; functional colour appears only in the app.
-- The authenticated product canvas is `#FAF9F6`; structural panels use
-  `#F7F6F2`; tonal wells use `#F1F0EB`.
+- Every product, marketing, authentication, and onboarding surface consumes the
+  same token ladder: `#F6F8FC` canvas, `#EAF1FB` structure/well, `#EDF2FA` tonal
+  panel, and `#D3E3FD` selected state. Surface separation does not add borders.
 - App controls use 10px, semantic objects use 16px, and overlays use 16px.
   Shadows appear only on floating surfaces.
 - Any new motion is calm and stops under `prefers-reduced-motion`.

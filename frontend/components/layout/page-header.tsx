@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 import { eyebrowClasses } from '@/components/ui/eyebrow';
-import { displayHeadingXlClasses } from '@/components/ui/typography';
+import { pageHeadingClasses } from '@/components/ui/typography';
 
 import { resolveTitle } from './page-titles';
 
@@ -42,7 +42,7 @@ export function PageHeader({
     <h1
       className={cn(
         paintTitle
-          ? cn(displayHeadingXlClasses, 'min-w-0 flex-1 [overflow-wrap:break-word]')
+          ? cn(pageHeadingClasses, 'min-w-0 flex-1 [overflow-wrap:break-word]')
           : 'sr-only',
       )}
     >
