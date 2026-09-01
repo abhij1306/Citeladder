@@ -37,8 +37,8 @@ export const NAV_DROPS: readonly NavDrop[] = [
             href: '/#how-it-works',
           },
           {
-            title: 'Industry packs',
-            desc: 'Built for how your business works',
+            title: 'Use cases',
+            desc: 'Workflows for different business models',
             href: '/#use-cases',
           },
           {
@@ -89,9 +89,17 @@ export const NAV_DROPS: readonly NavDrop[] = [
     groups: [
       {
         items: [
-          { title: 'Blog', desc: 'Guides and audit teardowns', href: '/blog' },
-          { title: 'FAQ', desc: 'Straight answers on how it works', href: '/faq' },
-          { title: 'Compare', desc: 'How CiteLadder compares', href: '/compare' },
+          {
+            title: 'Blog',
+            desc: 'Practical guides to AI visibility and site evidence',
+            href: '/blog',
+          },
+          { title: 'FAQ', desc: 'Answers on AEO, evidence, security, and billing', href: '/faq' },
+          {
+            title: 'Compare',
+            desc: 'Evidence-led notes on AI visibility platforms',
+            href: '/compare',
+          },
         ],
       },
     ],

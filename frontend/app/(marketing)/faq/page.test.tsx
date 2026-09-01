@@ -30,7 +30,7 @@ describe('FAQ page (public marketing `/faq`)', () => {
 
     expect(FAQ_GROUPS.map((group) => group.heading)).toEqual([
       'Platform',
-      'Industry packs',
+      'Site Health',
       'Data & security',
       'Account & billing',
     ]);
@@ -68,6 +68,9 @@ describe('FAQ page (public marketing `/faq`)', () => {
     // One <details>/<summary> pair per module item — zero client JS.
     expect(container.querySelectorAll('details')).toHaveLength(TOTAL_ITEMS);
     expect(container.querySelectorAll('summary')).toHaveLength(TOTAL_ITEMS);
+    for (const details of container.querySelectorAll('details')) {
+      expect(details).toHaveAttribute('name', 'citeladder-faq');
+    }
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
 
     // Every question and answer string from the module is rendered. Answers

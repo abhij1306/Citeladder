@@ -472,17 +472,8 @@ export function productContractViolations(root) {
       violations.push(`app/globals.css: ${token} must equal ${value}`);
     }
   }
-  const websiteType = css.match(/\.website-type\s*\{([^}]+)\}/s)?.[1] ?? '';
-  const websiteInteractionContract = new Map([
-    ['--color-focus', ['#31', '5cff'].join('')],
-    ['--color-focus-ring', ['#c3', 'd3ff'].join('')],
-    ['--color-selection', ['#db', 'eafe'].join('')],
-    ['--color-selection-fg', ['#0f', '172a'].join('')],
-  ]);
-  for (const [token, value] of websiteInteractionContract) {
-    if (!tokenDeclaration(websiteType, token, value)) {
-      violations.push(`app/globals.css: .website-type ${token} must equal ${value}`);
-    }
+  if (/\.website-type\b/.test(css)) {
+    violations.push('app/globals.css: retired .website-type palette boundary must not return');
   }
 
   const layout = readFileSync(join(root, 'app', 'layout.tsx'), 'utf8');

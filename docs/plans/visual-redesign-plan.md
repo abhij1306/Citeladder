@@ -147,12 +147,12 @@ Do not add another component library or change backend/public API contracts.
    - Update behavior tests that relied on old cosmetic classes to assert semantics and interactions instead.
    - Run repository validation and then stop for the user’s own rendered visual review.
 
-9. **Approval-gated public and focused-flow redesign**
-   - Do not begin without explicit approval after the user reviews the completed authenticated app.
-   - Once approved, apply the same Prism Evidence world to marketing, login/register, and onboarding with larger responsive typography, more generous spacing, stronger editorial imagery, and marketing-appropriate rounded compositions.
+9. **Public and focused-flow redesign — implemented**
+   - Approved after review of the completed authenticated app.
+   - Apply the same Prism Evidence world to marketing, login/register, and onboarding with larger responsive typography, more generous spacing, stronger editorial imagery, and marketing-appropriate rounded compositions.
    - Cover public chrome, homepage, solutions, enterprise, pricing, demo, comparison, blog, FAQ/legal, product-preview scenes, auth, and onboarding.
    - Preserve factual copy, SEO/schema output, auth behavior, onboarding confirmation gates, and public routes unless separately authorized.
-   - Remove the temporary scoped compatibility boundary only after every public/focused-flow consumer has migrated.
+   - Remove the temporary scoped compatibility boundary only after every public/focused-flow consumer has migrated. The completed cutover keeps only the legitimate public/focused-flow typography scope; palette, action, focus, selection, geometry, and elevation now use the shared semantic owners.
 
 ## Test and acceptance plan
 
@@ -169,5 +169,5 @@ Do not add another component library or change backend/public API contracts.
 - “Prism Evidence Workspace” is the selected visual direction.
 - Violet replaces cobalt as the brand/selection accent; navy owns primary actions.
 - Route composition may change, but product behavior, IA, APIs, state ownership, and evidence semantics may not.
-- Login, registration, onboarding, and marketing remain deferred until the explicit final-slice approval.
+- Login, registration, onboarding, and marketing are included by the explicit final-slice approval.
 - Concurrent dirty-worktree changes are user-owned and must be preserved.

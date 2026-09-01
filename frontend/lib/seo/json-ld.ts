@@ -16,6 +16,19 @@ export function organizationJsonLd(): JsonLdObject | null {
   };
 }
 
+export function websiteJsonLd(): JsonLdObject | null {
+  const url = absoluteUrl('/');
+  if (!url) return null;
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: SITE_NAME,
+    description: SITE_TAGLINE,
+    url,
+    publisher: { '@type': 'Organization', name: SITE_NAME, url },
+  };
+}
+
 export function faqPageJsonLd(groups: readonly FaqGroup[]): JsonLdObject {
   return {
     '@context': 'https://schema.org',
@@ -31,11 +44,17 @@ export function faqPageJsonLd(groups: readonly FaqGroup[]): JsonLdObject {
 }
 
 export function blogPostingJsonLd(post: BlogPost): JsonLdObject {
+  const url = absoluteUrl(`/blog/${post.slug}`);
+  const organizationUrl = absoluteUrl('/');
   return {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
     headline: post.title,
     description: post.excerpt,
+    ...(url ? { url, mainEntityOfPage: { '@type': 'WebPage', '@id': url } } : {}),
+    ...(organizationUrl
+      ? { publisher: { '@type': 'Organization', name: SITE_NAME, url: organizationUrl } }
+      : {}),
     ...(post.date ? { datePublished: post.date } : {}),
     ...(post.author ? { author: { '@type': 'Person', name: post.author } } : {}),
   };

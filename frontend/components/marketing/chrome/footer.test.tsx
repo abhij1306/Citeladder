@@ -22,7 +22,7 @@ describe('MarketingFooter', () => {
     const headings = within(footerNav).getAllByRole('heading', { level: 2 });
     expect(headings).toHaveLength(5);
     for (const heading of headings) {
-      expect(heading).toHaveClass('text-foreground', 'font-semibold');
+      expect(heading).toHaveClass('text-foreground', 'font-medium');
     }
   });
 

@@ -177,7 +177,7 @@ function DesktopDropGroup({
 }>) {
   if (!group.label)
     return (
-      <div className="p-3">
+      <div className="p-2">
         {group.items.map((item) => (
           <NavItemLink key={item.title} item={item} onSelect={closeDrop} />
         ))}
@@ -185,8 +185,8 @@ function DesktopDropGroup({
     );
 
   return (
-    <div className="border-border-subtle bg-background-alt border-t p-3 sm:border-t-0 sm:border-l">
-      <p className="website-eyebrow text-muted px-4 pt-3 pb-3">{group.label}</p>
+    <div className="border-border-subtle bg-background-alt border-t p-2 sm:border-t-0 sm:border-l">
+      <p className="website-eyebrow text-muted px-3 pt-2.5 pb-2">{group.label}</p>
       {group.items.map((item) => (
         <NavItemLink key={item.title} item={item} onSelect={closeDrop} />
       ))}

@@ -18,11 +18,11 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 const DIRECTION_CONTRACT = `<!--
-THESIS: Account access and project setup are one calm guided flow; it refuses the decorative split-screen rail and nested setup cards.
-OWN-WORLD: light neutral ground, crisp hairlines, Plus Jakarta Sans display with Geist body, 12px controls, quiet selected answers, and cobalt reserved for the current step and primary action.
-STORY: Enter the essential site facts, watch evidence resolve, confirm exactly what will be tracked, then create the project.
-FIRST VIEWPORT: A 64px wordmark and progress bar frame one centred 720px column; the scrolling task sits above a persistent action bar, with review widening only to 880px.
-FORM: centred guided flow, code-led, seed key user-locked-one-flow-four-screens.
+THESIS: Prism Evidence is one calm editorial system from first visit through the operating workspace.
+OWN-WORLD: warm neutral ground, navy ink and actions, indigo selection and focus, crisp hairlines, Plus Jakarta Sans editorial display with Geist body, and shadows reserved for floating UI.
+STORY: Understand the evidence loop, evaluate the product, enter the essential site facts, confirm exactly what will be tracked, then operate from persisted evidence.
+FIRST VIEWPORT: Public pages use generous editorial rhythm and faithful product scenes; focused flows use a compact wordmark bar, centred task column, and persistent action bar.
+FORM: shared semantic tokens, flat ledgers and tonal compositions, with a roomier public/focused-flow type ladder over the same visual world.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and docs/design.md
 -->`;
 

@@ -25,11 +25,10 @@ workspace, not a wall of equal-weight KPI cards.
   Website and flow surfaces use a 16px reading baseline. Size,
   leading, weight, tracking, and
   colour are one role contract, never independent page-level choices.
-- **Action and selection:** navy (`#14213D`) owns authenticated primary actions.
-  Indigo owns analytical selection, links, and focus. Cyan, coral, lime, and
-  amber are evidence/status families, never route decoration. Deferred public
-  and focused-flow surfaces keep their scoped cobalt contract until their
-  separately approved redesign.
+- **Action and selection:** navy (`#14213D`) owns primary actions across product,
+  public, authentication, and onboarding surfaces. Indigo owns analytical
+  selection, links, and focus. Cyan, coral, lime, and amber are evidence/status
+  families, never route decoration.
 - **Composition:** state before features. Product pages prioritise current state,
   movement, next action, then evidence. Marketing is more editorial but uses the
   same tokens, type, and restraint.
@@ -42,12 +41,10 @@ flow; neither surface reserves viewport width for a decorative brand rail.
 
 `frontend/app/globals.css` is the sole owner of global tokens, the font binding,
 cross-surface geometry, and global interaction rules. Its imported
-`frontend/app/website-type.css` owns the named website/auth/onboarding flow roles,
-flow-specific geometry, the legacy scoped size-rung compatibility layer, and the
-website button treatment;
-it does not own a second palette. Editorial and auth hierarchy uses the named
-roles, while product UI consumes semantic Tailwind utilities and CSS custom
-properties.
+`frontend/app/website-type.css` owns the named public/auth/onboarding type roles
+and flow-specific geometry; it does not own a second palette or elevation
+system. Editorial and auth hierarchy use the named roles, while product UI
+consumes semantic Tailwind utilities and CSS custom properties.
 
 - Do not add `@theme`, a raw hex colour, a shared control recipe, or an
   unregistered animation outside `globals.css`.
@@ -78,8 +75,8 @@ Tokens are semantic; components use the role, not a colour value.
 The authenticated selection accent is indigo: `#5542F6` at rest and `#4033C7`
 for text, hover, and press. Navy owns primary actions. Product canvas is warm
 `#FAF9F6`; structural regions use `#F7F6F2`; wells use `#F1F0EB`; raised inputs
-and overlays are white. Marketing, authentication, and onboarding retain their
-established scoped values.
+and overlays are white. Marketing, authentication, and onboarding use these
+same semantic values.
 
 Text hierarchy is semantic rather than route-specific: `foreground` owns headings,
 primary values, and actions; `secondary` owns body copy and row values; `muted`
@@ -88,9 +85,10 @@ metadata, placeholders, and unavailable-value marks. The design-system policy
 requires all four neutral text roles to meet WCAG 2.1 AA normal-text contrast
 (`4.5:1`) on every shared light surface, including `active`.
 
-Deferred marketing remains monochrome-plus-cobalt under `.website-type`.
-The authenticated app keeps functional evidence families because a data view
-must remain legible at a glance. Functional colour never carries meaning alone.
+Marketing uses the same warm neutrals, navy action, and indigo link/focus roles
+as the product. Functional evidence families remain inside product data and
+faithful preview scenes because those states must stay legible at a glance.
+Functional colour never carries meaning alone.
 
 ## Typography
 
@@ -123,7 +121,7 @@ tracking, weight, and colour combinations.
 
 Ordinary website paragraphs never render below 16px. Fourteen pixels is reserved
 for short labels, metadata, captions, and legal support. Prose stays within a
-45–75 character measure. Accent cobalt never carries a long paragraph. Large text
+45–75 character measure. Accent indigo never carries a long paragraph. Large text
 uses tighter leading and tracking; body text stays at zero tracking with more
 leading. Pricing values are the one non-editorial website display role:
 `website-data-display` uses Geist at 40/46px with tabular numerals and never
@@ -189,9 +187,9 @@ and crisp semantic hairlines to maintain clear structure without visual clutter:
 
 The content area caps at 1360px. Internal groups use 16–24px and major sections
 separate by 32px. Compact gutters remain 16px; dialogs and drawers use 20px.
-Authenticated-app geometry is role-driven: controls and fields use 10px corners,
-semantic objects use 16px, and overlays use 16px. Marketing and authentication retain
-their documented website treatment. Fully rounded geometry is reserved for chips, badges,
+Cross-surface geometry is role-driven: controls and fields use 10px corners,
+semantic objects use 16px, and overlays use 16px. Focused-flow fields may use
+their documented 12px auth-control role. Fully rounded geometry is reserved for chips, badges,
 status dots, count pills, and filter toggles. Components consume the semantic geometry role;
 they do not select a route-local radius.
 
@@ -553,10 +551,9 @@ Before merging a visual change, verify:
   prose punctuation is unaffected.
 
 The focused flow introduces no new colour family, gradient, decorative glow,
-nested card, or competitor mutation. Solid cobalt fill is reserved for the
-primary action and current-step mark; selected answers use the quiet accent
-surface and border without changing font weight. The transaction flow and all
-explicit confirmation gates remain unchanged.
+nested card, or competitor mutation. Navy owns the primary action; indigo owns
+the current step and selected-answer state without changing font weight. The
+transaction flow and all explicit confirmation gates remain unchanged.
 - Repository-owned static, test, and appropriate visual commands pass. External
   or manual quality tools are never acceptance gates unless a deterministic
   repository command owns them.

@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 
 import { ButtonLink } from '@/components/marketing/primitives/button';
 import { PageHero } from '@/components/marketing/primitives/page-hero';
-import { Section } from '@/components/marketing/primitives/section';
+import { Section, SectionHeader } from '@/components/marketing/primitives/section';
 import {
   DEMO_CARDS,
   DEMO_HERO,
@@ -91,23 +91,26 @@ export default function DemoPage() {
           )}
         </div>
         {!actionHref && (
-          <p className="text-muted mx-auto mt-8 max-w-[80ch] text-sm">{DEMO_SELF_SERVE_FALLBACK}</p>
+          <p className="website-body text-muted mx-auto mt-8 max-w-[70ch]">
+            {DEMO_SELF_SERVE_FALLBACK}
+          </p>
         )}
       </PageHero>
 
       <Section tone="paper" rhythm="tight" aria-label="What to expect">
-        <div className="mx-auto grid max-w-4xl gap-5 md:grid-cols-3">
+        <SectionHeader
+          title="A working session, grounded in your measurement scope."
+          lead="We focus the conversation on the evidence, boundaries, and next decision your team needs to evaluate."
+        />
+        <div className="border-border-subtle divide-border-subtle mx-auto grid w-full max-w-5xl border-y md:grid-cols-3 md:divide-x">
           {DEMO_CARDS.map(([title, description]) => (
-            <section
-              key={title}
-              className="border-border-subtle bg-background rounded-lg border p-8"
-            >
-              <h2 className="font-display text-foreground text-xl">{title}</h2>
-              <p className="text-muted mt-3 text-sm">{description}</p>
+            <section key={title} className="px-1 py-7 md:px-7 md:first:pl-0 md:last:pr-0">
+              <h2 className="website-small-heading text-foreground">{title}</h2>
+              <p className="website-body text-muted mt-3">{description}</p>
             </section>
           ))}
         </div>
-        <p className="text-muted mx-auto mt-8 max-w-5xl text-center text-sm">
+        <p className="website-label text-muted mx-auto mt-8 max-w-5xl text-center">
           CiteLadder does not store demo-lead details on this page. If scheduling is enabled, the
           approved booking provider’s privacy terms apply at the external destination.
         </p>

@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * The recurring product surface. The quiet neutral highlight groups the scene;
- * scene cards stay opaque and use the shared elevation ladder.
+ * The recurring product surface. Tonal contrast and spacing carry hierarchy;
+ * shadows remain reserved for genuinely floating UI.
  */
 export function WallpaperPanel({
   children,
@@ -21,7 +21,7 @@ export function WallpaperPanel({
   return (
     <div
       className={cn(
-        'bg-background-alt shadow-card relative overflow-hidden',
+        'bg-background-alt relative overflow-hidden',
         rounded && 'rounded-lg',
         className,
       )}
@@ -33,13 +33,11 @@ export function WallpaperPanel({
 }
 
 /**
- * Scene window — the white panel that sits on the wallpaper. Borderless by
- * rule (docs/design.md §4a): an opaque surface carried by the `shadow-card`
- * rung, no border, no glass, no blur.
+ * Scene window — the white panel that sits on the tonal wallpaper.
  */
 export function Panel({
   children,
   className,
 }: Readonly<{ children: ReactNode; className?: string }>) {
-  return <div className={cn('bg-panel shadow-card rounded-md', className)}>{children}</div>;
+  return <div className={cn('bg-panel rounded-[var(--radius-card)]', className)}>{children}</div>;
 }

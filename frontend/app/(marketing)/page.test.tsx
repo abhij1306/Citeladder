@@ -157,11 +157,12 @@ describe('Landing page (public marketing `/`)', () => {
     expect(product).not.toHaveTextContent(/example data/i);
   });
 
-  it('uses white panel cards for the shift facts and product demo', () => {
+  it('renders the shift as a three-item ledger and keeps one product workspace', () => {
     stubAnonymous();
     const { container } = renderWithProviders(<Page />);
 
-    expect(container.querySelectorAll('#why article.bg-panel')).toHaveLength(3);
+    expect(container.querySelectorAll('#why article')).toHaveLength(3);
+    expect(container.querySelector('#why .shadow-card')).toBeNull();
     // Tie the assertion to ProductWindow's own stable hook, not any panel.
     const seeIt = container.querySelector('#see-it');
     expect(seeIt?.querySelector('[data-testid="product-window"]')).not.toBeNull();

@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils';
 
 export type PreviewProps = Readonly<{ phase: number; reduceMotion: boolean }>;
 
-export const PRIMARY_SURFACE = 'border-border bg-panel shadow-elevated rounded-lg border';
-export const SUPPORTING_SURFACE = 'border-border bg-background-alt shadow-card rounded-lg border';
+export const PRIMARY_SURFACE = 'border-border bg-panel rounded-[var(--radius-card)] border';
+export const SUPPORTING_SURFACE = 'bg-background-alt rounded-[var(--radius-card)]';
 export function ScreenHeader({
   icon,
   title,
@@ -20,8 +20,8 @@ export function ScreenHeader({
           {icon}
         </span>
         <div>
-          <h3 className="text-foreground text-base font-semibold">{title}</h3>
-          <p className="text-muted mt-0.5 text-[13px] leading-relaxed">{description}</p>
+          <h3 className="text-foreground text-base font-medium">{title}</h3>
+          <p className="text-muted mt-0.5 text-sm leading-relaxed">{description}</p>
         </div>
       </div>
       {action}
@@ -31,7 +31,7 @@ export function ScreenHeader({
 
 export function PreviewButton({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <span className="bg-accent text-inverse inline-flex h-8 items-center gap-1.5 rounded-sm px-3 text-[13px] font-medium shadow-xs">
+    <span className="bg-action text-action-fg inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] px-3 text-sm font-medium">
       {children}
     </span>
   );
@@ -80,7 +80,7 @@ export function MetricStrip({
   items,
 }: Readonly<{ items: ReadonlyArray<{ label: string; value: string; detail: string }> }>) {
   return (
-    <div className="border-border bg-panel shadow-card mt-4 grid grid-cols-2 overflow-hidden rounded-md border lg:grid-cols-4">
+    <div className="border-border bg-panel mt-4 grid grid-cols-2 overflow-hidden rounded-[var(--radius-card)] border lg:grid-cols-4">
       {items.map((item, index) => (
         <div
           key={item.label}
@@ -91,11 +91,9 @@ export function MetricStrip({
             index === 2 && 'lg:border-l',
           )}
         >
-          <p className="text-subtle text-[11px] font-medium">{item.label}</p>
+          <p className="text-subtle text-xs font-medium">{item.label}</p>
           <div className="mt-0.5 flex items-baseline gap-2">
-            <span className="text-foreground text-base font-semibold tabular-nums">
-              {item.value}
-            </span>
+            <span className="text-foreground text-base font-medium tabular-nums">{item.value}</span>
             <span className="text-muted text-xs">{item.detail}</span>
           </div>
         </div>

@@ -24,15 +24,23 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
     items: [
       {
         q: 'What is CiteLadder?',
-        a: `CiteLadder is an evidence-grounded growth-intelligence platform. It connects owned-site and demand evidence, ranks the next action, and tracks observed mention and citation share under comparable conditions.`,
+        a: `CiteLadder is an evidence-grounded growth-intelligence platform for AI search visibility. It connects owned-site and demand evidence, ranks the next action, and tracks observed mention and citation share under comparable conditions.`,
       },
       {
         q: 'How is the product organized?',
-        a: `Five stations form one loop: Connect, Analyze, Act, Improve / Verify, and Track. Site Health, Content Intelligence, Demand Intelligence, and the bounded Growth Agent retain clear ownership behind those stations; Opportunities is their shared action projection.`,
+        a: `Five stations form one loop: Overview, Connect, Analyze, Act, and Track. Site Health, Content Intelligence, Demand Intelligence, and the bounded Growth Agent retain clear ownership behind those stations. Improve / Verify is the transition after you declare a change, not a separate workspace.`,
       },
       {
         q: 'How does the growth loop work?',
-        a: `Connect evidence, analyze and prioritize gaps, explicitly declare an implemented action, observe later crawl or audit evidence, and track comparable outcomes. Verification reports observation, never causality.`,
+        a: `Connect evidence, analyze and prioritize gaps, declare an implemented action, observe later crawl or audit evidence, and track comparable outcomes. Verification reports what was observed afterwards; it does not claim causality.`,
+      },
+      {
+        q: 'What is AEO, and how does CiteLadder support it?',
+        a: `AEO means answer engine optimization: making your organization, pages, and claims easier for answer engines to understand and cite. CiteLadder checks page structure and evidence, then measures observed mentions and citations in ChatGPT, Gemini, and Claude under a versioned prompt portfolio.`,
+      },
+      {
+        q: 'How does AEO relate to SEO?',
+        a: `SEO helps people find and use your site in search. AEO adds the question of how answer engines interpret and reference that same evidence. CiteLadder brings site health, Google Search Console and GA4 signals, content work, and AI visibility into one connected workflow.`,
       },
       {
         q: 'Does CiteLadder measure AI visibility?',
@@ -48,7 +56,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
       },
       {
         q: 'What do I actually have to do?',
-        a: `You are asked to decide exactly twice: save a piece of content, and run or schedule an audit. There is no approval queue and no review inbox. Everything in between runs without asking, and the result is shown with the evidence behind it.`,
+        a: `You make the product decisions that matter: save a piece of content, and run or schedule an audit. There is no approval queue or review inbox. The evidence work between those decisions is shown with its source, status, and limitations.`,
       },
       {
         q: 'What does "evidence-grounded" mean concretely?',
@@ -61,19 +69,19 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
     ],
   },
   {
-    heading: 'Industry packs',
+    heading: 'Site Health',
     items: [
       {
-        q: 'How does CiteLadder adapt to different businesses?',
-        a: `A versioned pack encodes the page roles, gap-detection rules, and schema expectations of a specific business model, so classification and gap-finding are judged the way your industry actually works rather than by one generic rule. A project runs one primary pack plus the reviewed capabilities it needs, and every finding records the pack ID and version that produced it.`,
+        q: 'What does Site Health analyze?',
+        a: `Site Health safely crawls your website, records the acquired page as evidence, classifies its structural purpose, and applies deterministic checks suited to that page type. It persists scores, issues, architecture snapshots, changes, and prioritized opportunities so every result remains inspectable.`,
       },
       {
-        q: 'Which industries are covered?',
-        a: `CiteLadder classifies each page by structural purpose, applies the matching deterministic checks, and combines those findings with the project's own demand evidence. Every derived result records the versions and source evidence that produced it.`,
+        q: 'How does CiteLadder decide which checks apply to a page?',
+        a: `Classification uses observable evidence such as the URL path, headings, visible content, forms, links, delivery signals, and structured data. The resulting page type selects the relevant checklist and schema contract; structured data is one signal and never certifies its own page type.`,
       },
       {
-        q: 'Do packs share my data with other customers?',
-        a: `No. Project evidence remains workspace-authorized and isolated. Shared product rules contain deterministic checks and thresholds, never another company’s data.`,
+        q: 'What happens when a page cannot be classified confidently?',
+        a: `The page is classified as other rather than forced into the wrong type. General checks can still run, while page-type-specific rules stay out of scoring until the evidence supports a reliable classification.`,
       },
     ],
   },
@@ -82,11 +90,11 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
     items: [
       {
         q: 'How is my data isolated?',
-        a: `Every customer fact is scoped to its project and never crosses workspaces. Product rules and analyzers are versioned independently so historical results remain reproducible.`,
+        a: `Every customer fact is scoped to its workspace and project and never crosses workspaces. Product rules and analyzers are versioned independently so persisted results retain their source and can be interpreted in context.`,
       },
       {
         q: 'Can I see the evidence behind a recommendation?',
-        a: `Yes. Every recommendation carries a typed evidence chain back to the crawl, integration import, or answer that produced it. A later observation never rewrites earlier evidence.`,
+        a: `Yes. Every recommendation carries a typed evidence chain back to the crawl, integration import, or answer that produced it. Later observations append to the record; they do not rewrite earlier evidence.`,
       },
       {
         q: 'Does anything publish or change automatically?',

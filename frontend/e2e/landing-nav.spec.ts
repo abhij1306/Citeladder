@@ -54,11 +54,11 @@ test.describe('marketing navigation (real-engine CSS contract)', () => {
     await expect(menu).toBeHidden();
   });
 
-  test('marketing keeps its fixed light Proof identity, whatever the app theme', async ({
+  test('marketing keeps its fixed light Prism identity, whatever the app theme', async ({
     page,
   }) => {
     await page.goto('/');
-    // Proof is light-only, so there is deliberately no toggle to offer.
+    // Prism is light-only, so there is deliberately no toggle to offer.
     await expect(page.getByRole('button', { name: 'Toggle color theme' })).toHaveCount(0);
     await expect(page.locator('html')).toHaveCSS('color-scheme', 'light');
 

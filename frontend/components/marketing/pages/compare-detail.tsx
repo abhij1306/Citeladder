@@ -39,7 +39,7 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
       </header>
 
       <Section tone="paper" rhythm="tight" aria-label="Quick facts" dense>
-        <Reveal className="bg-panel shadow-card overflow-hidden rounded-lg">
+        <Reveal className="border-border-subtle bg-panel overflow-hidden rounded-[var(--radius-card)] border">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[36rem] border-collapse text-left">
               <thead>

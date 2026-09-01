@@ -49,7 +49,7 @@ export function SolutionsHero() {
             <a
               key={id}
               href={`#${id}`}
-              className="bg-panel text-foreground shadow-card hover:shadow-card-hover inline-flex items-center gap-4 rounded-lg px-5 py-4 text-sm font-medium transition-shadow duration-200"
+              className="border-border-subtle bg-panel text-foreground hover:bg-accent-soft inline-flex items-center gap-4 rounded-[var(--radius-card)] border px-5 py-4 text-sm font-medium transition-colors duration-200"
             >
               <Icon aria-hidden strokeWidth={1.8} className="text-muted size-4" />
               {label}

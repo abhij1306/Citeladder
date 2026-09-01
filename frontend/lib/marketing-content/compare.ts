@@ -62,16 +62,16 @@ const OURS = {
 
 /** Fairness strip on /compare — repo-grounded, one line each. */
 export const FAIRNESS_POINTS = [
-  'Deterministic scoring — versioned rules, not LLM-as-judge',
-  'BYOK — audits run on your provider keys',
-  'Evidence-first — every claim traces to a persisted answer',
+  'Deterministic scoring — versioned rules, not an LLM judge',
+  'BYOK — measurement runs on your provider keys',
+  'Evidence-first — every metric links to persisted run evidence',
 ] as const;
 
 /** CiteLadder glance facts on /compare. */
 export const FACT_ROWS = [
   { key: 'Engines', value: 'ChatGPT · Gemini · Claude' },
-  { key: 'Scoring', value: 'Deterministic · versioned' },
-  { key: 'Evidence', value: 'Metric → raw run' },
+  { key: 'Scoring', value: 'Versioned deterministic rules' },
+  { key: 'Evidence', value: 'Metric → run → answer' },
   { key: 'Keys', value: 'BYOK · encrypted at rest' },
   { key: 'Site health', value: 'Web Fundamentals + AEO' },
   { key: 'Provenance', value: 'Analyzer + rule on every score' },

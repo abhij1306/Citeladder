@@ -36,7 +36,7 @@ export function ContentPreview({ phase, reduceMotion }: PreviewProps) {
           <div className="border-border flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3">
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="text-foreground text-sm font-semibold">Admissions content</h4>
+                <h4 className="text-foreground text-sm font-medium">Admissions content</h4>
                 <PreviewBadge tone={phase >= 3 ? 'success' : 'info'}>
                   {phase >= 3 ? 'Ready for review' : 'Working'}
                 </PreviewBadge>
@@ -47,18 +47,18 @@ export function ContentPreview({ phase, reduceMotion }: PreviewProps) {
           </div>
           <div className="flex flex-1 flex-col justify-end gap-3 p-4">
             {phase >= 1 ? (
-              <div className="bg-accent text-inverse shadow-card ml-auto max-w-[78%] rounded-lg px-4 py-3 text-[13px] leading-relaxed">
+              <div className="bg-action text-action-fg ml-auto max-w-[78%] rounded-[var(--radius-card)] px-4 py-3 text-sm leading-relaxed">
                 {CONTENT_PROMPT}
               </div>
             ) : null}
 
             {phase >= 1 ? (
-              <div className="border-border bg-panel shadow-card max-w-[88%] rounded-lg border px-4 py-3">
+              <div className="bg-panel max-w-[88%] rounded-[var(--radius-card)] px-4 py-3">
                 <div className="text-accent-text flex items-center gap-2 text-xs font-medium">
                   <Search className="size-3.5" aria-hidden />
                   Read Site Health gaps
                 </div>
-                <p className="text-secondary mt-2 text-[13px] leading-relaxed">
+                <p className="text-secondary mt-2 text-sm leading-relaxed">
                   I found three uncovered admissions questions and matched them to persisted project
                   evidence.
                 </p>
@@ -66,9 +66,9 @@ export function ContentPreview({ phase, reduceMotion }: PreviewProps) {
             ) : null}
 
             {phase >= 2 ? (
-              <div className="border-border bg-panel shadow-card max-w-[88%] rounded-lg border px-4 py-3">
+              <div className="bg-panel max-w-[88%] rounded-[var(--radius-card)] px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-foreground text-sm font-semibold">Admissions FAQ brief</p>
+                  <p className="text-foreground text-sm font-medium">Admissions FAQ brief</p>
                   <PreviewBadge tone="success">Grounded</PreviewBadge>
                 </div>
                 <div className="mt-3 grid gap-2">
@@ -84,17 +84,17 @@ export function ContentPreview({ phase, reduceMotion }: PreviewProps) {
 
             {phase >= 3 ? (
               <div className="flex max-w-[88%] flex-wrap items-center gap-2">
-                <span className="border-border-strong bg-panel text-secondary inline-flex h-8 items-center rounded-sm border px-3 text-xs font-medium shadow-xs">
+                <span className="bg-well text-secondary inline-flex h-8 items-center rounded-[var(--radius-control)] px-3 text-xs font-medium">
                   View evidence
                 </span>
-                <span className="bg-accent text-inverse inline-flex h-8 items-center rounded-sm px-3 text-xs font-medium shadow-xs">
+                <span className="bg-action text-action-fg inline-flex h-8 items-center rounded-[var(--radius-control)] px-3 text-xs font-medium">
                   Review brief
                 </span>
               </div>
             ) : null}
           </div>
           <div className="border-border bg-background-alt border-t p-3">
-            <div className="border-border-strong bg-panel text-muted flex h-10 items-center gap-3 rounded-md border px-3 text-[13px] shadow-xs">
+            <div className="border-border-strong bg-input text-muted flex h-10 items-center gap-3 rounded-[var(--radius-control)] border px-3 text-sm">
               <span className="min-w-0 flex-1 truncate">
                 {phase === 0 ? typedPrompt : 'Ask Content Intelligence…'}
                 {phase === 0 && typedPrompt.length < CONTENT_PROMPT.length ? (
@@ -114,7 +114,7 @@ export function ContentPreview({ phase, reduceMotion }: PreviewProps) {
         <section className={cn(SUPPORTING_SURFACE, 'p-4')}>
           <div className="flex items-center gap-2">
             <BookOpen className="text-accent-text size-4" aria-hidden />
-            <h4 className="text-foreground text-sm font-semibold">Evidence guardrail</h4>
+            <h4 className="text-foreground text-sm font-medium">Evidence guardrail</h4>
           </div>
           <div className="mt-4 grid gap-3">
             {[
@@ -134,7 +134,7 @@ export function ContentPreview({ phase, reduceMotion }: PreviewProps) {
             ))}
           </div>
           <div className="border-border mt-4 border-t pt-4">
-            <p className="text-subtle text-[11px] leading-relaxed">
+            <p className="text-subtle text-xs leading-relaxed">
               Saving content remains a human decision. The preview stops at review.
             </p>
           </div>

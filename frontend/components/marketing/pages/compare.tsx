@@ -38,7 +38,7 @@ export function CompareIndex() {
             Comparison notes publish as each vendor review completes.
           </p>
         ) : (
-          <StaggerGroup className="divide-border-subtle bg-panel shadow-card divide-y overflow-hidden rounded-lg">
+          <StaggerGroup className="border-border-subtle divide-border-subtle bg-panel divide-y overflow-hidden rounded-[var(--radius-card)] border">
             {COMPETITORS.map((competitor) => (
               <StaggerItem key={competitor.slug}>
                 <Link

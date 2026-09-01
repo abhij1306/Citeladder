@@ -12,7 +12,7 @@ const sharedVariant = (variant: Variant) =>
   variant === 'ghost' ? 'ghost' : variant === 'primary' ? 'primary' : 'secondary';
 
 const marketingSecondary =
-  'border-border-strong bg-panel hover:border-border-bold hover:bg-background-alt shadow-xs';
+  'border-border-strong bg-panel hover:border-border-bold hover:bg-background-alt';
 
 export function ButtonLink({
   href,

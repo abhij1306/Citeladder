@@ -1,4 +1,13 @@
-import { ArrowRight, Check, KeyRound, Scale, ShieldCheck, type LucideIcon } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  FileCheck2,
+  KeyRound,
+  Scale,
+  ShieldCheck,
+  UsersRound,
+  type LucideIcon,
+} from 'lucide-react';
 
 import { DEMO_HREF } from '@/lib/marketing-content/nav';
 import { cn } from '@/lib/utils';
@@ -19,43 +28,70 @@ type Capability = {
 const CAPABILITIES: readonly Capability[] = [
   {
     icon: KeyRound,
-    title: 'Keys stay yours',
-    tagline: 'BYOK credentials never leave your control path.',
+    title: 'Keep the credential boundary clear',
+    tagline: 'Your provider account remains yours from setup through execution.',
     highlights: [
-      'Fernet-encrypted BYOK keys at rest',
-      'UUID identifiers throughout every workspace',
-      'Same-origin API proxying — backend topology never reaches the client bundle',
+      'Provider keys are encrypted at rest and resolved only at execution time',
+      'Keys are never returned in API responses or logged in clear text',
+      'Same-origin API proxying keeps backend topology out of the browser bundle',
     ],
   },
   {
     icon: Scale,
-    title: 'Evidence you can re-derive',
-    tagline: 'Compliance reads the same number your team does.',
+    title: 'Trace every reported number',
+    tagline: 'Security, analytics, and growth teams can inspect the same evidence.',
     highlights: [
-      'Deterministic scoring rules',
-      'Immutable artifacts and run logs',
-      'No fabricated fallback zeros',
+      'Raw responses are persisted before derived metrics are calculated',
+      'Deterministic rules and versioned analysis explain how a result was produced',
+      'Coverage, unavailable, and observed-zero states stay distinct',
     ],
   },
   {
     icon: ShieldCheck,
-    title: 'Built to keep running',
-    tagline: 'Queue durability under load, not best-effort jobs.',
+    title: 'Operate with durable runs',
+    tagline: 'Long-running crawls and audits have an explicit execution trail.',
     highlights: [
-      'PostgreSQL FOR UPDATE SKIP LOCKED queues',
-      'Leases, heartbeats & retries',
-      'Runtime Zod + Pydantic contracts',
+      'PostgreSQL provides durable state and the work queue',
+      'Leases, heartbeats, retries, and terminal states are recorded',
+      'Runtime Zod and Pydantic contracts validate the browser/API boundary',
     ],
   },
 ];
 
 const DATA_FLOW_STEPS = [
   { title: 'Browser', detail: 'Authenticated HTTPS' },
-  { title: 'Edge proxy', detail: 'Same-origin Next.js' },
-  { title: 'API', detail: 'Schema + workspace auth' },
-  { title: 'PostgreSQL', detail: 'Durable queue & runs' },
+  { title: 'Same-origin app', detail: 'Relative API requests' },
+  { title: 'API boundary', detail: 'Schema + workspace auth' },
+  { title: 'PostgreSQL', detail: 'Evidence + durable queue' },
   { title: 'Workers', detail: 'Leased execution' },
-  { title: 'Providers', detail: 'BYOK at execution time' },
+  { title: 'Answer engines', detail: 'Your configured keys' },
+] as const;
+
+type EnterpriseFit = {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+};
+
+const ENTERPRISE_FIT: readonly EnterpriseFit[] = [
+  {
+    icon: FileCheck2,
+    title: 'Security-led evaluation',
+    description:
+      'Give reviewers a concise map of credential handling, workspace authorization, evidence retention, and the managed-cloud boundary.',
+  },
+  {
+    icon: UsersRound,
+    title: 'Multiple teams or brands',
+    description:
+      'Keep projects, prompts, provider connections, and audit history scoped to the workspace that owns them.',
+  },
+  {
+    icon: Scale,
+    title: 'A measurement program',
+    description:
+      'Define a prompt portfolio, run comparable audits, and give each reported observation the context needed for review.',
+  },
 ] as const;
 
 const CUSTOM_LIMITS = [
@@ -102,9 +138,9 @@ export function EnterpriseHero() {
     <PageHero
       centered
       eyebrow="Enterprise"
-      title="AI visibility, with"
-      accent="enterprise-grade evidence."
-      lead="Deterministic scores over immutable provenance — operated in our cloud, ready for your security review."
+      title="AI visibility your security team"
+      accent="can inspect."
+      lead="Measure how your brand appears in answer engines with a managed, workspace-scoped evidence trail — ready for procurement, security review, and the teams who act on the result."
     >
       <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
         <ButtonLink href={DEMO_HREF}>
@@ -125,16 +161,16 @@ export function EnterpriseOps() {
     <Section id="capabilities" tone="paper" rhythm="base" aria-label="Enterprise capabilities">
       <SectionHeader
         eyebrow="Trust"
-        title="What security and compliance need to see."
-        lead="Three guarantees. No marketing fog — each maps to running architecture."
+        title="A defensible path from prompt to proof."
+        lead="The important boundaries are visible: credentials, evidence, and execution each have one accountable owner."
         headingId="enterprise-caps-title"
       />
 
       <StaggerGroup className="grid gap-5 md:grid-cols-3">
         {CAPABILITIES.map(({ icon: Icon, title, tagline, highlights }) => (
           <StaggerItem key={title} className="h-full">
-            <article className="bg-panel shadow-card hover:shadow-card-hover flex h-full flex-col rounded-lg p-7 transition-shadow duration-200">
-              <div className="bg-accent-soft text-accent-text grid size-10 place-items-center rounded-md">
+            <article className="bg-panel border-border-subtle hover:border-accent-border flex h-full flex-col rounded-2xl border p-7 transition-colors duration-200">
+              <div className="bg-accent-soft text-accent-text grid size-10 place-items-center rounded-xl">
                 <Icon aria-hidden strokeWidth={1.8} className="size-5" />
               </div>
               <h3 className="website-feature-heading text-foreground mt-5">{title}</h3>
@@ -161,7 +197,7 @@ export function EnterpriseOps() {
           <p className="website-body text-muted font-medium">How a request travels</p>
           <span className="text-subtle text-xs">Managed cloud · same-origin boundary</span>
         </div>
-        <Reveal className="bg-panel shadow-card overflow-hidden rounded-lg">
+        <Reveal className="bg-panel border-border-subtle overflow-hidden rounded-2xl border">
           <ol className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {DATA_FLOW_STEPS.map((step, index) => (
               <li
@@ -186,21 +222,46 @@ export function EnterpriseOps() {
   );
 }
 
+export function EnterpriseFit() {
+  return (
+    <Section id="fit" tone="sunken" rhythm="base" aria-label="Who Enterprise is for">
+      <SectionHeader
+        eyebrow="Designed for review"
+        title="A clear fit for high-trust teams."
+        lead="Enterprise is the right conversation when your measurement program needs more operating context than a self-serve plan provides."
+        headingId="enterprise-fit-title"
+      />
+
+      <StaggerGroup className="grid gap-5 md:grid-cols-3">
+        {ENTERPRISE_FIT.map(({ icon: Icon, title, description }) => (
+          <StaggerItem key={title} className="h-full">
+            <article className="bg-panel border-border-subtle flex h-full flex-col rounded-2xl border p-6 md:p-7">
+              <Icon aria-hidden className="text-accent-text size-6" strokeWidth={1.8} />
+              <h3 className="website-feature-heading text-foreground mt-6">{title}</h3>
+              <p className="website-body text-muted mt-3">{description}</p>
+            </article>
+          </StaggerItem>
+        ))}
+      </StaggerGroup>
+    </Section>
+  );
+}
+
 export function EnterpriseLimits() {
   return (
-    <Section id="limits" tone="sunken" rhythm="base" aria-label="Custom limits">
+    <Section id="limits" tone="paper" rhythm="base" aria-label="Custom limits">
       <SectionHeader
         eyebrow="Sizing"
-        title="Dials, not buckets."
-        lead="We quote against your volumes — not a fixed tier sheet."
+        title="Scope the agreement around the work."
+        lead="Enterprise sizing follows your measurement program: its volume, coverage, teams, history, provider setup, and support model."
         headingId="enterprise-limits-title"
       />
 
-      <Reveal className="bg-panel shadow-card overflow-hidden rounded-lg">
+      <Reveal className="bg-panel border-border-subtle overflow-hidden rounded-2xl border">
         <div className="border-border-subtle bg-accent-soft flex flex-col justify-between gap-4 border-b px-6 py-5 md:flex-row md:items-center md:px-8">
           <div>
             <h3 className="website-section-heading text-foreground">Enterprise agreement</h3>
-            <p className="website-body text-muted mt-1">Six dials. One quote.</p>
+            <p className="website-body text-muted mt-1">Six inputs. One operating plan.</p>
           </div>
           <span className="border-accent-border bg-panel text-accent-text shrink-0 rounded-md border px-4 py-2 text-xs font-medium tracking-wide uppercase">
             Quoted to fit
@@ -226,11 +287,12 @@ export function EnterpriseLimits() {
         </StaggerGroup>
       </Reveal>
 
-      <div className="bg-panel shadow-card mt-8 flex flex-col items-start justify-between gap-6 rounded-lg p-6 md:flex-row md:items-center md:p-8">
+      <div className="bg-panel border-border-subtle mt-8 flex flex-col items-start justify-between gap-6 rounded-2xl border p-6 md:flex-row md:items-center md:p-8">
         <div>
           <p className="website-section-heading text-foreground">Audit trail included</p>
           <p className="website-body text-muted mt-2 max-w-[60ch]">
-            Deterministic rules, immutable logs, provenance on every derived metric.
+            Your proposal can start with the evidence boundary: deterministic rules, immutable
+            artifacts, and provenance on each derived metric.
           </p>
         </div>
         <ButtonLink href={DEMO_HREF} className="shrink-0">
@@ -244,13 +306,14 @@ export function EnterpriseLimits() {
 
 export function EnterpriseContactCta() {
   return (
-    <Section id="contact" tone="paper" rhythm="base" aria-label="Contact sales">
+    <Section id="contact" tone="sunken" rhythm="base" aria-label="Contact sales">
       <Reveal className="mx-auto max-w-3xl text-center">
         <h2 className="website-section-heading text-foreground mx-auto mb-4 max-w-[28ch]">
-          Bring AI visibility in-house.
+          Give your AI visibility program a reviewable operating model.
         </h2>
         <p className="website-lead text-muted mx-auto max-w-[56ch]">
-          Volumes, constraints, review process — we shape the plan around them.
+          Tell us about your volumes, constraints, provider setup, and review process. We will map
+          the conversation to the evidence your team needs.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">

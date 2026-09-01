@@ -15,7 +15,7 @@ import { Container } from '../primitives/section';
  */
 const GROUP_ANCHORS: Record<string, string> = {
   Platform: 'faq-platform',
-  'Industry packs': 'faq-packs',
+  'Site Health': 'faq-site-health',
   'Data & security': 'faq-security',
   'Account & billing': 'faq-billing',
 };
@@ -107,7 +107,11 @@ export function FaqGroups() {
               <Meta>{group.items.length} answers</Meta>
             </div>
             {group.items.map((item) => (
-              <details key={item.q} className="border-border-subtle group border-b">
+              <details
+                key={item.q}
+                name="citeladder-faq"
+                className="border-border-subtle group border-b"
+              >
                 <summary className="text-foreground hover:text-accent-text flex cursor-pointer list-none items-center justify-between gap-8 py-5 text-base font-medium transition-colors [&::-webkit-details-marker]:hidden">
                   {item.q}
                   <Plus

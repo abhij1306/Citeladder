@@ -306,7 +306,7 @@ function LoadingCards() {
         <div
           key={index}
           data-loading-card
-          className="bg-panel shadow-card h-80 animate-pulse rounded-lg"
+          className="bg-well h-80 animate-pulse rounded-[var(--radius-card)]"
         />
       ))}
       <p className="sr-only">Loading plans…</p>

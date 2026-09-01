@@ -2,9 +2,8 @@
 @import './website-type.css';
 @import './ui-motion.css';
 
-/* CiteLadder's single design-system owner. The authenticated Prism Evidence
-   workspace uses warm neutrals, navy actions and indigo selection. Public and
-   focused-flow compatibility remains scoped below. See docs/design.md. */
+/* CiteLadder's single design-system owner. Prism Evidence now spans product,
+   public, authentication, and onboarding surfaces. See docs/design.md. */
 @theme {
   --font-sans: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -104,15 +103,6 @@
   --color-brand-google-yellow: #fbbc05;
   --color-brand-google-red: #ea4335;
 
-  /* Brand canvas — the dark half of the split auth/onboarding screens. */
-  --color-brand-canvas: #020617;
-  --color-brand-canvas-raised: #0f172a;
-  --color-brand-canvas-glow: #1e3a8a;
-  --color-brand-canvas-border: #1e293b;
-  --color-brand-canvas-foreground: #ffffff;
-  --color-brand-canvas-secondary: #cbd5e1;
-  --color-brand-canvas-muted: #94a3b8;
-
   /* Status — app-only evidence families. */
   --color-success: #9acd32;
   --color-success-bg: #f4f8ec;
@@ -198,7 +188,7 @@
   --color-score-high-text: #3f6212;
   --color-score-high-ring: #9acd32;
 
-  /* Charts — the brand cobalt is the first series; the rest stay categorical. */
+  /* Charts — analytical indigo is the first series; the rest stay categorical. */
   --color-chart-1: #5542f6;
   --color-chart-2: #00a9c5;
   --color-chart-3: #f59e0b;
@@ -228,10 +218,6 @@
   /* Elevation — Specular ambient shadows with crisp 1px hairline definition. */
   --shadow-xs: 0 1px 2px rgb(15 23 42 / 0.04);
   --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.04), 0 2px 4px -1px rgb(15 23 42 / 0.06);
-  --shadow-card:
-    0 1px 2px rgb(15 23 42 / 0.06), 0 8px 22px -10px rgb(15 23 42 / 0.18);
-  --shadow-card-hover:
-    0 2px 5px rgb(15 23 42 / 0.08), 0 16px 34px -12px rgb(15 23 42 / 0.24);
   --shadow-elevated:
     0 0 0 1px rgb(15 23 42 / 0.06), 0 6px 18px -2px rgb(15 23 42 / 0.07), 0 20px 40px -8px rgb(15 23 42 / 0.11);
   --shadow-lg: 0 0 0 1px rgb(15 23 42 / 0.07), 0 10px 28px -4px rgb(15 23 42 / 0.09), 0 28px 64px -12px rgb(15 23 42 / 0.15);
@@ -253,9 +239,6 @@
   --text-3xl--line-height: 2.25rem;
   --text-4xl: 2rem;
   --text-4xl--line-height: 2.5rem;
-  /* Website compatibility only; product policy rejects text-5xl. */
-  --text-5xl: 2rem;
-  --text-5xl--line-height: 2.5rem;
   --text-heading-sm: 1.125rem; /* 18px — compact headings */
   --text-heading-xs: 1rem; /* 16px — structural sub-headings */
   --text-heading-md: 1.25rem; /* 20px — screen state headings */
@@ -314,33 +297,6 @@
   --skeleton-base: #f1f0eb;
   --skeleton-highlight: #ffffff;
   --value-placeholder: var(--color-subtle);
-}
-
-/* Marketing and authentication preserve their incumbent palette while sharing
-   the same semantic token names. The token owner remains this file. */
-.website-type {
-  --color-background: #f8fafc;
-  --color-background-alt: #e8eef6;
-  --color-panel: #ffffff;
-  --color-panel-tonal: #f8fafc;
-  --color-well: #e8eef6;
-  --color-active: #e2e8f0;
-  --color-border: #d5deea;
-  --color-border-subtle: #e2e8f0;
-  --color-border-strong: #cbd5e1;
-  --color-border-bold: #94a3b8;
-  --color-foreground: #0f172a;
-  --color-secondary: #334155;
-  --color-muted: #526173;
-  --color-subtle: #596777;
-  --color-action: #315cff;
-  --color-action-hover: #2347d9;
-  --color-action-active: #1a38b5;
-  --color-action-fg: #ffffff;
-  --color-focus: #315cff;
-  --color-focus-ring: #c3d3ff;
-  --color-selection: #dbeafe;
-  --color-selection-fg: #0f172a;
 }
 
 *,

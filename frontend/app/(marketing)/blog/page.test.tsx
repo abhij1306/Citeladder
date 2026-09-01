@@ -39,7 +39,7 @@ describe('Blog index (public marketing `/blog`)', () => {
     // post title is a heading to screen readers but not an h2–h6.
     const h1s = screen.getAllByRole('heading', { level: 1 });
     expect(h1s).toHaveLength(1);
-    expect(h1s[0]).toHaveTextContent(/notes on/i);
+    expect(h1s[0]).toHaveTextContent(/make AI visibility/i);
     for (const heading of container.querySelectorAll('h2, h3, h4, h5, h6')) {
       expect(heading).not.toHaveTextContent(/citeladder/i);
     }
@@ -84,7 +84,7 @@ describe('Blog index (public marketing `/blog`)', () => {
       '/blog/second-note',
     );
     expect(within(grid).queryByRole('link', { name: POSTS[0].title })).toBeNull();
-    expect(screen.getByText('1 post')).toBeInTheDocument();
+    expect(screen.getByText(/4\s+guides/)).toBeInTheDocument();
   });
 
   it('renders the empty state when the posts array is empty', () => {
@@ -112,7 +112,7 @@ describe('BlogPostView (`/blog/[slug]` sync view)', () => {
     const h1s = screen.getAllByRole('heading', { level: 1 });
     expect(h1s).toHaveLength(1);
     expect(h1s[0]).toHaveTextContent(post.title);
-    expect(screen.getByRole('link', { name: /all notes/i })).toHaveAttribute('href', '/blog');
+    expect(screen.getByRole('link', { name: /all guides/i })).toHaveAttribute('href', '/blog');
 
     // The excerpt renders as the lede, then one <h2> per heading block and
     // one <ul> per list block, all inside the article.

@@ -3,23 +3,24 @@ import type { Metadata } from 'next';
 import { BlogIndex } from '@/components/marketing/pages/blog';
 
 const DESCRIPTION =
-  'Essays, release notes, and field reports on answer-engine optimization — ' +
-  'evidence-first, and straight from the team building CiteLadder.';
+  'Practical resources on answer-engine optimization, AI visibility measurement, provenance, ' +
+  'and the evidence-led work between a finding and the next audit.';
 
 // OG images require an absolute URL; they are added with NEXT_PUBLIC_SITE_URL (lib/seo/site.ts).
 export const metadata: Metadata = {
-  title: 'Blog — notes on AI visibility',
+  title: 'AEO & AI visibility resources',
   description: DESCRIPTION,
+  keywords: ['AEO', 'answer-engine optimization', 'AI visibility', 'content evidence'],
   alternates: { canonical: '/blog' },
   openGraph: {
-    title: 'Blog — notes on AI visibility',
+    title: 'AEO & AI visibility resources',
     description: DESCRIPTION,
     type: 'website',
     siteName: 'CiteLadder',
   },
   twitter: {
     card: 'summary',
-    title: 'Blog — notes on AI visibility',
+    title: 'AEO & AI visibility resources',
     description: DESCRIPTION,
   },
 };

@@ -37,7 +37,7 @@ export function Eyebrow({
   return (
     <div
       className={cn(
-        'website-label text-muted inline-flex items-center gap-2 font-semibold',
+        'website-label text-muted inline-flex items-center gap-2 font-medium',
         className,
       )}
     >

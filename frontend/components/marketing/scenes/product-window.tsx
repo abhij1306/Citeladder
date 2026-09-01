@@ -92,7 +92,7 @@ export function ProductWindow() {
   return (
     <div
       data-testid="product-window"
-      className="app-type-scale border-border-strong bg-panel shadow-elevated mx-auto w-full max-w-[1240px] overflow-hidden rounded-md border"
+      className="app-type-scale border-border bg-panel mx-auto w-full max-w-[1240px] overflow-hidden rounded-[var(--radius-card)] border"
     >
       <div
         role="tablist"
@@ -151,14 +151,14 @@ export function ProductWindow() {
             <div className="flex items-center gap-2 lg:hidden">
               <LogoMark size={18} />
             </div>
-            <div className="border-border-strong bg-background text-muted flex h-8 max-w-80 min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-[13px] shadow-xs lg:mx-auto">
+            <div className="border-border-strong bg-input text-muted flex h-8 max-w-80 min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-control)] border px-3 text-sm lg:mx-auto">
               <Search className="size-3.5 shrink-0" strokeWidth={2} />
               <span className="truncate">Search pages, evidence, prompts…</span>
               <span className="border-border bg-panel ml-auto hidden rounded-xs border px-1.5 py-0.5 text-xs sm:inline">
                 ⌘ K
               </span>
             </div>
-            <span className="bg-neutral-bg text-secondary hidden rounded-full px-2.5 py-1 text-[11px] font-medium sm:inline-flex">
+            <span className="bg-neutral-bg text-secondary hidden rounded-full px-2.5 py-1 text-xs font-medium sm:inline-flex">
               Illustrative workspace
             </span>
             <Button
@@ -214,10 +214,10 @@ function PreviewSidebar({ activeItem }: Readonly<{ activeItem: PreviewItemLabel 
       </div>
       <div className="border-border-subtle border-b p-2">
         <div className="hover:bg-background-alt flex items-center gap-2 rounded-sm px-2 py-1.5">
-          <span className="bg-foreground text-background flex size-7 items-center justify-center rounded-md text-xs font-semibold">
+          <span className="bg-foreground text-background flex size-7 items-center justify-center rounded-[var(--radius-control)] text-xs font-medium">
             AC
           </span>
-          <span className="text-foreground min-w-0 flex-1 truncate text-[13px] font-medium">
+          <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
             Acme Corp
           </span>
           <ChevronDown className="text-muted size-3.5" strokeWidth={2} />
@@ -230,7 +230,7 @@ function PreviewSidebar({ activeItem }: Readonly<{ activeItem: PreviewItemLabel 
         <div className="grid gap-2.5">
           {NAV_GROUPS.map((group) => (
             <div key={group.title}>
-              <p className="text-subtle px-2 pb-1 text-[11px] font-semibold">{group.title}</p>
+              <p className="text-subtle px-2 pb-1 text-xs font-medium">{group.title}</p>
               <div className="grid gap-0.5">
                 {previewItems(group.title).map((item) => {
                   const Icon = item.icon;
@@ -239,13 +239,10 @@ function PreviewSidebar({ activeItem }: Readonly<{ activeItem: PreviewItemLabel 
                     <div
                       key={item.label}
                       className={cn(
-                        'relative flex h-7 items-center gap-2 rounded-sm px-2 text-[13px] font-medium transition-[background-color,color] duration-200',
+                        'relative flex h-7 items-center gap-2 rounded-[var(--radius-control)] px-2 text-sm font-medium transition-[background-color,color] duration-200',
                         active ? 'bg-accent-soft text-accent-hover' : 'text-secondary',
                       )}
                     >
-                      {active ? (
-                        <span className="bg-accent absolute inset-y-1 left-0 w-1 rounded-r-sm" />
-                      ) : null}
                       <Icon className="size-3.5" strokeWidth={2} />
                       <span>{item.label}</span>
                       {item.count ? (
@@ -263,8 +260,8 @@ function PreviewSidebar({ activeItem }: Readonly<{ activeItem: PreviewItemLabel 
       </nav>
       <div className="border-border-subtle border-t p-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-subtle text-[11px]">Preview run</span>
-          <span className="text-success-text text-[11px] font-medium">Evidence linked</span>
+          <span className="text-subtle text-xs">Preview run</span>
+          <span className="text-success-text text-xs font-medium">Evidence linked</span>
         </div>
       </div>
     </aside>

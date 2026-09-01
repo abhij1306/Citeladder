@@ -1,23 +1,12 @@
-/* Public and authentication typography is intentionally roomier than the
-   authenticated product. The --text-* remap keeps legacy/supporting UI usable,
-   while the named website roles below own the exact editorial hierarchy. */
-.website-type {
+/* Public and focused-flow typography is intentionally roomier than the dense
+   product ladder. Both surfaces share the Prism palette and semantic geometry;
+   this scope changes type scale only. */
+:where([data-public-surface], [data-flow-surface]) {
   --font-sans: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-display: var(--font-plus-jakarta-sans), var(--font-geist), -apple-system, sans-serif;
-  /* Keep public/auth surfaces on their established Proof palette and geometry.
-     The authenticated app overrides these shared roles at the root. */
-  --radius-control: var(--radius-sm);
-  --radius-card: var(--radius-sm);
-  --radius-overlay: var(--radius-md);
   --radius-auth-control: 12px;
-  --shadow-card:
-    0 0 0 1px rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.03),
-    0 6px 16px -4px rgb(15 23 42 / 0.05);
-  --shadow-card-hover:
-    0 0 0 1px rgb(15 23 42 / 0.08), 0 4px 12px 0 rgb(15 23 42 / 0.05),
-    0 16px 32px -6px rgb(15 23 42 / 0.09);
-  --text-2xs: 0.875rem;
+  --radius-public-button: 12px;
   --text-xs: 0.875rem;
   --text-sm: 1rem;
   --text-base: 1.125rem;
@@ -26,10 +15,8 @@
   --text-2xl: 2rem;
   --text-3xl: 2.75rem;
   --text-4xl: 3.5rem;
-  --text-5xl: 4rem;
   --text-heading-sm: 1.25rem;
   --text-heading-xs: 1.125rem;
-  --text-2xs--line-height: 1.25rem;
   --text-xs--line-height: 1.25rem;
   --text-sm--line-height: 1.5rem;
   --text-base--line-height: 1.75rem;
@@ -38,7 +25,6 @@
   --text-2xl--line-height: 2.375rem;
   --text-3xl--line-height: 3rem;
   --text-4xl--line-height: 3.75rem;
-  --text-5xl--line-height: 4.25rem;
   --tracking-tight: -0.03em;
   --tracking-wide: 0.02em;
   --tracking-wider: 0.06em;
@@ -121,7 +107,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-.website-type :where(h1, h2, h3, h4, h5, h6):not(.app-type-scale *) {
+:where([data-public-surface], [data-flow-surface])
+  :where(h1, h2, h3, h4, h5, h6):not(.app-type-scale *) {
   font-family:
     var(--font-plus-jakarta-sans),
     var(--font-geist),
@@ -131,25 +118,24 @@
   font-weight: 600;
 }
 
-.website-type :where(h1):not(.app-type-scale *) {
+:where([data-public-surface], [data-flow-surface]) :where(h1):not(.app-type-scale *) {
   line-height: 1.1;
   letter-spacing: -0.035em;
 }
 
-.website-type :where(h2):not(.app-type-scale *) {
+:where([data-public-surface], [data-flow-surface]) :where(h2):not(.app-type-scale *) {
   line-height: 1.15;
   letter-spacing: -0.03em;
 }
 
-.website-type :where(h3, h4, h5, h6):not(.app-type-scale *) {
+:where([data-public-surface], [data-flow-surface]) :where(h3, h4, h5, h6):not(.app-type-scale *) {
   line-height: 1.25;
   letter-spacing: -0.02em;
 }
 
 /* Named website/auth roles. Size, leading, weight, tracking, and default colour
    travel as one contract. The low-specificity colour defaults let explicit
-   semantic utilities override them for warnings and the fixed inverse
-   auth/onboarding brand canvas. */
+   semantic utilities override them for warnings and evidence states. */
 .website-hero-display,
 .website-page-title,
 .website-section-heading,
@@ -286,32 +272,25 @@
   text-transform: uppercase;
 }
 
-.website-type [data-button-size='md']:not(.app-type-scale *),
-.website-type [data-button-size='lg']:not(.app-type-scale *) {
+:where([data-public-surface], [data-flow-surface]) [data-button-size='md']:not(.app-type-scale *),
+:where([data-public-surface], [data-flow-surface]) [data-button-size='lg']:not(.app-type-scale *) {
   min-height: 2.75rem;
-  border-radius: var(--radius-lg);
   font-size: 1rem;
   line-height: 1.25rem;
   font-weight: 500;
   letter-spacing: 0;
 }
 
-.website-type [data-button-variant='primary']:not(.app-type-scale *) {
-  border-color: var(--color-accent-active);
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.38),
-    0 1px 2px rgb(16 24 40 / 0.1),
-    0 6px 14px -7px rgb(38 103 255 / 0.52);
+[data-public-surface] [data-button-size='md'],
+[data-public-surface] [data-button-size='lg'] {
+  border-radius: var(--radius-public-button);
 }
 
-.website-type [data-button-variant='primary']:not(.app-type-scale *):hover {
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.32),
-    0 2px 4px rgb(16 24 40 / 0.1),
-    0 10px 20px -9px rgb(38 103 255 / 0.58);
+[data-flow-surface] [data-button-size='md'] {
+  border-radius: var(--radius-control);
 }
 
-.website-type [data-flow-surface] [data-button-size='lg'] {
+[data-flow-surface] [data-button-size='lg'] {
   border-radius: var(--radius-auth-control);
 }
 
@@ -675,8 +654,6 @@
 /* A coded product preview is product UI, not oversized marketing copy. */
 .app-type-scale {
   --font-display: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --text-2xs: 0.75rem;
-  --text-2xs--line-height: 1rem;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -685,7 +662,6 @@
   --text-2xl: 1.5rem;
   --text-3xl: 1.75rem;
   --text-4xl: 2rem;
-  --text-5xl: 2rem;
   --text-heading-sm: 1.125rem;
   --leading-relaxed: 1.625;
   font-size: 0.875rem;
@@ -715,7 +691,7 @@
 }
 
 @media (min-width: 768px) {
-  .website-type {
+  :where([data-public-surface], [data-flow-surface]) {
     --text-2xl: 2.5rem;
     --text-2xl--line-height: 2.875rem;
     --text-3xl: 3rem;

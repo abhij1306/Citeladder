@@ -52,13 +52,13 @@ export function AgentPreview({ phase, reduceMotion }: PreviewProps) {
               <MessageSquareText className="size-3.5" />
             </span>
             <div>
-              <h4 className="text-foreground text-sm font-semibold">Growth planning</h4>
-              <p className="text-subtle mt-0.5 text-[11px]">Selective context · project scoped</p>
+              <h4 className="text-foreground text-sm font-medium">Growth planning</h4>
+              <p className="text-subtle mt-0.5 text-xs">Selective context · project scoped</p>
             </div>
           </div>
           <div className="flex-1 p-4">
             {phase >= 1 ? (
-              <div className="bg-accent text-inverse shadow-card mb-4 ml-auto max-w-[78%] rounded-lg px-4 py-3 text-[13px] leading-relaxed">
+              <div className="bg-action text-action-fg mb-4 ml-auto max-w-[78%] rounded-[var(--radius-card)] px-4 py-3 text-sm leading-relaxed">
                 {AGENT_PROMPT}
               </div>
             ) : null}
@@ -81,9 +81,9 @@ export function AgentPreview({ phase, reduceMotion }: PreviewProps) {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-secondary text-xs font-medium">{label}</p>
-                    <p className="text-subtle mt-0.5 truncate text-[11px]">{detail}</p>
+                    <p className="text-subtle mt-0.5 truncate text-xs">{detail}</p>
                   </div>
-                  <span className="text-subtle text-[11px] tabular-nums">
+                  <span className="text-subtle text-xs tabular-nums">
                     {phase > index ? `${index + 1}s` : ''}
                   </span>
                 </PhaseItem>
@@ -92,13 +92,13 @@ export function AgentPreview({ phase, reduceMotion }: PreviewProps) {
 
             <PhaseItem
               visible={phase >= 3}
-              className="bg-background-alt border-border shadow-card mt-4 rounded-lg border p-4"
+              className="bg-background-alt mt-4 rounded-[var(--radius-card)] p-4"
             >
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="text-success-text size-4" />
-                <p className="text-foreground text-sm font-semibold">Recommended next action</p>
+                <p className="text-foreground text-sm font-medium">Recommended next action</p>
               </div>
-              <p className="text-secondary mt-2 text-[13px] leading-relaxed">
+              <p className="text-secondary mt-2 text-sm leading-relaxed">
                 Close the admissions question gap with an evidence-backed FAQ brief, then verify it
                 after publication.
               </p>
@@ -110,7 +110,7 @@ export function AgentPreview({ phase, reduceMotion }: PreviewProps) {
             </PhaseItem>
           </div>
           <div className="border-border bg-background-alt border-t p-3">
-            <div className="border-border-strong bg-panel text-muted flex h-10 items-center gap-3 rounded-md border px-3 text-[13px] shadow-xs">
+            <div className="border-border-strong bg-input text-muted flex h-10 items-center gap-3 rounded-[var(--radius-control)] border px-3 text-sm">
               <span className="min-w-0 flex-1 truncate">
                 {phase === 0 ? typedPrompt : 'Ask Growth Agent…'}
                 {phase === 0 && typedPrompt.length < AGENT_PROMPT.length ? (
@@ -129,7 +129,7 @@ export function AgentPreview({ phase, reduceMotion }: PreviewProps) {
 
         <section className={cn(SUPPORTING_SURFACE, 'p-4')}>
           <div className="flex items-center justify-between gap-3">
-            <h4 className="text-foreground text-sm font-semibold">Priority roadmap</h4>
+            <h4 className="text-foreground text-sm font-medium">Priority roadmap</h4>
             <ListChecks className="text-muted size-4" />
           </div>
           <div className="mt-3 grid gap-2.5">
@@ -141,31 +141,31 @@ export function AgentPreview({ phase, reduceMotion }: PreviewProps) {
               <PhaseItem
                 key={title}
                 visible={phase >= Math.min(index + 1, 3)}
-                className="bg-panel border-border rounded-md border p-3 shadow-xs"
+                className="bg-panel rounded-[var(--radius-control)] p-3"
               >
                 <div className="flex items-start gap-3">
-                  <span className="text-accent-text text-xs font-semibold tabular-nums">
+                  <span className="text-accent-text text-xs font-medium tabular-nums">
                     {index + 1}
                   </span>
                   <div className="min-w-0">
                     <p className="text-secondary text-xs font-medium">{title}</p>
-                    <p className="text-subtle mt-1 text-[11px]">{source} · evidence linked</p>
+                    <p className="text-subtle mt-1 text-xs">{source} · evidence linked</p>
                   </div>
                 </div>
               </PhaseItem>
             ))}
           </div>
           <PhaseItem visible={phase >= 3} className="mt-4 grid grid-cols-2 gap-2">
-            <span className="border-border-strong bg-panel text-secondary inline-flex h-8 items-center justify-center rounded-sm border text-xs font-medium shadow-xs">
+            <span className="bg-well text-secondary inline-flex h-8 items-center justify-center rounded-[var(--radius-control)] text-xs font-medium">
               View evidence
             </span>
-            <span className="bg-accent text-inverse inline-flex h-8 items-center justify-center rounded-sm text-xs font-medium shadow-xs">
+            <span className="bg-action text-action-fg inline-flex h-8 items-center justify-center rounded-[var(--radius-control)] text-xs font-medium">
               Review brief
             </span>
           </PhaseItem>
           <div className="border-border mt-4 flex items-start gap-2 border-t pt-3">
             <ShieldCheck className="text-success-text mt-0.5 size-3.5 shrink-0" />
-            <p className="text-subtle text-[11px] leading-relaxed">
+            <p className="text-subtle text-xs leading-relaxed">
               The agent explains and prepares. You decide when content is saved or an audit runs.
             </p>
           </div>

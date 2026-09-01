@@ -5,8 +5,8 @@ import { COMPETITORS } from '@/lib/marketing-content/compare';
 import { absoluteUrl } from '@/lib/seo/site';
 
 /**
- * Public-surface sitemap: the static marketing routes plus `/login` and
- * `/register`, then one entry per published post and per comparison — both
+ * Public-surface sitemap: indexable marketing routes, then one entry per
+ * published post and comparison — both
  * enumerated from their content modules, so the sitemap grows with the
  * content. While no canonical origin is configured (B3) entries are
  * path-only; Next tolerates that and the file stays valid.
@@ -27,14 +27,11 @@ const STATIC_ROUTES: readonly RouteEntry[] = [
   { path: '/faq', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/blog', changeFrequency: 'weekly', priority: 0.6 },
   { path: '/compare', changeFrequency: 'monthly', priority: 0.6 },
-  { path: '/register', changeFrequency: 'yearly', priority: 0.5 },
-  { path: '/login', changeFrequency: 'yearly', priority: 0.3 },
 ];
 
 function entry({ path, changeFrequency, priority }: RouteEntry): MetadataRoute.Sitemap[number] {
   return {
     url: absoluteUrl(path) ?? path,
-    lastModified: new Date(),
     changeFrequency,
     priority,
   };

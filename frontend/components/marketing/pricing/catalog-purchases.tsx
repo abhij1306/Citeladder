@@ -110,7 +110,7 @@ function PurchaseRow({
     // the plans it supplements.
     <div
       data-catalog-key={entry.key}
-      className="bg-panel shadow-card flex flex-col gap-2 rounded-lg p-5"
+      className="border-border-subtle bg-panel flex flex-col gap-2 rounded-[var(--radius-card)] border p-5"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <span className="text-foreground text-sm font-medium">{entry.name}</span>

@@ -30,7 +30,6 @@ const FOOTER_COLUMNS: readonly FooterColumn[] = [
     links: [
       { label: 'Blog', href: '/blog' },
       { label: 'FAQ', href: '/faq' },
-      { label: 'Compare', href: '/compare' },
     ],
   },
   {
@@ -142,9 +141,7 @@ export async function MarketingFooter() {
 
           {FOOTER_COLUMNS.map((column) => (
             <div key={column.key} className="space-y-4">
-              <h2 className="website-eyebrow f-col-label text-foreground mb-4 font-semibold">
-                {column.label}
-              </h2>
+              <h2 className="website-eyebrow text-foreground mb-4 font-medium">{column.label}</h2>
               <div className="grid justify-items-start gap-4">
                 {column.links.map((link) => (
                   <FooterColumnLink key={link.label} link={link} />

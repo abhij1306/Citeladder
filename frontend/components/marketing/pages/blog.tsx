@@ -29,11 +29,11 @@ import { JsonLd } from '../seo/json-ld';
 function TagRow({ tags }: Readonly<{ tags: readonly string[] }>) {
   if (tags.length === 0) return null;
   return (
-    <div className="mb-3 flex flex-wrap gap-2">
+    <div className="mb-4 flex flex-wrap gap-2">
       {tags.map((tag) => (
         <span
           key={tag}
-          className="bg-accent-soft text-accent-text rounded-md px-2.5 py-1 text-xs font-medium"
+          className="bg-accent-soft text-accent-text rounded-full px-3 py-1 text-xs font-medium"
         >
           {tag}
         </span>
@@ -57,13 +57,13 @@ function BlogCta({
   secondary,
 }: Readonly<{ title: string; secondary: { href: string; label: string } }>) {
   return (
-    <Section tone="paper" rhythm="base" aria-label="Get started">
+    <Section tone="sunken" rhythm="base" aria-label="Get started">
       <Reveal className="mx-auto max-w-3xl text-center">
         <h2 className="website-section-heading text-foreground mx-auto mb-3 max-w-[28ch]">
           {title}
         </h2>
         <p className="website-body-lg text-muted mx-auto max-w-[52ch]">
-          Your category, your prompts — raw answers behind every score.
+          Build a measurement practice your team can inspect, explain, and improve.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">
@@ -85,10 +85,10 @@ export function BlogIndex() {
     <>
       <PageHero
         centered
-        eyebrow="Blog"
-        title="Notes on"
-        accent="AI visibility."
-        lead="Essays and field notes on answer-engine optimization — evidence-first."
+        eyebrow="Resources"
+        title="Make AI visibility"
+        accent="understandable."
+        lead="Practical guides for answer-engine optimization, evidence-led measurement, and the work between a finding and the next audit."
       />
 
       {featured ? (
@@ -98,9 +98,9 @@ export function BlogIndex() {
               <Link
                 href={`/blog/${featured.slug}`}
                 aria-label={featured.title}
-                className="bg-panel shadow-card hover:shadow-card-hover group block overflow-hidden rounded-lg transition-shadow duration-200"
+                className="bg-panel border-border group hover:border-accent-border block overflow-hidden rounded-2xl border transition-colors duration-200"
               >
-                <div className="p-6 md:p-8">
+                <div className="p-7 md:p-10">
                   <TagRow tags={featured.tags} />
                   <h2 className="website-section-heading text-foreground group-hover:text-accent-text max-w-[32ch] transition-colors duration-200">
                     {featured.title}
@@ -108,7 +108,7 @@ export function BlogIndex() {
                   <p className="website-body-lg text-muted mt-4 max-w-[65ch]">{featured.excerpt}</p>
                   <PostMeta post={featured} />
                   <span className="text-accent-text mt-5 inline-flex items-center gap-2 text-sm font-medium">
-                    Read note
+                    Read guide
                     <ArrowRight
                       className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
                       aria-hidden
@@ -122,18 +122,18 @@ export function BlogIndex() {
           {rest.length > 0 && (
             <Section tone="paper" rhythm="tight" aria-label="All posts">
               <div className="mb-5 flex items-center justify-between gap-4">
-                <Meta as="p">All notes</Meta>
+                <Meta as="p">All guides</Meta>
                 <Meta>
-                  {rest.length} {rest.length === 1 ? 'post' : 'posts'}
+                  {rest.length} {rest.length === 1 ? 'guide' : 'guides'}
                 </Meta>
               </div>
-              <StaggerGroup className="divide-border-subtle bg-panel shadow-card divide-y overflow-hidden rounded-lg">
+              <StaggerGroup className="divide-border-subtle bg-panel border-border-subtle divide-y overflow-hidden rounded-2xl border">
                 {rest.map((post) => (
                   <StaggerItem key={post.slug}>
                     <Link
                       href={`/blog/${post.slug}`}
                       aria-label={post.title}
-                      className="hover:bg-accent-soft group block px-5 py-5 transition-colors duration-200 md:px-6"
+                      className="hover:bg-accent-soft group block px-6 py-6 transition-colors duration-200 md:px-8 md:py-7"
                     >
                       <TagRow tags={post.tags} />
                       <h3 className="website-feature-heading text-foreground">{post.title}</h3>
@@ -148,7 +148,7 @@ export function BlogIndex() {
         </>
       ) : (
         <Section tone="paper" rhythm="tight" aria-label="No posts yet">
-          <Reveal className="border-border-subtle mx-auto max-w-xl rounded-lg border border-dashed p-10 text-center">
+          <Reveal className="border-border-subtle mx-auto max-w-xl rounded-2xl border border-dashed p-10 text-center">
             <span className="bg-accent-soft text-accent-text mx-auto grid size-10 place-items-center rounded-md">
               <PenLine aria-hidden strokeWidth={1.8} className="size-5" />
             </span>
@@ -172,7 +172,7 @@ export function BlogIndex() {
       )}
 
       <BlogCta
-        title="See the product the notes are about."
+        title="Put these guides into practice."
         secondary={{ href: '/faq', label: 'Read the FAQ' }}
       />
     </>
@@ -218,7 +218,7 @@ function PostBlock({ block }: Readonly<{ block: BlogBlock }>) {
       return <h2 className="website-feature-heading text-foreground mt-8 mb-3">{block.text}</h2>;
     case 'list':
       return (
-        <ul className="text-muted my-4 grid list-disc gap-2 pl-5 text-sm leading-relaxed">
+        <ul className="website-body text-muted my-4 grid list-disc gap-2 pl-5 leading-relaxed">
           {withOccurrenceKeys(block.items, (item) => item).map(({ key, value }) => (
             <li key={key}>{value}</li>
           ))}
@@ -232,18 +232,24 @@ function PostBlock({ block }: Readonly<{ block: BlogBlock }>) {
 export function BlogPostView({ post }: Readonly<{ post: BlogPost }>) {
   return (
     <>
-      <JsonLd data={blogPostingJsonLd(post)} />
+      <JsonLd
+        data={{
+          ...blogPostingJsonLd(post),
+          articleSection: post.tags,
+          keywords: post.tags,
+        }}
+      />
       <header className="border-border-subtle border-b pt-16 pb-6 md:pb-8">
         <Container dense>
-          <Reveal className="max-w-3xl">
+          <Reveal className="mx-auto w-full max-w-3xl">
             <Link
               href="/blog"
-              className="text-muted hover:text-foreground mb-5 inline-flex items-center gap-2 text-sm font-medium transition-colors"
+              className="text-muted hover:text-foreground mb-5 flex w-fit items-center gap-2 text-sm font-medium transition-colors"
             >
               <ArrowLeft className="size-4" aria-hidden />
-              All notes
+              All guides
             </Link>
-            <Eyebrow>Field notes</Eyebrow>
+            <Eyebrow>Guide</Eyebrow>
             <TagRow tags={post.tags} />
             <h1 className="website-page-title text-foreground mt-3 max-w-[28ch] text-balance">
               {post.title}
@@ -269,7 +275,7 @@ export function BlogPostView({ post }: Readonly<{ post: BlogPost }>) {
       </header>
 
       <Container dense>
-        <article aria-label="Post content" className="max-w-3xl py-8 md:py-10">
+        <article aria-label="Post content" className="mx-auto w-full max-w-3xl py-8 md:py-10">
           <p className="website-body-lg bg-accent-soft text-foreground mb-6 rounded-lg px-5 py-4 font-medium">
             {post.excerpt}
           </p>

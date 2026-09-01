@@ -28,13 +28,13 @@ export function PageHero({
   centered?: boolean;
 }>) {
   return (
-    <header className="relative overflow-hidden pt-16 pb-16 md:pt-30 md:pb-20">
+    <header className="bg-background-alt relative overflow-hidden pt-16 pb-16 md:pt-30 md:pb-20">
       <Container className="relative z-1">
         <Reveal className={cn('max-w-5xl', centered && 'mx-auto text-center')}>
           <Eyebrow>{eyebrow}</Eyebrow>
           <h1
             className={cn(
-              'website-page-title text-foreground mt-8 mb-8 max-w-[32ch]',
+              'website-page-title text-foreground mt-6 mb-6 max-w-[28ch] text-balance',
               centered && 'mx-auto',
             )}
           >

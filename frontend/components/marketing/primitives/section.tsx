@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { Eyebrow } from './label';
 import { Reveal } from './reveal';
 
-// The scoped website ladder resolves these semantic rungs responsively;
+// The public editorial ladder resolves these semantic rungs responsively;
 // embedded product previews reset to the compact app ladder.
 const SECTION_HEADING_CLASSES = {
   h1: 'website-page-title',

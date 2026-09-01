@@ -26,8 +26,6 @@ const STATIC_PATHS = [
   '/faq',
   '/blog',
   '/compare',
-  '/register',
-  '/login',
 ] as const;
 
 describe('sitemap', () => {
@@ -58,6 +56,12 @@ describe('sitemap', () => {
     process.env.NEXT_PUBLIC_SITE_URL = 'https://app.citeladder.com';
     for (const entry of sitemap()) {
       expect(entry.url).toMatch(/^https:\/\/app\.citeladder\.com\//);
+    }
+  });
+
+  it('does not manufacture last-modified churn for static content', () => {
+    for (const entry of sitemap()) {
+      expect(entry).not.toHaveProperty('lastModified');
     }
   });
 });

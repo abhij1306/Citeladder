@@ -67,7 +67,7 @@ export function PricingTierCard({
       data-tier={plan.key}
       data-highlighted={highlighted ? 'true' : undefined}
       className={cn(
-        'shadow-card flex h-full flex-col rounded-lg p-6 md:p-7 xl:p-6',
+        'border-border-subtle flex h-full flex-col rounded-[var(--radius-card)] border p-6 md:p-7 xl:p-6',
         highlighted ? 'bg-background-alt ring-accent ring-1' : 'bg-panel',
       )}
     >

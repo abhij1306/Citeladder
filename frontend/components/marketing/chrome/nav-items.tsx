@@ -5,7 +5,7 @@ import type { NavDropItem } from '@/lib/marketing-content/nav';
 import { cn } from '@/lib/utils';
 
 const ROW =
-  'group rounded-md flex items-start gap-4 px-4 py-3 transition-colors duration-150 ' +
+  'group rounded-md flex items-start gap-3 px-3 py-2.5 transition-colors duration-150 ' +
   'hover:bg-background focus-visible:bg-background';
 
 function RowBody({ item }: Readonly<{ item: NavDropItem }>) {
@@ -15,12 +15,10 @@ function RowBody({ item }: Readonly<{ item: NavDropItem }>) {
         <span className="text-accent-text pt-2 font-mono text-xs tabular-nums">{item.num}</span>
       )}
       <span className="min-w-0">
-        <span className="text-foreground block text-base leading-snug font-semibold">
-          {item.title}
-        </span>
+        <span className="website-body text-foreground block font-medium">{item.title}</span>
         {/* One line, always: a menu row that wraps turns the panel into a
             wall of paragraphs and doubles its height. */}
-        <span className="text-muted mt-1 block truncate text-sm leading-snug">{item.desc}</span>
+        <span className="website-label text-muted mt-0.5 block truncate">{item.desc}</span>
       </span>
     </>
   );
@@ -53,7 +51,7 @@ export function NavItemLink({
         onClick={onSelect}
       >
         <RowBody item={item} />
-        <ArrowUpRight className="text-muted mt-2 size-4 shrink-0" aria-hidden />
+        <ArrowUpRight className="text-muted mt-1.5 size-4 shrink-0" aria-hidden />
       </a>
     );
   }

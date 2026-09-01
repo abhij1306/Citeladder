@@ -49,7 +49,7 @@ const TYPE_LAYER: Record<Opportunity['opportunity_type'], InsightLayer> = {
  * and `opportunity_type` — internal identifiers no user can act on.
  */
 const LAYER_REASON: Record<InsightLayer, string> = {
-  site: 'Your industry pack expects this on pages of this kind, and the crawl did not find it.',
+  site: 'Site Health expects this on pages of this kind, and the crawl did not find it.',
   content: 'Demand exists for this topic and your published content does not cover it.',
   demand: 'This was measured against the demand signals and coverage recorded for your project.',
   agent: 'The agent raised this while working through your project evidence.',

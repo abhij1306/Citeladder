@@ -1,7 +1,12 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 import { FlowShell } from '@/components/auth/flow-shell';
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 /**
  * Auth and onboarding share one focused light-ground flow shell.

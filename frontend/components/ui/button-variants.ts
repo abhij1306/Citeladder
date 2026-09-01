@@ -5,9 +5,9 @@ import { cva } from 'class-variance-authority';
  * tokens only (no raw hex). Sizes use the control-height tokens via bridged
  * `h-*` utilities defined in globals.css (--control-height*).
  *
- * App buttons use the semantic 10px control radius, not pills. Website/auth primary buttons
- * add their inset edge and 12px corners through the scoped `.website-type`
- * contract in globals.css; behaviour and semantics remain shared here.
+ * Buttons use the semantic control radius, not pills. Focused-flow fields may
+ * opt into their documented 12px auth-control role; action behaviour and
+ * semantics remain shared here.
  * Primary uses the navy action role. Indigo remains analytical selection.
  * Secondary/neutral/ghost stay quiet so a screen has one obvious action.
  *

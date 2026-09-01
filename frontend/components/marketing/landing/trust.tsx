@@ -25,7 +25,7 @@ export function Trust() {
           <p className="website-body-lg text-muted mt-5 max-w-[52ch]">{trust.lead}</p>
         </Reveal>
 
-        <Reveal className="bg-panel shadow-card border-border overflow-hidden rounded-sm border">
+        <Reveal className="bg-panel overflow-hidden rounded-[var(--radius-card)]">
           <dl className="divide-border divide-y">
             {trust.guarantees.map((guarantee) => {
               const Icon = LANDING_ICONS[guarantee.icon];
@@ -38,9 +38,7 @@ export function Trust() {
                     <Icon className="size-4.5" strokeWidth={1.75} aria-hidden />
                   </span>
                   <div>
-                    <dt className="website-body text-foreground font-semibold">
-                      {guarantee.title}
-                    </dt>
+                    <dt className="website-body text-foreground font-medium">{guarantee.title}</dt>
                     <dd className="website-body text-muted mt-1">{guarantee.description}</dd>
                   </div>
                 </div>

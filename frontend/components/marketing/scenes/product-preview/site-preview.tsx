@@ -48,7 +48,7 @@ export function SitePreview({ phase }: PreviewProps) {
         <section className={cn(PRIMARY_SURFACE, 'overflow-hidden')}>
           <div className="border-border flex items-center justify-between gap-3 border-b px-4 py-3">
             <div>
-              <h4 className="text-foreground text-sm font-semibold">URL inventory</h4>
+              <h4 className="text-foreground text-sm font-medium">URL inventory</h4>
               <p className="text-subtle mt-0.5 text-xs">Current compatible snapshot</p>
             </div>
             <PreviewBadge tone={phase >= 3 ? 'success' : 'info'}>
@@ -63,8 +63,8 @@ export function SitePreview({ phase }: PreviewProps) {
                 className="grid grid-cols-[minmax(0,1.4fr)_minmax(110px,0.8fr)_auto] items-center gap-3 px-4 py-3"
               >
                 <div className="min-w-0">
-                  <p className="text-foreground truncate text-[13px] font-medium">{row.path}</p>
-                  <p className="text-subtle mt-0.5 text-[11px]">HTML · visible evidence · schema</p>
+                  <p className="text-foreground truncate text-sm font-medium">{row.path}</p>
+                  <p className="text-subtle mt-0.5 text-xs">HTML · visible evidence · schema</p>
                 </div>
                 <span className="text-muted hidden truncate text-xs sm:block">{row.role}</span>
                 <PreviewBadge
@@ -85,8 +85,8 @@ export function SitePreview({ phase }: PreviewProps) {
 
         <section className={cn(SUPPORTING_SURFACE, 'p-4')}>
           <div className="flex items-center justify-between gap-3">
-            <h4 className="text-foreground text-sm font-semibold">Acquisition run</h4>
-            <span className="text-subtle text-[11px] tabular-nums">Preview data</span>
+            <h4 className="text-foreground text-sm font-medium">Acquisition run</h4>
+            <span className="text-subtle text-xs tabular-nums">Preview data</span>
           </div>
           <div className="mt-4 grid gap-3">
             {SITE_STEPS.map((step, index) => {
@@ -111,8 +111,8 @@ export function SitePreview({ phase }: PreviewProps) {
                     )}
                   </span>
                   <div>
-                    <p className="text-secondary text-[13px] font-medium">{step}</p>
-                    <p className="text-subtle mt-0.5 text-[11px]">
+                    <p className="text-secondary text-sm font-medium">{step}</p>
+                    <p className="text-subtle mt-0.5 text-xs">
                       {complete ? 'Persisted with provenance' : active ? 'Working now' : 'Queued'}
                     </p>
                   </div>

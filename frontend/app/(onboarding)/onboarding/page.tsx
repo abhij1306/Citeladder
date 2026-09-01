@@ -1,8 +1,10 @@
-'use client';
+import type { Metadata } from 'next';
 
-import { Suspense } from 'react';
+import { OnboardingPageClient } from './onboarding-page-client';
 
-import { OnboardingScreen } from '@/components/onboarding/onboarding-screen';
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 /**
  * `/onboarding` — project creation via AI auto-discovery. Replaces the retired
@@ -12,9 +14,5 @@ import { OnboardingScreen } from '@/components/onboarding/onboarding-screen';
  * which opts the subtree into client-side rendering.
  */
 export default function OnboardingPage() {
-  return (
-    <Suspense fallback={null}>
-      <OnboardingScreen />
-    </Suspense>
-  );
+  return <OnboardingPageClient />;
 }

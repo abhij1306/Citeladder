@@ -5,26 +5,25 @@ import { Section, SectionHeader } from '../primitives/section';
 import { LANDING_ICONS } from './landing-icons';
 
 /**
- * The problem, stated as three plain facts on quiet white cards. The shared
- * panel surface carries hierarchy without borrowing status or evidence colors.
+ * The problem, stated as one quiet evidence ledger rather than three cards.
  */
 export function Shift() {
   const { shift } = LANDING_CONTENT;
   return (
     <Section id="why" tone="paper" rhythm="base" aria-labelledby="shift-title">
       <SectionHeader eyebrow={shift.kicker} title={shift.title} headingId="shift-title" />
-      <StaggerGroup className="grid gap-5 lg:grid-cols-3">
+      <StaggerGroup className="border-border-subtle divide-border-subtle grid border-y lg:grid-cols-3 lg:divide-x">
         {shift.facts.map((fact) => {
           const Icon = LANDING_ICONS[fact.icon];
           return (
             <StaggerItem key={fact.label} className="h-full">
-              <article className="bg-panel shadow-card hover:shadow-card-hover group flex h-full flex-col justify-between rounded-sm p-6 transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 md:p-7">
+              <article className="group flex h-full flex-col justify-between px-1 py-7 md:px-6 lg:first:pl-0 lg:last:pr-0">
                 <div>
-                  <div className="flex items-center justify-between">
-                    <span className="bg-accent-subtle/80 text-accent-text border-accent-border/60 flex size-9 items-center justify-center rounded-sm border shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <span className="bg-accent-subtle text-accent-text flex size-9 items-center justify-center rounded-[var(--radius-control)]">
                       <Icon className="size-4.5" strokeWidth={1.75} aria-hidden />{' '}
                     </span>
-                    <span className="bg-accent-subtle/50 text-accent-text border-accent-border/40 text-2xs rounded-full border px-2.5 py-0.5 font-mono font-semibold tracking-wider uppercase">
+                    <span className="text-muted text-xs font-medium tracking-wide uppercase">
                       {fact.label}
                     </span>
                   </div>

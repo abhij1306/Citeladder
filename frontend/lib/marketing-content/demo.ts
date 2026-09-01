@@ -10,21 +10,24 @@
 export const DEMO_META = {
   title: 'Book an enterprise demo',
   description:
-    'Discuss CiteLadder Enterprise volumes, deployment, security review, and support with the team.',
+    'See how CiteLadder connects AI visibility, site health, demand evidence, and content workflows for enterprise teams.',
 } as const;
 
 export const DEMO_HERO = {
   eyebrow: 'Enterprise demo',
-  title: 'Bring your category.',
-  accent: 'Leave with a concrete rollout path.',
-  lead: 'We’ll cover your answer-engine measurement goals, workspace volume, deployment constraints, security review, and the evidence your team needs to trust the output.',
+  title: 'Turn AI visibility into a measurable workstream.',
+  accent: 'Bring the evidence to your next review.',
+  lead: 'We’ll map your answer-engine measurement goals to site health, demand, content workflows, and the evidence your team needs to inspect every result.',
 } as const;
 
 /** "What to expect" cards — grounded in the enterprise limit dials. */
 export const DEMO_CARDS = [
-  ['Your measurement plan', 'Prompts, engines, repetitions, evidence, and reporting.'],
-  ['Your operating model', 'Seats, projects, cadence, retention, and support expectations.'],
-  ['Your rollout path', 'Projects, seats, retention, and the security review your team runs.'],
+  [
+    'Measurement design',
+    'Prompts, engines, repetitions, evidence, and reporting for your category.',
+  ],
+  ['Operating model', 'Projects, seats, retention, provider keys, and support expectations.'],
+  ['Rollout plan', 'A practical path from first crawl to recurring measurement and review.'],
 ] as const;
 
 /**
@@ -33,6 +36,6 @@ export const DEMO_CARDS = [
  * arrives. No contact details are collected on this page in any state.
  */
 export const DEMO_SELF_SERVE_FALLBACK =
-  'Self-serve signup is open now — create a workspace, connect your own provider keys and run ' +
-  'a first audit today. Prefer to talk first? Enterprise volumes, security review and rollout ' +
-  'are handled by a scheduled call; the booking link is published here as soon as it is live.';
+  'Self-serve signup is open now — create a workspace, connect your own provider keys, and run ' +
+  'a first audit. Prefer to talk first? Enterprise volume, security review, and rollout planning ' +
+  'are handled in a scheduled conversation when the booking link is available.';

@@ -13,7 +13,7 @@ describe('Enterprise page (public marketing `/enterprise`)', () => {
 
     const h1s = screen.getAllByRole('heading', { level: 1 });
     expect(h1s).toHaveLength(1);
-    expect(h1s[0]).toHaveTextContent(/enterprise-grade evidence/i);
+    expect(h1s[0]).toHaveTextContent(/security team.*inspect/i);
 
     // No h2-h6 may contain the product name (keeps heading queries unambiguous).
     for (const heading of screen.getAllByRole('heading')) {
@@ -29,14 +29,32 @@ describe('Enterprise page (public marketing `/enterprise`)', () => {
     // Three cards, not four: the old "Traceable by design" card restated the
     // evidence card's provenance claim, so the page argued the same point twice.
     expect(within(ops).getAllByRole('heading', { level: 3 })).toHaveLength(3);
-    // README "Built for trustworthy operations" bullets, rendered verbatim-ish.
-    expect(within(ops).getByText(/UUID identifiers throughout/i)).toBeInTheDocument();
-    expect(within(ops).getAllByText(/Immutable artifacts/i).length).toBeGreaterThan(0);
-    expect(within(ops).getByText(/FOR UPDATE SKIP LOCKED/i)).toBeInTheDocument();
+    // README "Built for trustworthy operations" boundaries, rendered in buyer language.
+    expect(within(ops).getByText(/encrypted at rest/i)).toBeInTheDocument();
+    expect(within(ops).getAllByText(/Raw responses are persisted/i).length).toBeGreaterThan(0);
+    expect(within(ops).getByText(/PostgreSQL provides durable state/i)).toBeInTheDocument();
     expect(
-      within(ops).getByText(/backend topology never reaches the client bundle/i),
+      within(ops).getByText(/backend topology out of the browser bundle/i),
     ).toBeInTheDocument();
-    expect(within(ops).getByText(/Zod \+ Pydantic/i)).toBeInTheDocument();
+    expect(within(ops).getByText(/Zod and Pydantic/i)).toBeInTheDocument();
+  });
+
+  it('explains the enterprise fit and emits service structured data', () => {
+    const { container } = render(<Page />);
+
+    const fit = screen.getByRole('region', { name: 'Who Enterprise is for' });
+    expect(within(fit).getAllByRole('heading', { level: 3 })).toHaveLength(3);
+    expect(within(fit).getByText(/Security-led evaluation/i)).toBeInTheDocument();
+    expect(within(fit).getByText(/Multiple teams or brands/i)).toBeInTheDocument();
+
+    const data = Array.from(container.querySelectorAll('script[type="application/ld+json"]'))
+      .map((script) => JSON.parse(script.textContent ?? '') as Record<string, unknown>)
+      .find((item) => item['@type'] === 'Service');
+    expect(data).toMatchObject({
+      '@context': 'https://schema.org',
+      name: 'CiteLadder Enterprise',
+      serviceType: 'AI visibility measurement',
+    });
   });
 
   it('renders no GitHub/MIT links, no self-host copy, and points the hero ghost at /pricing', () => {

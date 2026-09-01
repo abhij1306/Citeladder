@@ -39,7 +39,7 @@ export function DemandPreview({ phase }: PreviewProps) {
                 key={view}
                 aria-current={view === activeView ? 'page' : undefined}
                 className={cn(
-                  'relative shrink-0 pb-3 text-[13px] font-medium',
+                  'relative shrink-0 pb-3 text-sm font-medium',
                   view === activeView ? 'text-foreground' : 'text-muted',
                 )}
               >
@@ -98,7 +98,7 @@ function VisibilityAreaChart({
 }: Readonly<{ title: string; description: string; path: string }>) {
   return (
     <div className={cn(SUPPORTING_SURFACE, 'p-4')}>
-      <h4 className="text-foreground text-sm font-semibold">{title}</h4>
+      <h4 className="text-foreground text-sm font-medium">{title}</h4>
       <p className="text-subtle mt-0.5 text-xs">{description}</p>
       <div className="relative mt-4 h-40 overflow-hidden">
         <div className="absolute inset-0 flex flex-col justify-between">
@@ -122,7 +122,7 @@ function VisibilityAreaChart({
           />
         </svg>
       </div>
-      <div className="text-subtle mt-2 flex justify-between text-[11px]">
+      <div className="text-subtle mt-2 flex justify-between text-xs">
         <span>May 12</span>
         <span>Jun 9</span>
         <span>Jul 7</span>
@@ -137,16 +137,16 @@ function VisibilityContentPreview() {
     <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.75fr)]">
       <div className={cn(SUPPORTING_SURFACE, 'overflow-hidden')}>
         <div className="border-border border-b px-4 py-3">
-          <h4 className="text-foreground text-sm font-semibold">Answer evidence</h4>
+          <h4 className="text-foreground text-sm font-medium">Answer evidence</h4>
           <p className="text-subtle mt-0.5 text-xs">Prompt, answer, and matched entities</p>
         </div>
         <div className="p-4">
           <PreviewBadge tone="info">ChatGPT · Buying guide</PreviewBadge>
-          <p className="text-foreground mt-3 text-[13px] font-medium">
+          <p className="text-foreground mt-3 text-sm font-medium">
             Which platform helps teams improve AI search visibility?
           </p>
-          <div className="border-border bg-panel mt-3 rounded-md border p-3 shadow-xs">
-            <p className="text-secondary text-[13px] leading-relaxed">
+          <div className="bg-panel mt-3 rounded-[var(--radius-control)] p-3">
+            <p className="text-secondary text-sm leading-relaxed">
               Acme Corp provides evidence-grounded visibility monitoring, while Northstar focuses on
               prompt tracking and reporting.
             </p>
@@ -159,7 +159,7 @@ function VisibilityContentPreview() {
         </div>
       </div>
       <div className={cn(SUPPORTING_SURFACE, 'p-4')}>
-        <h4 className="text-foreground text-sm font-semibold">Cited content</h4>
+        <h4 className="text-foreground text-sm font-medium">Cited content</h4>
         <p className="text-subtle mt-0.5 text-xs">Sources used in this answer</p>
         <div className="mt-4 grid gap-3">
           {[
@@ -169,14 +169,14 @@ function VisibilityContentPreview() {
           ].map(([source, type], index) => (
             <div
               key={source}
-              className="border-border bg-panel flex items-start gap-3 rounded-md border p-3 shadow-xs"
+              className="bg-panel flex items-start gap-3 rounded-[var(--radius-control)] p-3"
             >
               <span className="bg-accent-soft text-accent-text grid size-7 shrink-0 place-items-center rounded-md">
                 <Link2 className="size-3.5" />
               </span>
               <div className="min-w-0">
                 <p className="text-secondary truncate text-xs font-medium">{source}</p>
-                <p className="text-subtle mt-1 text-[11px]">
+                <p className="text-subtle mt-1 text-xs">
                   #{index + 1} · {type}
                 </p>
               </div>
@@ -194,12 +194,12 @@ function VisibilityFanoutPreview() {
       <div className={cn(SUPPORTING_SURFACE, 'p-4')}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h4 className="text-foreground text-sm font-semibold">Query fanout</h4>
+            <h4 className="text-foreground text-sm font-medium">Query fanout</h4>
             <p className="text-subtle mt-0.5 text-xs">Searches generated for one measured prompt</p>
           </div>
           <PreviewBadge tone="info">6 queries</PreviewBadge>
         </div>
-        <p className="border-border bg-panel text-foreground mt-4 rounded-md border p-3 text-[13px] font-medium shadow-xs">
+        <p className="bg-panel text-foreground mt-4 rounded-[var(--radius-control)] p-3 text-sm font-medium">
           Best AI visibility platform for evidence-backed reporting
         </p>
         <div className="mt-3 grid gap-2">
@@ -217,7 +217,7 @@ function VisibilityFanoutPreview() {
         </div>
       </div>
       <div className={cn(SUPPORTING_SURFACE, 'p-4')}>
-        <h4 className="text-foreground text-sm font-semibold">Competitor presence</h4>
+        <h4 className="text-foreground text-sm font-medium">Competitor presence</h4>
         <p className="text-subtle mt-0.5 text-xs">Brands surfaced across fanout evidence</p>
         <div className="mt-4 grid gap-3">
           {[
@@ -225,12 +225,12 @@ function VisibilityFanoutPreview() {
             ['Northstar', '4 of 6 queries', '67%'],
             ['Vertex Labs', '2 of 6 queries', '33%'],
           ].map(([brand, coverage, value]) => (
-            <div key={brand} className="border-border bg-panel rounded-md border p-3 shadow-xs">
+            <div key={brand} className="bg-panel rounded-[var(--radius-control)] p-3">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-secondary text-xs font-medium">{brand}</span>
-                <span className="text-foreground text-xs font-semibold">{value}</span>
+                <span className="text-foreground text-xs font-medium">{value}</span>
               </div>
-              <p className="text-subtle mt-1 text-[11px]">{coverage}</p>
+              <p className="text-subtle mt-1 text-xs">{coverage}</p>
             </div>
           ))}
         </div>

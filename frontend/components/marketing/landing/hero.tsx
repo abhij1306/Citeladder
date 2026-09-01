@@ -18,26 +18,24 @@ import { RotatingEngineLogos } from './rotating-engine-logos';
 export function Hero() {
   const { hook } = LANDING_CONTENT;
   return (
-    <header className="relative -mt-16 overflow-hidden pt-16">
-      <Container className="relative z-1 pt-20 pb-16 md:pt-28 md:pb-20">
-        <HeroEntrance className="mx-auto max-w-5xl text-center">
+    <header className="bg-background-alt relative -mt-16 overflow-hidden pt-16">
+      <Container className="relative z-1 pt-20 pb-18 md:pt-32 md:pb-24">
+        <HeroEntrance className="mx-auto w-full max-w-5xl text-center">
           <div className="flex justify-center">
-            <div className="bg-accent-subtle/80 text-accent-text border-accent-border/80 inline-flex items-center gap-2 rounded-full border px-3.5 py-1 text-xs font-medium shadow-xs backdrop-blur-sm">
-              <span className="bg-accent size-1.5 animate-pulse rounded-full" aria-hidden />
+            <div className="bg-accent-subtle text-accent-text border-accent-border inline-flex items-center gap-2 rounded-full border px-3.5 py-1 text-xs font-medium">
+              <span className="bg-accent size-1.5 rounded-full" aria-hidden />
               <span>{hook.eyebrow}</span>
             </div>
           </div>
-          <h1 className="website-hero-display text-foreground mx-auto mt-6 max-w-[32ch] text-balance">
+          <h1 className="website-hero-display text-foreground mx-auto mt-6 max-w-[24ch] text-center text-balance">
             {hook.title}{' '}
-            <em className="text-accent font-semibold not-italic">{hook.titleAccent}</em>
+            <em className="text-accent-text font-medium not-italic">{hook.titleAccent}</em>
           </h1>
-          <p className="website-lead text-muted mx-auto mt-6 max-w-[72ch]">{hook.body}</p>
+          <p className="website-lead text-muted mx-auto mt-6 max-w-[64ch] text-center">
+            {hook.body}
+          </p>
           <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row sm:items-center">
-            <ButtonLink
-              href={DEMO_HREF}
-              variant="primary"
-              className="hover:shadow-card-hover w-full shadow-sm transition-shadow sm:w-auto"
-            >
+            <ButtonLink href={DEMO_HREF} variant="primary" className="w-full sm:w-auto">
               {hook.primaryCta}
               <ArrowRight aria-hidden />
             </ButtonLink>

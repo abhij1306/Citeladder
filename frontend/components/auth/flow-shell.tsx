@@ -35,7 +35,7 @@ export function FlowShell({
   return (
     <div
       data-flow-surface
-      className="website-type bg-background text-foreground grid h-dvh min-h-dvh grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden antialiased"
+      className="bg-background text-foreground grid h-dvh min-h-dvh grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden antialiased"
     >
       <FlowBar steps={steps} currentStep={currentStep} exitHref={exitHref} />
       <main id="main" aria-label={mainLabel} className="flow-main" data-flow-align={align}>

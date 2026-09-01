@@ -80,22 +80,22 @@ test.describe('marketing routes', () => {
 
   test('marketing subpages render the unified light canvas', async ({ page }) => {
     await page.goto('/pricing');
-    // docs/design.md §Colour: the canvas is the luminous pearl-paper
-    // `background` token. Crisp white is `panel` / `elevated`, and the deeper
-    // neutral gray is the grouped-region well (`background-alt` / `well`) —
+    // docs/design.md §Colour: the canvas is the shared warm `background`
+    // token. Crisp white is `panel` / `elevated`, and the deeper warm neutral
+    // is the grouped-region well (`background-alt` / `well`) —
     // neither of those is the canvas.
     await expect(page.locator('.bg-background').first()).toHaveCSS(
       'background-color',
-      'rgb(248, 250, 252)',
+      'rgb(250, 249, 246)',
     );
   });
 
-  test('the logged-out auth screens run the same Proof surface', async ({ page }) => {
+  test('the logged-out auth screens run the same Prism surface', async ({ page }) => {
     for (const path of ['/login', '/register']) {
       await page.goto(path);
       await expect(page.locator('.bg-panel').first()).toHaveCount(1);
       await expect(page.locator('h1:visible')).toHaveCount(1);
-      // Proof is light-only: no toggle survives on the auth shell.
+      // Prism is light-only: no toggle survives on the auth shell.
       await expect(page.getByRole('button', { name: 'Toggle color theme' })).toHaveCount(0);
     }
   });
