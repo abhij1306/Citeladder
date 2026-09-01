@@ -86,6 +86,7 @@ def test_only_declared_content_gaps_can_cross_the_content_boundary() -> None:
         "aeo.content_date_present",
         "aeo.editorial_lead_present",
         "aeo.entity_value_proposition",
+        "aeo.company_entity_completeness",
         "aeo.heading_hierarchy",
         "aeo.listing_answer_set",
         "aeo.listing_item_facts",
