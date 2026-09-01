@@ -1160,6 +1160,10 @@ def test_page_owned_content_facts_are_distinct_and_exclude_chrome_modules() -> N
     assert facts["direct_answer"] == (
         "Enterprise search gives teams one place to find trusted answers quickly."
     )
+    assert "Browse documentation" not in facts["primary_content_text"]
+    assert "Company links" not in facts["primary_content_text"]
+    assert "Related one" not in facts["primary_content_text"]
+    assert lead in " ".join(facts["primary_content_text"].split())
     assert facts["entity_proposition"] == {
         "identity": "Enterprise Search",
         "proposition": lead,

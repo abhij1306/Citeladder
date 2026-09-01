@@ -865,7 +865,8 @@ same-family absence or root sibling.
 
 ```text
 has_faq, has_reviews, has_variants, listing, local_intent,
-contact_intent, about_intent, case_study_intent, comparison_content, procedural
+contact_intent, about_intent, company_profile_intent, case_study_intent,
+comparison_content, procedural
 ```
 
 Derivation is pure, deterministic, bounded, and versioned (`TRAITS_VERSION`).

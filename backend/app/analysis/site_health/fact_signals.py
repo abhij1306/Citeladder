@@ -13,6 +13,7 @@ from app.analysis.site_health.fact_regions import (
     node_outside_containers,
     primary_region,
     region_node_is_visible,
+    region_text,
 )
 from app.core.config import site_health_acquisition as config
 from app.core.config import site_health_taxonomy as taxonomy
@@ -67,6 +68,7 @@ def empty_page_owned_content_facts() -> dict[str, Any]:
     return {
         "editorial_lead": "",
         "direct_answer": "",
+        "primary_content_text": "",
         "entity_proposition": {
             "identity": "",
             "proposition": "",
@@ -91,6 +93,9 @@ def page_owned_content_facts(root: Any) -> dict[str, Any]:
             if _is_recommendation_container(item)
             or not _contains_rich_text_content(item)
         }
+        facts["primary_content_text"] = region_text(
+            region, excluded_container_ids=container_ids
+        )[: taxonomy.PAGE_OWNED_TEXT_MAX_CHARS]
         outline = _primary_heading_outline(region, container_ids)
         lead = _editorial_lead(region, container_ids)
         proposition = (

@@ -1982,6 +1982,11 @@ def _company_profile_facts(**overrides):
                 "Acme was founded in 2012."
             ),
         },
+        primary_content_text=(
+            "Acme provides workflow software for operations teams. "
+            "Our platform combines planning and reporting in one operating system. "
+            "Acme was founded in 2012."
+        ),
         entity_proposition={
             "identity": "Acme",
             "provider": "Acme",
@@ -2009,6 +2014,9 @@ def test_company_entity_completeness_is_one_weighted_issue_checkpoint() -> None:
         "word_count": 30,
         "text": "Acme provides workflow software for operations teams.",
     }
+    partial_facts["primary_content_text"] = (
+        "Acme provides workflow software for operations teams."
+    )
     partial = evaluate_rule(rule, partial_facts)
     assert partial.outcome == RULE_OUTCOME_PARTIAL
     assert creates_issue(partial)
@@ -2034,6 +2042,9 @@ def test_company_entity_internal_credit_controls_authority_score() -> None:
         "word_count": 30,
         "text": "Acme provides workflow software for operations teams.",
     }
+    facts["primary_content_text"] = (
+        "Acme provides workflow software for operations teams."
+    )
     evaluation = evaluate_rule(rule, facts)
     scores = score_analysis(
         [evaluation],

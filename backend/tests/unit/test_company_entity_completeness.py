@@ -80,6 +80,12 @@ def test_campaign_award_and_testimonial_statistics_do_not_become_proof() -> None
                 "99 customers love it."
             )
         },
+        "primary_content_text": (
+            "Acme provides workflow software for operations teams. "
+            "Our platform combines planning and reporting. Our campaign "
+            "raised 2 million votes and won 12 awards. A testimonial says "
+            "99 customers love it."
+        ),
         "entity_proposition": {
             "provider": "Acme",
             "named_capability": "workflow software",
@@ -89,6 +95,21 @@ def test_campaign_award_and_testimonial_statistics_do_not_become_proof() -> None
         "structured_data": {"blocks": []},
     }
     normalized = extract_company_entity_facts(facts)
+    assert normalized["durable_first_party_proof"] == ""
+
+
+def test_company_proof_reads_only_primary_content() -> None:
+    normalized = extract_company_entity_facts(
+        {
+            "body": {"text": "A footer partner was founded in 1999."},
+            "primary_content_text": "Acme provides workflow software.",
+            "entity_proposition": {
+                "provider": "Acme",
+                "named_capability": "workflow software",
+            },
+            "structured_data": {"blocks": []},
+        }
+    )
     assert normalized["durable_first_party_proof"] == ""
 
 

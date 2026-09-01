@@ -276,6 +276,9 @@ REGION_MAX_ANCESTOR_DEPTH: Final = 24
 
 REGION_MAX_TEXT_CHARS: Final = 200_000
 
+# Persist only enough page-owned prose for bounded downstream rule evidence.
+PAGE_OWNED_TEXT_MAX_CHARS: Final = 12_000
+
 # Candidate ranking is bounded because invalid documents may declare many
 # primary landmarks. Only enough visible text to distinguish page content from
 # an overlay or drawer contributes to the rank.

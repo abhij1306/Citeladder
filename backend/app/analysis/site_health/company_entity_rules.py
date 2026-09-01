@@ -59,8 +59,12 @@ def _organization_name(facts: dict[str, Any], text: str) -> str:
 
 def extract_company_entity_facts(facts: dict[str, Any]) -> dict[str, Any]:
     """Derive a bounded normalized fact shape from already-acquired page facts."""
-    body = _mapping(facts.get("body"))
-    text = " ".join(str(body.get("text") or "").split())[:COMPANY_ENTITY_SCAN_MAX_CHARS]
+    primary_text = facts.get("primary_content_text")
+    text = (
+        " ".join(primary_text.split())[:COMPANY_ENTITY_SCAN_MAX_CHARS]
+        if isinstance(primary_text, str)
+        else ""
+    )
     proposition = _mapping(facts.get("entity_proposition"))
     proposition_text = _bounded(proposition.get("proposition"))
     searchable = f"{proposition_text}. {text}".strip()
@@ -80,7 +84,7 @@ def extract_company_entity_facts(facts: dict[str, Any]) -> dict[str, Any]:
         if proof:
             break
     return {
-        "readable": isinstance(body.get("text"), str),
+        "readable": isinstance(primary_text, str),
         "company_identity": identity,
         "offering": offering,
         "audience_or_use_case": audience,
